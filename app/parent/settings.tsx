@@ -137,19 +137,6 @@ export default function SettingsScreen() {
         </View>
 
         <ScrollView className="flex-1 px-4">
-          {/* Language Debug Section */}
-          <View className="bg-gray-100 p-3 rounded-lg my-3">
-            <RNText>Current Language: {isLuganda ? "Luganda" : "English"}</RNText>
-            <TouchableOpacity onPress={toggleLanguage} className="bg-purple-500 p-2 rounded mt-2">
-              <RNText className="text-white text-center">Change Language (Luganda/English)</RNText>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setShowTestTool(!showTestTool)} className="bg-blue-500 p-2 rounded mt-2">
-              <RNText className="text-white text-center">
-                {showTestTool ? "Done" : "Translate Anything to Luganda"}
-              </RNText>
-            </TouchableOpacity>
-          </View>
-
           {/* API Test Tool */}
           {showTestTool && <TestTranslation />}
 

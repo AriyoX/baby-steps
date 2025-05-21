@@ -43,43 +43,43 @@ const MwangaStory: React.FC = () => {
   const storyPages: StoryPage[] = [
     {
       text: "Kabaka Mwanga II became the king of Buganda in 1884 when he was very young. He inherited a kingdom that was changing rapidly as Europeans brought new ideas and religions.",
-      image: coinImage,
+      image: require("@/assets/story/mwanga/mwanga1.jpg"),
       altText: "Young Kabaka Mwanga II being crowned as king",
     },
     {
       text: "At first, Mwanga allowed Christian missionaries to teach in his kingdom. Many Baganda people, including royal pages who served in the king's court, began to follow these new religions.",
-      image: coinImage,
+      image: require("@/assets/story/mwanga/mwanga2.jpg"),
       altText: "Missionaries teaching Baganda people at the royal court",
     },
     {
       text: "However, Mwanga became worried that his people's loyalty was shifting away from him and Buganda traditions. The new Christians were refusing to follow some of the king's orders.",
-      image: coinImage,
+      image: require("@/assets/story/mwanga/mwanga3.jpg"),
       altText:
         "Kabaka Mwanga looking concerned as people gather around missionaries",
     },
     {
       text: "In 1885, Mwanga ordered the execution of three missionary teachers. Later, he commanded that many converted Baganda Christians be put to death at Namugongo for their disobedience.",
-      image: coinImage,
+      image: require("@/assets/story/mwanga/mwanga4.jpg"),
       altText: "A solemn scene representing the martyrs of Namugongo",
     },
     {
       text: "These people became known as the Uganda Martyrs. Their bravery inspired even more Baganda people to become Christians, which was the opposite of what Mwanga had intended.",
-      image: coinImage,
+      image: require("@/assets/story/mwanga/mwanga5.jpg"),
       altText: "People gathering to honor the memory of the martyrs",
     },
     {
       text: "As European influence grew, Mwanga faced many challenges to his rule. In 1888, he was overthrown but fought to regain his throne. Later, he resisted British colonial control.",
-      image: coinImage,
+      image: require("@/assets/story/mwanga/mwanga6.jpg"),
       altText: "Mwanga leading resistance against colonial forces",
     },
     {
       text: "In 1899, Mwanga was captured by the British and exiled to the Seychelles Islands, far from his homeland. He never returned to Buganda and died in exile in 1903.",
-      image: coinImage,
+      image: require("@/assets/story/mwanga/mwanga7.jpg"),
       altText: "Mwanga being taken away on a ship to exile",
     },
     {
       text: "Today, Kabaka Mwanga is remembered as a complex figure in Buganda's history—a king who fought to preserve his kingdom's independence during a time of great change and outside influence.",
-      image: coinImage,
+      image: require("@/assets/story/mwanga/mwanga8.jpg"),
       altText:
         "A memorial to Kabaka Mwanga with both traditional and modern elements",
     },

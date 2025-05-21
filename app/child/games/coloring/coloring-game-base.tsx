@@ -457,6 +457,15 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
             <Ionicons name="arrow-redo" size={22} color={redoStack.length === 0 ? "#CCCCCC" : "white"} />
           </TouchableOpacity>
 
+          {/* Share button */}
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: "#4CAF50" }]}
+            onPress={shareImage}
+            disabled={isSaving}
+          >
+            <Ionicons name="share-outline" size={22} color="white" />
+          </TouchableOpacity>
+
           {/* Save button */}
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: "#2196F3" }]}
@@ -643,7 +652,7 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
                 {
                   translateY: paletteAnimation.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [100, 0],
+                    outputRange: [150, 0],
                   }),
                 },
               ],
@@ -651,40 +660,47 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
             },
           ]}
         >
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colorScroll}>
-            {colors.map((color) => (
-              <TouchableOpacity
-                key={color}
-                style={[
-                  styles.colorButton,
-                  { backgroundColor: color },
-                  selectedColor === color && styles.selectedColor,
-                ]}
-                onPress={() => handleColorSelection(color)}
-              />
-            ))}
-          </ScrollView>
-
-          {/* Brush size selector - more compact */}
-          <View style={styles.brushSizes}>
-            {[10, 20, 30, 40].map((size) => (
-              <TouchableOpacity
-                key={size}
-                style={[styles.brushButton, brushSize === size && styles.selectedBrush]}
-                onPress={() => changeBrushSize(size)}
-              >
-                <View
+          {/* Colors row */}
+          <View style={styles.paletteSection}>
+            <Text style={styles.paletteSectionTitle}>Colors</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colorScroll}>
+              {colors.map((color) => (
+                <TouchableOpacity
+                  key={color}
                   style={[
-                    styles.brushPreview,
-                    {
-                      width: size / 2,
-                      height: size / 2,
-                      backgroundColor: selectedColor,
-                    },
+                    styles.colorButton,
+                    { backgroundColor: color },
+                    selectedColor === color && styles.selectedColor,
                   ]}
+                  onPress={() => handleColorSelection(color)}
                 />
-              </TouchableOpacity>
-            ))}
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Brush sizes row */}
+          <View style={styles.paletteSection}>
+            <Text style={styles.paletteSectionTitle}>Brush Size</Text>
+            <View style={styles.brushSizes}>
+              {[10, 20, 30, 40].map((size) => (
+                <TouchableOpacity
+                  key={size}
+                  style={[styles.brushButton, brushSize === size && styles.selectedBrush]}
+                  onPress={() => changeBrushSize(size)}
+                >
+                  <View
+                    style={[
+                      styles.brushPreview,
+                      {
+                        width: size / 2,
+                        height: size / 2,
+                        backgroundColor: selectedColor,
+                      },
+                    ]}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         </Animated.View>
       </View>
@@ -840,7 +856,6 @@ const styles = StyleSheet.create({
     bottom: 50,
     left: 0,
     right: 0,
-    height: 90,
     zIndex: 90,
   },
   colorScroll: {
@@ -990,5 +1005,15 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 100,
+  },
+  paletteSection: {
+    marginBottom: 8,
+    paddingHorizontal: 15,
+  },
+  paletteSectionTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 8,
+    color: "#333",
   },
 })

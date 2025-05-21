@@ -323,88 +323,30 @@ const ParentDashboard = () => {
               </View>
             </View>
 
-            {/* Weekly insights */}
             <View className="mb-6">
-              <TranslatedText variant="bold" className="text-gray-800 text-lg mb-3">
-                Weekly Learning Time
-              </TranslatedText>
-
-              <View className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-                <View className="flex-row justify-between items-end h-[120px] mb-2">
-                  {weeklyStats.dailyMinutes.map((minutes, index) => (
-                    <View key={index} className="items-center flex-1">
-                      <View
-                        className="bg-[#7b5af0] rounded-t-lg w-[80%] max-w-6"
-                        style={{
-                          height: (minutes / Math.max(...weeklyStats.dailyMinutes)) * 100,
-                          opacity: 0.6 + (minutes / Math.max(...weeklyStats.dailyMinutes)) * 0.4,
-                        }}
-                      />
-                    </View>
-                  ))}
-                </View>
-                <View className="flex-row justify-between">
-                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, index) => (
-                    <View key={index} className="items-center flex-1">
-                      <Text className="text-gray-500 text-xs">{day}</Text>
-                      <Text className="text-gray-700 text-xs mt-1">{weeklyStats.dailyMinutes[index]}m</Text>
-                    </View>
-                  ))}
-                </View>
-
-                <View className="flex-row items-center justify-between mt-5 pt-3 border-t border-gray-100">
-                  <TranslatedText className="text-gray-800">Total this week:</TranslatedText>
-                  <Text variant="bold" className="text-[#7b5af0]">
-                    {weeklyStats.dailyMinutes.reduce((sum, mins) => sum + mins, 0)} minutes
-                  </Text>
-                </View>
+              <View className="flex-row justify-between items-center mb-3">
+                <TranslatedText variant="bold" className="text-gray-800 text-lg">
+                  Achievements Overview
+                </TranslatedText>
+                {/* Optional: maybe a small stat like "X total achievements defined" */}
               </View>
-            </View>
 
-            {/* Quick actions */}
-            <View className="mb-6">
-              <TranslatedText variant="bold" className="text-gray-800 text-lg mb-3">
-                Parent Tools
-              </TranslatedText>
-
-              <View className="flex-row flex-wrap justify-between">
-                {[
-                  {
-                    icon: "calendar",
-                    label: "Schedule",
-                    route: "/CalendarTrackingPage",
-                  },
-                  {
-                    icon: "trophy",
-                    label: "Achievements",
-                    route: "/child-progress",
-                  },
-                  {
-                    icon: "sliders-h",
-                    label: "Preferences",
-                    route: "/parent/preferences",
-                  },
-                  {
-                    icon: "book-reader",
-                    label: "Resources",
-                    route: "/parent/resources",
-                  },
-                ].map((tool, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    className="bg-white rounded-xl p-4 w-[48%] mb-3 items-center shadow-sm border border-gray-100"
-                    onPress={() => router.push(tool.route as any)}
-                    activeOpacity={0.8}
-                  >
-                    <View className="w-12 h-12 rounded-full bg-purple-100 items-center justify-center mb-2">
-                      <FontAwesome5 name={tool.icon} size={20} color="#7b5af0" />
+              <TouchableOpacity
+                className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex-row items-center justify-between"
+                onPress={() => router.push("/parent/all-achievements")} // Adjust route as needed
+                activeOpacity={0.8}
+              >
+                <View className="flex-row items-center">
+                    <View className="w-10 h-10 bg-amber-100 rounded-full items-center justify-center mr-3">
+                        <Ionicons name="trophy-outline" size={20} color="#f59e0b" />
                     </View>
-                    <TranslatedText variant="medium" className="text-gray-800">
-                      {tool.label}
-                    </TranslatedText>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                    <View>
+                        <Text variant="medium" className="text-gray-700">View All Achievements</Text>
+                        <Text className="text-xs text-gray-500">See progress for each child</Text>
+                    </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+              </TouchableOpacity>
             </View>
 
             {/* Parenting tips */}

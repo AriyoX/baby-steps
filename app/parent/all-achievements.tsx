@@ -53,6 +53,8 @@ export default function AllAchievementsScreen() {
   const [childrenProfiles, setChildrenProfiles] = useState<BasicChildInfo[]>([]);
   // Store earned achievements per child: Record<childId, ChildAchievement[]>
   const [earnedAchievementsByChild, setEarnedAchievementsByChild] = useState<Record<string, ChildAchievement[]>>({});
+  // Add state for game filter
+  const [selectedGameFilter, setSelectedGameFilter] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -129,6 +131,24 @@ export default function AllAchievementsScreen() {
 
   }, [allDefinedAchievements, childrenProfiles, earnedAchievementsByChild]);
 
+  // Get unique game keys for the filter options
+  const gameFilterOptions = useMemo(() => {
+    const gameKeys = Object.keys(groupedAndProcessedAchievements);
+    // Sort the game keys for consistent display order
+    return gameKeys.sort((a, b) => getGameDisplayName(a).localeCompare(getGameDisplayName(b)));
+  }, [groupedAndProcessedAchievements]);
+
+  // Filter the achievements to display based on selected filter
+  const filteredAchievements = useMemo(() => {
+    if (!selectedGameFilter) {
+      return groupedAndProcessedAchievements; // Show all when no filter selected
+    }
+    
+    // Create a new object with only the selected game
+    return {
+      [selectedGameFilter]: groupedAndProcessedAchievements[selectedGameFilter] || []
+    };
+  }, [groupedAndProcessedAchievements, selectedGameFilter]);
 
   if (loading) {
     return (
@@ -153,15 +173,55 @@ export default function AllAchievementsScreen() {
           </TranslatedText>
         </View>
 
+        {/* Game Filter Tabs */}
+        {gameFilterOptions.length > 0 && (
+          <View className="bg-white border-b border-gray-100 pb-2">
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 8 }}
+            >
+              {/* All Games filter option */}
+              <TouchableOpacity 
+                onPress={() => setSelectedGameFilter(null)}
+                className={`px-3 py-2 mr-2 rounded-full ${!selectedGameFilter ? 'bg-indigo-100 border border-indigo-200' : 'bg-gray-50 border border-gray-200'}`}
+              >
+                <Text 
+                  variant={!selectedGameFilter ? "medium" : "regular"} 
+                  className={!selectedGameFilter ? "text-indigo-700" : "text-gray-500"}
+                >
+                  All Games
+                </Text>
+              </TouchableOpacity>
+              
+              {/* Game-specific filter options */}
+              {gameFilterOptions.map(gameKey => (
+                <TouchableOpacity 
+                  key={gameKey}
+                  onPress={() => setSelectedGameFilter(gameKey)}
+                  className={`px-3 py-2 mr-2 rounded-full ${selectedGameFilter === gameKey ? 'bg-indigo-100 border border-indigo-200' : 'bg-gray-50 border border-gray-200'}`}
+                >
+                  <Text 
+                    variant={selectedGameFilter === gameKey ? "medium" : "regular"} 
+                    className={selectedGameFilter === gameKey ? "text-indigo-700" : "text-gray-500"}
+                  >
+                    {getGameDisplayName(gameKey)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         <ScrollView className="flex-1">
-          {Object.keys(groupedAndProcessedAchievements).length === 0 && !loading && (
+          {Object.keys(filteredAchievements).length === 0 && !loading && (
             <View className="p-6 items-center">
                 <Ionicons name="trophy-outline" size={48} color="#cbd5e1" className="mb-3"/>
                 <Text className="text-slate-500 text-center">No achievements defined yet or no children found.</Text>
             </View>
           )}
 
-          {Object.entries(groupedAndProcessedAchievements)
+          {Object.entries(filteredAchievements)
             // Optional: Sort game groups
             .sort(([gameKeyA], [gameKeyB]) => getGameDisplayName(gameKeyA).localeCompare(getGameDisplayName(gameKeyB)))
             .map(([gameKey, achievementsInGroup]) => (

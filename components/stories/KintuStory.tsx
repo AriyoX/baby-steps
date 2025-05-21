@@ -41,42 +41,42 @@ const KintuStory: React.FC = () => {
   const storyPages: StoryPage[] = [
     {
       text: "Long ago, Kintu was the first person on Earth. He lived alone with his cow, which was his only friend and source of food.",
-      image: require("@/assets/story/kintu/kintu-cow.png"),
+      image: require("@/assets/story/kintu/kintu-cow.jpeg"),
       altText: "Kintu standing beside his cow in a grassy field",
     },
     {
       text: "Gulu, the god of the sky, had many children. His daughter, Nambi, saw Kintu and fell in love with him.",
-      image: require("@/assets/story/kintu/nambi.png"),
+      image: require("@/assets/story/kintu/nambi.jpeg"),
       altText: "Nambi looking at Kintu from the sky",
     },
     {
       text: "Nambi decided to marry Kintu and take him to live with her in the sky. But her father, Gulu, set difficult tests for Kintu to prove his worth.",
-      image: require("@/assets/story/kintu/gulu-tests.png"),
+      image: require("@/assets/story/kintu/gulu-tests.jpeg"),
       altText: "Gulu setting tests for Kintu",
     },
     {
       text: "First, Kintu had to eat enormous amounts of food. With help from termites who secretly ate the food, Kintu passed the test.",
-      image: require("@/assets/story/kintu/kintu-food.png"),
+      image: require("@/assets/story/kintu/kintu-food.jpeg"),
       altText: "Kintu eating food with termites helping",
     },
     {
       text: "Then, Kintu had to find his special cow among thousands of identical cows. A bee helped him by landing on his cow's horn.",
-      image: require("@/assets/story/kintu/kintu-cow-search.png"),
+      image: require("@/assets/story/kintu/kintu-cow-search.jpeg"),
       altText: "Kintu finding his cow with the help of a bee",
     },
     {
       text: "After passing all tests, Gulu allowed Kintu to marry Nambi. But he warned them to leave quickly and not come back, or Death would follow them.",
-      image: require("@/assets/story/kintu/kintu-nambi.png"),
+      image: require("@/assets/story/kintu/kintu-nambi.jpeg"),
       altText: "Kintu and Nambi getting married",
     },
     {
       text: "Nambi remembered she forgot to bring chicken feed. Despite Kintu's warning, she went back to get it. Death secretly followed them to Earth.",
-      image: require("@/assets/story/kintu/death-follows.png"),
+      image: require("@/assets/story/kintu/death-follows.jpeg"),
       altText: "Death following Kintu and Nambi to Earth",
     },
     {
       text: "Kintu and Nambi started a family on Earth. They became the ancestors of the Baganda people. But because Death followed them, people don't live forever.",
-      image: require("@/assets/story/kintu/kintu-family.png"),
+      image: require("@/assets/story/kintu/kintu-family.jpeg"),
       altText: "Kintu and Nambi with their family",
     },
   ];

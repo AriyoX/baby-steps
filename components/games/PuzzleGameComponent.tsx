@@ -152,20 +152,20 @@ const BugandaPuzzleGame: React.FC = () => {
     {
       id: 1,
       name: "Kasubi Tombs",
-      source: require("../../assets/puzzles/kasubi-tombs.png"),
+      source: require("../../assets/puzzles/kasubi-tombs.jpg"),
       description:
         "A UNESCO World Heritage site and burial ground of Buganda kings",
     },
     {
       id: 2,
       name: "Buganda Royal Drums",
-      source: require("../../assets/puzzles/buganda-drums.png"),
+      source: require("../../assets/puzzles/buganda-drums.jpg"),
       description: "Traditional royal drums used in Buganda ceremonies",
     },
     {
       id: 3,
       name: "Lubiri Palace",
-      source: require("../../assets/puzzles/lubiri-palace.png"),
+      source: require("../../assets/puzzles/lubiri-palace.jpg"),
       description: "The palace of the Kabaka (King) of Buganda",
     },
   ];

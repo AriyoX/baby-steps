@@ -23,27 +23,26 @@
     "@supabase/supabase-js": "^2.49.1",
     "axios": "^1.9.0",
     "baby-steps": "file:",
-    "expo": "~52.0.38",
+    "expo": "~52.0.46",
     "expo-asset": "~11.0.4",
     "expo-av": "~15.0.2",
     "expo-blur": "~14.0.3",
     "expo-camera": "~16.0.18",
     "expo-constants": "~17.0.8",
     "expo-font": "~13.0.4",
-    "expo-gl": "~15.0.4",
+    "expo-gl": "~15.0.5",
     "expo-haptics": "~14.0.1",
     "expo-image-manipulator": "~13.0.6",
     "expo-linear-gradient": "~14.0.2",
     "expo-linking": "~7.0.5",
-    "expo-permissions": "^14.4.0",
-    "expo-router": "~4.0.19",
+    "expo-router": "~4.0.21",
     "expo-screen-orientation": "~8.0.4",
     "expo-sensors": "^14.0.2",
     "expo-speech": "~13.0.1",
-    "expo-splash-screen": "~0.29.22",
+    "expo-splash-screen": "~0.29.24",
     "expo-status-bar": "~2.0.1",
     "expo-symbols": "~0.2.2",
-    "expo-system-ui": "~4.0.8",
+    "expo-system-ui": "~4.0.9",
     "expo-web-browser": "~14.0.2",
     "i18next": "^24.2.3",
     "i18next-browser-languagedetector": "^8.0.4",
@@ -80,5 +79,19 @@
     "react-test-renderer": "18.3.1",
     "typescript": "^5.3.3"
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": [
+          "react-native-orientation-locker",
+          "@rneui/themed",
+          "i18next-browser-languagedetector",
+          "i18next-http-backend",
+          "three"
+        ],
+        "listUnknownPackages": false
+      }
+    }
+  }
 }

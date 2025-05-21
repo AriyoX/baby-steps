@@ -284,7 +284,7 @@ export default function Auth() {
               </Text>
             </TouchableOpacity>
           </View> */}
-          <View className="mt-8 mx-6">
+          {/* <View className="mt-8 mx-6">
             <TouchableOpacity
               className="bg-muted-200 py-3 rounded-xl items-center"
               onPress={() => router.push("/reset-password")}
@@ -292,7 +292,7 @@ export default function Auth() {
             >
               <Text className="text-orange-600 font-bold">Reset Password</Text>
             </TouchableOpacity>
-          </View>
+          </View> */}
         </ScrollView>
       </SafeAreaView>
     </KeyboardAvoidingView>

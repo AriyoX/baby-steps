@@ -63,7 +63,7 @@ export default function ArtifactsScreen() {
       image: require("@/assets/images/engoma.png"),
       description:
         "These sacred royal drums symbolize the authority of the Kabaka (king). Each drum has a specific name and purpose in royal ceremonies.",
-      audio: require("@/assets/sounds/drums.mp3"),
+      audio: require("@/assets/sounds/endongo.mp3"),
     },
     {
       id: 2,
@@ -71,7 +71,7 @@ export default function ArtifactsScreen() {
       image: require("@/assets/images/spears.png"),
       description:
         "Used both for hunting and warfare, these spears represent the strength and bravery of Buganda warriors throughout history.",
-      audio: require("@/assets/sounds/spears_hit.mp3"),
+      audio: require("@/assets/sounds/amafumu.mp3"),
     },
     {
       id: 3,
@@ -79,7 +79,7 @@ export default function ArtifactsScreen() {
       image: require("@/assets/images/royal_stool.png"),
       description:
         "Special wooden stools used by the Kabaka and other royal officials during important ceremonies and meetings.",
-      audio: require("@/assets/sounds/bar-stool.mp3"),
+      audio: require("@/assets/sounds/entebe.mp3"),
     },
     {
       id: 4,
@@ -94,7 +94,7 @@ export default function ArtifactsScreen() {
       image: require("@/assets/images/regalia.jpg"),
       description:
         "Special items used by the Kabaka including crowns, staffs, and emblems that represent royal authority.",
-      audio: require("@/assets/sounds/regalia.mp3"),
+      audio: require("@/assets/sounds/engoye.mp3"),
     },
   ]
 

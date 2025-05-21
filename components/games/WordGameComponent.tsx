@@ -62,7 +62,16 @@ const getImageSource = (imageName: string | undefined) => {
     case 'wildlife.jpg':
       return require('@/assets/images/wildlife.jpg');
     case 'coin.jpg':
-      return require('@/assets/images/coin.png');
+      return require('@/assets/images/wildlife.jpg');
+    case 'rain.jpg':
+      return require('@/assets/images/rain.jpg');
+    case 'chicken.jpg':
+      return require('@/assets/images/chicken.jpg');
+    case 'black-kid.jpg':
+      return require('@/assets/images/black-kid.jpg');
+    case 'river-kids.jpg':
+      return require('@/assets/images/river-kids.jpg');
+
     // Add cases for other images
     default:
       return require('@/assets/images/coin.png');

@@ -14,7 +14,7 @@ export const gameLevels: GameLevel[] = [
     question: "Essential liquid that falls from the sky",
     hint: "You drink this every day to stay healthy",
     subHint: "In English, it's called 'water' - think of the sound 'A-MA-ZI'",
-    image: "wildlife.jpg",
+    image: "rain.jpg",
   },
   {
     word: "EMBWA",

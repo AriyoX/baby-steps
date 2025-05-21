@@ -5,14 +5,14 @@ import ColoringGameScreen from "./coloring-game-base"
 // Load image from local assets
 const COLORING_IMAGE = require("@/assets/images/shapes.jpg")
 
-// Define colors for this specific coloring page
+// Define bright, baby-friendly colors
 const COLORS = [
+  "#FF4081", // Pink
+  "#FF9800", // Orange
   "#FFEB3B", // Yellow
-  "#4CAF50", // Green
-  "#2196F3", // Blue
-  "#673AB7", // Purple
-  "#795548", // Brown
-  "#607D8B", // Gray
+  "#8BC34A", // Light Green
+  "#03A9F4", // Light Blue
+  "#9C27B0", // Purple
   "#000000", // Black
   "#FFFFFF", // White
 ]

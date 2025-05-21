@@ -10,7 +10,6 @@ const COLORS = [
   "#FFEB3B", // Yellow
   "#4CAF50", // Green
   "#2196F3", // Blue
-  "#673AB7", // Purple
   "#795548", // Brown
   "#607D8B", // Gray
   "#000000", // Black

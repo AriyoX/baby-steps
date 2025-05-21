@@ -95,7 +95,10 @@ const smoothPath = (points: Point[]): string => {
 export default function ColoringGameScreen({ imageSource, pageName, colors = DEFAULT_COLORS }: ColoringGameProps) {
   const insets = useSafeAreaInsets()
   const colorScheme = useColorScheme()
+  // Modify the state to include color name feedback
   const [selectedColor, setSelectedColor] = useState(colors[0])
+  const [selectedColorName, setSelectedColorName] = useState("")
+  const [showColorName, setShowColorName] = useState(false)
   const [brushSize, setBrushSize] = useState(15) // Larger default for babies
   const [selectedTool, setSelectedTool] = useState<ToolType>("brush")
 
@@ -279,6 +282,32 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
     setShowColorPalette(!showColorPalette)
   }
 
+  // Add this function after the toggleColorPalette function
+  const handleColorSelection = (color: string) => {
+    // Get color name based on hex value
+    const colorNames: Record<string, string> = {
+      "#FF4081": "Pink",
+      "#FF9800": "Orange",
+      "#FFEB3B": "Yellow",
+      "#8BC34A": "Green",
+      "#03A9F4": "Blue",
+      "#9C27B0": "Purple",
+      "#000000": "Black",
+      "#FFFFFF": "White",
+    }
+
+    setSelectedColor(color)
+    setSelectedColorName(colorNames[color] || "Color")
+
+    // Show the color name feedback
+    setShowColorName(true)
+
+    // Hide after 3 seconds
+    setTimeout(() => {
+      setShowColorName(false)
+    }, 3000)
+  }
+
   // Toggle tool options visibility
   const toggleToolOptions = () => {
     setShowToolOptions(!showToolOptions)
@@ -396,12 +425,13 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
     }
   }
 
+  // Replace the entire return statement with this updated layout that emphasizes the coloring space
   return (
     <ThemedView style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {/* Header with exit button and save button */}
+      {/* Compact header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.exitButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="white" />
+          <Ionicons name="arrow-back" size={22} color="white" />
         </TouchableOpacity>
 
         <View style={styles.headerTitle}>
@@ -415,7 +445,7 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
             onPress={handleUndo}
             disabled={undoStack.length === 0}
           >
-            <Ionicons name="arrow-undo" size={24} color={undoStack.length === 0 ? "#CCCCCC" : "white"} />
+            <Ionicons name="arrow-undo" size={22} color={undoStack.length === 0 ? "#CCCCCC" : "white"} />
           </TouchableOpacity>
 
           {/* Redo button */}
@@ -424,16 +454,7 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
             onPress={handleRedo}
             disabled={redoStack.length === 0}
           >
-            <Ionicons name="arrow-redo" size={24} color={redoStack.length === 0 ? "#CCCCCC" : "white"} />
-          </TouchableOpacity>
-
-          {/* Share button */}
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: "#4CAF50" }]}
-            onPress={shareImage}
-            disabled={isSaving}
-          >
-            <Ionicons name="share-outline" size={24} color="white" />
+            <Ionicons name="arrow-redo" size={22} color={redoStack.length === 0 ? "#CCCCCC" : "white"} />
           </TouchableOpacity>
 
           {/* Save button */}
@@ -445,14 +466,15 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
             {isSaving ? (
               <ActivityIndicator size="small" color="white" />
             ) : (
-              <Ionicons name="save-outline" size={24} color="white" />
+              <Ionicons name="save-outline" size={22} color="white" />
             )}
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Main content area with drawing canvas and color palette side by side */}
-      <View style={styles.mainContent}>
+      {/* Expanded canvas area */}
+      <View style={styles.expandedContent}>
+        {/* Main coloring canvas - now takes up most of the screen */}
         <View style={styles.canvasContainer}>
           {/* ViewShot wrapper to capture the canvas */}
           <ViewShot ref={viewShotRef} options={{ format: "jpg", quality: 0.9 }} style={styles.viewShot}>
@@ -560,10 +582,17 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
           >
             <Text style={styles.successText}>Great job! 🎉</Text>
           </Animated.View>
+
+          {/* Color selection feedback */}
+          {showColorName && (
+            <View style={styles.colorNameContainer}>
+              <Text style={styles.colorNameText}>You have selected {selectedColorName}</Text>
+            </View>
+          )}
         </View>
 
-        {/* Bottom toolbar */}
-        <View style={styles.toolbar}>
+        {/* Compact bottom controls */}
+        <View style={styles.compactControls}>
           {/* Tool selector */}
           <View style={styles.toolSelector}>
             {/* Brush tool */}
@@ -571,7 +600,7 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
               style={[styles.toolButton, selectedTool === "brush" && styles.selectedTool]}
               onPress={() => selectTool("brush")}
             >
-              <Ionicons name="brush" size={28} color={selectedTool === "brush" ? "#FF4081" : "#333"} />
+              <Ionicons name="brush" size={24} color={selectedTool === "brush" ? "#FF4081" : "#333"} />
             </TouchableOpacity>
 
             {/* Eraser tool */}
@@ -579,7 +608,7 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
               style={[styles.toolButton, selectedTool === "eraser" && styles.selectedTool]}
               onPress={() => selectTool("eraser")}
             >
-              <MaterialCommunityIcons name="eraser" size={28} color={selectedTool === "eraser" ? "#FF4081" : "#333"} />
+              <MaterialCommunityIcons name="eraser" size={24} color={selectedTool === "eraser" ? "#FF4081" : "#333"} />
             </TouchableOpacity>
 
             {/* Fill tool */}
@@ -587,12 +616,12 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
               style={[styles.toolButton, selectedTool === "fill" && styles.selectedTool]}
               onPress={() => selectTool("fill")}
             >
-              <Ionicons name="color-fill" size={28} color={selectedTool === "fill" ? "#FF4081" : "#333"} />
+              <Ionicons name="color-fill" size={24} color={selectedTool === "fill" ? "#FF4081" : "#333"} />
             </TouchableOpacity>
 
             {/* Clear button */}
             <TouchableOpacity style={[styles.toolButton, { backgroundColor: "#FF3B30" }]} onPress={clearCanvas}>
-              <Ionicons name="trash-outline" size={28} color="white" />
+              <Ionicons name="trash-outline" size={24} color="white" />
             </TouchableOpacity>
           </View>
 
@@ -601,11 +630,11 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
             style={[styles.paletteToggle, showColorPalette && styles.paletteToggleActive]}
             onPress={toggleColorPalette}
           >
-            <Ionicons name="color-palette" size={28} color={showColorPalette ? "#FF4081" : "#333"} />
+            <Ionicons name="color-palette" size={24} color={showColorPalette ? "#FF4081" : "#333"} />
           </TouchableOpacity>
         </View>
 
-        {/* Color Palette (animated) */}
+        {/* Color Palette (animated) - now more compact */}
         <Animated.View
           style={[
             styles.colorPalette,
@@ -614,7 +643,7 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
                 {
                   translateY: paletteAnimation.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [200, 0],
+                    outputRange: [100, 0],
                   }),
                 },
               ],
@@ -631,12 +660,12 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
                   { backgroundColor: color },
                   selectedColor === color && styles.selectedColor,
                 ]}
-                onPress={() => setSelectedColor(color)}
+                onPress={() => handleColorSelection(color)}
               />
             ))}
           </ScrollView>
 
-          {/* Brush size selector */}
+          {/* Brush size selector - more compact */}
           <View style={styles.brushSizes}>
             {[10, 20, 30, 40].map((size) => (
               <TouchableOpacity
@@ -672,16 +701,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 15,
-    height: 60,
+    paddingHorizontal: 10,
+    height: 50,
     backgroundColor: "#FF4081",
+    zIndex: 110,
   },
   headerTitle: {
     flex: 1,
     alignItems: "center",
   },
   headerText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "bold",
     color: "white",
   },
@@ -690,17 +720,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   actionButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
-    marginLeft: 10,
+    marginLeft: 8,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
   mainContent: {
     flex: 1,
@@ -753,23 +783,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 15,
-    paddingVertical: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
     borderTopColor: "#EEEEEE",
+    height: 60, // Reduced height
   },
   toolSelector: {
     flexDirection: "row",
     alignItems: "center",
   },
   toolButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 10,
+    marginRight: 8,
     backgroundColor: "#F5F5F5",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
@@ -783,9 +814,9 @@ const styles = StyleSheet.create({
     borderColor: "#FF4081",
   },
   paletteToggle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#F5F5F5",
@@ -801,10 +832,16 @@ const styles = StyleSheet.create({
     borderColor: "#FF4081",
   },
   colorPalette: {
-    backgroundColor: "#FFFFFF",
-    paddingVertical: 15,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    paddingVertical: 8,
     borderTopWidth: 1,
     borderTopColor: "#EEEEEE",
+    position: "absolute",
+    bottom: 50,
+    left: 0,
+    right: 0,
+    height: 90,
+    zIndex: 90,
   },
   colorScroll: {
     paddingHorizontal: 15,
@@ -917,5 +954,41 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 24,
     fontWeight: "bold",
+  },
+  colorNameContainer: {
+    position: "absolute",
+    top: 20,
+    alignSelf: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    zIndex: 1000,
+  },
+  colorNameText: {
+    color: "#FFFFFF",
+    fontSize: 22,
+    fontWeight: "bold",
+  },
+  expandedContent: {
+    flex: 1,
+    position: "relative",
+    backgroundColor: "#FFFFFF",
+  },
+  compactControls: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    borderTopWidth: 1,
+    borderTopColor: "#EEEEEE",
+    height: 50,
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
   },
 })

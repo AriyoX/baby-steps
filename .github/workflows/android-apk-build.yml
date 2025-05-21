@@ -35,4 +35,4 @@ jobs:
       # Build the Android APK
       - name: Build Android APK
         run: |
-          eas build --platform android --profile groceries --non-interactive
+          eas build --platform android --profile babysteps --non-interactive

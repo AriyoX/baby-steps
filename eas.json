@@ -16,7 +16,7 @@
         "buildType": "app-bundle"
       }
     },
-    "groceries": {
+    "babysteps": {
       "android": {
         "buildType": "apk",
         "gradleCommand": ":app:assembleRelease"

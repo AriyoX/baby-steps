@@ -421,82 +421,78 @@ export const LUGANDA_STAGES: Stage[] = [
 
 // Helper function to get all words from all stages
 export const getAllWords = (): WordItem[] => {
-  const allWords: WordItem[] = [];
-  
-  LUGANDA_STAGES.forEach(stage => {
-    stage.levels.forEach(level => {
-      allWords.push(...level.words);
-    });
-  });
-  
-  return allWords;
-};
+  const allWords: WordItem[] = []
+
+  LUGANDA_STAGES.forEach((stage) => {
+    stage.levels.forEach((level) => {
+      allWords.push(...level.words)
+    })
+  })
+
+  return allWords
+}
 
 // Helper function to get words for a specific level
 export const getWordsForLevel = (stageId: number, levelId: number): WordItem[] => {
-  const stage = LUGANDA_STAGES.find(s => s.id === stageId);
-  if (!stage) return [];
-  
-  const level = stage.levels.find(l => l.id === levelId);
-  return level ? level.words : [];
-};
+  const stage = LUGANDA_STAGES.find((s) => s.id === stageId)
+  if (!stage) return []
+
+  const level = stage.levels.find((l) => l.id === levelId)
+  return level ? level.words : []
+}
 
 // Helper function to get all levels for a specific stage
 export const getLevelsForStage = (stageId: number): Level[] => {
-  const stage = LUGANDA_STAGES.find(s => s.id === stageId);
-  return stage ? stage.levels : [];
-};
+  const stage = LUGANDA_STAGES.find((s) => s.id === stageId)
+  return stage ? stage.levels : []
+}
 
 // Helper to check if all levels in a stage are completed
 export const isStageCompleted = (stageId: number, completedLevels: number[]): boolean => {
-  const stage = LUGANDA_STAGES.find(s => s.id === stageId); // Use LUGANDA_STAGES as the source of truth for structure
-  if (!stage) return false;
-  return stage.levels.every(level => completedLevels.includes(level.id));
-};
+  const stage = LUGANDA_STAGES.find((s) => s.id === stageId)
+  if (!stage) return false
+  return stage.levels.every((level) => completedLevels.includes(level.id))
+}
 
 // Helper to unlock the next stage
 export const unlockNextStage = (currentStageId: number, stages: Stage[]): Stage[] => {
   // Create a deep copy of the stages array to avoid direct mutation
-  const updatedStages = stages.map(stage => ({
+  const updatedStages = stages.map((stage) => ({
     ...stage,
-    levels: stage.levels.map(level => ({ ...level }))
-  }));
+    levels: stage.levels.map((level) => ({ ...level })),
+  }))
 
-  const nextStageIndex = updatedStages.findIndex(stage => stage.id === currentStageId + 1);
+  const nextStageIndex = updatedStages.findIndex((stage) => stage.id === currentStageId + 1)
 
   if (nextStageIndex !== -1) {
-    const nextStageToUnlock = updatedStages[nextStageIndex];
-    nextStageToUnlock.isLocked = false;
+    const nextStageToUnlock = updatedStages[nextStageIndex]
+    nextStageToUnlock.isLocked = false
 
     // Also unlock first level of that stage, if it exists
     if (nextStageToUnlock.levels.length > 0) {
-      nextStageToUnlock.levels[0].isLocked = false;
+      nextStageToUnlock.levels[0].isLocked = false
     }
   }
-  return updatedStages; // Return the new, modified array
-};
+  return updatedStages // Return the new, modified array
+}
 
 // Helper to unlock the next level within a stage
-export const unlockNextLevel = (
-  currentStageId: number,
-  currentLevelId: number,
-  stages: Stage[]
-): Stage[] => {
+export const unlockNextLevel = (currentStageId: number, currentLevelId: number, stages: Stage[]): Stage[] => {
   // Create a deep copy of the stages array
-  const updatedStages = stages.map(stage => ({
+  const updatedStages = stages.map((stage) => ({
     ...stage,
-    levels: stage.levels.map(level => ({ ...level }))
-  }));
+    levels: stage.levels.map((level) => ({ ...level })),
+  }))
 
-  const stageIndex = updatedStages.findIndex(s => s.id === currentStageId);
-  if (stageIndex === -1) return updatedStages; // Or return original `stages` if preferred
+  const stageIndex = updatedStages.findIndex((s) => s.id === currentStageId)
+  if (stageIndex === -1) return updatedStages
 
-  const stageToUpdate = updatedStages[stageIndex];
-  const currentLevelIndex = stageToUpdate.levels.findIndex(l => l.id === currentLevelId);
+  const stageToUpdate = updatedStages[stageIndex]
+  const currentLevelIndex = stageToUpdate.levels.findIndex((l) => l.id === currentLevelId)
 
   if (currentLevelIndex !== -1 && currentLevelIndex < stageToUpdate.levels.length - 1) {
     // Unlock the next level in the copied structure
-    stageToUpdate.levels[currentLevelIndex + 1].isLocked = false;
+    stageToUpdate.levels[currentLevelIndex + 1].isLocked = false
   }
-  return updatedStages; // Return the new, modified array
-};
+  return updatedStages // Return the new, modified array
+}

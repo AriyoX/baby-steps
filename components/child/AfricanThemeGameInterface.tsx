@@ -316,7 +316,7 @@ const AfricanThemeGameInterface: React.FC = () => {
           {
             id: "instruments",
             title: "Instruments",
-            image: require("@/assets/images/drum.jpg"),
+            image: require("@/assets/images/drums.jpg"),
             description: "Learn about traditional African musical instruments",
             targetPage: "child/games/museum/InstrumentsScreen",
           },

@@ -42,6 +42,24 @@ import {
   DEFAULT_USER_STATS
 } from './utils/progressManagerLugandaLearning'; // Adjust the import path as necessary
 
+const SOUNDS = {
+  // Word pronunciations
+  Bubi: require("@/assets/audio/Bubi.mp3"),
+  Amazzi: require("@/assets/audio/Amazzi.mp3"),
+  Bulungi: require("@/assets/audio/Bulungi.mp3"),
+  Ekibira: require("@/assets/audio/Ekibira.mp3"),
+  Ekibuga: require("@/assets/audio/Ekibuga.mp3"),
+  Eggulu: require("@/assets/audio/Eggulu.mp3"),
+  Eddwaliro: require("@/assets/audio/Eddwaliro.mp3"),
+  
+  // Game sounds
+  complete: require("@/assets/audio/complete.mp3"),
+  backgroundMusic: require("@/assets/audio/background-music.mp3"),
+  
+  // Keep your existing sounds
+  correct: require("../../assets/audio/complete.mp3"),
+  wrong: require("../../assets/audio/complete.mp3"),
+};
 // Game state types
 type GameState =
   | "menu"

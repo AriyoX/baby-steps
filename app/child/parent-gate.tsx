@@ -50,7 +50,7 @@ export default function ParentGate() {
   return (
     <>
       <StatusBar style="light" translucent backgroundColor="transparent" />
-      <ImageBackground source={require("@/assets/images/gameBackground.png")} className="flex-1">
+      <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1">
         <SafeAreaView className="flex-1" edges={["right", "bottom", "left"]}>
           <View className="flex-1 bg-[#7b5af0d9] py-6 px-4">
             {/* Header with back button */}
@@ -72,7 +72,7 @@ export default function ParentGate() {
                     {correctPin.split("").join(" ")}
                   </Text>
 
-                  <Image source={require("@/assets/images/lock-icon.png")} className="w-[90px] h-[75px] mb-6" />
+                  <Image source={require("@/assets/images/lock-icon.jpg")} className="w-[90px] h-[75px] mb-6" />
 
                   <View className="flex-row gap-4 mb-2">
                     {[0, 1, 2].map((i) => (

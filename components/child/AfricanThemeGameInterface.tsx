@@ -316,7 +316,7 @@ const AfricanThemeGameInterface: React.FC = () => {
           {
             id: "instruments",
             title: "Instruments",
-            image: require("@/assets/images/drum.jpg"),
+            image: require("@/assets/images/drums.jpg"),
             description: "Learn about traditional African musical instruments",
             targetPage: "child/games/museum/InstrumentsScreen",
           },
@@ -395,7 +395,7 @@ const AfricanThemeGameInterface: React.FC = () => {
       <StatusBar style="light" translucent backgroundColor="transparent" />
 
       {/* ImageBackground now covers the entire screen including status bar */}
-      <ImageBackground source={require("@/assets/images/gameBackground.png")} className="flex-1 bg-cover">
+      <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
         {/* SafeAreaView moved inside ImageBackground */}
         <SafeAreaView className="flex-1" edges={["right", "bottom", "left"]}>
           {/* Main content area */}
@@ -409,7 +409,7 @@ const AfricanThemeGameInterface: React.FC = () => {
                 }}
               >
                 <Image
-                  source={require("@/assets/images/african-avatar.png")}
+                  source={require("@/assets/images/african-avatar.jpg")}
                   className="w-[70px] h-[70px] rounded-full border-3 border-[#FFD700]"
                 />
               </Animated.View>

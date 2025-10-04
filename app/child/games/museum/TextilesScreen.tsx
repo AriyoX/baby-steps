@@ -14,7 +14,6 @@ import {
 import { Audio, type AVPlaybackSource } from "expo-av"
 import { MaterialIcons, Ionicons } from "@expo/vector-icons"
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler"
-import { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
 import { useRouter } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { TranslatedText } from "@/components/translated-text"
@@ -98,22 +97,21 @@ export default function TextilesScreen() {
     await newSound.playAsync()
   }
 
-  const TextileCard = ({ item }: { item: Textile }) => {
-    const scale = useSharedValue(1)
+  const TextileCard = ({ item }: { item: Textile; key?: React.Key }) => {
+    const scaleAnim = useState(new Animated.Value(1))[0]
 
     const pinchGesture = Gesture.Pinch()
       .onUpdate((event) => {
-        scale.value = event.scale > 0.5 ? (event.scale < 3 ? event.scale : 3) : 0.5
+        const scale = event.scale > 0.5 ? (event.scale < 3 ? event.scale : 3) : 0.5
+        scaleAnim.setValue(scale)
       })
       .onEnd(() => {
-        scale.value = withTiming(1)
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }).start()
       })
-
-    const animatedStyle = useAnimatedStyle(() => {
-      return {
-        transform: [{ scale: scale.value }],
-      }
-    })
 
     return (
       <TouchableOpacity
@@ -127,7 +125,7 @@ export default function TextilesScreen() {
         }}
       >
         <GestureDetector gesture={pinchGesture}>
-          <Animated.View style={animatedStyle}>
+          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
             <Image source={item.image} className="w-full h-32" resizeMode="cover" />
           </Animated.View>
         </GestureDetector>

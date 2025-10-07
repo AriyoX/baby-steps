@@ -30,9 +30,8 @@ jobs:
 
       # Install dependencies
       - name: Install dependencies
-        run: yarn install
+        run: npm ci
 
       # Build the Android APK
       - name: Build Android APK
-        run: |
-          eas build --platform android --profile groceries --non-interactive
+        run: eas build --platform android --profile groceries --non-interactive

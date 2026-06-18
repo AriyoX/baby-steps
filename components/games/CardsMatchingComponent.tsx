@@ -1110,7 +1110,7 @@ const BugandaMatchingGame: React.FC = () => {
 
             <View className="bg-primary-50 w-full rounded-xl p-4 mb-5">
               <Text className="text-xl text-primary-700 text-center font-medium">
-                You've completed the game in {moves} moves!
+                {`You've completed the game in ${moves} moves!`}
               </Text>
             </View>
 

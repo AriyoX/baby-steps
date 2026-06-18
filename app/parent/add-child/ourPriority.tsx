@@ -56,9 +56,7 @@ export default function YourChildIsOurPriorityScreen() {
             </TranslatedText>
 
             <TranslatedText className="text-base text-center text-neutral-600 mb-6 leading-6">
-              At BabySteps, we understand the importance of fostering your child's growth and development. We are
-              committed to providing content and activities that are tailored to their learning journey, helping them
-              grow in a healthy and positive environment.
+              {"At BabySteps, we understand the importance of fostering your child's growth and development. We are committed to providing content and activities that are tailored to their learning journey, helping them grow in a healthy and positive environment."}
             </TranslatedText>
 
             {/* Key points with icons */}
@@ -100,7 +98,7 @@ export default function YourChildIsOurPriorityScreen() {
                     Personalized Journey:
                   </TranslatedText>
                   <TranslatedText className="text-sm text-neutral-700">
-                    Content adapts to your child's progress
+                    {"Content adapts to your child's progress"}
                   </TranslatedText>
                 </View>
               </View>

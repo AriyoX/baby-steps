@@ -53,7 +53,7 @@ export default function AgeSelectionScreen() {
             <FontAwesome5 name="arrow-left" size={16} color="#3e4685" />
           </TouchableOpacity>
           <TranslatedText variant="bold" className="flex-1 text-center text-2xl text-primary-800 mr-10">
-            Child's Age
+            {"Child's Age"}
           </TranslatedText>
         </View>
 

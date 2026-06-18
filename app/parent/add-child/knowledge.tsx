@@ -60,8 +60,7 @@ export default function CanYourKidMatchNumbersToObjectsScreen() {
             </TranslatedText>
 
             <TranslatedText className="text-base text-center text-neutral-600 mb-8 leading-6">
-              Can your child match numbers with objects? For example, matching the number "3" with three apples or three
-              toys.
+              {'Can your child match numbers with objects? For example, matching the number "3" with three apples or three toys.'}
             </TranslatedText>
 
             {/* Options */}

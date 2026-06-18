@@ -8,9 +8,9 @@ import {
   Image,
   Dimensions,
   BackHandler,
-  SafeAreaView,
   Animated,
 } from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
 import { Audio, type AVPlaybackSource } from "expo-av"
 import { MaterialIcons, Ionicons } from "@expo/vector-icons"
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler"

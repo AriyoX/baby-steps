@@ -1,12 +1,16 @@
 import { View, StyleSheet } from 'react-native';
 import { Link, Stack } from 'expo-router';
+import { useChild } from '@/context/ChildContext';
 
 export default function NotFoundScreen() {
+  const { activeChild } = useChild();
+  const fallbackHref = activeChild ? '/child' : '/parent';
+
   return (
     <>
       <Stack.Screen options={{ title: 'Oops! Not Found' }} />
       <View style={styles.container}>
-        <Link href="/" style={styles.button}>
+        <Link href={fallbackHref as any} style={styles.button}>
           Go back to Home screen!
         </Link>
       </View>

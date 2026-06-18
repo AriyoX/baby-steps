@@ -168,7 +168,7 @@ export default function ForgotPassword() {
                 Forgot Your Password?
               </Text>
               <Text className="text-lg text-center text-neutral-600 mt-3 px-8">
-                No worries! We'll send a reset link to your email.
+                {"No worries! We'll send a reset link to your email."}
               </Text>
             </Animated.View>
           </View>

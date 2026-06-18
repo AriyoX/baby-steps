@@ -6,12 +6,12 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  SafeAreaView,
   BackHandler,
   Dimensions,
   Modal,
   Animated,
 } from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
 import { MaterialIcons, Ionicons } from "@expo/vector-icons"
 import { WebView } from "react-native-webview"
 import { useRouter } from "expo-router"

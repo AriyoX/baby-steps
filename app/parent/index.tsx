@@ -168,7 +168,7 @@ const ParentDashboard = () => {
               <TranslatedText variant="bold" className="text-gray-800 text-2xl">
                 Parent Dashboard
               </TranslatedText>
-              <TranslatedText className="text-gray-500">Monitor your children's learning journey</TranslatedText>
+              <TranslatedText className="text-gray-500">{"Monitor your children's learning journey"}</TranslatedText>
             </View>
 
             <View className="flex-row">
@@ -360,7 +360,7 @@ const ParentDashboard = () => {
                 activeOpacity={0.8}
               >
                 <TranslatedText variant="medium" className="text-gray-800 mb-2">
-                  Supporting your child's learning at home
+                  {"Supporting your child's learning at home"}
                 </TranslatedText>
                 <TranslatedText className="text-gray-600 text-sm">
                   Create a comfortable learning environment with minimal distractions and regular routines.

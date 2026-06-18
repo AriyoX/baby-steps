@@ -1,6 +1,6 @@
 // progressManager.ts
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Stage, Level, LUGANDA_STAGES } from './lugandawords'; // Assuming lugandawords.ts is in the same directory or accessible path
+import { Stage, LUGANDA_STAGES } from '@/content/games/lugandawords';
 
 // Keys for AsyncStorage
 const SCORE_KEY = 'luganda_total_score';
@@ -173,23 +173,6 @@ export const unlockNextLevel = (
     }
     return stage;
   });
-  // This version is more complex to make pure if it's directly unlocking.
-  // The `lugandawords.ts` version is simpler for this task.
-  // I'll keep the original simpler (but potentially mutating if not careful) version for now,
-  // assuming the pure versions from `lugandawords.ts` are used in the component.
-  const originalLogicStages = [...stages]; // Shallow copy
-  const stageIndex = originalLogicStages.findIndex(stage => stage.id === currentStageId);
-
-  if (stageIndex === -1) return originalLogicStages;
-
-  const currentStage = {...originalLogicStages[stageIndex], levels: [...originalLogicStages[stageIndex].levels.map(l => ({...l}))]}; // Deeper copy of target stage
-  const currentLevelIndex = currentStage.levels.findIndex(level => level.id === currentLevelId);
-
-  if (currentLevelIndex !== -1 && currentLevelIndex < currentStage.levels.length - 1) {
-    currentStage.levels[currentLevelIndex + 1].isLocked = false; // Mutates the copied level
-    originalLogicStages[stageIndex] = currentStage; // Put the modified copy back
-  }
-  return originalLogicStages;
 };
 
 // Check if stage is completed and unlock next stage if applicable (PURE FUNCTION - Example)

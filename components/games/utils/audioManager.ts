@@ -1,6 +1,7 @@
 // audioManager.ts
 import { Audio } from "expo-av"
-import type { WordItem } from "./lugandawords"
+import { Asset } from "expo-asset"
+import type { WordItem } from "@/content/games/lugandawords"
 
 // Define a type for the audio files mapping
 type AudioFiles = {
@@ -109,19 +110,39 @@ export const getAudioForWord = (lugandaWord: string): any => {
   return AUDIO_FILES[lugandaWord] ?? AUDIO_FILES.correct
 }
 
+const resolveAudioSource = async (audioFile: any) => {
+  const asset = Asset.fromModule(audioFile)
+  await asset.downloadAsync()
+
+  return asset.localUri || asset.uri ? { uri: asset.localUri || asset.uri } : audioFile
+}
+
+const createSoundFromAsset = async (audioFile: any): Promise<Audio.Sound> => {
+  const source = await resolveAudioSource(audioFile)
+  const { sound } = await Audio.Sound.createAsync(source)
+  return sound
+}
+
+const unloadSoundSafely = async (sound?: Audio.Sound) => {
+  if (!sound) return
+
+  try {
+    await sound.unloadAsync()
+  } catch (error) {
+    console.warn("Could not unload previous sound:", error)
+  }
+}
+
 // Play a word's audio
 export const playWordAudio = async (word: WordItem, currentSound?: Audio.Sound): Promise<Audio.Sound> => {
   try {
-    // Unload previous sound if it exists
-    if (currentSound) {
-      await currentSound.unloadAsync()
-    }
+    await unloadSoundSafely(currentSound)
 
     // Get the audio file for this word
     const audioFile = getAudioForWord(word.luganda)
 
     // Load and play the sound
-    const { sound: newSound } = await Audio.Sound.createAsync(audioFile)
+    const newSound = await createSoundFromAsset(audioFile)
     await newSound.playAsync()
 
     return newSound
@@ -133,22 +154,19 @@ export const playWordAudio = async (word: WordItem, currentSound?: Audio.Sound):
 
 // Load game sounds (correct, wrong, etc.)
 export const loadGameSounds = async (): Promise<{
-  correctSound: Audio.Sound
-  wrongSound: Audio.Sound
+  correctSound?: Audio.Sound
+  wrongSound?: Audio.Sound
 }> => {
-  try {
-    const correctSoundObject = new Audio.Sound()
-    await correctSoundObject.loadAsync(AUDIO_FILES.correct)
+  const [correctSound, wrongSound] = await Promise.all([
+    createSoundFromAsset(AUDIO_FILES.correct).catch((error) => {
+      console.warn("Could not load correct sound:", error)
+      return undefined
+    }),
+    createSoundFromAsset(AUDIO_FILES.wrong).catch((error) => {
+      console.warn("Could not load wrong sound:", error)
+      return undefined
+    }),
+  ])
 
-    const wrongSoundObject = new Audio.Sound()
-    await wrongSoundObject.loadAsync(AUDIO_FILES.wrong)
-
-    return {
-      correctSound: correctSoundObject,
-      wrongSound: wrongSoundObject,
-    }
-  } catch (error) {
-    console.error("Error loading game sounds:", error)
-    throw error
-  }
+  return { correctSound, wrongSound }
 }

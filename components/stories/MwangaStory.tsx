@@ -98,7 +98,7 @@ const MwangaStory: React.FC = () => {
   const [userAnswers, setUserAnswers] = useState<number[]>(Array(5).fill(-1));
   const [quizCompleted, setQuizCompleted] = useState<boolean>(false);
   const [score, setScore] = useState<number>(0);
-  const readTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const readTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
   const storyQuestions: StoryQuestion[] = [

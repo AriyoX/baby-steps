@@ -52,7 +52,7 @@ export default function GenderScreen() {
         <View className="flex-1 justify-center items-center px-6">
           <View className="w-full bg-white p-6 rounded-3xl shadow-md">
             <TranslatedText variant="bold" className="text-2xl text-center text-primary-800 mb-6">
-              What is your child's gender and name?
+              {"What is your child's gender and name?"}
             </TranslatedText>
 
             {/* Gender selection */}
@@ -85,7 +85,7 @@ export default function GenderScreen() {
             {/* Name input */}
             <View className="mb-6 w-full">
               <TranslatedText variant="medium" className="text-lg text-neutral-700 mb-2">
-                Child's Name
+                {"Child's Name"}
               </TranslatedText>
               <View className="flex-row items-center bg-primary-50 rounded-xl px-4 py-3 border border-primary-100">
                 <FontAwesome5 name="child" size={18} color="#6366f1" />

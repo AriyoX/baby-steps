@@ -251,7 +251,7 @@ export default function ChildDetailScreen() {
                   <View className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 items-center">
                     <Ionicons name="sad-outline" size={32} color="#9ca3af" className="mb-2"/>
                     <TranslatedText className="text-gray-500 text-center">
-                      {childData?.name || "This child"} hasn't unlocked any achievements yet.
+                      {`${childData?.name || "This child"} hasn't unlocked any achievements yet.`}
                     </TranslatedText>
                     <TranslatedText className="text-gray-400 text-xs text-center mt-1">
                       Keep playing games to earn them!

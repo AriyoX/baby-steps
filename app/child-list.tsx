@@ -240,8 +240,7 @@ export default function ChildListScreen() {
                     No Child Profiles Yet
                   </TranslatedText>
                   <TranslatedText className="text-base text-neutral-500 text-center mb-6 leading-6">
-                    You haven't added any child profiles yet. Create a profile to start your child's personalized
-                    learning journey!
+                    {"You haven't added any child profiles yet. Create a profile to start your child's personalized learning journey!"}
                   </TranslatedText>
 
                   <TouchableOpacity

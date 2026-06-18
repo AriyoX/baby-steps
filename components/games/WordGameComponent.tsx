@@ -14,7 +14,7 @@ import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { Ionicons } from "@expo/vector-icons";
-import { gameLevels } from "./utils/wordgamewords"; // Import game levels
+import { gameLevels } from "@/content/games/wordgamewords"; // Import game levels
 import { Text } from "@/components/StyledText";
 import { useChild } from "@/context/ChildContext"; // Import useChild context
 import { saveActivity } from "@/lib/utils"; // Import saveActivity function
@@ -79,8 +79,6 @@ const getImageSource = (imageName: string | undefined) => {
       return require('@/assets/images/rainforest.jpg');
     case 'goat.jpg':
       return require('@/assets/images/goat.png');
-    case 'chicken.jpg':
-      return require('@/assets/images/chicken.jpg');
     case 'ring.jpeg':
       return require('@/assets/images/ring.jpeg');
 

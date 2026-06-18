@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { gameLevels } from './wordgamewords';
+import { gameLevels } from '@/content/games/wordgamewords';
 
 // Types for progress tracking
 export interface WordGameProgress {

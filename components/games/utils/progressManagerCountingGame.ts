@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COUNTING_GAME_STAGES } from './countingGameStages';
+import { COUNTING_GAME_STAGES } from '@/content/games/countingGameStages';
 
 // Types for progress tracking
 export interface CountingGameProgress {

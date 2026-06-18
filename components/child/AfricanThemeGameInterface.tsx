@@ -39,6 +39,46 @@ type NavItem = {
   label: string
 }
 
+const gameCards: LearningCard[] = [
+  {
+    id: "words",
+    title: "Words",
+    image: require("@/assets/images/african-focus.png"),
+    description: "Fill in the missing letters to complete the word",
+    targetPage: "child/games/wordgame",
+  },
+  {
+    id: "logic",
+    title: "Logic",
+    image: require("@/assets/images/african-logic.png"),
+    description: "Solve puzzles inspired by popular Buganda heritage sites",
+    targetPage: "child/games/puzzlegame",
+  },
+  {
+    id: "cards",
+    title: "Cards Matching",
+    image: require("@/assets/images/cards-matching.png"),
+    description: "Match the cards to learn about Buganda cultural items",
+    targetPage: "child/games/cardgame",
+  },
+  {
+    id: "learning",
+    title: "Learning",
+    image: require("@/assets/images/african-patterns.png"),
+    description: "Learning common Luganda words and how they are used in sentences",
+    targetPage: "child/games/learninggame",
+  },
+  {
+    id: "numbers",
+    title: "Numbers",
+    image: require("@/assets/images/numbers.png"),
+    description: "Count with traditional Luganda number systems",
+    targetPage: "child/games/lugandacountinggame",
+  },
+]
+
+const CHILD_TAB_BAR_CLEARANCE = 86
+
 const AfricanThemeGameInterface: React.FC = () => {
   const [selectedLevel, setSelectedLevel] = useState<string>("Basic")
   const [selectedNavItem, setSelectedNavItem] = useState<string>("home")
@@ -144,7 +184,8 @@ const AfricanThemeGameInterface: React.FC = () => {
 
   // Get the current path to determine which tab we're on
   const pathname = usePathname()
-  const tabId = pathname.split("/").pop() || "profile" // Extract tab ID from path
+  const pathSegments = pathname.split("/").filter(Boolean)
+  const tabId = pathSegments.length <= 1 ? "index" : pathSegments[pathSegments.length - 1]
 
   // Set the title based on the tab
   const [screenTitle, setScreenTitle] = useState("Games")
@@ -152,45 +193,10 @@ const AfricanThemeGameInterface: React.FC = () => {
   useEffect(() => {
     // Set cards based on the selected tab
     switch (tabId) {
+      case "index":
       case "profile": // Games
         setScreenTitle("Games")
-        setLearningCards([
-          {
-            id: "words",
-            title: "Words",
-            image: require("@/assets/images/african-focus.png"),
-            description: "Fill in the missing letters to complete the word",
-            targetPage: "child/games/wordgame",
-          },
-          {
-            id: "logic",
-            title: "Logic",
-            image: require("@/assets/images/african-logic.png"),
-            description: "Solve puzzles inspired by popular Buganda heritage sites",
-            targetPage: "child/games/puzzlegame",
-          },
-          {
-            id: "cards",
-            title: "Cards Matching",
-            image: require("@/assets/images/cards-matching.png"),
-            description: "Match the cards to learn about Buganda cultural items",
-            targetPage: "child/games/cardgame",
-          },
-          {
-            id: "learning",
-            title: "Learning",
-            image: require("@/assets/images/african-patterns.png"),
-            description: "Learning common Luganda words and how they are used in sentences",
-            targetPage: "child/games/learninggame",
-          },
-          {
-            id: "numbers",
-            title: "Numbers",
-            image: require("@/assets/images/numbers.png"),
-            description: "Count with traditional Luganda number systems",
-            targetPage: "child/games/lugandacountinggame",
-          },
-        ])
+        setLearningCards(gameCards)
         break
 
       case "coloring":
@@ -330,45 +336,8 @@ const AfricanThemeGameInterface: React.FC = () => {
         ])
         break
       default:
-        // Default to games if no tab is specified
         setScreenTitle("Games")
-        setLearningCards([
-          {
-            id: "logic",
-            title: "Logic",
-            image: require("@/assets/images/african-logic.png"),
-            description: "Solve puzzles inspired by African traditions",
-            targetPage: "tester",
-          },
-          {
-            id: "patterns",
-            title: "Patterns",
-            image: require("@/assets/images/african-patterns.png"),
-            description: "Learn about beautiful Kente cloth patterns",
-            targetPage: "tester",
-          },
-          {
-            id: "focus",
-            title: "Focus",
-            image: require("@/assets/images/african-focus.png"),
-            description: "Improve concentration with Adinkra symbols",
-            targetPage: "tester",
-          },
-          {
-            id: "numbers",
-            title: "Numbers",
-            image: require("@/assets/images/numbers.png"),
-            description: "Count with traditional Luganda number systems",
-            targetPage: "tester",
-          },
-          {
-            id: "stories",
-            title: "Stories",
-            image: require("@/assets/images/stories.png"),
-            description: "Learn through African folktales and proverbs",
-            targetPage: "tester",
-          },
-        ])
+        setLearningCards(gameCards)
     }
   }, [tabId])
 
@@ -387,7 +356,8 @@ const AfricanThemeGameInterface: React.FC = () => {
     router.push(`/${card.targetPage}` as any)
   }
 
-  const { width } = Dimensions.get("window")
+  const { height } = Dimensions.get("window")
+  const cardHeight = Math.max(166, Math.min(210, height * 0.48))
 
   return (
     <>
@@ -397,7 +367,7 @@ const AfricanThemeGameInterface: React.FC = () => {
       {/* ImageBackground now covers the entire screen including status bar */}
       <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
         {/* SafeAreaView moved inside ImageBackground */}
-        <SafeAreaView className="flex-1" edges={["right", "bottom", "left"]}>
+        <SafeAreaView className="flex-1 bg-[#7b5af0d9]" edges={[]}>
           {/* Main content area */}
           <View className="flex-1 flex-row bg-[#7b5af0d9]">
             {/* Left sidebar - Profile */}
@@ -422,7 +392,7 @@ const AfricanThemeGameInterface: React.FC = () => {
             </View>
 
             {/* Right content area */}
-            <View className="flex-1 px-4 pt-8">
+            <View className="flex-1 px-4 pt-8" style={{ paddingBottom: CHILD_TAB_BAR_CLEARANCE }}>
               {/* Header */}
               <View className="flex-row justify-between items-center mb-5 ml-[45%]">
                 <View className="flex-row items-center">
@@ -446,11 +416,11 @@ const AfricanThemeGameInterface: React.FC = () => {
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                className="py-4"
-                contentContainerClassName="py-4 pb-8"
+                className="flex-1"
+                contentContainerStyle={{ alignItems: "center", paddingTop: 12, paddingBottom: 16 }}
               >
                 {/* Start card */}
-                <View className="bg-white/15 rounded-2xl p-4 mt-5 mr-2.5 w-[200px] mb-6">
+                <View className="bg-white/15 rounded-2xl p-4 mr-2.5 w-[200px]" style={{ height: cardHeight }}>
                   <TranslatedText variant="bold" className="text-white text-2xl">
                     Start
                   </TranslatedText>
@@ -467,7 +437,8 @@ const AfricanThemeGameInterface: React.FC = () => {
                 {learningCards.map((card) => (
                   <TouchableOpacity
                     key={card.id}
-                    className="bg-white rounded-2xl w-[250px]  mr-4 overflow-hidden shadow-md border-2 border-[#FFD700] mb-4"
+                    className="bg-white rounded-2xl w-[250px] mr-4 overflow-hidden shadow-md border-2 border-[#FFD700]"
+                    style={{ height: cardHeight }}
                     activeOpacity={0.7}
                     onPress={() => handleCardPress(card)}
                   >

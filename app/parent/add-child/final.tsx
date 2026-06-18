@@ -199,7 +199,7 @@ export default function SubmitScreen() {
         {isLoading && (
           <View className="p-6 items-center">
             <TranslatedText className="text-sm text-center text-neutral-500">
-              This may take a moment. Please don't close the app.
+              {"This may take a moment. Please don't close the app."}
             </TranslatedText>
           </View>
         )}

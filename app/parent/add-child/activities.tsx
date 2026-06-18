@@ -101,7 +101,7 @@ export default function StatisticsDisplayScreen() {
 
             {/* Testimonials section */}
             <TranslatedText variant="semibold" className="text-lg text-primary-800 mb-4">
-              Here's what other parents are saying:
+              {"Here's what other parents are saying:"}
             </TranslatedText>
 
             {testimonials.map((testimonial, index) => (
@@ -109,7 +109,7 @@ export default function StatisticsDisplayScreen() {
                 <View className="flex-row items-center">
                   <Text className="text-2xl mr-2">{testimonial.avatar}</Text>
                   <View className="flex-1">
-                    <Text className="text-sm italic text-neutral-700 mb-1">"{testimonial.quote}"</Text>
+                    <Text className="text-sm italic text-neutral-700 mb-1">{`"${testimonial.quote}"`}</Text>
                     <Text className="text-xs text-neutral-500">— {testimonial.author}</Text>
                   </View>
                 </View>
@@ -120,7 +120,7 @@ export default function StatisticsDisplayScreen() {
             {name && (
               <View className="bg-secondary-50 rounded-xl p-3 mt-3 border border-secondary-100">
                 <TranslatedText className="text-sm text-primary-800 text-center">
-                  Ready to start {name}'s learning adventure with Baby Steps!
+                  {`Ready to start ${name}'s learning adventure with Baby Steps!`}
                 </TranslatedText>
               </View>
             )}

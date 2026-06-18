@@ -1,7 +1,8 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { View, ScrollView, TouchableOpacity, Image, Animated, SafeAreaView, BackHandler } from "react-native"
+import { View, ScrollView, TouchableOpacity, Image, Animated, BackHandler } from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
 import { Audio, type AVPlaybackSource } from "expo-av"
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"

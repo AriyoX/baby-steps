@@ -156,7 +156,7 @@ export default function Auth() {
                 Welcome Back!
               </Text>
               <Text className="text-lg text-center text-neutral-600 mt-2">
-                Let's continue your adventure!
+                {"Let's continue your adventure!"}
               </Text>
             </Animated.View>
           </View>

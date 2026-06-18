@@ -7,12 +7,12 @@ import {
   TouchableOpacity,
   Image,
   Animated,
-  SafeAreaView,
   Dimensions,
   ScrollView,
   FlatList,
   ActivityIndicator,
 } from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
 import type { Audio } from "expo-av"
 import { LinearGradient } from "expo-linear-gradient"
 import { StatusBar } from "expo-status-bar"
@@ -35,7 +35,7 @@ import {
   unlockNextLevel,
   unlockNextStage,
   isStageCompleted,
-} from "./utils/lugandawords"
+} from "@/content/games/lugandawords"
 
 import {
   loadGameProgress as loadProgress,
@@ -94,6 +94,14 @@ const LugandaLearningGame: React.FC = () => {
   const confettiAnim = useState<Animated.Value>(new Animated.Value(0))[0]
   const [shakingOption, setShakingOption] = useState<string | null>(null)
 
+  const unloadSound = (loadedSound?: Audio.Sound) => {
+    if (!loadedSound) return
+
+    void loadedSound.unloadAsync().catch((error) => {
+      console.warn("Could not unload learning-game sound:", error)
+    })
+  }
+
   // Update animation when state changes
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -126,9 +134,9 @@ const LugandaLearningGame: React.FC = () => {
     init()
 
     return () => {
-      if (sound) sound.unloadAsync()
-      if (correctSound) correctSound.unloadAsync()
-      if (wrongSound) wrongSound.unloadAsync()
+      unloadSound(sound)
+      unloadSound(correctSound)
+      unloadSound(wrongSound)
     }
   }, [activeChild])
 
@@ -288,7 +296,9 @@ const LugandaLearningGame: React.FC = () => {
 
       // Play sound and animate
       if (correctSound) {
-        correctSound.replayAsync()
+        void correctSound.replayAsync().catch((error) => {
+          console.warn("Could not replay correct sound:", error)
+        })
       }
 
       // Animate confetti on correct answer
@@ -310,7 +320,9 @@ const LugandaLearningGame: React.FC = () => {
       setShakingOption(option)
 
       if (wrongSound) {
-        wrongSound.replayAsync()
+        void wrongSound.replayAsync().catch((error) => {
+          console.warn("Could not replay wrong sound:", error)
+        })
       }
 
       // Allow trying again after a delay
@@ -1031,7 +1043,7 @@ const LugandaLearningGame: React.FC = () => {
                 <Text className="text-xl text-slate-700 mb-4">{currentLearnWord.english}</Text>
 
                 <View className="bg-slate-50 p-4 rounded-lg mb-2">
-                  <Text className="text-base text-slate-800 italic mb-2">"{currentLearnWord.example}"</Text>
+                  <Text className="text-base text-slate-800 italic mb-2">{`"${currentLearnWord.example}"`}</Text>
                   <Text className="text-sm text-slate-500">{currentLearnWord.exampleTranslation}</Text>
                 </View>
               </Animated.View>
@@ -1099,7 +1111,7 @@ const LugandaLearningGame: React.FC = () => {
                   <Text className="text-xl text-slate-700 mb-4">{currentLearnWord.english}</Text>
 
                   <View className="bg-slate-50 p-4 rounded-lg">
-                    <Text className="text-base text-slate-800 italic mb-2">"{currentLearnWord.example}"</Text>
+                    <Text className="text-base text-slate-800 italic mb-2">{`"${currentLearnWord.example}"`}</Text>
                     <Text className="text-sm text-slate-500">{currentLearnWord.exampleTranslation}</Text>
                   </View>
                 </View>
@@ -1388,7 +1400,7 @@ const LugandaLearningGame: React.FC = () => {
               Level Complete!
             </Text>
             <Text className="text-white text-center  mb-2">
-              Congratulations, you've completed {selectedLevel?.title}!
+              {`Congratulations, you've completed ${selectedLevel?.title}!`}
             </Text>
 
             <View className="bg-white/20 w-full rounded-2xl p-5 mb-2">

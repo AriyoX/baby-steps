@@ -51,7 +51,7 @@ export default function ParentGate() {
     <>
       <StatusBar style="light" translucent backgroundColor="transparent" />
       <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1">
-        <SafeAreaView className="flex-1" edges={["right", "bottom", "left"]}>
+        <SafeAreaView className="flex-1 bg-[#7b5af0d9]" edges={[]}>
           <View className="flex-1 bg-[#7b5af0d9] py-6 px-4">
             {/* Header with back button */}
             <TouchableOpacity className="absolute top-8 left-6 z-10" onPress={() => router.back()}>

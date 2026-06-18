@@ -8,11 +8,11 @@ import {
   TouchableOpacity,
   Animated,
   Dimensions,
-  SafeAreaView,
   ActivityIndicator,
   FlatList, // Ensure FlatList is imported
   // ScrollView - Will be removed if FlatList replaces its primary use here
 } from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
 import { Audio } from "expo-av"
 import { StatusBar } from "expo-status-bar"
 import * as ScreenOrientation from "expo-screen-orientation"
@@ -29,7 +29,7 @@ import {
   getLugandaWord,
   type CulturalItem,
   ugandanCurrency,
-} from "./utils/countingGameStages"
+} from "@/content/games/countingGameStages"
 import { Text } from "@/components/StyledText"
 import {
   type CountingGameProgress,
@@ -100,7 +100,7 @@ const LugandaCountingGame: React.FC = () => {
     earnedChildAchievements,
     isLoadingAchievements: isLoadingAch, // rename to avoid conflict
     checkAndGrantNewAchievements,
-  } = useAchievements()
+  } = useAchievements(activeChild?.id, "counting_game")
 
   // Load saved progress when component mounts
   useEffect(() => {
@@ -549,6 +549,7 @@ const LugandaCountingGame: React.FC = () => {
       const newlyEarnedFromScore = await checkAndGrantNewAchievements(scoreEvent)
 
       let achievementPointsEarned = 0
+      let progressWithScoreAchievements = progress
       if (newlyEarnedFromScore.length > 0) {
         newlyEarnedFromScore.forEach((ach) => {
           achievementPointsEarned += ach.points
@@ -556,16 +557,12 @@ const LugandaCountingGame: React.FC = () => {
           setNewlyEarnedAchievement(ach) // For modal/toast
           // Toast.show(`Achievement Unlocked: ${ach.name}! +${ach.points} points`, Toast.LONG);
         })
-        // Update the actual progress state with these points
-        // This needs to be done carefully if handleStageCompletion also adds points
-        // Best to consolidate score updates if possible or ensure they don't double-add.
-        // For simplicity, we'll update the main progress state here.
-        // This assumes that a score update achievement doesn't overlap with stage completion bonus.
-        setProgress((prev) => ({
-          ...prev,
-          totalScore: prev.totalScore + achievementPointsEarned,
-        }))
-        // The saveGameProgress will happen in the setTimeout below or in handleStageCompletion
+        progressWithScoreAchievements = {
+          ...progress,
+          totalScore: progress.totalScore + achievementPointsEarned,
+          childId: activeChild?.id || progress.childId,
+        }
+        setProgress(progressWithScoreAchievements)
       }
 
       // Move to next level after a delay
@@ -574,7 +571,7 @@ const LugandaCountingGame: React.FC = () => {
         if (currentLevel < currentStageData.levels) {
           await trackActivity(false)
           if (achievementPointsEarned > 0 && activeChild) {
-            await saveGameProgress(progress, activeChild.id) // Save progress after score update
+            await saveGameProgress(progressWithScoreAchievements, activeChild.id)
           }
           setCurrentLevel((prevLevel) => prevLevel + 1)
         } else {
@@ -629,7 +626,7 @@ const LugandaCountingGame: React.FC = () => {
     )
   }
 
-  const renderNumberOptions = (): JSX.Element[] => {
+  const renderNumberOptions = (): React.ReactElement[] => {
     return numberOptions.map((number) => (
       <TouchableOpacity
         key={number}
@@ -701,7 +698,7 @@ const LugandaCountingGame: React.FC = () => {
   }
 
   // Update the renderItemsToCount function to handle currency items better
-  const renderItemsToCount = (): JSX.Element[] => {
+  const renderItemsToCount = (): React.ReactElement[] => {
     const stage = COUNTING_GAME_STAGES.find((s) => s.id === currentStage) || COUNTING_GAME_STAGES[0]
 
     // For currency stage, render the currency item
@@ -1311,8 +1308,7 @@ const LugandaCountingGame: React.FC = () => {
             </Text>
 
             <Text className="text-slate-600 text-center mb-5 text-base">
-              You've mastered counting from {COUNTING_GAME_STAGES.find((s) => s.id === currentStage)?.numbersRange.min}{" "}
-              to {COUNTING_GAME_STAGES.find((s) => s.id === currentStage)?.numbersRange.max}!
+              {`You've mastered counting from ${COUNTING_GAME_STAGES.find((s) => s.id === currentStage)?.numbersRange.min} to ${COUNTING_GAME_STAGES.find((s) => s.id === currentStage)?.numbersRange.max}!`}
             </Text>
 
             <View className="bg-blue-50 w-full rounded-xl p-4 mb-5">

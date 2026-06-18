@@ -6,11 +6,11 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
-  SafeAreaView,
   BackHandler,
   Animated,
   Dimensions,
 } from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
 import { Audio, type AVPlaybackSource } from "expo-av"
 import { MaterialIcons } from "@expo/vector-icons"
 import { Ionicons } from "@expo/vector-icons"

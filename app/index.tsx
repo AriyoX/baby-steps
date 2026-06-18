@@ -217,7 +217,7 @@ export default function OnboardingScreen() {
           className="w-64 h-16 bg-success-500 rounded-full flex-row items-center justify-center shadow-lg"
           onPress={handleOnboardingComplete}
         >
-          <Text variant="bold" className="text-white text-xl mr-2">Let's Play!</Text>
+          <Text variant="bold" className="text-white text-xl mr-2">{"Let's Play!"}</Text>
           <Text className="text-2xl">🎮</Text>
         </TouchableOpacity>
       );

@@ -825,7 +825,7 @@ const WordGame: React.FC = () => {
             {displayWord.split("").map((char, index) => (
               <View
                 key={index}
-                ref={(ref) => (wordSlotRefs.current[index] = ref)}
+                ref={(ref) => { wordSlotRefs.current[index] = ref; }}
                 className="w-14 h-14 justify-center items-center mx-1.5 relative"
               >
                 <Text variant="bold" className="text-4xl text-primary-700 pt-3">
@@ -856,7 +856,9 @@ const WordGame: React.FC = () => {
               return (
                 <TouchableOpacity
                   key={index}
-                  ref={(ref) => (letterRefs.current[index] = ref)}
+                  ref={(ref) => {
+                    letterRefs.current[index] = ref;
+                  }}
                   className={`w-16 h-16 rounded-full m-2 justify-center items-center shadow-lg border-2 ${
                     isGreyedOut
                       ? "bg-gray-300 border-gray-400 opacity-70"

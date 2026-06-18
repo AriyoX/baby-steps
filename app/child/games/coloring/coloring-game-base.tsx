@@ -129,7 +129,7 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
   // Check for media library permissions on mount
   useEffect(() => {
     ;(async () => {
-      const { status } = await MediaLibrary.requestPermissionsAsync()
+      const { status } = await MediaLibrary.requestPermissionsAsync(true, ["photo"])
       setHasPermission(status === "granted")
       if (status !== "granted") {
         Alert.alert("Permission Required", "This app needs access to your media library to save images.", [
@@ -340,7 +340,7 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
   // Save the image to gallery
   const saveToGallery = async () => {
     if (!hasPermission) {
-      const { status } = await MediaLibrary.requestPermissionsAsync()
+      const { status } = await MediaLibrary.requestPermissionsAsync(true, ["photo"])
       if (status !== "granted") {
         Alert.alert("Permission Denied", "Cannot save without permission to access media library.")
         return

@@ -1,4 +1,4 @@
-import { View, type ViewStyle } from "react-native";
+import { Image, View, type ViewStyle } from "react-native";
 import { LocalSvg } from "react-native-svg/css";
 import type { SvgProps } from "react-native-svg";
 import { brandAssets } from "@/constants/brandAssets";
@@ -41,7 +41,15 @@ export function BrandMark({
       pointerEvents="none"
       style={[{ width, height, alignItems: "center", justifyContent: "center" }, containerStyle]}
     >
-      <LocalSvg asset={asset.source} width={width} height={height} {...svgProps} />
+      {"format" in asset && asset.format === "raster" ? (
+        <Image
+          source={asset.source}
+          resizeMode="contain"
+          style={{ width, height }}
+        />
+      ) : (
+        <LocalSvg asset={asset.source} width={width} height={height} {...svgProps} />
+      )}
     </View>
   );
 }

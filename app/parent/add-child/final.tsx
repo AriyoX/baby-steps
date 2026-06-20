@@ -10,6 +10,8 @@ import { FontAwesome5 } from "@expo/vector-icons"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { LinearGradient } from "expo-linear-gradient"
 import { getLearningLanguage } from "@/content/languages"
+import { BrandMark } from "@/components/brand/BrandMark"
+import { brandColors } from "@/constants/Brand"
 
 export default function SubmitScreen() {
   const router = useRouter()
@@ -57,7 +59,7 @@ export default function SubmitScreen() {
             onPress={handleBack}
             className="w-10 h-10 rounded-full bg-primary-100 items-center justify-center"
           >
-            <FontAwesome5 name="arrow-left" size={16} color="#3e4685" />
+            <FontAwesome5 name="arrow-left" size={16} color={brandColors.victoriaBlue} />
           </TouchableOpacity>
           <TranslatedText variant="bold" className="flex-1 text-center text-2xl text-primary-800 mr-10">
             Saving Profile
@@ -76,7 +78,7 @@ export default function SubmitScreen() {
             <View className="w-20 h-20 rounded-full items-center justify-center mb-6">
               {isLoading ? (
                 <View className="w-full h-full rounded-full bg-primary-100 items-center justify-center">
-                  <ActivityIndicator size="large" color="#3e4685" />
+                  <ActivityIndicator size="large" color={brandColors.victoriaBlue} />
                 </View>
               ) : isSuccess ? (
                 <View className="w-full h-full rounded-full bg-green-100 items-center justify-center">
@@ -90,7 +92,10 @@ export default function SubmitScreen() {
             </View>
 
             {/* Status message */}
-            <TranslatedText variant="bold" className="text-2xl text-center text-primary-800 mb-4">
+            {isSuccess && (
+              <BrandMark kind="mascot" width={70} height={94} containerStyle={{ marginTop: -8, marginBottom: 8 }} />
+            )}
+            <TranslatedText variant={isSuccess ? "display" : "bold"} className="text-2xl text-center text-primary-800 mb-4">
               {isLoading ? "Saving Profile" : isSuccess ? "Profile Saved!" : "Something Went Wrong"}
             </TranslatedText>
 
@@ -155,7 +160,7 @@ export default function SubmitScreen() {
                     activeOpacity={0.8}
                   >
                     <LinearGradient
-                      colors={["#6366f1", "#8b5cf6"]}
+                      colors={[brandColors.victoriaBlue, brandColors.blue[700]]}
                       start={[0, 0]}
                       end={[1, 0]}
                       className="absolute inset-0"

@@ -1,37 +1,35 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  View,
   Alert,
-  TouchableOpacity,
   Animated,
-  StatusBar,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StatusBar,
   TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { Text } from "@/components/StyledText";
-import { supabase } from "../lib/supabase";
-import { useRouter } from "expo-router";
-import { resetOnboardingStatus } from "@/lib/utils";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { FontAwesome } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { BrandMark } from "@/components/brand/BrandMark";
+import { Text } from "@/components/StyledText";
+import { brandColors } from "@/constants/Brand";
+import { supabase } from "../lib/supabase";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false); // Add this state for password visibility
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
 
-  // Animation values
   const bounceValue = useRef(new Animated.Value(0)).current;
   const floatValue = useRef(new Animated.Value(0)).current;
   const scaleValue = useRef(new Animated.Value(0)).current;
 
-  // Set up animations
   useEffect(() => {
-    // Entrance animation
     Animated.spring(scaleValue, {
       toValue: 1,
       tension: 20,
@@ -39,44 +37,50 @@ export default function Auth() {
       useNativeDriver: true,
     }).start();
 
-    // Floating animation
-    Animated.loop(
+    const floatAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(floatValue, {
           toValue: 1,
-          duration: 2000,
+          duration: 2200,
           useNativeDriver: true,
         }),
         Animated.timing(floatValue, {
           toValue: 0,
-          duration: 2000,
+          duration: 2200,
           useNativeDriver: true,
         }),
       ])
-    ).start();
+    );
 
-    // Bounce animation for decorative elements
-    Animated.loop(
+    const dotAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(bounceValue, {
           toValue: 1,
-          duration: 800,
+          duration: 1000,
           useNativeDriver: true,
         }),
         Animated.timing(bounceValue, {
           toValue: 0,
-          duration: 800,
+          duration: 1000,
           useNativeDriver: true,
         }),
       ])
-    ).start();
-  }, []);
+    );
+
+    floatAnimation.start();
+    dotAnimation.start();
+
+    return () => {
+      floatAnimation.stop();
+      dotAnimation.stop();
+    };
+  }, [bounceValue, floatValue, scaleValue]);
 
   async function signInWithEmail() {
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({
-      email: email,
-      password: password,
+      email,
+      password,
     });
 
     if (error) {
@@ -88,10 +92,9 @@ export default function Auth() {
     setLoading(false);
   }
 
-  // Animation transformations
   const translateY = floatValue.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, -15],
+    outputRange: [0, -12],
   });
 
   const bounceDot1 = bounceValue.interpolate({
@@ -114,18 +117,10 @@ export default function Auth() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       className="flex-1 bg-primary-50"
     >
-      <StatusBar
-        translucent
-        backgroundColor="transparent"
-        barStyle="dark-content"
-      />
+      <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
 
       <SafeAreaView className="flex-1">
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Decorative elements */}
+        <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
           <View className="absolute top-5 left-5">
             <Animated.View
               className="w-12 h-12 rounded-full bg-primary-200 opacity-50"
@@ -145,14 +140,10 @@ export default function Auth() {
             />
           </View>
 
-          {/* Header */}
           <View className="items-center mt-8 mb-4">
-            <Animated.View
-              style={{
-                transform: [{ translateY }, { scale: scaleValue }],
-              }}
-            >
-              <Text variant="bold" className="text-4xl  text-primary-600 pt-3">
+            <BrandMark kind="wordmark" width={180} height={44} containerStyle={{ marginBottom: 12 }} />
+            <Animated.View style={{ transform: [{ translateY }, { scale: scaleValue }] }}>
+              <Text variant="bold" className="text-4xl text-primary-600 pt-3 text-center">
                 Welcome Back!
               </Text>
               <Text className="text-lg text-center text-neutral-600 mt-2">
@@ -161,32 +152,24 @@ export default function Auth() {
             </Animated.View>
           </View>
 
-          {/* Mascot image */}
           <View className="items-center my-6">
             <Animated.View
-              className="w-36 h-36 bg-white rounded-full items-center justify-center shadow-lg border-4 border-primary-200"
-              style={{
-                transform: [{ translateY }, { scale: scaleValue }],
-              }}
+              className="w-36 h-36 bg-white rounded-full items-center justify-center shadow-lg border-4 border-primary-200 overflow-hidden"
+              style={{ transform: [{ translateY }, { scale: scaleValue }] }}
             >
-              <Text className="text-[70px]">👶</Text>
+              <BrandMark kind="mascot" width={88} height={116} />
             </Animated.View>
           </View>
 
-          {/* Login Form */}
           <Animated.View
             className="mx-6 bg-white p-6 rounded-3xl shadow-md border-2 border-primary-100"
-            style={{
-              transform: [{ scale: scaleValue }],
-              opacity: scaleValue,
-            }}
+            style={{ transform: [{ scale: scaleValue }], opacity: scaleValue }}
           >
-            {/* Email Input - Redesigned */}
             <View className="mb-6">
-              <Text className="text-primary-700  mb-3 text-lg">Email</Text>
+              <Text className="text-primary-700 mb-3 text-lg">Email</Text>
               <View className="flex-row items-center bg-primary-50 rounded-2xl px-5 py-4 border-2 border-primary-100">
                 <View className="bg-primary-200 p-2 rounded-full">
-                  <FontAwesome name="envelope" size={20} color="#3399ff" />
+                  <FontAwesome name="envelope" size={20} color={brandColors.victoriaBlue} />
                 </View>
                 <TextInput
                   className="flex-1 ml-4 text-base text-neutral-800"
@@ -195,21 +178,17 @@ export default function Auth() {
                   onChangeText={setEmail}
                   autoCapitalize="none"
                   keyboardType="email-address"
-                  placeholderTextColor="#a0aec0"
-                  style={{
-                    textDecorationLine: "none",
-                    fontFamily: "Quicksand-Regular",
-                  }}
+                  placeholderTextColor={brandColors.neutral[400]}
+                  style={{ textDecorationLine: "none", fontFamily: "Quicksand-Regular" }}
                 />
               </View>
             </View>
 
-            {/* Password Input - Redesigned */}
             <View className="mb-8">
-              <Text className="text-primary-700  mb-3 text-lg">Password</Text>
+              <Text className="text-primary-700 mb-3 text-lg">Password</Text>
               <View className="flex-row items-center bg-primary-50 rounded-2xl px-5 py-4 border-2 border-primary-100">
-                <View className="bg-primary-200 w-10 h-10 rounded-full flex items-center justify-center">
-                  <FontAwesome name="lock" size={20} color="#3399ff" />
+                <View className="bg-primary-200 w-10 h-10 rounded-full items-center justify-center">
+                  <FontAwesome name="lock" size={20} color={brandColors.victoriaBlue} />
                 </View>
                 <TextInput
                   className="flex-1 ml-4 text-base text-neutral-800"
@@ -218,79 +197,55 @@ export default function Auth() {
                   value={password}
                   onChangeText={setPassword}
                   autoCapitalize="none"
-                  placeholderTextColor="#a0aec0"
-                  style={{
-                    textDecorationLine: "none",
-                    fontFamily: "Quicksand-Regular",
-                  }}
+                  placeholderTextColor={brandColors.neutral[400]}
+                  style={{ textDecorationLine: "none", fontFamily: "Quicksand-Regular" }}
                 />
-                {/* Password visibility toggle button */}
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  className="px-2"
-                >
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} className="px-2">
                   <FontAwesome
                     name={showPassword ? "eye-slash" : "eye"}
                     size={20}
-                    color="#3399ff"
+                    color={brandColors.victoriaBlue}
                   />
                 </TouchableOpacity>
               </View>
             </View>
 
-            {/* Sign In Button */}
             <TouchableOpacity
-              className={`bg-primary-500 py-4 rounded-xl items-center shadow-md ${
-                loading ? "opacity-70" : ""
-              }`}
+              className={`bg-primary-500 py-4 rounded-xl items-center shadow-md ${loading ? "opacity-70" : ""}`}
               onPress={signInWithEmail}
               disabled={loading}
-              activeOpacity={0.8}
+              activeOpacity={0.84}
             >
-              <Text variant="bold" className="text-white  text-xl">
+              <Text variant="bold" className="text-white text-xl">
                 {loading ? "Signing In..." : "Sign In"}
               </Text>
             </TouchableOpacity>
 
-            {/* Extra options row */}
             <View className="flex-row items-center justify-between mt-6 px-2">
-              {/* Forgot Password */}
-              <TouchableOpacity
-                onPress={() => router.replace("/forgot-password")}
-              >
-                <Text variant="bold" className="text-secondary-600  text-base">
+              <TouchableOpacity onPress={() => router.replace("/forgot-password")}>
+                <Text variant="bold" className="text-secondary-600 text-base">
                   Forgot password?
                 </Text>
               </TouchableOpacity>
 
-              {/* Sign Up Link */}
               <TouchableOpacity onPress={() => router.replace("/signup")}>
-                <Text variant="bold" className="text-primary-600  text-base">
+                <Text variant="bold" className="text-primary-600 text-base">
                   Create Account
                 </Text>
               </TouchableOpacity>
             </View>
           </Animated.View>
 
-          {/* Developer Options - Hidden for Production */}
-          {/* <View className="mt-8 mx-6">
-            <TouchableOpacity
-              className="bg-muted-200 py-3 rounded-xl items-center"
-              onPress={() => resetOnboardingStatus()}
-              disabled={loading}
-            >
-              <Text className="text-neutral-600 font-bold">
-                Reset Onboarding
-              </Text>
-            </TouchableOpacity>
-          </View> */}
           <View className="mt-8 mx-6">
             <TouchableOpacity
               className="bg-muted-200 py-3 rounded-xl items-center"
               onPress={() => router.push("/reset-password")}
               disabled={loading}
+              activeOpacity={0.84}
             >
-              <Text className="text-orange-600 font-bold">Reset Password</Text>
+              <Text variant="bold" className="text-secondary-700">
+                Reset Password
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

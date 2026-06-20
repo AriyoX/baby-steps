@@ -30,6 +30,8 @@ import {
   type ChildMenuCard,
   type ContentBundle,
 } from "@/content/contentRepository"
+import { BrandMark } from "@/components/brand/BrandMark"
+import { brandColors } from "@/constants/Brand"
 
 // Define types
 type LearningCard = {
@@ -237,9 +239,9 @@ const AfricanThemeGameInterface: React.FC = () => {
       {/* ImageBackground now covers the entire screen including status bar */}
       <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
         {/* SafeAreaView moved inside ImageBackground */}
-        <SafeAreaView className="flex-1 bg-[#7b5af0d9]" edges={[]}>
+        <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
           {/* Main content area */}
-          <View className="flex-1 flex-row bg-[#7b5af0d9]">
+          <View className="flex-1 flex-row" style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
             {/* Left sidebar - Profile */}
             <View className="flex-row items-center gap-2.5 absolute pt-8 left-5">
               {/* animated avatar */}
@@ -250,7 +252,7 @@ const AfricanThemeGameInterface: React.FC = () => {
               >
                 <Image
                   source={require("@/assets/images/african-avatar.jpg")}
-                  className="w-[70px] h-[70px] rounded-full border-3 border-[#FFD700]"
+                  className="w-[70px] h-[70px] rounded-full border-3 border-accent-500"
                 />
               </Animated.View>
               <View className="pl-3">
@@ -272,11 +274,11 @@ const AfricanThemeGameInterface: React.FC = () => {
                 </View>
 
                 <TouchableOpacity
-                  className="bg-white rounded-3xl px-4 py-1.5 flex-row items-center border-2 border-[#FFD700] mt-0.5"
+                  className="bg-white rounded-3xl px-4 py-1.5 flex-row items-center border-2 border-accent-500 mt-0.5"
                   onPress={handleParentalPress}
                 >
-                  <Ionicons name="people-sharp" size={30} color="#FF6F61" />
-                  <TranslatedText variant="medium" className="text-[#5A3CBE] text-base ml-1">
+                  <Ionicons name="people-sharp" size={30} color={brandColors.shanaOrange} />
+                  <TranslatedText variant="medium" className="text-primary-700 text-base ml-1">
                     For parents
                   </TranslatedText>
                 </TouchableOpacity>
@@ -307,14 +309,14 @@ const AfricanThemeGameInterface: React.FC = () => {
                 {learningCards.map((card) => (
                   <TouchableOpacity
                     key={card.id}
-                    className="bg-white rounded-2xl w-[250px] mr-4 overflow-hidden shadow-md border-2 border-[#FFD700]"
+                    className="bg-white rounded-2xl w-[250px] mr-4 overflow-hidden shadow-md border-2 border-accent-500"
                     style={{ height: cardHeight }}
                     activeOpacity={0.7}
                     onPress={() => handleCardPress(card)}
                   >
                     <Image source={resolveImageSource(card.image, "african-focus.png") as any} className="w-full h-[60%] object-cover" resizeMode="cover" />
                     <View className="p-3 bg-white h-[40%] justify-center">
-                      <TranslatedText variant="bold" className="text-base text-[#5A3CBE] mb-1" numberOfLines={1}>
+                      <TranslatedText variant="bold" className="text-base text-primary-700 mb-1" numberOfLines={1}>
                         {card.title}
                       </TranslatedText>
                       <TranslatedText className="text-xs text-neutral-600 leading-4" numberOfLines={2}>
@@ -324,14 +326,14 @@ const AfricanThemeGameInterface: React.FC = () => {
                   </TouchableOpacity>
                 ))}
                 {isContentLoading && (
-                  <View className="bg-white rounded-2xl w-[250px] mr-4 items-center justify-center border-2 border-[#FFD700]" style={{ height: cardHeight }}>
-                    <ActivityIndicator size="large" color="#5A3CBE" />
+                  <View className="bg-white rounded-2xl w-[250px] mr-4 items-center justify-center border-2 border-accent-500" style={{ height: cardHeight }}>
+                    <ActivityIndicator size="large" color={brandColors.victoriaBlue} />
                   </View>
                 )}
                 {!isContentLoading && learningCards.length === 0 && (
-                  <View className="bg-white rounded-2xl w-[250px] mr-4 items-center justify-center p-4 border-2 border-[#FFD700]" style={{ height: cardHeight }}>
-                    <Ionicons name="sparkles-outline" size={32} color="#5A3CBE" />
-                    <Text variant="bold" className="text-base text-[#5A3CBE] mt-3 text-center">
+                  <View className="bg-white rounded-2xl w-[250px] mr-4 items-center justify-center p-4 border-2 border-accent-500" style={{ height: cardHeight }}>
+                    <BrandMark kind="mascot" width={54} height={72} />
+                    <Text variant="display" className="text-xl text-primary-700 mt-3 text-center">
                       Coming soon
                     </Text>
                     <Text className="text-xs text-neutral-600 leading-4 mt-2 text-center">

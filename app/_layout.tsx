@@ -31,6 +31,7 @@ export default function RootLayout() {
   "Quicksand-Light": require("../assets/fonts/Quicksand-Light.ttf"),
   "Quicksand-Regular": require("../assets/fonts/Quicksand-Regular.ttf"),
   "Quicksand-Medium": require("../assets/fonts/Quicksand-Medium.ttf"),
+  "Quicksand-SemiBold": require("../assets/fonts/Quicksand-SemiBold.ttf"),
   "Quicksand-Bold": require("../assets/fonts/Quicksand-Bold.ttf"),
 });
 
@@ -207,8 +208,9 @@ export default function RootLayout() {
     <ChildProvider>
       <Stack
         screenOptions={{
-          headerTitleStyle: { fontFamily: "Quicksand-Medium" }, // Use Quicksand-Medium for headers
-          headerShown: false, // Set headerShown false globally
+          animation: "fade_from_bottom",
+          headerTitleStyle: { fontFamily: "Quicksand-Medium" },
+          headerShown: false,
         }}
       >
         <Stack.Screen name="index" options={{ gestureEnabled: false }} />

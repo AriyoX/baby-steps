@@ -1,6 +1,7 @@
 import { Text as DefaultText, TextProps } from "react-native";
+import { brandFonts } from "@/constants/Brand";
 
-type FontVariant = "regular" | "bold" | "medium" | "light" | "semibold";
+type FontVariant = "regular" | "bold" | "medium" | "light" | "semibold" | "display";
 
 interface StyledTextProps extends TextProps {
   variant?: FontVariant;
@@ -12,11 +13,12 @@ export function Text({
   ...props
 }: StyledTextProps) {
   const fontFamily = {
-    regular: "Quicksand-Regular",
-    bold: "Quicksand-Bold",
-    medium: "Quicksand-Medium",
-    light: "Quicksand-Light",
-    semibold: "Quicksand-SemiBold",
+    regular: brandFonts.body,
+    bold: brandFonts.heading,
+    medium: brandFonts.medium,
+    light: brandFonts.light,
+    semibold: brandFonts.semibold,
+    display: brandFonts.display,
   }[variant];
 
   return <DefaultText style={[{ fontFamily }, style]} {...props} />;

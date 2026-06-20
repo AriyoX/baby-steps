@@ -42,7 +42,7 @@ eas build --platform android --profile groceries --non-interactive
 
 `app.json` includes:
 
-- App name: `Baby Steps: Prototype`
+- App name: `Baby Steps`
 - Slug: `baby-steps`
 - Scheme: `babysteps`
 - Android package: `com.babysteps.babysteps_prototype`

@@ -3,6 +3,7 @@ import { Image, View } from "react-native"
 import { TranslatedText } from "@/components/translated-text"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { LanguageProvider } from "@/context/language-context"
+import { brandColors } from "@/constants/Brand"
 
 type NavItem = {
   id: string
@@ -42,7 +43,7 @@ export default function TabLayout() {
         screenOptions={{
           headerShown: false,
           tabBarStyle: {
-            backgroundColor: "rgba(123, 90, 240, 0.95)",
+            backgroundColor: "rgba(2, 116, 187, 0.95)",
             borderTopWidth: 0,
             paddingVertical: 8,
             paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
@@ -63,8 +64,7 @@ export default function TabLayout() {
             height: 50,
             paddingHorizontal: 0,
           },
-          // Active color is gold to match African theme
-          tabBarActiveTintColor: "#FFD700",
+          tabBarActiveTintColor: brandColors.equatorialGold,
           tabBarInactiveTintColor: "#fff",
           tabBarShowLabel: true,
         }}
@@ -77,7 +77,7 @@ export default function TabLayout() {
               tabBarLabel: ({ focused, color }) => (
                 <TranslatedText
                   variant={focused ? "bold" : "regular"}
-                  className={`${focused ? "text-[#FFD700]" : "text-white"}`}
+                  className={`${focused ? "text-accent-500" : "text-white"}`}
                   style={{ textAlign: "center", marginBottom: 4 }}
                 >
                   {item.label}
@@ -86,7 +86,7 @@ export default function TabLayout() {
               tabBarIcon: ({ color, size, focused }) => (
                 <View className="items-center justify-center">
                   <View className="relative">
-                    {focused && <View className="bg-[#FFD700]" style={{ width: size + 10 }} />}
+                    {focused && <View className="bg-accent-500" style={{ width: size + 10 }} />}
                     <Image
                       source={item.icon}
                       style={{

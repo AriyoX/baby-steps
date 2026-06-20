@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { brandColors } from "@/constants/Brand";
 import { supabase } from "./supabase";
 
 // Activity type definitions
@@ -133,25 +134,25 @@ export const getFormattedActivities = async (activities: Activity[]) => {
 
   return activities.map(activity => {
     let icon = 'star'; // default
-    let color = '#FF9F43'; // default orange
+    let color: string = brandColors.shanaOrange;
 
     // Determine icon and color based on activity type
     switch (activity.activity_type) {
       case 'stories':
         icon = 'book';
-        color = '#6C5CE7'; // purple
+        color = brandColors.victoriaBlue;
         break;
       case 'counting':
         icon = 'calculator';
-        color = '#1DD1A1'; // green
+        color = brandColors.success;
         break;
       case 'museum':
         icon = 'university';
-        color = '#FF6B6B'; // red
+        color = brandColors.shanaOrange;
         break;
       case 'other':
         icon = 'award';
-        color = '#54A0FF'; // blue
+        color = brandColors.equatorialGold;
         break;
     }
 

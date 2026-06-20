@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Baby Steps: Prototype",
+    "name": "Baby Steps",
     "slug": "baby-steps",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -15,7 +15,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#F8F6F1"
       },
       "blockedPermissions": [
         "android.permission.CAMERA",
@@ -40,6 +40,7 @@
             "./assets/fonts/Quicksand-Light.ttf",
             "./assets/fonts/Quicksand-Regular.ttf",
             "./assets/fonts/Quicksand-Medium.ttf",
+            "./assets/fonts/Quicksand-SemiBold.ttf",
             "./assets/fonts/Quicksand-Bold.ttf"
           ]
         }
@@ -50,7 +51,7 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#F8F6F1"
         }
       ],
       [

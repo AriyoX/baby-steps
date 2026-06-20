@@ -10,6 +10,8 @@ import { Ionicons, FontAwesome5 } from "@expo/vector-icons"
 import { supabase } from "@/lib/supabase"
 import { getActivityStats } from "@/lib/utils"
 import { TranslatedText } from "@/components/translated-text"
+import { BrandMark } from "@/components/brand/BrandMark"
+import { brandColors } from "@/constants/Brand"
 
 type ChildProfile = {
   id: string
@@ -160,30 +162,33 @@ const ParentDashboard = () => {
     <>
       <StatusBar style="dark" />
 
-      <SafeAreaView className="flex-1 bg-white" edges={["right", "top", "left"]}>
+      <SafeAreaView className="flex-1 bg-background" edges={["right", "top", "left"]}>
         <View className="flex-1">
           {/* Header */}
-          <View className="flex-row justify-between items-center p-4 border-b border-gray-100">
-            <View>
-              <TranslatedText variant="bold" className="text-gray-800 text-2xl">
-                Parent Dashboard
-              </TranslatedText>
-              <TranslatedText className="text-gray-500">{"Monitor your children's learning journey"}</TranslatedText>
+          <View className="flex-row justify-between items-center p-4 border-b border-muted-200 bg-white">
+            <View className="flex-row items-center flex-1 pr-3">
+              <BrandMark kind="icon" width={44} height={44} containerStyle={{ marginRight: 12 }} />
+              <View className="flex-1">
+                <TranslatedText variant="bold" className="text-neutral-800 text-2xl">
+                  Parent Dashboard
+                </TranslatedText>
+                <TranslatedText className="text-neutral-500">{"Monitor your children's learning journey"}</TranslatedText>
+              </View>
             </View>
 
             <View className="flex-row">
               <TouchableOpacity
-                className="w-10 h-10 rounded-full bg-purple-100 items-center justify-center mr-3"
+                className="w-10 h-10 rounded-full bg-primary-100 items-center justify-center mr-3"
                 onPress={() => router.push("/parent/settings")}
               >
-                <Ionicons name="settings-outline" size={22} color="#7b5af0" />
+                <Ionicons name="settings-outline" size={22} color={brandColors.victoriaBlue} />
               </TouchableOpacity>
 
               <TouchableOpacity
-                className="w-10 h-10 rounded-full bg-purple-100 items-center justify-center"
+                className="w-10 h-10 rounded-full bg-accent-100 items-center justify-center"
                 onPress={() => {}}
               >
-                <Ionicons name="notifications-outline" size={22} color="#7b5af0" />
+                <Ionicons name="notifications-outline" size={22} color={brandColors.equatorialGold} />
               </TouchableOpacity>
             </View>
           </View>
@@ -193,14 +198,14 @@ const ParentDashboard = () => {
             {/* Child profiles section */}
             <View className="mb-6">
               <View className="flex-row justify-between items-center mb-3">
-                <TranslatedText variant="bold" className="text-gray-800 text-lg">
+                <TranslatedText variant="bold" className="text-neutral-800 text-lg">
                   Child Profiles
                 </TranslatedText>
                 <TouchableOpacity
-                  className="bg-purple-100 px-3 py-1 rounded-full"
+                  className="bg-primary-100 px-3 py-1 rounded-full"
                   onPress={() => router.push("/child-list")}
                 >
-                  <TranslatedText variant="medium" className="text-[#7b5af0]">
+                  <TranslatedText variant="medium" className="text-primary-700">
                     View All
                   </TranslatedText>
                 </TouchableOpacity>
@@ -217,7 +222,7 @@ const ParentDashboard = () => {
                     ? childProfiles.map((child) => (
                         <TouchableOpacity
                           key={child.id}
-                          className="bg-purple-50 rounded-xl p-4 w-[150px] shadow-sm"
+                          className="bg-white rounded-xl p-4 w-[150px] shadow-sm border border-primary-100"
                           onPress={() =>
                             router.push({
                               pathname: "/parent/child-detail/1" as any,
@@ -228,10 +233,10 @@ const ParentDashboard = () => {
                         >
                           <View className="items-center mb-2">
                             <View className="relative">
-                              <View className="w-[60px] h-[60px] rounded-full bg-purple-100 items-center justify-center">
+                              <View className="w-[60px] h-[60px] rounded-full bg-primary-100 items-center justify-center">
                                 <Text className="text-3xl">{child.avatar}</Text>
                               </View>
-                              <View className="absolute -bottom-2 -right-2 bg-[#7b5af0] rounded-full w-6 h-6 items-center justify-center shadow-sm">
+                              <View className="absolute -bottom-2 -right-2 bg-primary-500 rounded-full w-6 h-6 items-center justify-center shadow-sm">
                                 <Text variant="bold" className="text-xs text-white">
                                   {child.level}
                                 </Text>
@@ -245,9 +250,9 @@ const ParentDashboard = () => {
                           <Text className="text-gray-500 text-xs text-center">{child.age}</Text>
 
                           {/* Progress bar */}
-                          <View className="mt-3 bg-purple-100 h-2 rounded-full overflow-hidden">
+                          <View className="mt-3 bg-accent-100 h-2 rounded-full overflow-hidden">
                             <View
-                              className="bg-[#7b5af0] h-full rounded-full"
+                              className="bg-accent-500 h-full rounded-full"
                               style={{ width: `${(child.progress || 0.1) * 100}%` }}
                             />
                           </View>
@@ -260,12 +265,12 @@ const ParentDashboard = () => {
 
                   {/* Add child card */}
                   <TouchableOpacity
-                    className="bg-purple-50 rounded-xl p-4 w-[150px] items-center justify-center border-2 border-dashed border-purple-200 shadow-sm"
+                    className="bg-white rounded-xl p-4 w-[150px] items-center justify-center border-2 border-dashed border-primary-200 shadow-sm"
                     onPress={() => router.push("/parent/add-child/gender")}
                     activeOpacity={0.8}
                   >
-                    <View className="w-[60px] h-[60px] rounded-full bg-purple-100 items-center justify-center mb-3">
-                      <Ionicons name="add" size={30} color="#7b5af0" />
+                    <View className="w-[60px] h-[60px] rounded-full bg-primary-100 items-center justify-center mb-3">
+                      <Ionicons name="add" size={30} color={brandColors.victoriaBlue} />
                     </View>
                     <TranslatedText variant="medium" className="text-gray-800 text-center">
                       Add Child
@@ -278,11 +283,11 @@ const ParentDashboard = () => {
 
             {/* Recent activities section */}
             <View className="mb-6">
-              <TranslatedText variant="bold" className="text-gray-800 text-lg mb-3">
+              <TranslatedText variant="bold" className="text-neutral-800 text-lg mb-3">
                 Recent Activities
               </TranslatedText>
 
-              <View className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+              <View className="bg-white rounded-xl p-4 shadow-sm border border-muted-200">
                 {recentActivities.length > 0 ? (
                   recentActivities.map((activity, index) => (
                     <View
@@ -302,7 +307,7 @@ const ParentDashboard = () => {
                           </Text>
                           <View className="flex-row justify-between">
                             <Text className="text-gray-500 text-xs">{activity.time}</Text>
-                            <Text className="text-[#7b5af0] text-xs font-medium">{activity.score}</Text>
+                            <Text className="text-primary-700 text-xs font-medium">{activity.score}</Text>
                           </View>
                         </View>
                       </View>
@@ -316,7 +321,7 @@ const ParentDashboard = () => {
                   className="mt-3 border-t border-gray-100 pt-3"
                   onPress={() => router.push("/parent/activities")}
                 >
-                  <TranslatedText variant="medium" className="text-[#7b5af0] text-center">
+                  <TranslatedText variant="medium" className="text-primary-700 text-center">
                     View All Activities
                   </TranslatedText>
                 </TouchableOpacity>
@@ -325,20 +330,20 @@ const ParentDashboard = () => {
 
             <View className="mb-6">
               <View className="flex-row justify-between items-center mb-3">
-                <TranslatedText variant="bold" className="text-gray-800 text-lg">
+                <TranslatedText variant="bold" className="text-neutral-800 text-lg">
                   Achievements Overview
                 </TranslatedText>
                 {/* Optional: maybe a small stat like "X total achievements defined" */}
               </View>
 
               <TouchableOpacity
-                className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex-row items-center justify-between"
+                className="bg-white rounded-xl p-4 shadow-sm border border-muted-200 flex-row items-center justify-between"
                 onPress={() => router.push("/parent/all-achievements")} // Adjust route as needed
                 activeOpacity={0.8}
               >
                 <View className="flex-row items-center">
                     <View className="w-10 h-10 bg-amber-100 rounded-full items-center justify-center mr-3">
-                        <Ionicons name="trophy-outline" size={20} color="#f59e0b" />
+                        <Ionicons name="trophy-outline" size={20} color={brandColors.equatorialGold} />
                     </View>
                     <View>
                         <Text variant="medium" className="text-gray-700">View All Achievements</Text>
@@ -351,12 +356,12 @@ const ParentDashboard = () => {
 
             {/* Parenting tips */}
             <View className="mb-8">
-              <TranslatedText variant="bold" className="text-gray-800 text-lg mb-3">
+              <TranslatedText variant="bold" className="text-neutral-800 text-lg mb-3">
                 Parenting Tips
               </TranslatedText>
 
               <TouchableOpacity
-                className="bg-white rounded-xl p-4 border-l-4 border-[#7b5af0] shadow-sm border-t border-r border-b border-gray-100"
+                className="bg-white rounded-xl p-4 border-l-4 border-primary-500 shadow-sm border-t border-r border-b border-muted-200"
                 activeOpacity={0.8}
               >
                 <TranslatedText variant="medium" className="text-gray-800 mb-2">
@@ -365,7 +370,7 @@ const ParentDashboard = () => {
                 <TranslatedText className="text-gray-600 text-sm">
                   Create a comfortable learning environment with minimal distractions and regular routines.
                 </TranslatedText>
-                <TranslatedText variant="medium" className="text-[#7b5af0] mt-2">
+                <TranslatedText variant="medium" className="text-primary-700 mt-2">
                   Read More
                 </TranslatedText>
               </TouchableOpacity>

@@ -9,6 +9,7 @@ import { StatusBar } from "expo-status-bar"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons"
 import { useChild } from "@/context/ChildContext"
+import { brandColors } from "@/constants/Brand"
 
 export default function ParentGate() {
   const [input, setInput] = useState("")
@@ -51,11 +52,11 @@ export default function ParentGate() {
     <>
       <StatusBar style="light" translucent backgroundColor="transparent" />
       <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1">
-        <SafeAreaView className="flex-1 bg-[#7b5af0d9]" edges={[]}>
-          <View className="flex-1 bg-[#7b5af0d9] py-6 px-4">
+        <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
+          <View className="flex-1 py-6 px-4" style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
             {/* Header with back button */}
             <TouchableOpacity className="absolute top-8 left-6 z-10" onPress={() => router.back()}>
-              <Ionicons name="arrow-back-circle" size={40} color="#FFD700" />
+              <Ionicons name="arrow-back-circle" size={40} color={brandColors.equatorialGold} />
             </TouchableOpacity>
 
             <View className="flex-1 flex-row">
@@ -68,7 +69,7 @@ export default function ParentGate() {
                   <TranslatedText className="text-white/80 text-base mb-1 text-center">
                     Please enter these digits:
                   </TranslatedText>
-                  <Text variant="bold" className="text-[#FFD700] text-3xl mb-6 tracking-widest pt-2">
+                  <Text variant="bold" className="text-accent-500 text-3xl mb-6 tracking-widest pt-2">
                     {correctPin.split("").join(" ")}
                   </Text>
 
@@ -79,7 +80,7 @@ export default function ParentGate() {
                       <View
                         key={i}
                         className={`w-[50px] h-[60px] rounded-lg justify-center items-center border-2 ${
-                          input[i] ? "bg-[#FFD700]/20 border-[#FFD700]" : "bg-white/20 border-white/40"
+                          input[i] ? "bg-accent-500/20 border-accent-500" : "bg-white/20 border-white/40"
                         }`}
                       >
                         <Text variant="bold" className="text-white text-3xl">

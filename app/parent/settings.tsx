@@ -12,6 +12,8 @@ import * as ScreenOrientation from "expo-screen-orientation"
 import { useLanguage } from "@/context/language-context"
 import { TranslatedText } from "@/components/translated-text"
 import { TestTranslation } from "@/components/test-translation"
+import { BrandMark } from "@/components/brand/BrandMark"
+import { brandColors } from "@/constants/Brand"
 
 // Define the props interface
 interface SettingItemProps {
@@ -101,8 +103,8 @@ export default function SettingsScreen() {
         <Switch
           value={value}
           onValueChange={action}
-          trackColor={{ false: "#e5e7eb", true: "#c4b5fd" }}
-          thumbColor={value ? "#7b5af0" : "#f4f3f4"}
+          trackColor={{ false: "#e5e7eb", true: brandColors.blue[200] }}
+          thumbColor={value ? brandColors.victoriaBlue : "#f4f3f4"}
         />
       ) : (
         <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
@@ -125,13 +127,14 @@ export default function SettingsScreen() {
   return (
     <>
       <StatusBar style="dark" />
-      <SafeAreaView className="flex-1 bg-white" edges={["top", "left", "right"]}>
+      <SafeAreaView className="flex-1 bg-background" edges={["top", "left", "right"]}>
         {/* Header */}
-        <View className="flex-row items-center px-4 py-3 border-b border-gray-100">
+        <View className="flex-row items-center px-4 py-3 border-b border-muted-200 bg-white">
           <TouchableOpacity onPress={() => router.back()} className="mr-3">
-            <Ionicons name="arrow-back" size={24} color="#374151" />
+            <Ionicons name="arrow-back" size={24} color={brandColors.charcoalBlack} />
           </TouchableOpacity>
-          <TranslatedText variant="bold" className="text-xl text-gray-800">
+          <BrandMark kind="icon" width={32} height={32} containerStyle={{ marginRight: 10 }} />
+          <TranslatedText variant="bold" className="text-xl text-neutral-800">
             Settings
           </TranslatedText>
         </View>
@@ -145,7 +148,7 @@ export default function SettingsScreen() {
           <View className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <SettingItem
               icon="child"
-              iconColor="#7b5af0"
+              iconColor={brandColors.victoriaBlue}
               iconType="fontawesome"
               text="Manage Child Profiles"
               action={() => router.push("/child-list")}
@@ -224,7 +227,7 @@ export default function SettingsScreen() {
           <View className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <SettingItem
               icon="person"
-              iconColor="#7b5af0"
+              iconColor={brandColors.victoriaBlue}
               text="Account Information"
               action={() => router.push("/account-info" as any)}
             />

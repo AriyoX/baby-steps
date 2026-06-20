@@ -8,6 +8,8 @@ import { FontAwesome5 } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
 import { supabase } from "../lib/supabase"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { BrandMark } from "@/components/brand/BrandMark"
+import { brandColors } from "@/constants/Brand"
 
 // Define the child profile type
 type ChildProfile = {
@@ -139,7 +141,7 @@ export default function ChildListScreen() {
 
           {/* Last activity indicator - using created_at for now */}
           <View className="flex-row items-center">
-            <FontAwesome5 name="clock" size={12} color="#6366f1" />
+            <FontAwesome5 name="clock" size={12} color={brandColors.victoriaBlue} />
             <Text className="text-xs text-neutral-500 ml-1">{new Date(item.created_at).toLocaleDateString()}</Text>
           </View>
         </View>
@@ -165,7 +167,7 @@ export default function ChildListScreen() {
               onPress={() => router.push("/")}
               className="w-10 h-10 rounded-full bg-primary-100 items-center justify-center mr-3"
             >
-              <FontAwesome5 name="arrow-left" size={16} color="#3e4685" />
+              <FontAwesome5 name="arrow-left" size={16} color={brandColors.victoriaBlue} />
             </TouchableOpacity>
             <TranslatedText variant="bold" className="text-2xl text-primary-800">
               Child Profiles
@@ -177,7 +179,7 @@ export default function ChildListScreen() {
         {/* Main content */}
         {loading ? (
           <View className="flex-1 justify-center items-center">
-            <FontAwesome5 name="child" size={150} color="#6366f1" />
+            <BrandMark kind="mascot" width={96} height={128} />
             <TranslatedText variant="medium" className="mt-5 text-base text-neutral-500">
               Loading profiles...
             </TranslatedText>
@@ -233,10 +235,11 @@ export default function ChildListScreen() {
 
                 {/* Empty state content */}
                 <View className="w-full items-center bg-white p-6 rounded-3xl shadow-md">
-                  <Text variant="bold" className="text-[80px] mb-4">
+                  <BrandMark kind="mascot" width={92} height={122} containerStyle={{ marginBottom: 16 }} />
+                  <Text variant="bold" className="hidden">
                     👶
                   </Text>
-                  <TranslatedText variant="bold" className="text-2xl text-neutral-800 mb-3 text-center">
+                  <TranslatedText variant="display" className="text-3xl text-primary-700 mb-3 text-center">
                     No Child Profiles Yet
                   </TranslatedText>
                   <TranslatedText className="text-base text-neutral-500 text-center mb-6 leading-6">

@@ -95,7 +95,7 @@ export default function GenderScreen() {
                   placeholderTextColor="#9CA3AF"
                   value={name}
                   onChangeText={setName}
-                  style={{ fontFamily: "Atma-Regular" }}
+                  style={{ fontFamily: "Quicksand-Regular" }}
                 />
               </View>
             </View>

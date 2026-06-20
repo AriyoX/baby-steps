@@ -1,7 +1,11 @@
 // audioManager.ts
 import { Audio } from "expo-av"
 import { Asset } from "expo-asset"
-import type { WordItem } from "@/content/games/lugandawords"
+
+interface LearningAudioWord {
+  targetText: string
+  audio?: string
+}
 
 // Define a type for the audio files mapping
 type AudioFiles = {
@@ -105,9 +109,9 @@ export const AUDIO_FILES: AudioFiles = {
 }
 
 // Get the appropriate audio file for a word
-export const getAudioForWord = (lugandaWord: string): any => {
+export const getAudioForWord = (targetText: string): any => {
   // Use a safer approach with optional chaining and nullish coalescing
-  return AUDIO_FILES[lugandaWord] ?? AUDIO_FILES.correct
+  return AUDIO_FILES[targetText] ?? AUDIO_FILES.correct
 }
 
 const resolveAudioSource = async (audioFile: any) => {
@@ -134,12 +138,12 @@ const unloadSoundSafely = async (sound?: Audio.Sound) => {
 }
 
 // Play a word's audio
-export const playWordAudio = async (word: WordItem, currentSound?: Audio.Sound): Promise<Audio.Sound> => {
+export const playWordAudio = async (word: LearningAudioWord, currentSound?: Audio.Sound): Promise<Audio.Sound> => {
   try {
     await unloadSoundSafely(currentSound)
 
     // Get the audio file for this word
-    const audioFile = getAudioForWord(word.luganda)
+    const audioFile = getAudioForWord(word.targetText)
 
     // Load and play the sound
     const newSound = await createSoundFromAsset(audioFile)

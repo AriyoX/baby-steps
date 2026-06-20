@@ -2,19 +2,19 @@
 
 ## Current Status
 
-Content is mostly bundled and hardcoded. Baby Steps does not yet have database-driven content management, admin publishing, creator workflows, or remote content updates.
+Content is mixed. Baby Steps has an MVP `content_items` table for language-specific menu/game/story payloads, but it does not have CMS tooling, admin publishing, creator workflows, or full remote content management.
 
 ## Where Content Lives
 
 | Content type | Current location |
 | --- | --- |
-| Games tab cards | `components/child/AfricanThemeGameInterface.tsx` |
-| Word game levels | `content/games/wordgamewords.ts` |
-| Luganda lesson stages/levels/words | `content/games/lugandawords.ts` |
-| Counting stages and labels | `content/games/countingGameStages.ts` |
+| Child menu cards | `content_items` through `content/contentRepository.ts`, with explicit Luganda legacy local fallback |
+| Word game levels | `content_items` through `content/contentRepository.ts`, with same-language local samples |
+| Learning lesson stages/levels/words | `content_items` through `content/contentRepository.ts`, with same-language local samples |
+| Counting stages and labels | `content_items` through `content/contentRepository.ts`, with same-language local samples |
 | Card matching items | `components/games/CardsMatchingComponent.tsx` |
 | Puzzle definitions | `components/games/PuzzleGameComponent.tsx` |
-| Stories and quizzes | `components/stories/*Story.tsx` |
+| Stories and quizzes | Generic story payloads in `content_items`; legacy Luganda stories still in `components/stories/*Story.tsx` |
 | Museum content | `app/child/games/museum/*.tsx` |
 | Coloring templates | `app/child/games/coloring/*.tsx` and card list in `components/child/AfricanThemeGameInterface.tsx` |
 | UI translations | `lib/translations.ts` |
@@ -67,21 +67,21 @@ Game content is mixed:
 - No draft/review/publish workflow.
 - No role-based creator/admin tools.
 
-## Future Database-Driven Direction
+## MVP Database Content Direction
 
-Before introducing database content:
+Before expanding beyond the MVP `content_items` slice:
 
-- Define TypeScript content contracts.
+- Keep game/app logic in React Native code.
+- Keep payload contracts documented in `docs/development/mvp-content-items.md`.
 - Add stable IDs.
-- Add bundled fallback behavior.
-- Add content versioning.
 - Migrate one content type at a time.
 - Connect activity/progress records to content IDs.
+- Add content versioning only when CMS/admin tooling is needed.
 
 Recommended first candidates:
 
-- Luganda lesson words.
-- Word game levels.
-- Counting stages.
+- Completing reviewed Luganda and Runyankole lesson payloads.
+- Completing reviewed Runyankole word and counting payloads.
+- Moving one story at a time to the generic story renderer.
 
 Stories should migrate later because they currently mix page content, quiz data, audio, highlighting, and UI code in each component.

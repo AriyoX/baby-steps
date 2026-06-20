@@ -220,7 +220,7 @@ export default function ForgotPassword() {
                       placeholderTextColor="#a0aec0"
                       style={{
                         textDecorationLine: "none",
-                        fontFamily: "Atma-Regular",
+                        fontFamily: "Quicksand-Regular",
                       }}
                     />
                   </View>

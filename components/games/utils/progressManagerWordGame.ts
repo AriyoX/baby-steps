@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { gameLevels } from '@/content/games/wordgamewords';
 
 // Types for progress tracking
 export interface WordGameProgress {
@@ -31,23 +30,64 @@ export const DEFAULT_PROGRESS: WordGameProgress = createDefaultProgress('default
 /**
  * Get the storage key for a specific child
  */
-const getStorageKey = (childId: string): string => {
+const getStorageKey = (childId: string, languageCode: string): string => {
+  return `@BabySteps:WordGame:${childId}:${languageCode}`;
+};
+
+const getLegacyStorageKey = (childId: string): string => {
   return `@BabySteps:WordGame:${childId}`;
+};
+
+const ensureUnlockedProgress = (
+  progress: WordGameProgress,
+  levelCount: number
+): WordGameProgress => {
+  const normalizedProgress = {
+    ...progress,
+    unlockedLevels: [...progress.unlockedLevels],
+    completedLevels: [...progress.completedLevels],
+  };
+
+  normalizedProgress.completedLevels.forEach(level => {
+    if (!normalizedProgress.unlockedLevels.includes(level)) {
+      normalizedProgress.unlockedLevels.push(level);
+    }
+
+    const nextLevel = level + 1;
+    if (nextLevel < levelCount && !normalizedProgress.unlockedLevels.includes(nextLevel)) {
+      normalizedProgress.unlockedLevels.push(nextLevel);
+    }
+  });
+
+  normalizedProgress.unlockedLevels.sort((a, b) => a - b);
+  return normalizedProgress;
 };
 
 /**
  * Load saved game progress from AsyncStorage
  */
-export const loadGameProgress = async (childId: string): Promise<WordGameProgress> => {
+export const loadGameProgress = async (
+  childId: string,
+  languageCode: string,
+  levelCount: number
+): Promise<WordGameProgress> => {
   if (!childId) {
     console.warn('No child ID provided for loading progress, using default');
     return createDefaultProgress('default');
   }
 
   try {
-    const key = getStorageKey(childId);
+    const key = getStorageKey(childId, languageCode);
     console.log(`Loading progress with key: ${key} for child: ${childId}`);
-    const savedProgress = await AsyncStorage.getItem(key);
+    let savedProgress = await AsyncStorage.getItem(key);
+
+    if (!savedProgress && languageCode === 'lg') {
+      const legacyKey = getLegacyStorageKey(childId);
+      savedProgress = await AsyncStorage.getItem(legacyKey);
+      if (savedProgress) {
+        console.log(`Using explicit legacy Luganda word-game progress key: ${legacyKey}`);
+      }
+    }
     
     if (savedProgress) {
       console.log(`Found saved progress for child ${childId}:`, savedProgress);
@@ -59,29 +99,15 @@ export const loadGameProgress = async (childId: string): Promise<WordGameProgres
         return createDefaultProgress(childId);
       }
       
-      // Ensure all completed levels are also in the unlockedLevels array
-      parsedProgress.completedLevels.forEach(level => {
-        if (!parsedProgress.unlockedLevels.includes(level)) {
-          parsedProgress.unlockedLevels.push(level);
-        }
-        
-        // Also unlock the next level after each completed level
-        const nextLevel = level + 1;
-        if (nextLevel < gameLevels.length && !parsedProgress.unlockedLevels.includes(nextLevel)) {
-          parsedProgress.unlockedLevels.push(nextLevel);
-        }
-      });
-      
-      // Sort unlockedLevels for clarity
-      parsedProgress.unlockedLevels.sort((a, b) => a - b);
+      const normalizedProgress = ensureUnlockedProgress(parsedProgress, levelCount);
       
       console.log(`Returning parsed progress for ${childId}:`, {
-        completedLevels: parsedProgress.completedLevels,
-        unlockedLevels: parsedProgress.unlockedLevels,
-        currentLevel: parsedProgress.currentLevel
+        completedLevels: normalizedProgress.completedLevels,
+        unlockedLevels: normalizedProgress.unlockedLevels,
+        currentLevel: normalizedProgress.currentLevel
       });
       
-      return parsedProgress;
+      return normalizedProgress;
     }
     
     console.log(`No saved progress found for child ${childId}, creating default`);
@@ -98,7 +124,8 @@ export const loadGameProgress = async (childId: string): Promise<WordGameProgres
  */
 export const saveGameProgress = async (
   progress: WordGameProgress,
-  childId: string
+  childId: string,
+  languageCode: string
 ): Promise<void> => {
   if (!childId) {
     console.warn('No child ID provided for saving progress, aborting');
@@ -112,7 +139,7 @@ export const saveGameProgress = async (
       childId // Always ensure the childId is set correctly
     };
     
-    const key = getStorageKey(childId);
+    const key = getStorageKey(childId, languageCode);
     await AsyncStorage.setItem(key, JSON.stringify(updatedProgress));
     
     // Add this line to ensure data is flushed to persistent storage
@@ -134,6 +161,7 @@ export const updateProgressForLevelCompletion = (
   progress: WordGameProgress, 
   levelIndex: number,
   word: string,
+  levelCount: number,
   childId?: string
 ): WordGameProgress => {
   const newProgress = { ...progress };
@@ -148,7 +176,7 @@ export const updateProgressForLevelCompletion = (
   
   // Unlock next level if available
   const nextLevelIndex = levelIndex + 1;
-  if (nextLevelIndex < gameLevels.length && !newProgress.unlockedLevels.includes(nextLevelIndex)) {
+  if (nextLevelIndex < levelCount && !newProgress.unlockedLevels.includes(nextLevelIndex)) {
     newProgress.unlockedLevels.push(nextLevelIndex);
   }
   
@@ -186,11 +214,11 @@ export const isLevelUnlocked = (progress: WordGameProgress, levelIndex: number):
 /**
  * Reset progress for a specific child
  */
-export const resetProgress = async (childId: string): Promise<void> => {
+export const resetProgress = async (childId: string, languageCode: string): Promise<void> => {
   if (!childId) return;
   
   try {
-    const key = getStorageKey(childId);
+    const key = getStorageKey(childId, languageCode);
     await AsyncStorage.removeItem(key);
     console.log(`Reset word game progress for child: ${childId}`);
   } catch (error) {

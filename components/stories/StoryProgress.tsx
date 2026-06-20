@@ -36,7 +36,8 @@ export const StoryProgress: React.FC<StoryProgressProps> = ({
           activity_name: `Read "${storyTitle}"`,
           duration,
           completed_at: new Date().toISOString(),
-          details: `Completed reading the story "${storyTitle}"`
+          details: `Completed reading the story "${storyTitle}"`,
+          language_code: activeChild.selected_language_code,
         });
         
         setHasTrackedCompletion(true);
@@ -59,7 +60,8 @@ export const StoryProgress: React.FC<StoryProgressProps> = ({
       score: score.toString(),
       duration,
       completed_at: new Date().toISOString(),
-      details: `Scored ${score}/${total} (${percentage}%) on the quiz for "${storyTitle}"`
+      details: `Scored ${score}/${total} (${percentage}%) on the quiz for "${storyTitle}"`,
+      language_code: activeChild.selected_language_code,
     });
 
     onQuizComplete(score, total);

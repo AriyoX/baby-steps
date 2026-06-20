@@ -198,7 +198,7 @@ export default function Auth() {
                   placeholderTextColor="#a0aec0"
                   style={{
                     textDecorationLine: "none",
-                    fontFamily: "Atma-Regular",
+                    fontFamily: "Quicksand-Regular",
                   }}
                 />
               </View>
@@ -221,7 +221,7 @@ export default function Auth() {
                   placeholderTextColor="#a0aec0"
                   style={{
                     textDecorationLine: "none",
-                    fontFamily: "Atma-Regular",
+                    fontFamily: "Quicksand-Regular",
                   }}
                 />
                 {/* Password visibility toggle button */}

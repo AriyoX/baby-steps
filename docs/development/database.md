@@ -10,6 +10,7 @@ Baby Steps uses Supabase for auth-backed app data, but `schema.sql` is a context
 
 | Table | Purpose |
 | --- | --- |
+| `languages` | Supported learning languages such as Luganda and Runyankole. |
 | `children` | Child profiles linked to Supabase `auth.users`. |
 | `activities` | Activity history for stories and games. |
 | `achievements` | Achievement definitions. |
@@ -60,9 +61,10 @@ Current fields:
 - `gender`
 - `age`
 - `reason`
+- `selected_language_code`
 - `created_at`
 
-Used by child list, parent dashboard, child detail, and add-child flow.
+Used by child list, parent dashboard, child detail, and add-child flow. `selected_language_code` is set during child profile creation and is not currently editable in child mode.
 
 ### `activities`
 
@@ -78,6 +80,8 @@ Current activity types allowed by the check constraint:
 - `language`
 
 The code currently writes several game/story activity types. Museum activity tracking is not wired yet.
+
+`activities.language_code` is available for language-specific progress tracking. It may remain nullable for historical rows, but new multilingual activity writes should include the child's selected language.
 
 ### `achievements`
 
@@ -103,6 +107,7 @@ Links a child to an achievement definition. The code attempts to handle duplicat
 - No stable content IDs in `activities`.
 - `activities.score` is text.
 - `activities.details` is text rather than structured JSON.
+- Existing activity writes do not yet populate `language_code`.
 - No parent profile table separate from `auth.users`.
 - No roles, schools, organizations, or class/group tables.
 - No media asset table.
@@ -111,6 +116,12 @@ Links a child to an achievement definition. The code attempts to handle duplicat
 - No content workflow tables.
 
 ## Future Migration Notes
+
+Current prepared migration:
+
+- `supabase/migrations/20260619000000_add_child_language_support.sql`
+
+This adds `languages`, required `children.selected_language_code`, nullable `activities.language_code`, seed rows for `lg` and `nyn`, foreign keys, and supporting indexes.
 
 Before adding database-driven content:
 

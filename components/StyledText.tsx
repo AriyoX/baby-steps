@@ -12,11 +12,11 @@ export function Text({
   ...props
 }: StyledTextProps) {
   const fontFamily = {
-    regular: "Atma-Regular",
-    bold: "Atma-Bold",
-    medium: "Atma-Medium",
-    light: "Atma-Light",
-    semibold: "Atma-SemiBold",
+    regular: "Quicksand-Regular",
+    bold: "Quicksand-Bold",
+    medium: "Quicksand-Medium",
+    light: "Quicksand-Light",
+    semibold: "Quicksand-SemiBold",
   }[variant];
 
   return <DefaultText style={[{ fontFamily }, style]} {...props} />;

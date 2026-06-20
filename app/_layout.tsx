@@ -26,14 +26,13 @@ export default function RootLayout() {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Use the useFonts hook instead of loadAsync
   const [fontsLoaded] = useFonts({
-    "Atma-Bold": require("../assets/fonts/Atma-Bold.ttf"),
-    "Atma-Light": require("../assets/fonts/Atma-Light.ttf"),
-    "Atma-Medium": require("../assets/fonts/Atma-Medium.ttf"),
-    "Atma-Regular": require("../assets/fonts/Atma-Regular.ttf"),
-    "Atma-SemiBold": require("../assets/fonts/Atma-SemiBold.ttf"),
-  });
+  "SuperChips": require("../assets/fonts/SuperChips.ttf"),
+  "Quicksand-Light": require("../assets/fonts/Quicksand-Light.ttf"),
+  "Quicksand-Regular": require("../assets/fonts/Quicksand-Regular.ttf"),
+  "Quicksand-Medium": require("../assets/fonts/Quicksand-Medium.ttf"),
+  "Quicksand-Bold": require("../assets/fonts/Quicksand-Bold.ttf"),
+});
 
   // Add a function to check onboarding status
   const checkOnboardingStatus = async () => {
@@ -208,7 +207,7 @@ export default function RootLayout() {
     <ChildProvider>
       <Stack
         screenOptions={{
-          headerTitleStyle: { fontFamily: "Atma-Medium" }, // Use Atma for headers
+          headerTitleStyle: { fontFamily: "Quicksand-Medium" }, // Use Quicksand-Medium for headers
           headerShown: false, // Set headerShown false globally
         }}
       >

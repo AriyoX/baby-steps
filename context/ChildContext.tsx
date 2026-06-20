@@ -5,6 +5,7 @@ interface ChildProfile {
   name: string;
   gender: string;
   age: string;
+  selected_language_code?: string;
   avatar?: string;
 }
 

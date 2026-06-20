@@ -12,6 +12,7 @@ import {
   Animated,
   Easing,
   BackHandler,
+  ActivityIndicator,
 } from "react-native"
 import { StatusBar } from "expo-status-bar"
 import { useRouter, usePathname, useFocusEffect } from "expo-router"
@@ -23,12 +24,18 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import * as ScreenOrientation from "expo-screen-orientation"
 import { useCallback } from "react"
 import { useChild } from "@/context/ChildContext"
+import {
+  loadContentBundle,
+  resolveImageSource,
+  type ChildMenuCard,
+  type ContentBundle,
+} from "@/content/contentRepository"
 
 // Define types
 type LearningCard = {
   id: string
   title: string
-  image: any
+  image?: string
   description: string
   targetPage: string // Add this property to specify which page to navigate to
 }
@@ -39,50 +46,38 @@ type NavItem = {
   label: string
 }
 
-const gameCards: LearningCard[] = [
-  {
-    id: "words",
-    title: "Words",
-    image: require("@/assets/images/african-focus.png"),
-    description: "Fill in the missing letters to complete the word",
-    targetPage: "child/games/wordgame",
-  },
-  {
-    id: "logic",
-    title: "Logic",
-    image: require("@/assets/images/african-logic.png"),
-    description: "Solve puzzles inspired by popular Buganda heritage sites",
-    targetPage: "child/games/puzzlegame",
-  },
-  {
-    id: "cards",
-    title: "Cards Matching",
-    image: require("@/assets/images/cards-matching.png"),
-    description: "Match the cards to learn about Buganda cultural items",
-    targetPage: "child/games/cardgame",
-  },
-  {
-    id: "learning",
-    title: "Learning",
-    image: require("@/assets/images/african-patterns.png"),
-    description: "Learning common Luganda words and how they are used in sentences",
-    targetPage: "child/games/learninggame",
-  },
-  {
-    id: "numbers",
-    title: "Numbers",
-    image: require("@/assets/images/numbers.png"),
-    description: "Count with traditional Luganda number systems",
-    targetPage: "child/games/lugandacountinggame",
-  },
-]
-
 const CHILD_TAB_BAR_CLEARANCE = 86
+
+const TAB_CONTENT_SLUGS: Record<string, string> = {
+  index: "games",
+  profile: "games",
+  coloring: "coloring",
+  Stories: "stories",
+  museum: "museum",
+}
+
+const TAB_TITLES: Record<string, string> = {
+  games: "Games",
+  coloring: "Coloring",
+  stories: "Stories",
+  museum: "Museum",
+}
+
+const toLearningCards = (cards: ChildMenuCard[]): LearningCard[] =>
+  cards.map((card) => ({
+    id: card.id,
+    title: card.title,
+    image: card.image,
+    description: card.description,
+    targetPage: card.targetPage,
+  }))
 
 const AfricanThemeGameInterface: React.FC = () => {
   const [selectedLevel, setSelectedLevel] = useState<string>("Basic")
   const [selectedNavItem, setSelectedNavItem] = useState<string>("home")
   const [learningCards, setLearningCards] = useState<LearningCard[]>([])
+  const [contentBundle, setContentBundle] = useState<ContentBundle | undefined>()
+  const [isContentLoading, setIsContentLoading] = useState(true)
   const router = useRouter()
   const { activeChild } = useChild()
 
@@ -191,155 +186,30 @@ const AfricanThemeGameInterface: React.FC = () => {
   const [screenTitle, setScreenTitle] = useState("Games")
 
   useEffect(() => {
-    // Set cards based on the selected tab
-    switch (tabId) {
-      case "index":
-      case "profile": // Games
-        setScreenTitle("Games")
-        setLearningCards(gameCards)
-        break
+    let isMounted = true
 
-      case "coloring":
-        setScreenTitle("Coloring")
-        setLearningCards([
-          {
-            id: "emblem",
-            title: "Buganda Emblem",
-            image: require("@/assets/images/emblem.png"),
-            description: "Buganda's emblem",
-            targetPage: "child/games/coloring/emblem",
-          },
-          {
-            id: "king",
-            title: "kings",
-            image: require("@/assets/images/king.jpg"),
-            description: "King's image",
-            targetPage: "child/games/coloring/king",
-          },
-          {
-            id: "animals",
-            title: "Animals",
-            image: require("@/assets/images/cow.png"),
-            description: "Color African wildlife animals",
-            targetPage: "child/games/coloring/animals",
-          },
-          {
-            id: "shapes",
-            title: "Shapes",
-            image: require("@/assets/images/shapes.jpg"),
-            description: "Color different shapes",
-            targetPage: "child/games/coloring/shapes",
-          },
-          {
-            id: "masks",
-            title: "Masks",
-            image: require("@/assets/images/mask.png"),
-            description: "Color traditional African masks",
-            targetPage: "child/games/coloring/mask",
-          },
-        ])
-        break
+    const loadMenuContent = async () => {
+      setIsContentLoading(true)
+      const result = await loadContentBundle(activeChild?.selected_language_code)
 
-      case "Stories":
-        setScreenTitle("Stories")
-        setLearningCards([
-          {
-            id: "kintu",
-            title: "Kintu",
-            image: require("@/assets/images/kintu.jpg"),
-            description: "Learn about Kintu, the first person on Earth according to Buganda mythology",
-            targetPage: "child/stories/kintustory",
-          },
-          {
-            id: "mwanga",
-            title: "Kabaka Mwanga",
-            image: require("@/assets/images/mwanga.jpg"),
-            description: "Discover the story of Kabaka Mwanga II of Buganda",
-            targetPage: "child/stories/mwangastory",
-          },
-          {
-            id: "kasubi",
-            title: "Kasubi Tombs",
-            image: require("@/assets/images/kasubi.jpg"),
-            description: "Explore the UNESCO World Heritage Site of Kasubi Tombs",
-            targetPage: "child/stories/kasubitombsstory",
-          },
-          {
-            id: "walumbe",
-            title: "Walumbe and Death",
-            image: require("@/assets/images/buganda-kingdom.jpg"),
-            description: "Learn about the story of Walumbe and the origin of death",
-            targetPage: "child/stories/walumbestory",
-          },
-          {
-            id: "ssezibwa",
-            title: "Ssezibwa Falls",
-            image: require("@/assets/images/kabaka-trail.jpg"),
-            description: "Follow the historical origin of Ssezibwa Falls",
-            targetPage: "child/stories/ssezibwafallsstory",
-          },
-          {
-            id: "millet",
-            title: "Nambi and the First Millet",
-            image: require("@/assets/images/culture.jpg"),
-            description: "Discover the story of Nambi and the first millet",
-            targetPage: "child/stories/milletstory",
-          },
-          {
-            id: "kasokambirye",
-            title: "Kasokambirye and the Moon",
-            image: require("@/assets/images/culture.jpg"),
-            description: "Discover the story of Kasokambirye and the moon",
-            targetPage: "child/stories/kasokambiryestory",
-          },
-          {
-            id: "fig-tree",
-            title: "The Generous Fig Tree",
-            image: require("@/assets/images/culture.jpg"),
-            description: "Discover the story of the generous fig tree",
-            targetPage: "child/stories/figtreestory",
-          },
-        ])
-        break
-
-      case "museum":
-        setScreenTitle("Museum")
-        setLearningCards([
-          {
-            id: "artifacts",
-            title: "Artifacts",
-            image: require("@/assets/images/artifacts.jpg"),
-            description: "Explore ancient African artifacts",
-            targetPage: "child/games/museum/ArtifactsScreen",
-          },
-          {
-            id: "art",
-            title: "Art",
-            image: require("@/assets/images/art.jpg"),
-            description: "Discover traditional and contemporary African art",
-            targetPage: "child/games/museum/ArtScreen",
-          },
-          {
-            id: "instruments",
-            title: "Instruments",
-            image: require("@/assets/images/drums.jpg"),
-            description: "Learn about traditional African musical instruments",
-            targetPage: "child/games/museum/InstrumentsScreen",
-          },
-          {
-            id: "textiles",
-            title: "Textiles",
-            image: require("@/assets/images/textile.jpg"),
-            description: "Explore the rich tradition of African textiles",
-            targetPage: "child/games/museum/TextilesScreen",
-          },
-        ])
-        break
-      default:
-        setScreenTitle("Games")
-        setLearningCards(gameCards)
+      if (isMounted) {
+        setContentBundle(result.bundle)
+        setIsContentLoading(false)
+      }
     }
-  }, [tabId])
+
+    loadMenuContent()
+
+    return () => {
+      isMounted = false
+    }
+  }, [activeChild?.selected_language_code])
+
+  useEffect(() => {
+    const contentSlug = TAB_CONTENT_SLUGS[tabId] ?? "games"
+    setScreenTitle(TAB_TITLES[contentSlug] ?? "Games")
+    setLearningCards(toLearningCards(contentBundle?.menuCardsByTab[contentSlug] ?? []))
+  }, [contentBundle, tabId])
 
   const handleParentalPress = () => {
     Speech.speak("For parents only", {
@@ -442,7 +312,7 @@ const AfricanThemeGameInterface: React.FC = () => {
                     activeOpacity={0.7}
                     onPress={() => handleCardPress(card)}
                   >
-                    <Image source={card.image} className="w-full h-[60%] object-cover" resizeMode="cover" />
+                    <Image source={resolveImageSource(card.image, "african-focus.png") as any} className="w-full h-[60%] object-cover" resizeMode="cover" />
                     <View className="p-3 bg-white h-[40%] justify-center">
                       <TranslatedText variant="bold" className="text-base text-[#5A3CBE] mb-1" numberOfLines={1}>
                         {card.title}
@@ -453,6 +323,22 @@ const AfricanThemeGameInterface: React.FC = () => {
                     </View>
                   </TouchableOpacity>
                 ))}
+                {isContentLoading && (
+                  <View className="bg-white rounded-2xl w-[250px] mr-4 items-center justify-center border-2 border-[#FFD700]" style={{ height: cardHeight }}>
+                    <ActivityIndicator size="large" color="#5A3CBE" />
+                  </View>
+                )}
+                {!isContentLoading && learningCards.length === 0 && (
+                  <View className="bg-white rounded-2xl w-[250px] mr-4 items-center justify-center p-4 border-2 border-[#FFD700]" style={{ height: cardHeight }}>
+                    <Ionicons name="sparkles-outline" size={32} color="#5A3CBE" />
+                    <Text variant="bold" className="text-base text-[#5A3CBE] mt-3 text-center">
+                      Coming soon
+                    </Text>
+                    <Text className="text-xs text-neutral-600 leading-4 mt-2 text-center">
+                      This activity is being prepared for your learning language.
+                    </Text>
+                  </View>
+                )}
               </ScrollView>
             </View>
           </View>

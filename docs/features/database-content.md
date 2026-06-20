@@ -1,120 +1,53 @@
-# Database-Driven Content
+# Database-Backed Content
 
 ## Current Status
 
-Planned. A first content-boundary cleanup exists for some game content, but the app does not yet load curriculum content from a database.
+Implemented as a controlled MVP vertical slice using one flexible `content_items` table. This is not a CMS.
 
-## Purpose
+The app now loads language-specific menu cards and the primary language gameplay payloads for:
 
-Database-driven content would allow Baby Steps to manage stories, games, lessons, media, localization, publication status, and content updates without editing app component files.
+- child home/menu cards,
+- learning game stages,
+- word game levels,
+- counting game stages and number labels,
+- generic DB/local JSON stories.
 
-## User Flow
+Game rules, route definitions, rendering, scoring, progress, achievements, and fallback decisions remain in React Native code.
 
-No production user flow exists yet.
+## Main Files
 
-Current content flow:
-
-1. App loads bundled component and content files.
-2. Game/story/museum screens render hardcoded content.
-3. Some interactions write activity/progress records.
-
-Future flow:
-
-1. App loads published content by stable content IDs.
-2. App falls back to bundled content when network/database content is unavailable.
-3. Activities and progress link to content IDs and content versions.
-
-## Main Files Involved
-
-Current hardcoded content locations:
-
-- `content/games/countingGameStages.ts`
-- `content/games/lugandawords.ts`
-- `content/games/wordgamewords.ts`
-- `components/stories/*Story.tsx`
-- `components/games/CardsMatchingComponent.tsx`
-- `components/games/PuzzleGameComponent.tsx`
+- `supabase/migrations/20260619001000_add_mvp_content_items.sql`
+- `content/contentRepository.ts`
 - `components/child/AfricanThemeGameInterface.tsx`
-- `app/child/games/museum/*.tsx`
-- `app/child/games/coloring/*.tsx`
-- `lib/translations.ts`
-- `assets/`
-- `schema.sql`
-- `REFACTOR_REPORT.md`
-- `VERIFICATION_REPORT.md`
+- `components/games/LearningGameComponent.tsx`
+- `components/games/WordGameComponent.tsx`
+- `components/games/CountingGameComponent.tsx`
+- `components/stories/GenericStoryRenderer.tsx`
+- `app/child/stories/[storyId].tsx`
+- `docs/development/mvp-content-items.md`
+- `docs/database/content-items-inspection.sql`
 
-## Key Components, Screens, And Functions
+## Rules
 
-No database content loader exists yet. Current relevant helpers are content-specific:
+- `content_type` and `slug` values are lowercase.
+- `nyn` content never silently falls back to `lg`.
+- Luganda can use the explicit `local-lg-legacy` fallback while existing prototype behavior is preserved.
+- Malformed DB payloads are skipped by the repository and should surface as coming-soon states.
+- Legacy route names such as `Stories` and `lugandacountinggame` are kept for now, but their screens can render language-aware content.
 
-- `getWordsForLevel`
-- `getLevelsForStage`
-- `getLugandaWord`
-- `getRandomNumbersForStage`
-- game progress managers under `components/games/utils/`
+See [MVP Content Items](../development/mvp-content-items.md) for payload contracts and future normalization guidance.
 
-## Data And Content Used
+## Remaining Hardcoded Areas
 
-Currently hardcoded:
+- Legacy Luganda story components under `components/stories/*Story.tsx`.
+- Buganda-focused card matching and puzzle content.
+- Museum and coloring content.
+- Some achievement labels and legacy achievement game keys.
 
-- Stories, story pages, story quizzes, and story images.
-- Games, stages, levels, prompts, answers, and media.
-- Luganda lesson words and audio mappings.
-- Museum categories, descriptions, sounds, and videos.
-- Coloring template route metadata.
-- UI translations.
+## Manual QA
 
-## State Management And Logic Notes
-
-- `content/games/` is a useful first boundary for structured game/lesson content.
-- Story and museum content remain embedded in screen components.
-- Activities do not yet reference stable content IDs.
-- Content versioning and cache behavior do not exist.
-
-## API Or Database Usage
-
-No database content API exists.
-
-`schema.sql` does not contain tables for:
-
-- curricula,
-- lessons,
-- lesson items,
-- stories,
-- story pages,
-- questions/options,
-- games,
-- levels/prompts/options,
-- media assets,
-- localization,
-- content versions,
-- content publishing workflow,
-- creator/admin roles.
-
-## Tests
-
-Existing tests cover only some pure content helpers in `content/games/`.
-
-## Known Limitations Or Bugs
-
-- There is no database content schema.
-- There are no content IDs tying activities/progress to content.
-- Story content is duplicated across components.
-- Museum content is screen-local.
-- Media uses bundled `require()` calls rather than asset metadata.
-
-## Future MVP Improvements
-
-- Define TypeScript content contracts before adding database tables.
-- Add stable IDs for stories, lessons, games, levels, questions, answers, and media.
-- Migrate one low-risk content type first, likely Luganda lesson words or word game levels.
-- Keep bundled fallback content while API/database content is introduced.
-- Add content versioning before replacing hardcoded content.
-
-## Manual QA Checklist
-
-- [ ] Confirm all current hardcoded content still renders before any migration.
-- [ ] Validate new content contracts against existing content files.
-- [ ] Migrate one content type only and compare old/new behavior.
-- [ ] Confirm activity rows use stable content IDs after migration work begins.
-- [ ] Test offline fallback before disabling bundled content.
+- Log in as a Luganda child and verify Games, Stories, Learning, Words, and Counting still render.
+- Log in as a Runyankole child and verify only Runyankole menu cards or coming-soon states appear.
+- Open the Runyankole story card and confirm the generic story renderer is used.
+- Complete one learning, word, and counting activity for each language and inspect `activities.language_code`.
+- Run the inspection queries in `docs/database/content-items-inspection.sql`.

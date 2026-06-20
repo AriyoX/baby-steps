@@ -12,7 +12,7 @@ Child profiles let a parent create learner records and choose which child enters
 
 1. Parent opens `/child-list` or taps `Add Child` from `/parent`.
 2. The add-child flow starts at `/parent/add-child/gender`.
-3. Parent enters/selects name, gender, age, and reason/focus.
+3. Parent enters/selects name, gender, age, learning language, and reason/focus.
 4. The flow includes prototype marketing/assessment screens.
 5. `/parent/add-child/final` writes the child profile to Supabase.
 6. Parent can view profiles in `/child-list` and child detail screens.
@@ -23,6 +23,7 @@ Child profiles let a parent create learner records and choose which child enters
 - `app/parent/add-child/_layout.tsx`
 - `app/parent/add-child/gender.tsx`
 - `app/parent/add-child/age.tsx`
+- `app/parent/add-child/language.tsx`
 - `app/parent/add-child/reason.tsx`
 - `app/parent/add-child/activities.tsx`
 - `app/parent/add-child/ourPriority.tsx`
@@ -50,7 +51,10 @@ The `children` table stores:
 - `gender`
 - `age`
 - `reason`
+- `selected_language_code`
 - `created_at`
+
+`selected_language_code` is required profile data. It is selected during add-child setup and is not switchable in child mode.
 
 Several add-child screens contain hardcoded copy, sample community stats, sample testimonials, and simple assessment questions.
 
@@ -65,6 +69,7 @@ Several add-child screens contain hardcoded copy, sample community stats, sample
 
 - Reads and writes `children`.
 - Requires an active Supabase Auth session.
+- Requires the minimal language schema so `children.selected_language_code` exists.
 
 ## Tests
 
@@ -89,8 +94,10 @@ No tests currently cover child profile creation, listing, or child mode launch.
 - [ ] Sign in as a parent.
 - [ ] Open `/child-list` with no profiles and confirm empty state.
 - [ ] Complete the add-child flow with all fields.
+- [ ] Confirm the learning language step is required.
+- [ ] Confirm the saved child row includes `selected_language_code`.
 - [ ] Confirm the child appears in `/child-list`.
 - [ ] Confirm the child appears in `/parent`.
-- [ ] Open child detail and confirm child name, age, and gender.
+- [ ] Open child detail and confirm child name, age, gender, and learning language.
 - [ ] Launch child mode from child detail.
 - [ ] Restart the app and confirm behavior when active child context is empty.

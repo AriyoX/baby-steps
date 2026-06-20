@@ -35,12 +35,12 @@
       [
         "expo-font",
         {
-          "fonts": [
-            "./assets/fonts/Atma-Bold.ttf",
-            "./assets/fonts/Atma-Light.ttf",
-            "./assets/fonts/Atma-Medium.ttf",
-            "./assets/fonts/Atma-Regular.ttf",
-            "./assets/fonts/Atma-SemiBold.ttf"
+         "fonts": [
+            "./assets/fonts/SuperChips.ttf",
+            "./assets/fonts/Quicksand-Light.ttf",
+            "./assets/fonts/Quicksand-Regular.ttf",
+            "./assets/fonts/Quicksand-Medium.ttf",
+            "./assets/fonts/Quicksand-Bold.ttf"
           ]
         }
       ],

@@ -13,6 +13,7 @@ export interface GameActivity {
   details?: string;
   stage?: number;
   level?: number;
+  language_code?: string;
 }
 
 interface Activity {
@@ -25,6 +26,7 @@ interface Activity {
   details?: string;
   stage?: number;
   level?: number;
+  language_code?: string;
 }
 
 /**

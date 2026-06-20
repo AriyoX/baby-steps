@@ -22,7 +22,7 @@ export default function AgeSelectionScreen() {
     if (selectedAge) {
       setAge(selectedAge)
       // Navigate to next screen
-      router.push("/parent/add-child/reason")
+      router.push("/parent/add-child/language" as any)
     } else {
       // Simple validation
       alert("Please select your child's age")
@@ -94,7 +94,7 @@ export default function AgeSelectionScreen() {
               className="self-center mt-4"
               onPress={() => {
                 setAge("")
-                router.push("/parent/add-child/reason")
+                router.push("/parent/add-child/language" as any)
               }}
             >
               <TranslatedText variant="medium" className="text-neutral-500">

@@ -14,9 +14,15 @@ import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { Ionicons } from "@expo/vector-icons";
-import { gameLevels } from "@/content/games/wordgamewords"; // Import game levels
 import { Text } from "@/components/StyledText";
+import { ComingSoonState } from "@/components/child/ComingSoonState";
 import { useChild } from "@/context/ChildContext"; // Import useChild context
+import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages";
+import {
+  loadContentBundle,
+  resolveImageSource,
+  type WordGameLevel,
+} from "@/content/contentRepository";
 import { saveActivity } from "@/lib/utils"; // Import saveActivity function
 import {
   WordGameProgress,
@@ -26,7 +32,6 @@ import {
   updateProgressForLevelCompletion,
   isLevelUnlocked
 } from './utils/progressManagerWordGame';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAchievements } from "./achievements/useAchievements"; 
 import { AchievementDefinition } from "./achievements/achievementTypes"; 
 
@@ -47,50 +52,14 @@ type LetterPosition = {
   destHeight: number;
 };
 
-type GameLevel = {
-  word: string;
-  question: string;
-  firstLetter: string;
-};
-
-// Add this helper function near the top of your component
 const getImageSource = (imageName: string | undefined) => {
-  // For now, all images will use coin.png as requested
-  if (!imageName) return require("@/assets/images/coin.png");
-  
-  switch (imageName) {
-    case 'wildlife.jpg':
-      return require('@/assets/images/wildlife.jpg');
-    case 'coin.jpg':
-      return require('@/assets/images/wildlife.jpg');
-    case 'rain.jpg':
-      return require('@/assets/images/rain.jpg');
-    case 'chicken.jpg':
-      return require('@/assets/images/chicken.jpg');
-    case 'black-kid.jpg':
-      return require('@/assets/images/black-kid.jpg');
-    case 'river-kids.jpg':
-      return require('@/assets/images/river-kids.jpg');
-    case 'dog.jpg':
-      return require('@/assets/images/dog.jpg');
-    case 'meat.jpg':
-      return require('@/assets/images/meat.jpg');
-    case 'rainforest.jpg':
-      return require('@/assets/images/rainforest.jpg');
-    case 'goat.jpg':
-      return require('@/assets/images/goat.png');
-    case 'ring.jpeg':
-      return require('@/assets/images/ring.jpeg');
-
-    // Add cases for other images
-    default:
-      return require('@/assets/images/coin.png');
-  }
+  return resolveImageSource(imageName, "coin.png") as any;
 };
 
 const WordGame: React.FC = () => {
   // Add child context
   const { activeChild } = useChild();
+  const languageCode = activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE;
   const { 
     isLoadingAchievements, 
     checkAndGrantNewAchievements 
@@ -105,6 +74,7 @@ const WordGame: React.FC = () => {
   
   // State variables
   const [currentLevelIndex, setCurrentLevelIndex] = useState<number>(0);
+  const [gameLevels, setGameLevels] = useState<WordGameLevel[]>([]);
   const [currentWord, setCurrentWord] = useState<string>("");
   const [displayWord, setDisplayWord] = useState<string>("");
   const [currentQuestion, setCurrentQuestion] = useState<string>("");
@@ -175,8 +145,12 @@ const WordGame: React.FC = () => {
   };
 
   // Modified loadLevel to track level start time
-  const loadLevel = (levelIndex: number) => {
-    if (levelIndex >= gameLevels.length) {
+  const loadLevel = (levelIndex: number, levels: WordGameLevel[] = gameLevels) => {
+    if (levels.length === 0) {
+      return;
+    }
+
+    if (levelIndex >= levels.length) {
       setIsGameCompleted(true);
       trackGameCompletion(); // Track full game completion
       return;
@@ -185,7 +159,7 @@ const WordGame: React.FC = () => {
     // Reset the level start time when loading a new level
     levelStartTime.current = Date.now();
 
-    const level = gameLevels[levelIndex];
+    const level = levels[levelIndex];
     const word = level.word;
     const firstLetter = level.firstLetter || word[0];
 
@@ -215,7 +189,7 @@ const WordGame: React.FC = () => {
         currentLevel: levelIndex
       };
       setProgress(updatedProgress);
-      saveGameProgress(updatedProgress, activeChild.id);
+      saveGameProgress(updatedProgress, activeChild.id, languageCode);
     }
   };
 
@@ -229,7 +203,7 @@ const WordGame: React.FC = () => {
           currentLevel: levelIndex
         };
         setProgress(updatedProgress);
-        saveGameProgress(updatedProgress, activeChild.id);
+        saveGameProgress(updatedProgress, activeChild.id, languageCode);
       }
       
       setCurrentLevelIndex(levelIndex);
@@ -252,7 +226,8 @@ const WordGame: React.FC = () => {
       duration: duration,
       completed_at: new Date().toISOString(),
       details: `Completed word: "${currentWord}" - ${currentQuestion}`,
-      level: currentLevelIndex + 1
+      level: currentLevelIndex + 1,
+      language_code: languageCode,
     });
   };
 
@@ -266,7 +241,8 @@ const WordGame: React.FC = () => {
       activity_name: "Word Game Completed",
       score: `${currentLevelIndex + 1}/${gameLevels.length}`,
       completed_at: new Date().toISOString(),
-      details: `Completed all ${gameLevels.length} words in the Word Game`
+      details: `Completed all ${gameLevels.length} words in the Word Game`,
+      language_code: languageCode,
     });
   };
 
@@ -281,6 +257,7 @@ const WordGame: React.FC = () => {
         progress,
         currentLevelIndex,
         currentWord,
+        gameLevels.length,
         activeChild.id
       );
       // No need to push to completedLevels or unlockedLevels here, updateProgressForLevelCompletion handles it.
@@ -340,13 +317,14 @@ const WordGame: React.FC = () => {
       // --- END ACHIEVEMENT CHECKING ---
 
       setProgress(finalProgress); // Update local state with points
-      await saveGameProgress(finalProgress, activeChild.id); // Save progress with new points
+      await saveGameProgress(finalProgress, activeChild.id, languageCode); // Save progress with new points
     } else {
       // If no active child, still update local state for non-persistent play
       finalProgress = updateProgressForLevelCompletion(
           progress,
           currentLevelIndex,
           currentWord,
+          gameLevels.length,
           undefined // no childId
         );
       setProgress(finalProgress);
@@ -385,7 +363,7 @@ const WordGame: React.FC = () => {
                         totalScore: finalProgress.totalScore + pointsFromAllComplete,
                     };
                     setProgress(finalProgressWithAllCompletePoints);
-                    await saveGameProgress(finalProgressWithAllCompletePoints, activeChild.id);
+                    await saveGameProgress(finalProgressWithAllCompletePoints, activeChild.id, languageCode);
                 }
             }
         }
@@ -449,7 +427,6 @@ const WordGame: React.FC = () => {
 
     setLandscapeOrientation();
     loadSounds();
-    loadLevel(0);
 
     return () => {
       if (correctSound) correctSound.unloadAsync();
@@ -460,6 +437,8 @@ const WordGame: React.FC = () => {
 
   // This useEffect will load the saved progress when the component mounts
   useEffect(() => {
+    let isMounted = true;
+
     const loadSavedProgress = async () => {
       // Reset all game-related state when child changes
       setIsLoading(true);
@@ -469,6 +448,18 @@ const WordGame: React.FC = () => {
       setShowHintModal(false);
       setShowSubHint(false);
       setSelectedLetters([]);
+
+      const contentResult = await loadContentBundle(languageCode);
+      const levels = contentResult.bundle?.wordGame.levels ?? [];
+
+      if (!isMounted) return;
+
+      setGameLevels(levels);
+
+      if (levels.length === 0) {
+        setIsLoading(false);
+        return;
+      }
       
       if (activeChild) {
         // Declare the variable outside the try block so it's accessible in finally
@@ -476,7 +467,7 @@ const WordGame: React.FC = () => {
         
         try {
           console.log(`Loading word game progress for child: ${activeChild.id}`);
-          savedProgress = await loadGameProgress(activeChild.id);
+          savedProgress = await loadGameProgress(activeChild.id, languageCode, levels.length);
           console.log('Loaded progress:', JSON.stringify(savedProgress));
           
           // Completely reset the previous progress before setting new progress
@@ -510,11 +501,11 @@ const WordGame: React.FC = () => {
           try {
             const levelToLoad = savedProgress?.currentLevel ?? 0;
             console.log(`Loading level: ${levelToLoad}`);
-            loadLevel(levelToLoad);
+            loadLevel(levelToLoad, levels);
           } catch (err) {
             console.error("Error loading level:", err);
             // Fallback to level 0 if anything goes wrong
-            loadLevel(0);
+            loadLevel(0, levels);
           }
         }
       } else {
@@ -522,12 +513,16 @@ const WordGame: React.FC = () => {
         // Set a temporary default progress 
         setProgress(DEFAULT_PROGRESS);
         setCurrentLevelIndex(0);
-        loadLevel(0);
+        loadLevel(0, levels);
       }
     };
 
     loadSavedProgress();
-  }, [activeChild]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeChild, languageCode]);
 
   const renderAchievementUnlockedModalWG = () => {
     if (!newlyEarnedAchievementWG) return null;
@@ -733,6 +728,10 @@ const WordGame: React.FC = () => {
         <Text variant="medium" className="text-primary-700 mt-4">Loading your progress...</Text>
       </View>
     );
+  }
+
+  if (gameLevels.length === 0) {
+    return <ComingSoonState title="Word game coming soon" />;
   }
 
   return (

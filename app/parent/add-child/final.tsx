@@ -9,13 +9,15 @@ import { TranslatedText } from "@/components/translated-text"
 import { FontAwesome5 } from "@expo/vector-icons"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { LinearGradient } from "expo-linear-gradient"
+import { getLearningLanguage } from "@/content/languages"
 
 export default function SubmitScreen() {
   const router = useRouter()
-  const { name, gender, age, reason, addChildProfile } = useUser()
+  const { name, gender, age, reason, selectedLanguageCode, addChildProfile } = useUser()
   const [isLoading, setIsLoading] = useState(true)
   const [isSuccess, setIsSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const selectedLanguage = getLearningLanguage(selectedLanguageCode)
 
   useEffect(() => {
     const submitData = async () => {
@@ -125,6 +127,14 @@ export default function SubmitScreen() {
                     Age:
                   </TranslatedText>
                   <Text className="text-neutral-700 flex-1">{age || "Not specified"}</Text>
+                </View>
+                <View className="flex-row mb-1">
+                  <TranslatedText variant="medium" className="text-neutral-700 w-20">
+                    Language:
+                  </TranslatedText>
+                  <Text className="text-neutral-700 flex-1">
+                    {selectedLanguage ? `${selectedLanguage.name} (${selectedLanguage.nativeName})` : "Not specified"}
+                  </Text>
                 </View>
                 <View className="flex-row">
                   <TranslatedText variant="medium" className="text-neutral-700 w-20">

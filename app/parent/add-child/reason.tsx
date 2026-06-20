@@ -15,7 +15,7 @@ export default function ReasonForDownloadingScreen() {
   const router = useRouter()
 
   const handleBack = () => {
-    router.push("/parent/add-child/age")
+    router.push("/parent/add-child/language" as any)
   }
 
   const handleNext = () => {

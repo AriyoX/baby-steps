@@ -19,23 +19,19 @@ import { StatusBar } from "expo-status-bar"
 import { useRouter } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import { Text } from "@/components/StyledText"
+import { ComingSoonState } from "@/components/child/ComingSoonState"
 import { useChild } from "@/context/ChildContext"
+import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages"
+import {
+  loadContentBundle,
+  type LearningGameLevel,
+  type LearningGameStage,
+  type LearningGameWord,
+} from "@/content/contentRepository"
 import { saveActivity } from "@/lib/utils"
 import { useAchievements } from "./achievements/useAchievements"
 import type { AchievementDefinition } from "./achievements/achievementTypes"
 import { playWordAudio, loadGameSounds } from "./utils/audioManager"
-
-// Import our data structure
-import {
-  LUGANDA_STAGES,
-  type Stage,
-  type Level,
-  type WordItem,
-  getWordsForLevel,
-  unlockNextLevel,
-  unlockNextStage,
-  isStageCompleted,
-} from "@/content/games/lugandawords"
 
 import {
   loadGameProgress as loadProgress,
@@ -46,15 +42,76 @@ import {
 
 type GameState = "menu" | "stageSelect" | "levelSelect" | "learning" | "playing" | "levelComplete"
 
+const getWordsForLevel = (
+  stages: LearningGameStage[],
+  stageId: number,
+  levelId: number,
+): LearningGameWord[] => {
+  const stage = stages.find((item) => item.id === stageId)
+  const level = stage?.levels.find((item) => item.id === levelId)
+  return level?.words ?? []
+}
+
+const isStageCompleted = (
+  stageId: number,
+  completedLevels: number[],
+  stages: LearningGameStage[],
+): boolean => {
+  const stage = stages.find((item) => item.id === stageId)
+  return stage ? stage.levels.every((level) => completedLevels.includes(level.id)) : false
+}
+
+const unlockNextLevel = (
+  currentStageId: number,
+  currentLevelId: number,
+  stages: LearningGameStage[],
+): LearningGameStage[] => {
+  return stages.map((stage) => {
+    if (stage.id !== currentStageId) return stage
+
+    return {
+      ...stage,
+      levels: stage.levels.map((level, index, levels) => {
+        if (levels[index - 1]?.id === currentLevelId && level.isLocked) {
+          return { ...level, isLocked: false }
+        }
+
+        return level
+      }),
+    }
+  })
+}
+
+const unlockNextStage = (
+  currentStageId: number,
+  stages: LearningGameStage[],
+): LearningGameStage[] => {
+  return stages.map((stage, index, allStages) => {
+    if (allStages[index - 1]?.id === currentStageId && stage.isLocked) {
+      return {
+        ...stage,
+        isLocked: false,
+        levels: stage.levels.map((level, levelIndex) =>
+          levelIndex === 0 ? { ...level, isLocked: false } : level,
+        ),
+      }
+    }
+
+    return stage
+  })
+}
+
 const LugandaLearningGame: React.FC = () => {
   const router = useRouter()
   const { activeChild } = useChild()
+  const languageCode = activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE
+  const achievementGameKey = languageCode === "lg" ? "luganda_learning_game" : "learning_game"
   const {
     // definedAchievements, // Not directly used for display in-game, but hook needs it
     // earnedChildAchievements, // Not directly used for display in-game
     isLoadingAchievements, // Can be combined with main isLoading
     checkAndGrantNewAchievements,
-  } = useAchievements(activeChild?.id, "luganda_learning_game") // Pass childId and gameKey
+  } = useAchievements(activeChild?.id, achievementGameKey) // Pass childId and gameKey
 
   const [newlyEarnedAchievementLL, setNewlyEarnedAchievementLL] = useState<AchievementDefinition | null>(null)
   const gameStartTime = useRef(Date.now())
@@ -65,11 +122,12 @@ const LugandaLearningGame: React.FC = () => {
 
   // Game state management
   const [gameState, setGameState] = useState<GameState>("stageSelect")
-  const [stages, setStages] = useState<Stage[]>(LUGANDA_STAGES)
-  const [selectedStage, setSelectedStage] = useState<Stage | null>(null)
-  const [selectedLevel, setSelectedLevel] = useState<Level | null>(null)
+  const [gameTitle, setGameTitle] = useState<string>("Learning")
+  const [stages, setStages] = useState<LearningGameStage[]>([])
+  const [selectedStage, setSelectedStage] = useState<LearningGameStage | null>(null)
+  const [selectedLevel, setSelectedLevel] = useState<LearningGameLevel | null>(null)
   const [currentLearningIndex, setCurrentLearningIndex] = useState<number>(0)
-  const [currentWords, setCurrentWords] = useState<WordItem[]>([])
+  const [currentWords, setCurrentWords] = useState<LearningGameWord[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
 
   // Game progress state
@@ -78,7 +136,7 @@ const LugandaLearningGame: React.FC = () => {
 
   // Playing state
   const [currentWordIndex, setCurrentWordIndex] = useState<number>(0)
-  const [currentWord, setCurrentWord] = useState<WordItem | null>(null)
+  const [currentWord, setCurrentWord] = useState<LearningGameWord | null>(null)
   const [options, setOptions] = useState<string[]>([])
   const [levelScore, setLevelScore] = useState<number>(0)
   const [selectedOption, setSelectedOption] = useState<string | null>(null)
@@ -117,33 +175,62 @@ const LugandaLearningGame: React.FC = () => {
 
   // Load game progress on mount
   useEffect(() => {
+    let isMounted = true
+
     const init = async () => {
-      if (activeChild) {
-        setIsLoading(true)
-        const progress = await loadProgress(activeChild.id)
+      setIsLoading(true)
 
-        setTotalScore(progress.totalScore)
-        setCompletedLevels(progress.completedLevels)
-        setStages(progress.stages)
-
+      try {
+        const contentResult = await loadContentBundle(languageCode)
+        const contentStages = contentResult.bundle?.learningGame.stages ?? []
         await loadSounds()
-        setIsLoading(false)
+
+        if (!isMounted) return
+
+        setGameTitle(contentResult.bundle?.learningGame.title ?? "Learning")
+        setSelectedStage(null)
+        setSelectedLevel(null)
+        setCurrentWords([])
+
+        if (activeChild && contentStages.length > 0) {
+          const progress = await loadProgress(activeChild.id, languageCode, contentStages)
+
+          if (!isMounted) return
+
+          setTotalScore(progress.totalScore)
+          setCompletedLevels(progress.completedLevels)
+          setStages(progress.stages.length > 0 ? progress.stages : contentStages)
+        } else {
+          setTotalScore(0)
+          setCompletedLevels([])
+          setStages(contentStages)
+        }
+      } catch (error) {
+        console.error("Error loading learning game content:", error)
+        if (isMounted) {
+          setStages([])
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
       }
     }
 
     init()
 
     return () => {
+      isMounted = false
       unloadSound(sound)
       unloadSound(correctSound)
       unloadSound(wrongSound)
     }
-  }, [activeChild])
+  }, [activeChild, languageCode])
 
   // Setup when selecting a level
   useEffect(() => {
     if (selectedLevel) {
-      const words = getWordsForLevel(selectedStage?.id || 0, selectedLevel.id)
+      const words = getWordsForLevel(stages, selectedStage?.id || 0, selectedLevel.id)
       setCurrentWords(words)
 
       if (gameState === "playing") {
@@ -153,7 +240,7 @@ const LugandaLearningGame: React.FC = () => {
         generateOptions(words[0], words)
       }
     }
-  }, [selectedLevel, gameState])
+  }, [selectedLevel, gameState, selectedStage?.id, stages])
 
   // Update progress bar
   useEffect(() => {
@@ -206,7 +293,7 @@ const LugandaLearningGame: React.FC = () => {
     }
   }
 
-  const playWordSound = async (word: WordItem = currentWord!): Promise<void> => {
+  const playWordSound = async (word: LearningGameWord = currentWord!): Promise<void> => {
     try {
       const newSound = await playWordAudio(word, sound)
       setSound(newSound)
@@ -216,7 +303,7 @@ const LugandaLearningGame: React.FC = () => {
   }
 
   // Stage selection
-  const selectStage = (stage: Stage) => {
+  const selectStage = (stage: LearningGameStage) => {
     if (!stage.isLocked) {
       setSelectedStage(stage)
       setGameState("levelSelect")
@@ -226,7 +313,7 @@ const LugandaLearningGame: React.FC = () => {
   }
 
   // Level selection
-  const selectLevel = (level: Level) => {
+  const selectLevel = (level: LearningGameLevel) => {
     if (!level.isLocked) {
       setSelectedLevel(level)
       setGameState("learning")
@@ -265,7 +352,7 @@ const LugandaLearningGame: React.FC = () => {
   }
 
   // Generate options for the game
-  const generateOptions = (word: WordItem, wordList: WordItem[]): void => {
+  const generateOptions = (word: LearningGameWord, wordList: LearningGameWord[]): void => {
     const correctAnswer = word.english
     let optionsArray: string[] = [correctAnswer]
 
@@ -373,6 +460,7 @@ const LugandaLearningGame: React.FC = () => {
       }`,
       stage: selectedStage?.id,
       level: selectedLevel?.id,
+      language_code: languageCode,
     })
 
     // Reset timer for next activity
@@ -403,7 +491,7 @@ const LugandaLearningGame: React.FC = () => {
     currentLocalStagesState = unlockNextLevel(selectedStage.id, selectedLevel.id, currentLocalStagesState)
 
     // Check if current stage is completed and unlock next if criteria met
-    const isCurrentStageNowCompleted = isStageCompleted(selectedStage.id, newCompletedLevelsState)
+    const isCurrentStageNowCompleted = isStageCompleted(selectedStage.id, newCompletedLevelsState, currentLocalStagesState)
     if (isCurrentStageNowCompleted) {
       wasStageNewlyCompleted = true // Mark that this stage was just completed
       const nextStageDefinition = currentLocalStagesState.find((s) => s.id === selectedStage.id + 1)
@@ -416,7 +504,7 @@ const LugandaLearningGame: React.FC = () => {
     await trackActivity(nextStageUnlocked)
 
     // Prepare User Stats (integrate logic similar to progressManager.updateUserStats)
-    const progressSoFar = await loadProgress(activeChild.id) // Load existing stats
+    const progressSoFar = await loadProgress(activeChild.id, languageCode, currentLocalStagesState) // Load existing stats
     const existingUserStats = progressSoFar.userStats || { ...DEFAULT_USER_STATS } // Use default if undefined
 
     const lastPlayedDate = new Date(existingUserStats.lastPlayed || 0) // Handle case where lastPlayed might be missing
@@ -450,7 +538,7 @@ const LugandaLearningGame: React.FC = () => {
     // Event for level completion
     eventsForAchievements.push({
       type: "level_completed" as const, // Use 'as const' for literal types
-      gameKey: "luganda_learning_game",
+      gameKey: achievementGameKey,
       levelId: selectedLevel.id,
       stageId: selectedStage.id, // Good to have context
       // newTotalScore: newTotalScoreState, // Can be sent if achievements depend on it at this exact moment
@@ -462,7 +550,7 @@ const LugandaLearningGame: React.FC = () => {
     if (levelScore === maxPossibleScoreForLevel) {
       eventsForAchievements.push({
         type: "level_perfect_clear" as const,
-        gameKey: "luganda_learning_game",
+        gameKey: achievementGameKey,
         levelId: selectedLevel.id,
         currentLevelScore: levelScore,
         currentLevelMaxScore: maxPossibleScoreForLevel,
@@ -473,7 +561,7 @@ const LugandaLearningGame: React.FC = () => {
     if (wasStageNewlyCompleted) {
       eventsForAchievements.push({
         type: "stage_completed" as const,
-        gameKey: "luganda_learning_game",
+        gameKey: achievementGameKey,
         stageId: selectedStage.id,
         // newTotalScore: newTotalScoreState,
         // currentUserStats: updatedUserStatsState,
@@ -483,14 +571,14 @@ const LugandaLearningGame: React.FC = () => {
     // Event for score update and stats update (always send, achievements will check thresholds)
     eventsForAchievements.push({
       type: "score_updated" as const, // Could also be 'stats_updated' or both
-      gameKey: "luganda_learning_game",
+      gameKey: achievementGameKey,
       newTotalScore: newTotalScoreState, // Pass the score *before* achievement points
       currentUserStats: updatedUserStatsState, // Pass the latest stats
     })
     // Also an explicit stats_updated if you have achievements that only look at stats
     eventsForAchievements.push({
       type: "stats_updated" as const,
-      gameKey: "luganda_learning_game",
+      gameKey: achievementGameKey,
       currentUserStats: updatedUserStatsState,
     })
 
@@ -499,7 +587,7 @@ const LugandaLearningGame: React.FC = () => {
       if (newlyEarnedFromEvent.length > 0) {
         newlyEarnedFromEvent.forEach((ach) => {
           achievementPointsEarned += ach.points
-          console.log(`LUGANDA LEARNING - NEW ACHIEVEMENT: ${ach.name}`)
+          console.log(`LEARNING GAME - NEW ACHIEVEMENT: ${ach.name}`)
           setNewlyEarnedAchievementLL(ach) // For modal/toast
           // Toast.show(`Achievement: ${ach.name}! +${ach.points} pts`, Toast.LONG);
         })
@@ -522,10 +610,11 @@ const LugandaLearningGame: React.FC = () => {
         currentLocalStagesState,
         updatedUserStatsState,
         activeChild.id,
+        languageCode,
       )
-      console.log("Luganda Learning: Game progress saved successfully.")
+      console.log("Learning game progress saved successfully.")
     } catch (error) {
-      console.error("Luganda Learning: Failed to save game progress:", error)
+      console.error("Learning game: Failed to save game progress:", error)
     }
 
     setGameState("levelComplete")
@@ -636,6 +725,7 @@ const LugandaLearningGame: React.FC = () => {
         streakDays: 1, // This would need more complex logic to properly track
       },
       activeChild.id,
+      languageCode,
     )
   }
 
@@ -655,7 +745,7 @@ const LugandaLearningGame: React.FC = () => {
           </TouchableOpacity>
 
           <Text variant="bold" className="text-xl text-indigo-800">
-            Luganda Learning
+            {gameTitle}
           </Text>
 
           <View className="flex-row items-center bg-white px-3 py-1.5 rounded-full shadow-sm border border-amber-200">
@@ -727,7 +817,7 @@ const LugandaLearningGame: React.FC = () => {
 
                       {/* Image alongside title */}
                       <View className="ml-auto bg-white p-2 rounded-full shadow-sm">
-                        <Image source={stage.image} style={{ width: 24, height: 24 }} resizeMode="contain" />
+                        <Image source={stage.image as any} style={{ width: 24, height: 24 }} resizeMode="contain" />
                       </View>
                     </View>
 
@@ -846,7 +936,7 @@ const LugandaLearningGame: React.FC = () => {
               <View className="flex-row items-center">
                 {/* Image and Title in one row */}
                 <View className="bg-white p-2 rounded-full mr-3">
-                  <Image source={selectedStage.image} style={{ width: 24, height: 24 }} resizeMode="contain" />
+                  <Image source={selectedStage.image as any} style={{ width: 24, height: 24 }} resizeMode="contain" />
                 </View>
 
                 <View className="flex-1">
@@ -1006,7 +1096,7 @@ const LugandaLearningGame: React.FC = () => {
                 className="bg-white p-5 rounded-2xl shadow-sm w-full justify-center items-center"
                 style={{ opacity: fadeAnim }}
               >
-                <Image source={currentLearnWord.image} style={{ width: "100%", height: "80%" }} resizeMode="contain" />
+                <Image source={currentLearnWord.image as any} style={{ width: "100%", height: "80%" }} resizeMode="contain" />
               </Animated.View>
             </View>
 
@@ -1038,7 +1128,7 @@ const LugandaLearningGame: React.FC = () => {
                 </View>
 
                 <Text variant="bold" className="text-3xl text-indigo-700 pt-3">
-                  {currentLearnWord.luganda}
+                  {currentLearnWord.targetText}
                 </Text>
                 <Text className="text-xl text-slate-700 mb-4">{currentLearnWord.english}</Text>
 
@@ -1086,7 +1176,7 @@ const LugandaLearningGame: React.FC = () => {
               <View className="mx-4 my-2">
                 <View className="bg-white p-4 rounded-2xl shadow-sm items-center mb-5">
                   <Image
-                    source={currentLearnWord.image}
+                    source={currentLearnWord.image as any}
                     style={{ width: width * 0.7, height: width * 0.5 }}
                     resizeMode="contain"
                   />
@@ -1106,7 +1196,7 @@ const LugandaLearningGame: React.FC = () => {
                   </View>
 
                   <Text variant="bold" className="text-3xl text-indigo-700 mb-1">
-                    {currentLearnWord.luganda}
+                    {currentLearnWord.targetText}
                   </Text>
                   <Text className="text-xl text-slate-700 mb-4">{currentLearnWord.english}</Text>
 
@@ -1217,7 +1307,7 @@ const LugandaLearningGame: React.FC = () => {
                   <View className="items-center mb-5">
                     <View className="flex-row items-center">
                       <Text variant="bold" className="text-3xl text-indigo-700 text-center pt-3">
-                        {currentWord.luganda}
+                        {currentWord.targetText}
                       </Text>
                       <TouchableOpacity className="ml-3 p-2 bg-indigo-100 rounded-full" onPress={() => playWordSound()}>
                         <Ionicons name="volume-high" size={20} color="#6366f1" />
@@ -1291,7 +1381,7 @@ const LugandaLearningGame: React.FC = () => {
                 <View className="items-center mb-5">
                   <View className="flex-row items-center">
                     <Text variant="bold" className="text-3xl text-indigo-700 text-center">
-                      {currentWord.luganda}
+                      {currentWord.targetText}
                     </Text>
                     <TouchableOpacity className="ml-3 p-2 bg-indigo-100 rounded-full" onPress={() => playWordSound()}>
                       <Ionicons name="volume-high" size={20} color="#6366f1" />
@@ -1471,6 +1561,10 @@ const LugandaLearningGame: React.FC = () => {
         <Text className="mt-4 text-slate-600">Loading your learning journey...</Text>
       </SafeAreaView>
     )
+  }
+
+  if (stages.length === 0) {
+    return <ComingSoonState title="Learning coming soon" />
   }
 
   // Main render function that switches between game states

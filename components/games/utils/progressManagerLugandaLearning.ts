@@ -1,12 +1,17 @@
 // progressManager.ts
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Stage, LUGANDA_STAGES } from '@/content/games/lugandawords';
+import type { LearningGameStage } from '@/content/contentRepository';
 
 // Keys for AsyncStorage
-const SCORE_KEY = 'luganda_total_score';
-const COMPLETED_LEVELS_KEY = 'luganda_completed_levels';
-const STAGES_DATA_KEY = 'luganda_stages';
-const USER_STATS_KEY = 'luganda_user_stats';
+const SCORE_KEY = 'learning_total_score';
+const COMPLETED_LEVELS_KEY = 'learning_completed_levels';
+const STAGES_DATA_KEY = 'learning_stages';
+const USER_STATS_KEY = 'learning_user_stats';
+
+const LEGACY_SCORE_KEY = 'luganda_total_score';
+const LEGACY_COMPLETED_LEVELS_KEY = 'luganda_completed_levels';
+const LEGACY_STAGES_DATA_KEY = 'luganda_stages';
+const LEGACY_USER_STATS_KEY = 'luganda_user_stats';
 
 // User Statistics Interface
 export interface UserStats { 
@@ -26,30 +31,52 @@ export const DEFAULT_USER_STATS: UserStats = {
   streakDays: 1
 };
 
-// Load user's game progress
-export const loadGameProgress = async (childId: string) => {
-  try {
-    const scoreData = await AsyncStorage.getItem(`${SCORE_KEY}_${childId}`);
-    const completedLevelsData = await AsyncStorage.getItem(`${COMPLETED_LEVELS_KEY}_${childId}`);
-    const stagesData = await AsyncStorage.getItem(`${STAGES_DATA_KEY}_${childId}`);
-    const userStatsData = await AsyncStorage.getItem(`${USER_STATS_KEY}_${childId}`);
+const getStorageKey = (baseKey: string, childId: string, languageCode: string) =>
+  `${baseKey}_${childId}_${languageCode}`;
 
-    // Ensure LUGANDA_STAGES is used as a fallback and not mutated directly
-    const defaultStages = JSON.parse(JSON.stringify(LUGANDA_STAGES)); // Deep copy for default
+const getLegacyStorageKey = (baseKey: string, childId: string) =>
+  `${baseKey}_${childId}`;
+
+const cloneStages = (stages: LearningGameStage[]): LearningGameStage[] =>
+  JSON.parse(JSON.stringify(stages));
+
+// Load user's game progress
+export const loadGameProgress = async (
+  childId: string,
+  languageCode: string,
+  defaultStages: LearningGameStage[]
+) => {
+  try {
+    let scoreData = await AsyncStorage.getItem(getStorageKey(SCORE_KEY, childId, languageCode));
+    let completedLevelsData = await AsyncStorage.getItem(getStorageKey(COMPLETED_LEVELS_KEY, childId, languageCode));
+    let stagesData = await AsyncStorage.getItem(getStorageKey(STAGES_DATA_KEY, childId, languageCode));
+    let userStatsData = await AsyncStorage.getItem(getStorageKey(USER_STATS_KEY, childId, languageCode));
+
+    if (!scoreData && !completedLevelsData && !stagesData && languageCode === 'lg') {
+      scoreData = await AsyncStorage.getItem(getLegacyStorageKey(LEGACY_SCORE_KEY, childId));
+      completedLevelsData = await AsyncStorage.getItem(getLegacyStorageKey(LEGACY_COMPLETED_LEVELS_KEY, childId));
+      stagesData = await AsyncStorage.getItem(getLegacyStorageKey(LEGACY_STAGES_DATA_KEY, childId));
+      userStatsData = await AsyncStorage.getItem(getLegacyStorageKey(LEGACY_USER_STATS_KEY, childId));
+
+      if (scoreData || completedLevelsData || stagesData || userStatsData) {
+        console.log('Using explicit legacy Luganda learning progress keys');
+      }
+    }
+
+    const fallbackStages = cloneStages(defaultStages);
 
     return {
       totalScore: scoreData ? parseInt(scoreData) : 0,
       completedLevels: completedLevelsData ? JSON.parse(completedLevelsData) : [],
-      stages: stagesData ? JSON.parse(stagesData) : defaultStages,
+      stages: stagesData ? JSON.parse(stagesData) : fallbackStages,
       userStats: userStatsData ? JSON.parse(userStatsData) : { ...DEFAULT_USER_STATS }, // Return a copy of default
     };
   } catch (error) {
     console.error('Error loading game progress', error);
-    const defaultStages = JSON.parse(JSON.stringify(LUGANDA_STAGES));
     return {
       totalScore: 0,
       completedLevels: [],
-      stages: defaultStages,
+      stages: cloneStages(defaultStages),
       userStats: { ...DEFAULT_USER_STATS }
     };
   }
@@ -59,15 +86,16 @@ export const loadGameProgress = async (childId: string) => {
 export const saveGameProgress = async (
   totalScore: number,
   completedLevels: number[],
-  stages: Stage[],
+  stages: LearningGameStage[],
   userStats: UserStats,
-  childId: string
+  childId: string,
+  languageCode: string
 ) => {
   try {
-    await AsyncStorage.setItem(`${SCORE_KEY}_${childId}`, totalScore.toString());
-    await AsyncStorage.setItem(`${COMPLETED_LEVELS_KEY}_${childId}`, JSON.stringify(completedLevels));
-    await AsyncStorage.setItem(`${STAGES_DATA_KEY}_${childId}`, JSON.stringify(stages)); // Ensure stages are saved correctly
-    await AsyncStorage.setItem(`${USER_STATS_KEY}_${childId}`, JSON.stringify(userStats));
+    await AsyncStorage.setItem(getStorageKey(SCORE_KEY, childId, languageCode), totalScore.toString());
+    await AsyncStorage.setItem(getStorageKey(COMPLETED_LEVELS_KEY, childId, languageCode), JSON.stringify(completedLevels));
+    await AsyncStorage.setItem(getStorageKey(STAGES_DATA_KEY, childId, languageCode), JSON.stringify(stages));
+    await AsyncStorage.setItem(getStorageKey(USER_STATS_KEY, childId, languageCode), JSON.stringify(userStats));
     return true;
   } catch (error) {
     console.error('Error saving game progress', error);
@@ -81,11 +109,13 @@ export const updateUserStats = async ( // This function is good but not directly
   correctAnswers: number,
   wrongAnswers: number,
   wordsLearned: number,
-  childId: string
+  childId: string,
+  languageCode: string,
+  defaultStages: LearningGameStage[] = []
 ) => {
   try {
     // Get current stats
-    const progress = await loadGameProgress(childId); // Use loadGameProgress to get current stats
+    const progress = await loadGameProgress(childId, languageCode, defaultStages); // Use loadGameProgress to get current stats
     let userStats: UserStats = progress.userStats || { ...DEFAULT_USER_STATS }; // Use a copy of default if undefined
 
     // Check if the last played date was yesterday or earlier
@@ -114,7 +144,7 @@ export const updateUserStats = async ( // This function is good but not directly
     };
 
     // Save updated stats
-    await AsyncStorage.setItem(`${USER_STATS_KEY}_${childId}`, JSON.stringify(updatedUserStats));
+    await AsyncStorage.setItem(getStorageKey(USER_STATS_KEY, childId, languageCode), JSON.stringify(updatedUserStats));
     return updatedUserStats;
   } catch (error) {
     console.error('Error updating user stats', error);
@@ -124,12 +154,12 @@ export const updateUserStats = async ( // This function is good but not directly
 
 
 // Reset all game progress (for testing or user-requested reset)
-export const resetGameProgress = async (childId: string) => {
+export const resetGameProgress = async (childId: string, languageCode: string) => {
   try {
-    await AsyncStorage.removeItem(`${SCORE_KEY}_${childId}`);
-    await AsyncStorage.removeItem(`${COMPLETED_LEVELS_KEY}_${childId}`);
-    await AsyncStorage.removeItem(`${STAGES_DATA_KEY}_${childId}`);
-    await AsyncStorage.removeItem(`${USER_STATS_KEY}_${childId}`);
+    await AsyncStorage.removeItem(getStorageKey(SCORE_KEY, childId, languageCode));
+    await AsyncStorage.removeItem(getStorageKey(COMPLETED_LEVELS_KEY, childId, languageCode));
+    await AsyncStorage.removeItem(getStorageKey(STAGES_DATA_KEY, childId, languageCode));
+    await AsyncStorage.removeItem(getStorageKey(USER_STATS_KEY, childId, languageCode));
     return true;
   } catch (error) {
     console.error('Error resetting game progress', error);
@@ -145,8 +175,8 @@ export const resetGameProgress = async (childId: string) => {
 export const unlockNextLevel = (
   currentStageId: number,
   currentLevelId: number,
-  stages: Stage[]
-): Stage[] => {
+  stages: LearningGameStage[]
+): LearningGameStage[] => {
   return stages.map(stage => {
     if (stage.id === currentStageId) {
       return {
@@ -180,8 +210,8 @@ export const checkAndUnlockNextStage = (
   currentStageId: number,
   completedLevels: number[],
   totalScore: number,
-  stages: Stage[]
-): Stage[] => {
+  stages: LearningGameStage[]
+): LearningGameStage[] => {
   // Make pure:
   const updatedStages = stages.map(s => ({
     ...s,

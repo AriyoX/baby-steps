@@ -20,6 +20,12 @@ export default function OnboardingLayout() {
             }}
           />
           <Stack.Screen
+            name="language"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
             name="reason"
             options={{
               headerShown: false,

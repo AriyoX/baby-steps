@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COUNTING_GAME_STAGES } from '@/content/games/countingGameStages';
 
 // Types for progress tracking
 export interface CountingGameProgress {
@@ -32,22 +31,37 @@ export const DEFAULT_PROGRESS: CountingGameProgress = createDefaultProgress('def
 /**
  * Get the storage key for a specific child
  */
-const getStorageKey = (childId: string): string => {
+const getStorageKey = (childId: string, languageCode: string): string => {
+  return `@BabySteps:CountingGame:${childId}:${languageCode}`;
+};
+
+const getLegacyStorageKey = (childId: string): string => {
   return `@BabySteps:CountingGame:${childId}`;
 };
 
 /**
  * Load saved game progress from AsyncStorage
  */
-export const loadGameProgress = async (childId: string): Promise<CountingGameProgress> => {
+export const loadGameProgress = async (
+  childId: string,
+  languageCode: string
+): Promise<CountingGameProgress> => {
   if (!childId) {
     console.warn('No child ID provided for loading progress, using default');
     return createDefaultProgress('default');
   }
 
   try {
-    const key = getStorageKey(childId);
-    const savedProgress = await AsyncStorage.getItem(key);
+    const key = getStorageKey(childId, languageCode);
+    let savedProgress = await AsyncStorage.getItem(key);
+
+    if (!savedProgress && languageCode === 'lg') {
+      const legacyKey = getLegacyStorageKey(childId);
+      savedProgress = await AsyncStorage.getItem(legacyKey);
+      if (savedProgress) {
+        console.log(`Using explicit legacy Luganda counting progress key: ${legacyKey}`);
+      }
+    }
     
     if (savedProgress) {
       const parsedProgress = JSON.parse(savedProgress) as CountingGameProgress;
@@ -74,7 +88,8 @@ export const loadGameProgress = async (childId: string): Promise<CountingGamePro
  */
 export const saveGameProgress = async (
   progress: CountingGameProgress,
-  childId: string
+  childId: string,
+  languageCode: string
 ): Promise<void> => {
   if (!childId) {
     console.warn('No child ID provided for saving progress, aborting');
@@ -88,7 +103,7 @@ export const saveGameProgress = async (
       childId // Always ensure the childId is set correctly
     };
     
-    const key = getStorageKey(childId);
+    const key = getStorageKey(childId, languageCode);
     await AsyncStorage.setItem(key, JSON.stringify(updatedProgress));
     console.log(`Saved progress for child: ${childId}`);
   } catch (error) {
@@ -103,6 +118,7 @@ export const updateProgressForStageCompletion = (
   progress: CountingGameProgress, 
   stageId: number, 
   score: number,
+  stageCount: number,
   childId?: string
 ): CountingGameProgress => {
   const newProgress = { ...progress };
@@ -117,7 +133,7 @@ export const updateProgressForStageCompletion = (
   
   // Unlock next stage if available
   const nextStageId = stageId + 1;
-  if (nextStageId <= COUNTING_GAME_STAGES.length && !newProgress.unlockedStages.includes(nextStageId)) {
+  if (nextStageId <= stageCount && !newProgress.unlockedStages.includes(nextStageId)) {
     newProgress.unlockedStages.push(nextStageId);
   }
   
@@ -170,11 +186,11 @@ export const isStageUnlocked = (progress: CountingGameProgress, stageId: number)
 /**
  * Reset progress for a specific child
  */
-export const resetProgress = async (childId: string): Promise<void> => {
+export const resetProgress = async (childId: string, languageCode: string): Promise<void> => {
   if (!childId) return;
   
   try {
-    const key = getStorageKey(childId);
+    const key = getStorageKey(childId, languageCode);
     await AsyncStorage.removeItem(key);
     console.log(`Reset progress for child: ${childId}`);
   } catch (error) {

@@ -10,6 +10,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons"
 import { supabase } from "@/lib/supabase" // Assuming this is your Supabase client
 import { useChild } from "@/context/ChildContext"
+import { getLearningLanguage } from "@/content/languages"
 
 // Achievement imports
 import { useAchievements } from "@/components/games/achievements/useAchievements" // Ensure this path is correct
@@ -21,6 +22,7 @@ interface ChildData {
   name: string
   gender: string
   age: string
+  selected_language_code?: string
   avatar?: string
 }
 
@@ -61,7 +63,11 @@ export default function ChildDetailScreen() {
     // ... (your existing fetchChildData remains the same)
     try {
       setLoading(true)
-      const { data, error } = await supabase.from("children").select("id, name, gender, age").eq("id", childId).single();
+      const { data, error } = await supabase
+        .from("children")
+        .select("id, name, gender, age, selected_language_code")
+        .eq("id", childId)
+        .single();
       if (error) throw error;
       setChildData({
         ...data,
@@ -74,6 +80,8 @@ export default function ChildDetailScreen() {
       setLoading(false);
     }
   };
+
+  const selectedLanguage = getLearningLanguage(childData?.selected_language_code);
 
   useEffect(() => {
     if (!isLoadingAchievements && definedAchievements.length > 0 && earnedChildAchievements.length >= 0 && childId) {
@@ -170,6 +178,9 @@ export default function ChildDetailScreen() {
                     </Text>
                     <Text className="text-gray-500 text-sm">{childData.age} years old</Text>
                     <TranslatedText className="text-gray-500 text-sm capitalize">Gender: {childData.gender}</TranslatedText>
+                    <Text className="text-gray-500 text-sm">
+                      Language: {selectedLanguage ? selectedLanguage.name : childData.selected_language_code || "Not set"}
+                    </Text>
                     <View className="mt-3 flex-row">
                       <TouchableOpacity
                         className="bg-[#7b5af0] py-2 px-4 rounded-lg shadow"

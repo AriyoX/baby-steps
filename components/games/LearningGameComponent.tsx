@@ -20,14 +20,17 @@ import { useRouter } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import { Text } from "@/components/StyledText"
 import { ComingSoonState } from "@/components/child/ComingSoonState"
+import { CachedImage } from "@/components/common/CachedImage"
 import { useChild } from "@/context/ChildContext"
 import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages"
 import {
   loadContentBundle,
+  resolveImageSource,
   type LearningGameLevel,
   type LearningGameStage,
   type LearningGameWord,
 } from "@/content/contentRepository"
+import { preloadContentBundleImages } from "@/content/imagePreloader"
 import { saveActivity } from "@/lib/utils"
 import { useAchievements } from "./achievements/useAchievements"
 import type { AchievementDefinition } from "./achievements/achievementTypes"
@@ -183,6 +186,9 @@ const LugandaLearningGame: React.FC = () => {
       try {
         const contentResult = await loadContentBundle(languageCode)
         const contentStages = contentResult.bundle?.learningGame.stages ?? []
+        if (contentResult.bundle) {
+          void preloadContentBundleImages(contentResult.bundle)
+        }
         await loadSounds()
 
         if (!isMounted) return
@@ -817,7 +823,13 @@ const LugandaLearningGame: React.FC = () => {
 
                       {/* Image alongside title */}
                       <View className="ml-auto bg-white p-2 rounded-full shadow-sm">
-                        <Image source={stage.image as any} style={{ width: 24, height: 24 }} resizeMode="contain" />
+                        <CachedImage
+                          source={stage.image as any}
+                          fallbackSource={resolveImageSource("coin.png")}
+                          style={{ width: 24, height: 24 }}
+                          resizeMode="contain"
+                          accessibilityLabel={`${stage.title} picture`}
+                        />
                       </View>
                     </View>
 
@@ -936,7 +948,13 @@ const LugandaLearningGame: React.FC = () => {
               <View className="flex-row items-center">
                 {/* Image and Title in one row */}
                 <View className="bg-white p-2 rounded-full mr-3">
-                  <Image source={selectedStage.image as any} style={{ width: 24, height: 24 }} resizeMode="contain" />
+                  <CachedImage
+                    source={selectedStage.image as any}
+                    fallbackSource={resolveImageSource("coin.png")}
+                    style={{ width: 24, height: 24 }}
+                    resizeMode="contain"
+                    accessibilityLabel={`${selectedStage.title} picture`}
+                  />
                 </View>
 
                 <View className="flex-1">
@@ -1096,7 +1114,13 @@ const LugandaLearningGame: React.FC = () => {
                 className="bg-white p-5 rounded-2xl shadow-sm w-full justify-center items-center"
                 style={{ opacity: fadeAnim }}
               >
-                <Image source={currentLearnWord.image as any} style={{ width: "100%", height: "80%" }} resizeMode="contain" />
+                <CachedImage
+                  source={currentLearnWord.image as any}
+                  fallbackSource={resolveImageSource("learning-beginner.jpg")}
+                  style={{ width: "100%", height: "80%" }}
+                  resizeMode="contain"
+                  accessibilityLabel={`${currentLearnWord.english} picture`}
+                />
               </Animated.View>
             </View>
 
@@ -1175,10 +1199,12 @@ const LugandaLearningGame: React.FC = () => {
             <Animated.View style={{ opacity: fadeAnim }}>
               <View className="mx-4 my-2">
                 <View className="bg-white p-4 rounded-2xl shadow-sm items-center mb-5">
-                  <Image
+                  <CachedImage
                     source={currentLearnWord.image as any}
+                    fallbackSource={resolveImageSource("learning-beginner.jpg")}
                     style={{ width: width * 0.7, height: width * 0.5 }}
                     resizeMode="contain"
+                    accessibilityLabel={`${currentLearnWord.english} picture`}
                   />
                 </View>
 

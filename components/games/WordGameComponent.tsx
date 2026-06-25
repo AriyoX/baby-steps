@@ -16,6 +16,7 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import { Ionicons } from "@expo/vector-icons";
 import { Text } from "@/components/StyledText";
 import { ComingSoonState } from "@/components/child/ComingSoonState";
+import { CachedImage } from "@/components/common/CachedImage";
 import { useChild } from "@/context/ChildContext"; // Import useChild context
 import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages";
 import {
@@ -23,6 +24,7 @@ import {
   resolveImageSource,
   type WordGameLevel,
 } from "@/content/contentRepository";
+import { preloadContentBundleImages } from "@/content/imagePreloader";
 import { saveActivity } from "@/lib/utils"; // Import saveActivity function
 import {
   WordGameProgress,
@@ -451,6 +453,9 @@ const WordGame: React.FC = () => {
 
       const contentResult = await loadContentBundle(languageCode);
       const levels = contentResult.bundle?.wordGame.levels ?? [];
+      if (contentResult.bundle) {
+        void preloadContentBundleImages(contentResult.bundle);
+      }
 
       if (!isMounted) return;
 
@@ -795,10 +800,12 @@ const WordGame: React.FC = () => {
         {/* Left character */}
         <View className="w-[15%] items-center justify-center">
           <View className="w-24 h-24 bg-white rounded-full items-center justify-center shadow-lg border-4 border-secondary-200">
-            <Image
+            <CachedImage
               source={getImageSource(gameLevels[currentLevelIndex].image)}
+              fallbackSource={resolveImageSource("coin.png")}
               className="w-20 h-20 rounded-full"
               resizeMode="cover"
+              accessibilityLabel={`${gameLevels[currentLevelIndex].question} picture`}
             />
           </View>
         </View>
@@ -1114,10 +1121,12 @@ const WordGame: React.FC = () => {
 
             {/* Image - slightly smaller */}
             <View className="w-1/2 aspect-square bg-white rounded-xl items-center justify-center shadow-lg border-2 border-secondary-200 mb-2 overflow-hidden">
-              <Image
+              <CachedImage
                 source={getImageSource(gameLevels[currentLevelIndex].image)}
+                fallbackSource={resolveImageSource("coin.png")}
                 className="w-full h-full"
                 resizeMode="cover"
+                accessibilityLabel={`${gameLevels[currentLevelIndex].question} picture`}
               />
             </View>
 

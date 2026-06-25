@@ -19,6 +19,7 @@ type ChildProfile = {
   gender: string
   age: string
   reason: string
+  selected_language_code?: string
   created_at: string
 }
 

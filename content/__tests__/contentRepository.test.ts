@@ -4,13 +4,61 @@ jest.mock("@/lib/supabase", () => ({
   },
 }));
 
+jest.mock("@react-native-async-storage/async-storage", () =>
+  require("@react-native-async-storage/async-storage/jest/async-storage-mock"),
+);
+
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { supabase } from "@/lib/supabase";
 import {
   buildContentBundleFromItems,
   buildLocalContentBundle,
+  clearContentBundleCache,
+  loadContentBundle,
   mergeDatabaseBundleWithLegacyLugandaContent,
   validateContentItemPayload,
   type ContentItemRecord,
 } from "../contentRepository";
+
+const createContentItemsQuery = (
+  result: { data: ContentItemRecord[] | null; error: unknown },
+) => {
+  const query = {
+    select: jest.fn().mockReturnThis(),
+    eq: jest.fn().mockReturnThis(),
+    order: jest.fn().mockResolvedValue(result),
+  };
+
+  return query;
+};
+
+const menuItem = (
+  languageCode: ContentItemRecord["language_code"],
+  cardId: string,
+): ContentItemRecord => ({
+  language_code: languageCode,
+  content_type: "child_menu",
+  slug: "games",
+  title: "Games",
+  is_active: true,
+  payload: {
+    cards: [
+      {
+        id: cardId,
+        title: cardId,
+        description: `${cardId} card`,
+        image: "african-focus.png",
+        targetPage: "child/games/wordgame",
+      },
+    ],
+  },
+});
+
+beforeEach(async () => {
+  jest.clearAllMocks();
+  await clearContentBundleCache();
+  await AsyncStorage.clear();
+});
 
 describe("content repository mapping", () => {
   it("builds DB-backed menu, learning, word, counting, and story content", () => {
@@ -224,5 +272,129 @@ describe("content repository mapping", () => {
     expect(mergedBundle.wordGame.levels.length).toBe(legacyBundle.wordGame.levels.length);
     expect(mergedBundle.learningGame.stages.length).toBe(legacyBundle.learningGame.stages.length);
     expect(mergedBundle.countingGame.stages.length).toBe(legacyBundle.countingGame.stages.length);
+  });
+});
+
+describe("loadContentBundle cache behavior", () => {
+  it("keeps content cache keys language-specific", async () => {
+    const fromMock = supabase.from as jest.Mock;
+    fromMock
+      .mockReturnValueOnce(
+        createContentItemsQuery({ data: [menuItem("lg", "lg-menu")], error: null }),
+      )
+      .mockReturnValueOnce(
+        createContentItemsQuery({ data: [menuItem("nyn", "nyn-menu")], error: null }),
+      );
+
+    const luganda = await loadContentBundle("lg");
+    const runyankole = await loadContentBundle("nyn");
+    const cachedLuganda = await loadContentBundle("lg");
+
+    expect(luganda.bundle?.languageCode).toBe("lg");
+    expect(runyankole.bundle?.languageCode).toBe("nyn");
+    expect(cachedLuganda.bundle?.menuCardsByTab.games[0].id).toBe("lg-menu");
+    expect(cachedLuganda.cache?.source).toBe("memory");
+    expect(fromMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("bypasses cached DB content when forceRefresh is true", async () => {
+    const fromMock = supabase.from as jest.Mock;
+    fromMock
+      .mockReturnValueOnce(
+        createContentItemsQuery({ data: [menuItem("nyn", "first-menu")], error: null }),
+      )
+      .mockReturnValueOnce(
+        createContentItemsQuery({ data: [menuItem("nyn", "refreshed-menu")], error: null }),
+      );
+
+    const first = await loadContentBundle("nyn");
+    const cached = await loadContentBundle("nyn");
+    const refreshed = await loadContentBundle("nyn", { forceRefresh: true });
+
+    expect(first.bundle?.menuCardsByTab.games[0].id).toBe("first-menu");
+    expect(cached.bundle?.menuCardsByTab.games[0].id).toBe("first-menu");
+    expect(refreshed.bundle?.menuCardsByTab.games[0].id).toBe("refreshed-menu");
+    expect(fromMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("never serves cached Luganda content to a Runyankole request", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    const fromMock = supabase.from as jest.Mock;
+    fromMock
+      .mockReturnValueOnce(
+        createContentItemsQuery({ data: [menuItem("lg", "lg-only")], error: null }),
+      )
+      .mockReturnValueOnce(
+        createContentItemsQuery({ data: null, error: new Error("offline") }),
+      );
+
+    await loadContentBundle("lg");
+    const runyankole = await loadContentBundle("nyn");
+
+    expect(runyankole.languageCode).toBe("nyn");
+    expect(runyankole.source).toBe("local-same-language-sample");
+    expect(runyankole.bundle?.languageCode).toBe("nyn");
+    expect(runyankole.bundle?.menuCardsByTab.games.map((card) => card.id)).not.toContain(
+      "lg-only",
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it("does not cache invalid DB payloads as usable database content", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    const fromMock = supabase.from as jest.Mock;
+    fromMock
+      .mockReturnValueOnce(
+        createContentItemsQuery({
+          data: [
+            {
+              language_code: "nyn",
+              content_type: "child_menu",
+              slug: "games",
+              title: "Broken",
+              is_active: true,
+              payload: {},
+            },
+          ],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(
+        createContentItemsQuery({ data: null, error: new Error("offline") }),
+      );
+
+    const first = await loadContentBundle("nyn");
+    const afterFailure = await loadContentBundle("nyn");
+
+    expect(first.source).toBe("local-same-language-sample");
+    expect(afterFailure.source).toBe("local-same-language-sample");
+    expect(afterFailure.cache).toBeUndefined();
+    expect(fromMock).toHaveBeenCalledTimes(2);
+
+    warnSpy.mockRestore();
+  });
+
+  it("uses same-language cached DB content when a forced DB refresh fails", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    const fromMock = supabase.from as jest.Mock;
+    fromMock
+      .mockReturnValueOnce(
+        createContentItemsQuery({ data: [menuItem("nyn", "cached-nyn")], error: null }),
+      )
+      .mockReturnValueOnce(
+        createContentItemsQuery({ data: null, error: new Error("offline") }),
+      );
+
+    await loadContentBundle("nyn");
+    const afterFailure = await loadContentBundle("nyn", { forceRefresh: true });
+
+    expect(afterFailure.source).toBe("database");
+    expect(afterFailure.bundle?.languageCode).toBe("nyn");
+    expect(afterFailure.bundle?.menuCardsByTab.games[0].id).toBe("cached-nyn");
+    expect(afterFailure.cache?.source).toBe("memory");
+    expect(fromMock).toHaveBeenCalledTimes(2);
+
+    warnSpy.mockRestore();
   });
 });

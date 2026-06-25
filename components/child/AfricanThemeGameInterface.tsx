@@ -1,10 +1,9 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useRef } from "react"
+import { useCallback, useState, useEffect, useRef } from "react"
 import {
   View,
-  Image,
   TouchableOpacity,
   Dimensions,
   ImageBackground,
@@ -22,14 +21,15 @@ import { Text } from "@/components/StyledText"
 import { TranslatedText } from "@/components/translated-text"
 import { SafeAreaView } from "react-native-safe-area-context"
 import * as ScreenOrientation from "expo-screen-orientation"
-import { useCallback } from "react"
 import { useChild } from "@/context/ChildContext"
+import { CachedImage } from "@/components/common/CachedImage"
 import {
   loadContentBundle,
   resolveImageSource,
   type ChildMenuCard,
   type ContentBundle,
 } from "@/content/contentRepository"
+import { preloadContentBundleImages } from "@/content/imagePreloader"
 import { BrandMark } from "@/components/brand/BrandMark"
 import { brandColors } from "@/constants/Brand"
 
@@ -198,6 +198,10 @@ const AfricanThemeGameInterface: React.FC = () => {
         setContentBundle(result.bundle)
         setIsContentLoading(false)
       }
+
+      if (result.bundle) {
+        void preloadContentBundleImages(result.bundle)
+      }
     }
 
     loadMenuContent()
@@ -250,9 +254,11 @@ const AfricanThemeGameInterface: React.FC = () => {
                   transform: [{ scale: pulseAnim }, { translateY: bounceAnim }],
                 }}
               >
-                <Image
+                <CachedImage
                   source={require("@/assets/images/african-avatar.jpg")}
                   className="w-[70px] h-[70px] rounded-full border-3 border-accent-500"
+                  resizeMode="cover"
+                  accessibilityLabel={`${activeChild?.name || "Learner"} profile picture`}
                 />
               </Animated.View>
               <View className="pl-3">
@@ -314,7 +320,13 @@ const AfricanThemeGameInterface: React.FC = () => {
                     activeOpacity={0.7}
                     onPress={() => handleCardPress(card)}
                   >
-                    <Image source={resolveImageSource(card.image, "african-focus.png") as any} className="w-full h-[60%] object-cover" resizeMode="cover" />
+                    <CachedImage
+                      source={resolveImageSource(card.image, "african-focus.png")}
+                      fallbackSource={resolveImageSource("african-focus.png")}
+                      className="w-full h-[60%]"
+                      resizeMode="cover"
+                      accessibilityLabel={card.title}
+                    />
                     <View className="p-3 bg-white h-[40%] justify-center">
                       <TranslatedText variant="bold" className="text-base text-primary-700 mb-1" numberOfLines={1}>
                         {card.title}

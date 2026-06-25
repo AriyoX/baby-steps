@@ -1,12 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import { Image, ScrollView, TouchableOpacity, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { ScrollView, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/StyledText";
 import { ComingSoonState } from "@/components/child/ComingSoonState";
+import { CachedImage } from "@/components/common/CachedImage";
 import { useChild } from "@/context/ChildContext";
 import { resolveImageSource } from "@/content/contentRepository";
+import { preloadStoryImages } from "@/content/imagePreloader";
 import { saveActivity } from "@/lib/utils";
 import type { LocalStory } from "@/content/types";
 
@@ -25,6 +27,12 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
 
   const page = story?.pages[pageIndex];
   const isLastPage = story ? pageIndex === story.pages.length - 1 : false;
+
+  useEffect(() => {
+    if (story) {
+      void preloadStoryImages(story);
+    }
+  }, [story]);
 
   const quizScore = useMemo(() => {
     if (!story?.questions?.length) return undefined;
@@ -86,10 +94,12 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
 
       <ScrollView className="flex-1" contentContainerStyle={{ padding: 20 }}>
         <View className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          <Image
-            source={resolveImageSource(page.image, "learning-beginner.jpg") as any}
+          <CachedImage
+            source={resolveImageSource(page.image, "learning-beginner.jpg")}
+            fallbackSource={resolveImageSource("learning-beginner.jpg")}
             className="w-full h-56"
             resizeMode="cover"
+            accessibilityLabel={page.altText ?? story.title}
           />
           <View className="p-5">
             <Text className="text-lg text-slate-800 leading-7">{page.text}</Text>

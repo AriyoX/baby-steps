@@ -1,4 +1,6 @@
-const IMAGE_ASSETS: Record<string, unknown> = {
+import type { ImageSourcePropType } from "react-native";
+
+const IMAGE_ASSETS: Record<string, ImageSourcePropType> = {
   "10000.jpeg": require("@/assets/images/10000.jpeg"),
   "1000.jpeg": require("@/assets/images/1000.jpeg"),
   "20000.jpeg": require("@/assets/images/20000.jpeg"),
@@ -49,12 +51,26 @@ const IMAGE_ASSETS: Record<string, unknown> = {
   "wildlife.jpg": require("@/assets/images/wildlife.jpg"),
 };
 
+export const isRemoteImageUri = (uri: string): boolean =>
+  /^https?:\/\//i.test(uri.trim());
+
+export const isUriImageReference = (image: string): boolean =>
+  /^(https?:\/\/|file:\/\/|data:image\/)/i.test(image.trim());
+
 export const resolveImageSource = (
   image: unknown,
   fallbackImage = "learning-beginner.jpg",
-): unknown => {
+): ImageSourcePropType => {
   if (typeof image !== "string") {
-    return image ?? IMAGE_ASSETS[fallbackImage] ?? IMAGE_ASSETS["coin.png"];
+    return (
+      (image as ImageSourcePropType | undefined) ??
+      IMAGE_ASSETS[fallbackImage] ??
+      IMAGE_ASSETS["coin.png"]
+    );
+  }
+
+  if (isUriImageReference(image)) {
+    return { uri: image };
   }
 
   return IMAGE_ASSETS[image] ?? IMAGE_ASSETS[fallbackImage] ?? IMAGE_ASSETS["coin.png"];

@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import { resolveImageSource } from "./assets";
 import {
@@ -156,7 +157,42 @@ export interface ContentLoadResult {
   bundle?: ContentBundle;
   source: ContentSource;
   missingReason?: string;
+  cache?: ContentBundleCacheMetadata;
 }
+
+export interface LoadContentBundleOptions {
+  forceRefresh?: boolean;
+  maxAgeMs?: number;
+}
+
+export interface ContentBundleCacheMetadata {
+  cacheKey: string;
+  loadedAt: number;
+  source: "memory" | "storage" | "network";
+  isStale: boolean;
+  maxAgeMs: number;
+}
+
+interface ContentItemsCacheEntry {
+  version: 1;
+  languageCode: SupportedLearningLanguageCode;
+  loadedAt: number;
+  items: ContentItemRecord[];
+}
+
+interface CachedContentBundle {
+  bundle: ContentBundle;
+  metadata: ContentBundleCacheMetadata;
+}
+
+export const CONTENT_BUNDLE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
+const CONTENT_BUNDLE_CACHE_VERSION = 1;
+const CONTENT_BUNDLE_CACHE_PREFIX = "@BabySteps:ContentBundle:v1";
+const contentItemsMemoryCache = new Map<
+  SupportedLearningLanguageCode,
+  ContentItemsCacheEntry
+>();
 
 const LOCAL_CONTENT_BY_LANGUAGE: Record<
   SupportedLearningLanguageCode,
@@ -164,6 +200,207 @@ const LOCAL_CONTENT_BY_LANGUAGE: Record<
 > = {
   lg: lugandaContent,
   nyn: runyankoleContent,
+};
+
+export const getContentBundleCacheKey = (
+  languageCode: SupportedLearningLanguageCode,
+): string => `${CONTENT_BUNDLE_CACHE_PREFIX}:${languageCode}`;
+
+const isUsableDatabaseBundle = (bundle: ContentBundle): boolean => {
+  const hasMenuCards = Object.values(bundle.menuCardsByTab).some(
+    (cards) => cards.length > 0,
+  );
+  const hasLearningContent = bundle.learningGame.stages.length > 0;
+  const hasWordContent = bundle.wordGame.levels.length > 0;
+  const hasCountingContent =
+    bundle.countingGame.stages.length > 0 &&
+    bundle.countingGame.numbers.length > 0;
+  const hasStories = bundle.stories.length > 0;
+
+  return (
+    hasMenuCards ||
+    hasLearningContent ||
+    hasWordContent ||
+    hasCountingContent ||
+    hasStories
+  );
+};
+
+const buildUsableDatabaseBundle = (
+  languageCode: SupportedLearningLanguageCode,
+  items: ContentItemRecord[],
+): ContentBundle | undefined => {
+  const databaseBundle = buildContentBundleFromItems(languageCode, items);
+
+  if (!isUsableDatabaseBundle(databaseBundle)) {
+    return undefined;
+  }
+
+  return languageCode === "lg"
+    ? mergeDatabaseBundleWithLegacyLugandaContent(databaseBundle)
+    : databaseBundle;
+};
+
+const parseCachedContentItemsEntry = (
+  value: string | null,
+  languageCode: SupportedLearningLanguageCode,
+): ContentItemsCacheEntry | undefined => {
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(value) as Partial<ContentItemsCacheEntry>;
+
+    if (
+      parsed.version !== CONTENT_BUNDLE_CACHE_VERSION ||
+      parsed.languageCode !== languageCode ||
+      !Array.isArray(parsed.items) ||
+      typeof parsed.loadedAt !== "number"
+    ) {
+      return undefined;
+    }
+
+    return parsed as ContentItemsCacheEntry;
+  } catch (error) {
+    console.warn(`Could not parse cached content for ${languageCode}.`, error);
+    return undefined;
+  }
+};
+
+const resolveCachedContentBundle = (
+  entry: ContentItemsCacheEntry | undefined,
+  languageCode: SupportedLearningLanguageCode,
+  metadata: Omit<ContentBundleCacheMetadata, "loadedAt">,
+): CachedContentBundle | undefined => {
+  if (!entry || entry.languageCode !== languageCode) {
+    return undefined;
+  }
+
+  const bundle = buildUsableDatabaseBundle(languageCode, entry.items);
+
+  if (!bundle || bundle.languageCode !== languageCode) {
+    return undefined;
+  }
+
+  return {
+    bundle,
+    metadata: {
+      ...metadata,
+      loadedAt: entry.loadedAt,
+    },
+  };
+};
+
+const readCachedContentBundle = async (
+  languageCode: SupportedLearningLanguageCode,
+  options: {
+    allowExpired: boolean;
+    maxAgeMs: number;
+    now: number;
+  },
+): Promise<CachedContentBundle | undefined> => {
+  const cacheKey = getContentBundleCacheKey(languageCode);
+  const isFresh = (entry: ContentItemsCacheEntry): boolean =>
+    options.now - entry.loadedAt <= options.maxAgeMs;
+  const buildMetadata = (
+    source: ContentBundleCacheMetadata["source"],
+    entry: ContentItemsCacheEntry,
+  ): Omit<ContentBundleCacheMetadata, "loadedAt"> => ({
+    cacheKey,
+    source,
+    isStale: !isFresh(entry),
+    maxAgeMs: options.maxAgeMs,
+  });
+
+  const memoryEntry = contentItemsMemoryCache.get(languageCode);
+  if (memoryEntry && (options.allowExpired || isFresh(memoryEntry))) {
+    const cached = resolveCachedContentBundle(
+      memoryEntry,
+      languageCode,
+      buildMetadata("memory", memoryEntry),
+    );
+
+    if (cached) {
+      return cached;
+    }
+
+    contentItemsMemoryCache.delete(languageCode);
+  }
+
+  try {
+    const storedValue = await AsyncStorage.getItem(cacheKey);
+    const storageEntry = parseCachedContentItemsEntry(storedValue, languageCode);
+
+    if (!storageEntry) {
+      return undefined;
+    }
+
+    if (!options.allowExpired && !isFresh(storageEntry)) {
+      contentItemsMemoryCache.set(languageCode, storageEntry);
+      return undefined;
+    }
+
+    const cached = resolveCachedContentBundle(
+      storageEntry,
+      languageCode,
+      buildMetadata("storage", storageEntry),
+    );
+
+    if (!cached) {
+      await AsyncStorage.removeItem(cacheKey);
+      contentItemsMemoryCache.delete(languageCode);
+      return undefined;
+    }
+
+    contentItemsMemoryCache.set(languageCode, storageEntry);
+    return cached;
+  } catch (error) {
+    console.warn(`Could not read cached content for ${languageCode}.`, error);
+    return undefined;
+  }
+};
+
+const writeCachedContentItems = async (
+  languageCode: SupportedLearningLanguageCode,
+  items: ContentItemRecord[],
+  loadedAt: number,
+): Promise<void> => {
+  const entry: ContentItemsCacheEntry = {
+    version: CONTENT_BUNDLE_CACHE_VERSION,
+    languageCode,
+    loadedAt,
+    items,
+  };
+
+  contentItemsMemoryCache.set(languageCode, entry);
+
+  try {
+    await AsyncStorage.setItem(
+      getContentBundleCacheKey(languageCode),
+      JSON.stringify(entry),
+    );
+  } catch (error) {
+    console.warn(`Could not persist cached content for ${languageCode}.`, error);
+  }
+};
+
+export const clearContentBundleCache = async (
+  languageCode?: SupportedLearningLanguageCode,
+): Promise<void> => {
+  if (languageCode) {
+    contentItemsMemoryCache.delete(languageCode);
+    await AsyncStorage.removeItem(getContentBundleCacheKey(languageCode));
+    return;
+  }
+
+  contentItemsMemoryCache.clear();
+
+  await Promise.all(
+    (Object.keys(LOCAL_CONTENT_BY_LANGUAGE) as SupportedLearningLanguageCode[]).map(
+      (code) => AsyncStorage.removeItem(getContentBundleCacheKey(code)),
+    ),
+  );
 };
 
 const LEGACY_LUGANDA_MENU_CARDS: Record<string, ChildMenuCard[]> = {
@@ -715,6 +952,13 @@ export const buildContentBundleFromItems = (
       continue;
     }
 
+    if (item.language_code !== languageCode) {
+      console.warn(
+        `Skipping ${item.content_type}/${item.slug}; row language ${item.language_code} does not match requested language ${languageCode}.`,
+      );
+      continue;
+    }
+
     const contentType = parseContentItemType(item.content_type);
     const slug = normalizeContentSlug(item.slug);
     const payload = asRecord(item.payload);
@@ -857,14 +1101,34 @@ export const mergeDatabaseBundleWithLegacyLugandaContent = (
 
 export const loadContentBundle = async (
   languageCode?: string | null,
+  options: LoadContentBundleOptions = {},
 ): Promise<ContentLoadResult> => {
   const normalizedLanguageCode = normalizeContentLanguageCode(languageCode);
+  const maxAgeMs = options.maxAgeMs ?? CONTENT_BUNDLE_CACHE_TTL_MS;
+  const now = Date.now();
 
   if (!normalizedLanguageCode) {
     return {
       source: "empty",
       missingReason: `Unsupported learning language: ${languageCode}`,
     };
+  }
+
+  if (!options.forceRefresh) {
+    const cached = await readCachedContentBundle(normalizedLanguageCode, {
+      allowExpired: false,
+      maxAgeMs,
+      now,
+    });
+
+    if (cached) {
+      return {
+        languageCode: normalizedLanguageCode,
+        source: "database",
+        bundle: cached.bundle,
+        cache: cached.metadata,
+      };
+    }
   }
 
   try {
@@ -880,25 +1144,54 @@ export const loadContentBundle = async (
     }
 
     if (data && data.length > 0) {
-      const databaseBundle = buildContentBundleFromItems(
+      const contentItems = data as ContentItemRecord[];
+      const bundle = buildUsableDatabaseBundle(
         normalizedLanguageCode,
-        data as ContentItemRecord[],
+        contentItems,
       );
 
-      return {
-        languageCode: normalizedLanguageCode,
-        source: "database",
-        bundle:
-          normalizedLanguageCode === "lg"
-            ? mergeDatabaseBundleWithLegacyLugandaContent(databaseBundle)
-            : databaseBundle,
-      };
+      if (bundle) {
+        const loadedAt = Date.now();
+        await writeCachedContentItems(normalizedLanguageCode, contentItems, loadedAt);
+
+        return {
+          languageCode: normalizedLanguageCode,
+          source: "database",
+          bundle,
+          cache: {
+            cacheKey: getContentBundleCacheKey(normalizedLanguageCode),
+            loadedAt,
+            source: "network",
+            isStale: false,
+            maxAgeMs,
+          },
+        };
+      }
+
+      console.warn(
+        `Database content for ${normalizedLanguageCode} did not contain any usable payloads; using same-language bundled content if available.`,
+      );
     }
   } catch (error) {
     console.warn(
       `Could not load database content for ${normalizedLanguageCode}; using same-language bundled content if available.`,
       error,
     );
+
+    const cached = await readCachedContentBundle(normalizedLanguageCode, {
+      allowExpired: true,
+      maxAgeMs,
+      now: Date.now(),
+    });
+
+    if (cached) {
+      return {
+        languageCode: normalizedLanguageCode,
+        source: "database",
+        bundle: cached.bundle,
+        cache: cached.metadata,
+      };
+    }
   }
 
   const localContent = LOCAL_CONTENT_BY_LANGUAGE[normalizedLanguageCode];

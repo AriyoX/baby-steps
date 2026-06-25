@@ -21,6 +21,7 @@ import { Ionicons } from "@expo/vector-icons" // Already imported
 import { LinearGradient } from "expo-linear-gradient"
 import { useChild } from "@/context/ChildContext"
 import { ComingSoonState } from "@/components/child/ComingSoonState"
+import { CachedImage } from "@/components/common/CachedImage"
 import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages"
 import {
   loadContentBundle,
@@ -29,6 +30,7 @@ import {
   type CountingGameItem,
   type CountingGameStage,
 } from "@/content/contentRepository"
+import { preloadContentBundleImages } from "@/content/imagePreloader"
 import { saveActivity } from "@/lib/utils"
 import { Text } from "@/components/StyledText"
 import {
@@ -165,6 +167,9 @@ const LugandaCountingGame: React.FC = () => {
       try {
         const contentResult = await loadContentBundle(languageCode)
         const loadedCountingContent = contentResult.bundle?.countingGame ?? null
+        if (contentResult.bundle) {
+          void preloadContentBundleImages(contentResult.bundle)
+        }
 
         if (!isMounted) return
 
@@ -764,14 +769,19 @@ const LugandaCountingGame: React.FC = () => {
             top: itemsToCount[0]?.y || dimensions.height * 0.3,
           }}
         >
-          <Animated.Image
-            source={currencyImageSource}
-            className="w-24 h-24"
+          <Animated.View
             style={{
               transform: [{ scale: itemsToCount[0]?.scale || 1.5 }],
             }}
-            resizeMode="contain"
-          />
+          >
+            <CachedImage
+              source={currencyImageSource}
+              fallbackSource={resolveImageSource("coin.png")}
+              className="w-24 h-24"
+              resizeMode="contain"
+              accessibilityLabel={currencyItem.name}
+            />
+          </Animated.View>
           <Text variant="bold" className="text-lg text-primary-800 mt-2">
             {currencyItem.name}
           </Text>
@@ -809,14 +819,19 @@ const LugandaCountingGame: React.FC = () => {
             top: item.y,
           }}
         >
-          <Animated.Image
-            source={imageSource}
-            className="w-16 h-16"
+          <Animated.View
             style={{
               transform: [{ rotate: `${item.rotate}deg` }, { scale: item.scale }],
             }}
-            resizeMode="contain"
-          />
+          >
+            <CachedImage
+              source={imageSource}
+              fallbackSource={resolveImageSource("african-logic.png")}
+              className="w-16 h-16"
+              resizeMode="contain"
+              accessibilityLabel={currentItem.name}
+            />
+          </Animated.View>
           <Text variant="bold" className="text-xs bg-white/80 px-2 py-1 rounded mt-1">
             {item.bunch} {currentItem.name}
           </Text>
@@ -826,17 +841,23 @@ const LugandaCountingGame: React.FC = () => {
 
     // For basic counting (Stage 1)
     return itemsToCount.map((item) => (
-      <Animated.Image
+      <Animated.View
         key={item.id}
-        source={imageSource}
-        className="w-16 h-16 absolute"
+        className="absolute"
         style={{
           left: item.x,
           top: item.y,
           transform: [{ rotate: `${item.rotate}deg` }, { scale: item.scale }],
         }}
-        resizeMode="contain"
-      />
+      >
+        <CachedImage
+          source={imageSource}
+          fallbackSource={resolveImageSource("african-logic.png")}
+          className="w-16 h-16"
+          resizeMode="contain"
+          accessibilityLabel={currentItem.name}
+        />
+      </Animated.View>
     ))
   }
 

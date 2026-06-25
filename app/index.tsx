@@ -202,6 +202,8 @@ export default function OnboardingScreen() {
           className="w-64 h-16 bg-success-500 rounded-full flex-row items-center justify-center shadow-lg"
           onPress={handleOnboardingComplete}
           activeOpacity={0.84}
+          testID="onboarding-complete-button"
+          accessibilityLabel="Start Baby Steps"
         >
           <Text variant="bold" className="text-white text-xl mr-3">
             {"Let's Play!"}
@@ -223,6 +225,8 @@ export default function OnboardingScreen() {
           }
         }}
         activeOpacity={0.84}
+        testID="onboarding-next-button"
+        accessibilityLabel="Next onboarding page"
       >
         <Text variant="bold" className="text-white text-xl mr-3">
           Next
@@ -233,7 +237,7 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <Animated.View className="flex-1" style={{ backgroundColor }}>
+    <Animated.View className="flex-1" style={{ backgroundColor }} testID="app-root">
       <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
 
       {renderBackgroundShapes()}
@@ -247,6 +251,8 @@ export default function OnboardingScreen() {
         className="absolute top-16 right-6 bg-white/85 py-2 px-5 rounded-full z-10 shadow-sm"
         onPress={handleOnboardingComplete}
         activeOpacity={0.84}
+        testID="onboarding-skip-button"
+        accessibilityLabel="Skip onboarding"
       >
         <Text variant="medium" className="text-primary-600">
           Skip

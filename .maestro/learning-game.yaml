@@ -1,0 +1,90 @@
+appId: ${APP_ID}
+---
+- stopApp
+- launchApp
+- runFlow:
+    when:
+      visible:
+        id: "onboarding-skip-button"
+    commands:
+      - tapOn:
+          id: "onboarding-skip-button"
+- runFlow:
+    when:
+      visible:
+        id: "login-screen"
+    commands:
+      - tapOn:
+          id: "login-email-input"
+      - eraseText
+      - inputText: ${PARENT_EMAIL}
+      - tapOn:
+          id: "login-password-input"
+      - eraseText
+      - inputText: ${PARENT_PASSWORD}
+      - hideKeyboard
+      - tapOn:
+          id: "parent-mode-button"
+- extendedWaitUntil:
+    visible:
+      id: "parent-dashboard-screen"
+    timeout: 15000
+- tapOn:
+    id: "parent-view-child-list-button"
+- extendedWaitUntil:
+    visible:
+      id: "child-profile-card"
+    timeout: 10000
+- tapOn:
+    id: "child-profile-card"
+- extendedWaitUntil:
+    visible:
+      id: "child-detail-screen"
+    timeout: 10000
+- tapOn:
+    id: "child-mode-button"
+- extendedWaitUntil:
+    visible:
+      id: "child-menu-screen"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: "child-menu-learning"
+    direction: RIGHT
+    timeout: 10000
+- tapOn:
+    id: "child-menu-learning"
+- extendedWaitUntil:
+    visible:
+      id: "learning-stage-select-screen"
+    timeout: 10000
+- tapOn:
+    id: "learning-stage-1"
+- extendedWaitUntil:
+    visible:
+      id: "learning-level-select-screen"
+    timeout: 10000
+- tapOn:
+    id: "learning-level-1"
+- extendedWaitUntil:
+    visible:
+      id: "learning-content-screen"
+    timeout: 10000
+- assertVisible:
+    id: "learning-play-game-button"
+- assertVisible:
+    id: "learning-audio-button"
+- tapOn:
+    id: "learning-audio-button"
+- tapOn:
+    id: "learning-play-game-button"
+- extendedWaitUntil:
+    visible:
+      id: "learning-quiz-screen"
+    timeout: 10000
+- tapOn:
+    id: "learning-answer-option-0"
+- extendedWaitUntil:
+    visible:
+      id: "learning-quiz-screen"
+    timeout: 5000

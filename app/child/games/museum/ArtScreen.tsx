@@ -134,7 +134,7 @@ export default function ArtScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <SafeAreaView className="flex-1 bg-slate-50" testID="museum-art-screen">
       <StatusBar style="dark" />
 
       {/* Header with back button and title */}
@@ -142,6 +142,8 @@ export default function ArtScreen() {
         <TouchableOpacity
           className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
           onPress={() => router.back()}
+          testID="museum-art-back-button"
+          accessibilityLabel="Back from art gallery"
         >
           <Ionicons name="arrow-back" size={20} color="#7b5af0" />
         </TouchableOpacity>
@@ -153,6 +155,8 @@ export default function ArtScreen() {
         <TouchableOpacity
           className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
           onPress={toggleContrast}
+          testID="museum-art-contrast-button"
+          accessibilityLabel="Toggle art contrast"
         >
           <MaterialIcons name="contrast" size={20} color="#7b5af0" />
         </TouchableOpacity>
@@ -178,6 +182,8 @@ export default function ArtScreen() {
                 style={{ width: 250 }}
                 onPress={() => setSelectedArtwork(artwork)}
                 activeOpacity={0.7}
+                testID="museum-art-item"
+                accessibilityLabel={`Open artwork ${artwork.title}`}
               >
                 <Image source={artwork.image} className="w-full h-36" resizeMode="cover" />
                 <View className="p-3">
@@ -225,6 +231,8 @@ export default function ArtScreen() {
               <TouchableOpacity
                 className="bg-red-100 p-2.5 mr-3 rounded-full shadow-sm border-2 border-red-200 flex-row items-center"
                 onPress={handleWatchVideo}
+                testID="museum-video-button"
+                accessibilityLabel="Watch artwork video"
               >
                 <Ionicons name="logo-youtube" size={20} color="#e11d48" />
                 <TranslatedText variant="medium" className="text-red-600 ml-1.5">
@@ -237,6 +245,8 @@ export default function ArtScreen() {
                 className="bg-primary-500 py-2.5 px-6 rounded-full shadow-sm border-2 border-primary-400"
                 onPress={() => setSelectedArtwork(null)}
                 activeOpacity={0.8}
+                testID="museum-detail-close-button"
+                accessibilityLabel="Close artwork details"
               >
                 <TranslatedText variant="bold" className="text-white">
                   Close

@@ -135,7 +135,7 @@ export default function ArtifactsScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <SafeAreaView className="flex-1 bg-slate-50" testID="museum-artifacts-screen">
       <StatusBar style="dark" />
 
       {/* Header with back button and title */}
@@ -143,6 +143,8 @@ export default function ArtifactsScreen() {
         <TouchableOpacity
           className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
           onPress={() => router.back()}
+          testID="museum-artifacts-back-button"
+          accessibilityLabel="Back from artifacts"
         >
           <Ionicons name="arrow-back" size={20} color="#7b5af0" />
         </TouchableOpacity>
@@ -171,6 +173,8 @@ export default function ArtifactsScreen() {
                 className="w-40 h-48 mx-2 bg-white rounded-xl shadow-sm border-slate-200 overflow-hidden"
                 onPress={() => handleArtifactPress(artifact)}
                 activeOpacity={0.7}
+                testID="museum-artifacts-item"
+                accessibilityLabel={`Open artifact ${artifact.name}`}
               >
                 <Image source={artifact.image} className="w-full h-28" resizeMode="cover" />
                 <View className="p-2 bg-white flex-1 justify-center">
@@ -210,6 +214,8 @@ export default function ArtifactsScreen() {
                 <TouchableOpacity
                   className="bg-yellow-100 p-3 mr-3 rounded-full shadow-md border-2 border-yellow-200"
                   onPress={() => playSound(selectedArtifact.audio)}
+                  testID="museum-audio-button"
+                  accessibilityLabel="Play artifact audio"
                 >
                   <MaterialIcons name="volume-up" size={28} color="#7b5af0" />
                 </TouchableOpacity>
@@ -219,6 +225,8 @@ export default function ArtifactsScreen() {
                   className="bg-primary-500 py-3 px-7 rounded-full shadow-md border-2 border-primary-400"
                   onPress={closeModal}
                   activeOpacity={0.8}
+                  testID="museum-detail-close-button"
+                  accessibilityLabel="Close artifact details"
                 >
                   <TranslatedText variant="bold" className="text-white text-lg">
                     Close

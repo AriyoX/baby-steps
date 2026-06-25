@@ -1,0 +1,75 @@
+appId: ${APP_ID}
+---
+- stopApp
+- launchApp
+- runFlow:
+    when:
+      visible:
+        id: "onboarding-skip-button"
+    commands:
+      - tapOn:
+          id: "onboarding-skip-button"
+- runFlow:
+    when:
+      visible:
+        id: "login-screen"
+    commands:
+      - tapOn:
+          id: "login-email-input"
+      - eraseText
+      - inputText: ${PARENT_EMAIL}
+      - tapOn:
+          id: "login-password-input"
+      - eraseText
+      - inputText: ${PARENT_PASSWORD}
+      - hideKeyboard
+      - tapOn:
+          id: "parent-mode-button"
+- extendedWaitUntil:
+    visible:
+      id: "parent-dashboard-screen"
+    timeout: 15000
+- assertVisible:
+    id: "parent-settings-button"
+- assertVisible:
+    id: "parent-view-child-list-button"
+- tapOn:
+    id: "parent-settings-button"
+- extendedWaitUntil:
+    visible:
+      id: "parent-settings-screen"
+    timeout: 10000
+- tapOn:
+    id: "parent-progress-button"
+- extendedWaitUntil:
+    visible:
+      id: "parent-progress-screen"
+    timeout: 10000
+- back
+- extendedWaitUntil:
+    visible:
+      id: "parent-settings-screen"
+    timeout: 10000
+- back
+- extendedWaitUntil:
+    visible:
+      id: "parent-dashboard-screen"
+    timeout: 10000
+- tapOn:
+    id: "parent-activities-button"
+- extendedWaitUntil:
+    visible:
+      id: "parent-activities-screen"
+    timeout: 10000
+- back
+- extendedWaitUntil:
+    visible:
+      id: "parent-dashboard-screen"
+    timeout: 10000
+- tapOn:
+    id: "parent-achievements-button"
+- extendedWaitUntil:
+    visible:
+      id: "parent-achievements-screen"
+    timeout: 10000
+- back

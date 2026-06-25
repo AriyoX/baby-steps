@@ -9,6 +9,7 @@ type NavItem = {
   id: string
   icon: any
   label: string
+  testID: string
 }
 
 // Your navigation items
@@ -17,21 +18,25 @@ const navigationItems: NavItem[] = [
     id: "index",
     icon: require("@/assets/icons/game.png"),
     label: "Games",
+    testID: "child-menu-screen",
   },
   {
     id: "coloring",
     icon: require("@/assets/icons/coloring.png"),
     label: "Coloring",
+    testID: "child-menu-coloring",
   },
   {
     id: "Stories",
     icon: require("@/assets/icons/logic.png"),
     label: "Stories",
+    testID: "child-menu-stories",
   },
   {
     id: "museum",
     icon: require("@/assets/icons/museum.png"),
     label: "Museum",
+    testID: "child-menu-museum",
   },
 ]
 
@@ -74,6 +79,8 @@ export default function TabLayout() {
             key={item.id}
             name={item.id}
             options={{
+              tabBarButtonTestID: item.testID,
+              tabBarAccessibilityLabel: `${item.label} tab`,
               tabBarLabel: ({ focused, color }) => (
                 <TranslatedText
                   variant={focused ? "bold" : "regular"}

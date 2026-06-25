@@ -22,6 +22,7 @@ interface SettingItemProps {
   iconType?: "ionicons" | "fontawesome"
   text: string
   action: () => void
+  testID?: string
   toggle?: boolean
   value?: boolean
   last?: boolean
@@ -79,6 +80,7 @@ export default function SettingsScreen() {
     iconType = "ionicons", // Default to Ionicons
     text,
     action,
+    testID,
     toggle = false,
     value = false,
     last = false,
@@ -87,6 +89,8 @@ export default function SettingsScreen() {
       className={`flex-row items-center py-4 ${!last ? "border-b border-gray-100" : ""}`}
       onPress={action}
       activeOpacity={toggle ? 1 : 0.7}
+      testID={testID}
+      accessibilityLabel={text}
     >
       <View
         className="w-10 h-10 rounded-full items-center justify-center mx-4"
@@ -127,10 +131,15 @@ export default function SettingsScreen() {
   return (
     <>
       <StatusBar style="dark" />
-      <SafeAreaView className="flex-1 bg-background" edges={["top", "left", "right"]}>
+      <SafeAreaView className="flex-1 bg-background" edges={["top", "left", "right"]} testID="parent-settings-screen">
         {/* Header */}
         <View className="flex-row items-center px-4 py-3 border-b border-muted-200 bg-white">
-          <TouchableOpacity onPress={() => router.back()} className="mr-3">
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="mr-3"
+            testID="parent-settings-back-button"
+            accessibilityLabel="Back from settings"
+          >
             <Ionicons name="arrow-back" size={24} color={brandColors.charcoalBlack} />
           </TouchableOpacity>
           <BrandMark kind="icon" width={32} height={32} containerStyle={{ marginRight: 10 }} />
@@ -152,6 +161,7 @@ export default function SettingsScreen() {
               iconType="fontawesome"
               text="Manage Child Profiles"
               action={() => router.push("/child-list")}
+              testID="parent-manage-children-button"
             />
             <SettingItem
               icon="chart-line"
@@ -159,6 +169,7 @@ export default function SettingsScreen() {
               iconType="fontawesome"
               text="Learning Progress & Achievements"
               action={() => router.push("/parent/child-progress")}
+              testID="parent-progress-button"
             />
           </View>
 
@@ -188,6 +199,7 @@ export default function SettingsScreen() {
               toggle
               value={isLuganda}
               action={toggleLanguage}
+              testID="parent-language-toggle"
             />
             <SettingItem
               icon="moon"

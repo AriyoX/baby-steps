@@ -76,11 +76,13 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <SafeAreaView className="flex-1 bg-slate-50" testID="story-page" accessibilityLabel={`${story.title} story page`}>
       <View className="flex-row items-center justify-between px-5 py-4 bg-white border-b border-slate-200">
         <TouchableOpacity
           className="w-11 h-11 rounded-full bg-slate-50 items-center justify-center border border-slate-200"
           onPress={() => router.back()}
+          testID="story-back-button"
+          accessibilityLabel="Back from story"
         >
           <Ionicons name="arrow-back" size={22} color="#6366f1" />
         </TouchableOpacity>
@@ -140,6 +142,8 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                           [question.id]: optionIndex,
                         }))
                       }
+                      testID={`story-quiz-option-${optionIndex}`}
+                      accessibilityLabel={`Story quiz option ${optionIndex + 1}`}
                     >
                       <Text className="text-slate-700">{option}</Text>
                     </TouchableOpacity>
@@ -161,6 +165,8 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
           className={`px-5 py-3 rounded-xl ${pageIndex === 0 ? "bg-slate-200" : "bg-indigo-500"}`}
           onPress={() => setPageIndex((current) => Math.max(0, current - 1))}
           disabled={pageIndex === 0}
+          testID="story-previous-button"
+          accessibilityLabel="Previous story page"
         >
           <Text variant="bold" className={pageIndex === 0 ? "text-slate-400" : "text-white"}>
             Previous
@@ -174,6 +180,8 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
               await saveCompletion();
               router.back();
             }}
+            testID="story-finish-button"
+            accessibilityLabel="Finish story"
           >
             <Text variant="bold" className="text-white">
               Finish
@@ -183,6 +191,8 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
           <TouchableOpacity
             className="px-5 py-3 rounded-xl bg-indigo-500"
             onPress={() => setPageIndex((current) => Math.min(story.pages.length - 1, current + 1))}
+            testID="story-next-button"
+            accessibilityLabel="Next story page"
           >
             <Text variant="bold" className="text-white">
               Next

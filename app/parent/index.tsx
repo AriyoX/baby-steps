@@ -162,7 +162,7 @@ const ParentDashboard = () => {
     <>
       <StatusBar style="dark" />
 
-      <SafeAreaView className="flex-1 bg-background" edges={["right", "top", "left"]}>
+      <SafeAreaView className="flex-1 bg-background" edges={["right", "top", "left"]} testID="parent-dashboard-screen">
         <View className="flex-1">
           {/* Header */}
           <View className="flex-row justify-between items-center p-4 border-b border-muted-200 bg-white">
@@ -180,6 +180,8 @@ const ParentDashboard = () => {
               <TouchableOpacity
                 className="w-10 h-10 rounded-full bg-primary-100 items-center justify-center mr-3"
                 onPress={() => router.push("/parent/settings")}
+                testID="parent-settings-button"
+                accessibilityLabel="Open parent settings"
               >
                 <Ionicons name="settings-outline" size={22} color={brandColors.victoriaBlue} />
               </TouchableOpacity>
@@ -187,6 +189,8 @@ const ParentDashboard = () => {
               <TouchableOpacity
                 className="w-10 h-10 rounded-full bg-accent-100 items-center justify-center"
                 onPress={() => {}}
+                testID="parent-notifications-button"
+                accessibilityLabel="Open parent notifications"
               >
                 <Ionicons name="notifications-outline" size={22} color={brandColors.equatorialGold} />
               </TouchableOpacity>
@@ -204,6 +208,8 @@ const ParentDashboard = () => {
                 <TouchableOpacity
                   className="bg-primary-100 px-3 py-1 rounded-full"
                   onPress={() => router.push("/child-list")}
+                  testID="parent-view-child-list-button"
+                  accessibilityLabel="View all child profiles"
                 >
                   <TranslatedText variant="medium" className="text-primary-700">
                     View All
@@ -230,6 +236,8 @@ const ParentDashboard = () => {
                             })
                           }
                           activeOpacity={0.8}
+                          testID="parent-child-card"
+                          accessibilityLabel={`Open ${child.name} profile`}
                         >
                           <View className="items-center mb-2">
                             <View className="relative">
@@ -268,6 +276,8 @@ const ParentDashboard = () => {
                     className="bg-white rounded-xl p-4 w-[150px] items-center justify-center border-2 border-dashed border-primary-200 shadow-sm"
                     onPress={() => router.push("/parent/add-child/gender")}
                     activeOpacity={0.8}
+                    testID="parent-add-child-button"
+                    accessibilityLabel="Add child profile"
                   >
                     <View className="w-[60px] h-[60px] rounded-full bg-primary-100 items-center justify-center mb-3">
                       <Ionicons name="add" size={30} color={brandColors.victoriaBlue} />
@@ -320,6 +330,8 @@ const ParentDashboard = () => {
                 <TouchableOpacity
                   className="mt-3 border-t border-gray-100 pt-3"
                   onPress={() => router.push("/parent/activities")}
+                  testID="parent-activities-button"
+                  accessibilityLabel="View all activities"
                 >
                   <TranslatedText variant="medium" className="text-primary-700 text-center">
                     View All Activities
@@ -340,6 +352,8 @@ const ParentDashboard = () => {
                 className="bg-white rounded-xl p-4 shadow-sm border border-muted-200 flex-row items-center justify-between"
                 onPress={() => router.push("/parent/all-achievements")} // Adjust route as needed
                 activeOpacity={0.8}
+                testID="parent-achievements-button"
+                accessibilityLabel="View all achievements"
               >
                 <View className="flex-row items-center">
                     <View className="w-10 h-10 bg-amber-100 rounded-full items-center justify-center mr-3">

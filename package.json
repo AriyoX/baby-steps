@@ -9,6 +9,10 @@
     "web": "expo start --web",
     "test": "jest --watchAll=false",
     "test:watch": "jest --watchAll",
+    "test:maestro": "maestro test -e APP_ID=com.babysteps.babysteps_prototype .maestro",
+    "test:maestro:smoke": "maestro test -e APP_ID=com.babysteps.babysteps_prototype .maestro/smoke.yaml",
+    "test:maestro:child": "maestro test -e APP_ID=com.babysteps.babysteps_prototype .maestro/child-core-flow.yaml",
+    "test:maestro:coloring": "maestro test -e APP_ID=com.babysteps.babysteps_prototype .maestro/coloring.yaml",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint"
   },

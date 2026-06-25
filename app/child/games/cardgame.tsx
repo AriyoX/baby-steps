@@ -5,7 +5,7 @@ import { Stack } from 'expo-router';
 
 export default function CardGame() {
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1 }} testID="card-matching-game-screen">
       <Stack.Screen 
         options={{ 
           headerShown: false,

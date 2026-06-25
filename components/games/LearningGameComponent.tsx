@@ -738,7 +738,7 @@ const LugandaLearningGame: React.FC = () => {
   // STAGE SELECTION SCREEN
   const renderStageSelectScreen = () => {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50">
+      <SafeAreaView className="flex-1 bg-slate-50" testID="learning-stage-select-screen">
         <StatusBar style="dark" />
 
         {/* Header with back button and score */}
@@ -746,6 +746,8 @@ const LugandaLearningGame: React.FC = () => {
           <TouchableOpacity
             className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
             onPress={() => router.back()}
+            testID="learning-back-button"
+            accessibilityLabel="Back from learning game"
           >
             <Ionicons name="arrow-back" size={20} color="#7b5af0" />
           </TouchableOpacity>
@@ -804,6 +806,8 @@ const LugandaLearningGame: React.FC = () => {
                 onPress={() => selectStage(stage)}
                 disabled={stage.isLocked}
                 activeOpacity={0.9}
+                testID={`learning-stage-${stage.id}`}
+                accessibilityLabel={`Learning stage ${stage.id}: ${stage.title}`}
               >
                 <LinearGradient
                   colors={[stage.color, `${stage.color}DD`]}
@@ -876,6 +880,8 @@ const LugandaLearningGame: React.FC = () => {
                         <TouchableOpacity
                           className="bg-white px-3 py-1.5 rounded-full items-center shadow-sm"
                           onPress={() => selectStage(stage)}
+                          testID={`learning-stage-${stage.id}-start`}
+                          accessibilityLabel={`Start learning stage ${stage.id}`}
                         >
                           <Text variant="bold" style={{ color: stage.color }}>
                             Start
@@ -908,7 +914,7 @@ const LugandaLearningGame: React.FC = () => {
     if (!selectedStage) return null
 
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 pt-3">
+      <SafeAreaView className="flex-1 bg-slate-50 pt-3" testID="learning-level-select-screen">
         <StatusBar style="dark" />
 
         {/* Fixed Header with back button and stage info */}
@@ -916,6 +922,8 @@ const LugandaLearningGame: React.FC = () => {
           <TouchableOpacity
             className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
             onPress={() => setGameState("stageSelect")}
+            testID="learning-level-back-button"
+            accessibilityLabel="Back to learning stages"
           >
             <Ionicons name="arrow-back" size={20} color="#7b5af0" />
           </TouchableOpacity>
@@ -1023,6 +1031,8 @@ const LugandaLearningGame: React.FC = () => {
                   onPress={() => selectLevel(level)}
                   disabled={level.isLocked}
                   activeOpacity={level.isLocked ? 1 : 0.7}
+                  testID={`learning-level-${level.id}`}
+                  accessibilityLabel={`Learning level ${level.id}: ${level.title}`}
                 >
                   <View className="px-2 py-3 items-center">
                     {level.isLocked ? (
@@ -1073,7 +1083,7 @@ const LugandaLearningGame: React.FC = () => {
     const currentLearnWord = currentWords[currentLearningIndex]
     const layout = isLandscape ? "landscape" : "portrait"
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 pt-6">
+      <SafeAreaView className="flex-1 bg-slate-50 pt-6" testID="learning-content-screen">
         <StatusBar style="dark" />
 
         {/* Header */}
@@ -1081,6 +1091,8 @@ const LugandaLearningGame: React.FC = () => {
           <TouchableOpacity
             className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
             onPress={() => setGameState("levelSelect")}
+            testID="learning-content-back-button"
+            accessibilityLabel="Back to learning levels"
           >
             <Ionicons name="arrow-back" size={20} color="#7b5af0" />
           </TouchableOpacity>
@@ -1099,7 +1111,12 @@ const LugandaLearningGame: React.FC = () => {
             </View>
           </View>
 
-          <TouchableOpacity className="bg-indigo-500 py-1.5 px-3 rounded-full" onPress={startGame}>
+          <TouchableOpacity
+            className="bg-indigo-500 py-1.5 px-3 rounded-full"
+            onPress={startGame}
+            testID="learning-play-game-button"
+            accessibilityLabel="Start learning quiz"
+          >
             <Text variant="bold" className="text-white  text-sm">
               Play Game
             </Text>
@@ -1146,6 +1163,8 @@ const LugandaLearningGame: React.FC = () => {
                   <TouchableOpacity
                     className="bg-indigo-100 p-2 rounded-full"
                     onPress={() => playWordSound(currentLearnWord)}
+                    testID="learning-audio-button"
+                    accessibilityLabel="Play learning word audio"
                   >
                     <Ionicons name="volume-high" size={18} color="#6366f1" />
                   </TouchableOpacity>
@@ -1167,6 +1186,8 @@ const LugandaLearningGame: React.FC = () => {
                   className={`py-3 px-5 rounded-xl ${currentLearningIndex === 0 ? "bg-slate-200" : "bg-indigo-500"}`}
                   onPress={previousLearningWord}
                   disabled={currentLearningIndex === 0}
+                  testID="learning-previous-button"
+                  accessibilityLabel="Previous learning word"
                 >
                   <Text className={` ${currentLearningIndex === 0 ? "text-slate-400" : "text-white"}`} variant="bold">
                     Previous
@@ -1174,13 +1195,23 @@ const LugandaLearningGame: React.FC = () => {
                 </TouchableOpacity>
 
                 {currentLearningIndex < currentWords.length - 1 ? (
-                  <TouchableOpacity className="bg-indigo-500 py-3 px-5 rounded-xl" onPress={nextLearningWord}>
+                  <TouchableOpacity
+                    className="bg-indigo-500 py-3 px-5 rounded-xl"
+                    onPress={nextLearningWord}
+                    testID="learning-next-button"
+                    accessibilityLabel="Next learning word"
+                  >
                     <Text variant="bold" className="text-white">
                       Next
                     </Text>
                   </TouchableOpacity>
                 ) : (
-                  <TouchableOpacity className="bg-emerald-500 py-3 px-5 rounded-xl" onPress={startGame}>
+                  <TouchableOpacity
+                    className="bg-emerald-500 py-3 px-5 rounded-xl"
+                    onPress={startGame}
+                    testID="learning-start-quiz-button"
+                    accessibilityLabel="Start learning quiz"
+                  >
                     <Text variant="bold" className="text-white">
                       Start Quiz
                     </Text>
@@ -1216,6 +1247,8 @@ const LugandaLearningGame: React.FC = () => {
                     <TouchableOpacity
                       className="bg-indigo-100 p-2 rounded-full"
                       onPress={() => playWordSound(currentLearnWord)}
+                      testID="learning-audio-button"
+                      accessibilityLabel="Play learning word audio"
                     >
                       <Ionicons name="volume-high" size={18} color="#6366f1" />
                     </TouchableOpacity>
@@ -1237,6 +1270,8 @@ const LugandaLearningGame: React.FC = () => {
                     className={`py-3 px-6 rounded-xl ${currentLearningIndex === 0 ? "bg-slate-200" : "bg-indigo-500"}`}
                     onPress={previousLearningWord}
                     disabled={currentLearningIndex === 0}
+                    testID="learning-previous-button"
+                    accessibilityLabel="Previous learning word"
                   >
                     <Text className={` ${currentLearningIndex === 0 ? "text-slate-400" : "text-white"}`} variant="bold">
                       Previous
@@ -1244,13 +1279,23 @@ const LugandaLearningGame: React.FC = () => {
                   </TouchableOpacity>
 
                   {currentLearningIndex < currentWords.length - 1 ? (
-                    <TouchableOpacity className="bg-indigo-500 py-3 px-6 rounded-xl" onPress={nextLearningWord}>
+                    <TouchableOpacity
+                      className="bg-indigo-500 py-3 px-6 rounded-xl"
+                      onPress={nextLearningWord}
+                      testID="learning-next-button"
+                      accessibilityLabel="Next learning word"
+                    >
                       <Text variant="bold" className="text-white">
                         Next
                       </Text>
                     </TouchableOpacity>
                   ) : (
-                    <TouchableOpacity className="bg-emerald-500 py-3 px-6 rounded-xl" onPress={startGame}>
+                    <TouchableOpacity
+                      className="bg-emerald-500 py-3 px-6 rounded-xl"
+                      onPress={startGame}
+                      testID="learning-start-quiz-button"
+                      accessibilityLabel="Start learning quiz"
+                    >
                       <Text variant="bold" className="text-white">
                         Start Quiz
                       </Text>
@@ -1271,7 +1316,7 @@ const LugandaLearningGame: React.FC = () => {
     const layout = isLandscape ? "landscape" : "portrait"
 
     return (
-      <SafeAreaView className="flex-1 bg-slate-50">
+      <SafeAreaView className="flex-1 bg-slate-50" testID="learning-quiz-screen">
         <StatusBar style="dark" />
 
         {/* Header */}
@@ -1279,6 +1324,8 @@ const LugandaLearningGame: React.FC = () => {
           <TouchableOpacity
             className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
             onPress={() => setGameState("learning")}
+            testID="learning-quiz-back-button"
+            accessibilityLabel="Back to learning content"
           >
             <Ionicons name="arrow-back" size={20} color="#7b5af0" />
           </TouchableOpacity>
@@ -1375,6 +1422,8 @@ const LugandaLearningGame: React.FC = () => {
                         onPress={() => handleOptionSelect(option)}
                         disabled={selectedOption !== null}
                         activeOpacity={0.8}
+                        testID={`learning-answer-option-${index}`}
+                        accessibilityLabel={`Learning answer option ${index + 1}`}
                       >
                         <Text
                           className={`
@@ -1447,6 +1496,8 @@ const LugandaLearningGame: React.FC = () => {
                       onPress={() => handleOptionSelect(option)}
                       disabled={selectedOption !== null}
                       activeOpacity={0.8}
+                      testID={`learning-answer-option-${index}`}
+                      accessibilityLabel={`Learning answer option ${index + 1}`}
                     >
                       <Text
                         variant="bold"
@@ -1498,7 +1549,7 @@ const LugandaLearningGame: React.FC = () => {
   // LEVEL COMPLETION SCREEN
   const renderLevelCompletionScreen = () => {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 ">
+      <SafeAreaView className="flex-1 bg-slate-50 " testID="learning-complete-screen">
         <StatusBar style="light" />
 
         <View className="flex-1 justify-center items-center">

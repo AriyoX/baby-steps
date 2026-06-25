@@ -146,10 +146,15 @@ export default function ChildDetailScreen() {
   return (
     <>
       <StatusBar style="dark" />
-      <SafeAreaView className="flex-1 bg-slate-50" edges={["top", "left", "right"]}>
+      <SafeAreaView className="flex-1 bg-slate-50" edges={["top", "left", "right"]} testID="child-detail-screen">
         {/* Header */}
         <View className="flex-row items-center px-4 py-3 border-b border-gray-100 bg-white">
-          <TouchableOpacity onPress={() => router.back()} className="mr-3 p-1">
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="mr-3 p-1"
+            testID="child-detail-back-button"
+            accessibilityLabel="Back from child profile"
+          >
             <Ionicons name="arrow-back" size={24} color="#374151" />
           </TouchableOpacity>
           <TranslatedText variant="bold" className="text-xl text-gray-800">
@@ -185,6 +190,8 @@ export default function ChildDetailScreen() {
                       <TouchableOpacity
                         className="bg-[#7b5af0] py-2 px-4 rounded-lg shadow"
                         onPress={handleLaunchChildMode}
+                        testID="child-mode-button"
+                        accessibilityLabel="Launch child mode"
                       >
                         <TranslatedText variant="medium" className="text-white text-sm">Launch Child Mode</TranslatedText>
                       </TouchableOpacity>

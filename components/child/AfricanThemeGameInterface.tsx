@@ -65,6 +65,41 @@ const TAB_TITLES: Record<string, string> = {
   museum: "Museum",
 }
 
+const CARD_TEST_IDS: Record<string, string> = {
+  words: "child-menu-word-game",
+  logic: "child-menu-puzzle-game",
+  cards: "child-menu-card-matching",
+  learning: "child-menu-learning",
+  numbers: "child-menu-counting-game",
+  emblem: "child-menu-coloring-emblem",
+  king: "child-menu-coloring-king",
+  animals: "child-menu-coloring-animals",
+  shapes: "child-menu-coloring-shapes",
+  masks: "child-menu-coloring-masks",
+  kintu: "child-menu-story-kintu",
+  mwanga: "child-menu-story-mwanga",
+  kasubi: "child-menu-story-kasubi",
+  walumbe: "child-menu-story-walumbe",
+  ssezibwa: "child-menu-story-ssezibwa",
+  millet: "child-menu-story-millet",
+  kasokambirye: "child-menu-story-kasokambirye",
+  "fig-tree": "child-menu-story-fig-tree",
+  artifacts: "child-menu-museum-artifacts",
+  art: "child-menu-museum-art",
+  instruments: "child-menu-museum-instruments",
+  textiles: "child-menu-museum-textiles",
+}
+
+const toSelectorSlug = (value: string): string =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+
+const getCardTestID = (card: LearningCard): string =>
+  CARD_TEST_IDS[card.id] ?? `child-menu-${toSelectorSlug(card.id || card.title)}`
+
 const toLearningCards = (cards: ChildMenuCard[]): LearningCard[] =>
   cards.map((card) => ({
     id: card.id,
@@ -183,6 +218,7 @@ const AfricanThemeGameInterface: React.FC = () => {
   const pathname = usePathname()
   const pathSegments = pathname.split("/").filter(Boolean)
   const tabId = pathSegments.length <= 1 ? "index" : pathSegments[pathSegments.length - 1]
+  const contentSlug = TAB_CONTENT_SLUGS[tabId] ?? "games"
 
   // Set the title based on the tab
   const [screenTitle, setScreenTitle] = useState("Games")
@@ -212,10 +248,9 @@ const AfricanThemeGameInterface: React.FC = () => {
   }, [activeChild?.selected_language_code])
 
   useEffect(() => {
-    const contentSlug = TAB_CONTENT_SLUGS[tabId] ?? "games"
     setScreenTitle(TAB_TITLES[contentSlug] ?? "Games")
     setLearningCards(toLearningCards(contentBundle?.menuCardsByTab[contentSlug] ?? []))
-  }, [contentBundle, tabId])
+  }, [contentBundle, contentSlug])
 
   const handleParentalPress = () => {
     Speech.speak("For parents only", {
@@ -243,7 +278,13 @@ const AfricanThemeGameInterface: React.FC = () => {
       {/* ImageBackground now covers the entire screen including status bar */}
       <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
         {/* SafeAreaView moved inside ImageBackground */}
-        <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
+        <SafeAreaView
+          className="flex-1"
+          edges={[]}
+          style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}
+          testID={contentSlug === "games" ? "child-menu-screen" : `${contentSlug}-menu-screen`}
+          accessibilityLabel={`${screenTitle} menu`}
+        >
           {/* Main content area */}
           <View className="flex-1 flex-row" style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
             {/* Left sidebar - Profile */}
@@ -282,6 +323,8 @@ const AfricanThemeGameInterface: React.FC = () => {
                 <TouchableOpacity
                   className="bg-white rounded-3xl px-4 py-1.5 flex-row items-center border-2 border-accent-500 mt-0.5"
                   onPress={handleParentalPress}
+                  testID="parent-gate-button"
+                  accessibilityLabel="Open parent gate"
                 >
                   <Ionicons name="people-sharp" size={30} color={brandColors.shanaOrange} />
                   <TranslatedText variant="medium" className="text-primary-700 text-base ml-1">
@@ -298,7 +341,12 @@ const AfricanThemeGameInterface: React.FC = () => {
                 contentContainerStyle={{ alignItems: "center", paddingTop: 12, paddingBottom: 16 }}
               >
                 {/* Start card */}
-                <View className="bg-white/15 rounded-2xl p-4 mr-2.5 w-[200px]" style={{ height: cardHeight }}>
+                <View
+                  className="bg-white/15 rounded-2xl p-4 mr-2.5 w-[200px]"
+                  style={{ height: cardHeight }}
+                  testID="child-menu-start-card"
+                  accessibilityLabel="Start of learning journey"
+                >
                   <TranslatedText variant="bold" className="text-white text-2xl">
                     Start
                   </TranslatedText>
@@ -319,6 +367,8 @@ const AfricanThemeGameInterface: React.FC = () => {
                     style={{ height: cardHeight }}
                     activeOpacity={0.7}
                     onPress={() => handleCardPress(card)}
+                    testID={getCardTestID(card)}
+                    accessibilityLabel={card.title}
                   >
                     <CachedImage
                       source={resolveImageSource(card.image, "african-focus.png")}

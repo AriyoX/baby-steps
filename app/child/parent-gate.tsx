@@ -52,10 +52,20 @@ export default function ParentGate() {
     <>
       <StatusBar style="light" translucent backgroundColor="transparent" />
       <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1">
-        <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
+        <SafeAreaView
+          className="flex-1"
+          edges={[]}
+          style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}
+          testID="parent-gate-screen"
+        >
           <View className="flex-1 py-6 px-4" style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
             {/* Header with back button */}
-            <TouchableOpacity className="absolute top-8 left-6 z-10" onPress={() => router.back()}>
+            <TouchableOpacity
+              className="absolute top-8 left-6 z-10"
+              onPress={() => router.back()}
+              testID="parent-gate-back-button"
+              accessibilityLabel="Back from parent gate"
+            >
               <Ionicons name="arrow-back-circle" size={40} color={brandColors.equatorialGold} />
             </TouchableOpacity>
 
@@ -107,6 +117,8 @@ export default function ParentGate() {
                           className="w-[70px] h-[70px] bg-white/20 rounded-2xl justify-center items-center active:opacity-70"
                           onPress={() => handleDigitPress(digit)}
                           activeOpacity={0.7}
+                          testID={`parent-gate-digit-${digit}`}
+                          accessibilityLabel={`Parent gate digit ${digit}`}
                         >
                           <Text variant="bold" className="text-white text-3xl pt-3">
                             {digit}
@@ -117,6 +129,8 @@ export default function ParentGate() {
                         className="w-[70px] h-[70px] bg-white/10 rounded-2xl justify-center items-center"
                         onPress={() => handleDigitPress("0")}
                         activeOpacity={0.7}
+                        testID="parent-gate-digit-0"
+                        accessibilityLabel="Parent gate digit 0"
                       >
                         <Text variant="bold" className="text-white text-3xl">
                           0
@@ -132,6 +146,8 @@ export default function ParentGate() {
                           className="w-[70px] h-[70px] bg-white/20 rounded-2xl justify-center items-center"
                           onPress={() => handleDigitPress(digit)}
                           activeOpacity={0.7}
+                          testID={`parent-gate-digit-${digit}`}
+                          accessibilityLabel={`Parent gate digit ${digit}`}
                         >
                           <Text variant="bold" className="text-white text-3xl pt-3">
                             {digit}
@@ -142,6 +158,8 @@ export default function ParentGate() {
                         className="w-[70px] h-[70px] bg-amber-600/30 rounded-2xl justify-center items-center"
                         onPress={handleClear}
                         activeOpacity={0.6}
+                        testID="parent-gate-clear-button"
+                        accessibilityLabel="Clear parent gate digit"
                       >
                         <Ionicons name="backspace-outline" size={28} color="white" />
                       </TouchableOpacity>
@@ -155,6 +173,8 @@ export default function ParentGate() {
                           className="w-[70px] h-[70px] bg-white/20 rounded-2xl justify-center items-center"
                           onPress={() => handleDigitPress(digit)}
                           activeOpacity={0.7}
+                          testID={`parent-gate-digit-${digit}`}
+                          accessibilityLabel={`Parent gate digit ${digit}`}
                         >
                           <Text variant="bold" className="text-white text-3xl pt-3">
                             {digit}

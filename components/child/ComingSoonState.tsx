@@ -20,11 +20,13 @@ export function ComingSoonState({
   const router = useRouter();
 
   return (
-    <SafeAreaView className="flex-1 bg-background items-center justify-center px-8">
+    <SafeAreaView className="flex-1 bg-background items-center justify-center px-8" testID="coming-soon-screen">
       {showBackButton && (
         <TouchableOpacity
           className="absolute left-5 top-5 w-11 h-11 rounded-full bg-white items-center justify-center border border-muted-200 shadow-sm"
           onPress={() => router.back()}
+          testID="coming-soon-back-button"
+          accessibilityLabel="Back from coming soon"
         >
           <Ionicons name="arrow-back" size={22} color={brandColors.victoriaBlue} />
         </TouchableOpacity>

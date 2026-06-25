@@ -125,6 +125,7 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
   // Create a ref for ViewShot
   const viewShotRef = useRef<ViewShot>(null)
   const zoomableViewRef = useRef(null)
+  const pageSlug = pageName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-")
 
   // Check for media library permissions on mount
   useEffect(() => {
@@ -427,14 +428,23 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
 
   // Replace the entire return statement with this updated layout that emphasizes the coloring space
   return (
-    <ThemedView style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <ThemedView
+      style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+      testID="coloring-screen"
+      accessibilityLabel={`${pageName} coloring screen`}
+    >
       {/* Compact header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.exitButton} onPress={() => router.back()}>
+        <TouchableOpacity
+          style={styles.exitButton}
+          onPress={() => router.back()}
+          testID="coloring-back-button"
+          accessibilityLabel="Back from coloring"
+        >
           <Ionicons name="arrow-back" size={22} color="white" />
         </TouchableOpacity>
 
-        <View style={styles.headerTitle}>
+        <View style={styles.headerTitle} testID={`coloring-page-${pageSlug}`}>
           <Text style={styles.headerText}>{pageName}</Text>
         </View>
 
@@ -444,6 +454,8 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
             style={[styles.actionButton, { backgroundColor: "#9C27B0" }]}
             onPress={handleUndo}
             disabled={undoStack.length === 0}
+            testID="coloring-undo-button"
+            accessibilityLabel="Undo coloring stroke"
           >
             <Ionicons name="arrow-undo" size={22} color={undoStack.length === 0 ? "#CCCCCC" : "white"} />
           </TouchableOpacity>
@@ -453,6 +465,8 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
             style={[styles.actionButton, { backgroundColor: "#9C27B0" }]}
             onPress={handleRedo}
             disabled={redoStack.length === 0}
+            testID="coloring-redo-button"
+            accessibilityLabel="Redo coloring stroke"
           >
             <Ionicons name="arrow-redo" size={22} color={redoStack.length === 0 ? "#CCCCCC" : "white"} />
           </TouchableOpacity>
@@ -462,6 +476,8 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
             style={[styles.actionButton, { backgroundColor: "#4CAF50" }]}
             onPress={shareImage}
             disabled={isSaving}
+            testID="coloring-share-button"
+            accessibilityLabel="Share coloring artwork"
           >
             <Ionicons name="share-outline" size={22} color="white" />
           </TouchableOpacity>
@@ -471,6 +487,8 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
             style={[styles.actionButton, { backgroundColor: "#2196F3" }]}
             onPress={saveToGallery}
             disabled={isSaving}
+            testID="coloring-save-button"
+            accessibilityLabel="Save coloring artwork"
           >
             {isSaving ? (
               <ActivityIndicator size="small" color="white" />
@@ -484,7 +502,7 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
       {/* Expanded canvas area */}
       <View style={styles.expandedContent}>
         {/* Main coloring canvas - now takes up most of the screen */}
-        <View style={styles.canvasContainer}>
+        <View style={styles.canvasContainer} testID="coloring-canvas" accessibilityLabel="Coloring canvas">
           {/* ViewShot wrapper to capture the canvas */}
           <ViewShot ref={viewShotRef} options={{ format: "jpg", quality: 0.9 }} style={styles.viewShot}>
             {/* Zoomable container for the canvas */}
@@ -510,6 +528,8 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
                 <View
                   style={styles.drawingArea}
                   {...(selectedTool === "fill" ? { onTouchEnd: handleFill } : panResponder.panHandlers)}
+                  testID="coloring-drawing-area"
+                  accessibilityLabel="Coloring drawing area"
                 >
                   {/* Saved Paths Layer */}
                   <View style={styles.pathsLayer} pointerEvents="none">
@@ -608,6 +628,8 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
             <TouchableOpacity
               style={[styles.toolButton, selectedTool === "brush" && styles.selectedTool]}
               onPress={() => selectTool("brush")}
+              testID="coloring-tool-brush"
+              accessibilityLabel="Brush tool"
             >
               <Ionicons name="brush" size={24} color={selectedTool === "brush" ? "#FF4081" : "#333"} />
             </TouchableOpacity>
@@ -616,6 +638,8 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
             <TouchableOpacity
               style={[styles.toolButton, selectedTool === "eraser" && styles.selectedTool]}
               onPress={() => selectTool("eraser")}
+              testID="coloring-tool-eraser"
+              accessibilityLabel="Eraser tool"
             >
               <MaterialCommunityIcons name="eraser" size={24} color={selectedTool === "eraser" ? "#FF4081" : "#333"} />
             </TouchableOpacity>
@@ -624,12 +648,19 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
             <TouchableOpacity
               style={[styles.toolButton, selectedTool === "fill" && styles.selectedTool]}
               onPress={() => selectTool("fill")}
+              testID="coloring-tool-fill"
+              accessibilityLabel="Fill tool"
             >
               <Ionicons name="color-fill" size={24} color={selectedTool === "fill" ? "#FF4081" : "#333"} />
             </TouchableOpacity>
 
             {/* Clear button */}
-            <TouchableOpacity style={[styles.toolButton, { backgroundColor: "#FF3B30" }]} onPress={clearCanvas}>
+            <TouchableOpacity
+              style={[styles.toolButton, { backgroundColor: "#FF3B30" }]}
+              onPress={clearCanvas}
+              testID="coloring-clear-button"
+              accessibilityLabel="Clear coloring canvas"
+            >
               <Ionicons name="trash-outline" size={24} color="white" />
             </TouchableOpacity>
           </View>
@@ -638,6 +669,8 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
           <TouchableOpacity
             style={[styles.paletteToggle, showColorPalette && styles.paletteToggleActive]}
             onPress={toggleColorPalette}
+            testID="coloring-palette-toggle"
+            accessibilityLabel="Toggle coloring color palette"
           >
             <Ionicons name="color-palette" size={24} color={showColorPalette ? "#FF4081" : "#333"} />
           </TouchableOpacity>
@@ -673,6 +706,8 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
                     selectedColor === color && styles.selectedColor,
                   ]}
                   onPress={() => handleColorSelection(color)}
+                  testID="coloring-color-option"
+                  accessibilityLabel={`Select color ${color}`}
                 />
               ))}
             </ScrollView>
@@ -687,6 +722,8 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
                   key={size}
                   style={[styles.brushButton, brushSize === size && styles.selectedBrush]}
                   onPress={() => changeBrushSize(size)}
+                  testID={`coloring-brush-size-${size}`}
+                  accessibilityLabel={`Brush size ${size}`}
                 >
                   <View
                     style={[

@@ -118,6 +118,8 @@ export default function TextilesScreen() {
         onPress={() => setSelectedTextile(item)}
         activeOpacity={0.7}
         className="bg-white rounded-xl overflow-hidden shadow-sm border-2 border-indigo-100 h-full"
+        testID="museum-textiles-item"
+        accessibilityLabel={`Open textile ${item.name}`}
         style={{
           width: 250,
           marginRight: 16,
@@ -155,7 +157,7 @@ export default function TextilesScreen() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaView className="flex-1 bg-slate-50">
+      <SafeAreaView className="flex-1 bg-slate-50" testID="museum-textiles-screen">
         <StatusBar style="dark" />
 
         {/* Header with back button and title */}
@@ -163,6 +165,8 @@ export default function TextilesScreen() {
           <TouchableOpacity
             className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
             onPress={() => router.back()}
+            testID="museum-textiles-back-button"
+            accessibilityLabel="Back from textiles"
           >
             <Ionicons name="arrow-back" size={20} color="#7b5af0" />
           </TouchableOpacity>
@@ -204,6 +208,8 @@ export default function TextilesScreen() {
                   onPress={() => setSelectedTextile(textile)}
                   activeOpacity={0.7}
                   className="flex-row bg-white rounded-xl overflow-hidden shadow-sm border border-indigo-100 mb-4"
+                  testID="museum-textiles-featured-item"
+                  accessibilityLabel={`Open featured textile ${textile.name}`}
                 >
                   <Image source={textile.closeupImage} className="w-28 h-28" resizeMode="cover" />
                   <View className="flex-1 p-3">
@@ -258,6 +264,8 @@ export default function TextilesScreen() {
                   <TouchableOpacity
                     className="bg-yellow-100 p-2.5 mr-3 rounded-full shadow-sm border-2 border-yellow-200 flex-row items-center"
                     onPress={() => playSound(selectedTextile.audio)}
+                    testID="museum-audio-button"
+                    accessibilityLabel="Play textile sound"
                   >
                     <MaterialIcons name="volume-up" size={20} color="#7b5af0" />
                     <TranslatedText variant="medium" className="text-primary-600 ml-1.5">
@@ -270,6 +278,8 @@ export default function TextilesScreen() {
                     className="bg-primary-500 py-2.5 px-6 rounded-full shadow-sm border-2 border-primary-400"
                     onPress={() => setSelectedTextile(null)}
                     activeOpacity={0.8}
+                    testID="museum-detail-close-button"
+                    accessibilityLabel="Close textile details"
                   >
                     <TranslatedText variant="bold" className="text-white">
                       Close

@@ -1,0 +1,22 @@
+appId: ${APP_ID}
+---
+- stopApp
+- launchApp
+- openLink: "babysteps://parent/add-child/language"
+- extendedWaitUntil:
+    visible:
+      id: "language-selection-screen"
+    timeout: 10000
+# Select both active languages to catch broken card state, then continue with Luganda.
+- tapOn:
+    id: "language-card-runyankole"
+- assertVisible:
+    id: "language-card-runyankole"
+- tapOn:
+    id: "language-card-luganda"
+- tapOn:
+    id: "language-next-button"
+- extendedWaitUntil:
+    visible:
+      id: "add-child-reason-screen"
+    timeout: 10000

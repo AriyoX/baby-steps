@@ -728,6 +728,7 @@ const BugandaPuzzleGame: React.FC = () => {
               }
               accessibilityRole="button"
               accessibilityState={{ disabled: !isTileAdjacentToEmpty }}
+              testID={isTileAdjacentToEmpty ? "puzzle-tile-move" : `puzzle-tile-${tileId}`}
             >
               <Image
                 source={puzzleImages[currentPuzzle].source}
@@ -755,7 +756,7 @@ const BugandaPuzzleGame: React.FC = () => {
   };
 
   return (
-    <View className="flex-1 bg-indigo-50">
+    <View className="flex-1 bg-indigo-50" testID="puzzle-game-screen">
       <StatusBar style="dark" />
       {renderAchievementUnlockedModalPZ()}
 
@@ -769,6 +770,8 @@ const BugandaPuzzleGame: React.FC = () => {
           router.back();
         }}
         activeOpacity={0.7}
+        testID="puzzle-back-button"
+        accessibilityLabel="Back from puzzle game"
       >
         <Ionicons name="arrow-back" size={22} color="#7b5af0" />
       </TouchableOpacity>
@@ -781,6 +784,8 @@ const BugandaPuzzleGame: React.FC = () => {
               width: PUZZLE_CONTAINER_SIZE,
               height: PUZZLE_CONTAINER_SIZE,
             }}
+            testID="puzzle-board"
+            accessibilityLabel="Puzzle board"
           >
             {showPreview && (
               <Animated.View
@@ -853,6 +858,7 @@ const BugandaPuzzleGame: React.FC = () => {
                 accessibilityLabel="Reset Puzzle"
                 accessibilityHint="Starts a new shuffled puzzle"
                 accessibilityRole="button"
+                testID="puzzle-reset-button"
               >
                 <Text variant="bold" className="text-lg text-white">
                   Reset Puzzle

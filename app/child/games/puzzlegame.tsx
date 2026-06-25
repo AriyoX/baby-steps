@@ -5,7 +5,7 @@ import { Stack } from 'expo-router';
 
 export default function PuzzleGame() {
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1 }} testID="puzzle-game-screen">
       <Stack.Screen 
         options={{ 
           headerShown: false,

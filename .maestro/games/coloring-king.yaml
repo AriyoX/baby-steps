@@ -1,0 +1,72 @@
+appId: ${APP_ID}
+---
+- stopApp
+- launchApp
+- runFlow:
+    when:
+      visible:
+        id: "onboarding-skip-button"
+    commands:
+      - tapOn:
+          id: "onboarding-skip-button"
+- runFlow:
+    when:
+      visible:
+        id: "login-screen"
+    commands:
+      - tapOn:
+          id: "login-email-input"
+      - eraseText
+      - inputText: ${PARENT_EMAIL}
+      - tapOn:
+          id: "login-password-input"
+      - eraseText
+      - inputText: ${PARENT_PASSWORD}
+      - hideKeyboard
+      - tapOn:
+          id: "parent-mode-button"
+- extendedWaitUntil:
+    visible:
+      id: "parent-dashboard-screen"
+    timeout: 15000
+- tapOn:
+    id: "parent-view-child-list-button"
+- extendedWaitUntil:
+    visible:
+      id: "child-profile-card"
+    timeout: 10000
+- tapOn:
+    id: "child-profile-card"
+- extendedWaitUntil:
+    visible:
+      id: "child-detail-screen"
+    timeout: 10000
+- tapOn:
+    id: "child-mode-button"
+- extendedWaitUntil:
+    visible:
+      id: "child-menu-screen"
+    timeout: 10000
+- tapOn:
+    id: "child-menu-coloring"
+- extendedWaitUntil:
+    visible:
+      id: "coloring-menu-screen"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: "child-menu-coloring-king"
+    direction: RIGHT
+    timeout: 10000
+- tapOn:
+    id: "child-menu-coloring-king"
+- extendedWaitUntil:
+    visible:
+      id: "coloring-screen"
+    timeout: 10000
+- assertVisible:
+    id: "coloring-canvas"
+- tapOn:
+    id: "coloring-color-option"
+- tapOn:
+    id: "coloring-back-button"

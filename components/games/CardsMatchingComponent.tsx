@@ -867,7 +867,7 @@ const BugandaMatchingGame: React.FC = () => {
   };
 
   return (
-    <View className="flex-1 flex-col bg-primary-50">
+    <View className="flex-1 flex-col bg-primary-50" testID="card-matching-game-screen">
       <StatusBar style="dark" />
       {renderAchievementUnlockedModalCM()} {/* Show achievement modal if any */}
 
@@ -889,6 +889,8 @@ const BugandaMatchingGame: React.FC = () => {
           className="w-10 h-10 rounded-full bg-white items-center justify-center shadow-md border-2 border-primary-200"
           onPress={() => router.back()}
           activeOpacity={0.7}
+          testID="card-matching-back-button"
+          accessibilityLabel="Back from card matching game"
         >
           <Ionicons name="arrow-back" size={20} color="#7b5af0" />
         </TouchableOpacity>
@@ -929,6 +931,8 @@ const BugandaMatchingGame: React.FC = () => {
             className="bg-primary-300 py-1.5 px-3 rounded-full shadow-md border-2 border-primary-200"
             onPress={resetGame}
             activeOpacity={0.7}
+            testID="card-matching-reset-button"
+            accessibilityLabel="Reset card matching game"
           >
             <Text className="text-primary-700 text-xs">Reset</Text>
           </TouchableOpacity>
@@ -938,6 +942,8 @@ const BugandaMatchingGame: React.FC = () => {
             className="bg-secondary-300 py-1.5 px-3 rounded-full shadow-md border-2 border-secondary-200"
             onPress={initGame}
             activeOpacity={0.7}
+            testID="card-matching-new-game-button"
+            accessibilityLabel="Start a new card matching game"
           >
             <Text className="text-primary-700 text-xs">New</Text>
           </TouchableOpacity>
@@ -945,7 +951,7 @@ const BugandaMatchingGame: React.FC = () => {
       </View>
 
       {/* Game board with improved visuals - reduced padding */}
-      <View className="flex-1 p-2">
+      <View className="flex-1 p-2" testID="card-matching-board">
         <ScrollView
           showsVerticalScrollIndicator={false}
           showsHorizontalScrollIndicator={false}
@@ -972,6 +978,8 @@ const BugandaMatchingGame: React.FC = () => {
                 `}
                 onPress={() => handleCardPress(card)}
                 activeOpacity={0.85}
+                testID="card-matching-card"
+                accessibilityLabel={`Card matching card ${index + 1}`}
               >
                 {card.flipped || card.matched ? (
                   // Front of card (flipped)
@@ -1072,6 +1080,8 @@ const BugandaMatchingGame: React.FC = () => {
             <TouchableOpacity
               className="bg-primary-500 py-3 px-7 rounded-full shadow-md border-2 border-primary-400"
               onPress={closeInfoModal}
+              testID="card-matching-continue-button"
+              accessibilityLabel="Continue card matching game"
             >
               <Text variant="bold" className="text-white text-lg ">Continue</Text>
             </TouchableOpacity>

@@ -30,11 +30,13 @@ export default function LearningLanguageScreen() {
     <>
       <StatusBar translucent backgroundColor="white" barStyle="dark-content" />
 
-      <SafeAreaView className="flex-1 bg-primary-50">
+      <SafeAreaView className="flex-1 bg-primary-50" testID="language-selection-screen">
         <View className="flex-row items-center p-4 bg-white border-b border-gray-200">
           <TouchableOpacity
             onPress={handleBack}
             className="w-10 h-10 rounded-full bg-primary-100 items-center justify-center"
+            testID="language-back-button"
+            accessibilityLabel="Back from learning language selection"
           >
             <FontAwesome5 name="arrow-left" size={16} color="#3e4685" />
           </TouchableOpacity>
@@ -67,6 +69,8 @@ export default function LearningLanguageScreen() {
                     } shadow-sm`}
                     onPress={() => setSelectedLanguageCode(language.code)}
                     activeOpacity={0.75}
+                    testID={`language-card-${language.name.toLowerCase()}`}
+                    accessibilityLabel={`Select ${language.name}`}
                   >
                     <View className="flex-row items-center">
                       <View
@@ -99,6 +103,8 @@ export default function LearningLanguageScreen() {
             onPress={handleNext}
             activeOpacity={0.8}
             disabled={!selectedLanguageCode}
+            testID="language-next-button"
+            accessibilityLabel="Continue after choosing learning language"
           >
             <TranslatedText variant="bold" className="text-white text-lg mr-2">
               Next

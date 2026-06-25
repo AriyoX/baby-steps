@@ -1,0 +1,186 @@
+appId: ${APP_ID}
+---
+- stopApp
+- launchApp
+- runFlow:
+    when:
+      visible:
+        id: "onboarding-skip-button"
+    commands:
+      - tapOn:
+          id: "onboarding-skip-button"
+- runFlow:
+    when:
+      visible:
+        id: "login-screen"
+    commands:
+      - tapOn:
+          id: "login-email-input"
+      - eraseText
+      - inputText: ${PARENT_EMAIL}
+      - tapOn:
+          id: "login-password-input"
+      - eraseText
+      - inputText: ${PARENT_PASSWORD}
+      - hideKeyboard
+      - tapOn:
+          id: "parent-mode-button"
+- extendedWaitUntil:
+    visible:
+      id: "parent-dashboard-screen"
+    timeout: 15000
+- tapOn:
+    id: "parent-view-child-list-button"
+- extendedWaitUntil:
+    visible:
+      id: "child-list-screen"
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: "child-profile-card"
+    timeout: 10000
+- tapOn:
+    id: "child-profile-card"
+- extendedWaitUntil:
+    visible:
+      id: "child-detail-screen"
+    timeout: 10000
+- tapOn:
+    id: "child-mode-button"
+- extendedWaitUntil:
+    visible:
+      id: "child-menu-screen"
+    timeout: 10000
+- assertVisible:
+    id: "child-menu-word-game"
+- tapOn:
+    id: "child-menu-word-game"
+- extendedWaitUntil:
+    visible:
+      id: "word-game-screen"
+    timeout: 10000
+- runFlow:
+    when:
+      visible:
+        id: "word-game-start-level-button"
+    commands:
+      - tapOn:
+          id: "word-game-start-level-button"
+- tapOn:
+    id: "word-game-back-button"
+- extendedWaitUntil:
+    visible:
+      id: "child-menu-screen"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: "child-menu-puzzle-game"
+    direction: RIGHT
+    timeout: 10000
+- tapOn:
+    id: "child-menu-puzzle-game"
+- extendedWaitUntil:
+    visible:
+      id: "puzzle-game-screen"
+    timeout: 10000
+- back
+- extendedWaitUntil:
+    visible:
+      id: "child-menu-screen"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: "child-menu-card-matching"
+    direction: RIGHT
+    timeout: 10000
+- tapOn:
+    id: "child-menu-card-matching"
+- extendedWaitUntil:
+    visible:
+      id: "card-matching-game-screen"
+    timeout: 10000
+- back
+- extendedWaitUntil:
+    visible:
+      id: "child-menu-screen"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: "child-menu-learning"
+    direction: RIGHT
+    timeout: 10000
+- tapOn:
+    id: "child-menu-learning"
+- extendedWaitUntil:
+    visible:
+      id: "learning-stage-select-screen"
+    timeout: 10000
+- back
+- extendedWaitUntil:
+    visible:
+      id: "child-menu-screen"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: "child-menu-counting-game"
+    direction: RIGHT
+    timeout: 10000
+- tapOn:
+    id: "child-menu-counting-game"
+- extendedWaitUntil:
+    visible:
+      id: "counting-stage-select-screen"
+    timeout: 10000
+- back
+- extendedWaitUntil:
+    visible:
+      id: "child-menu-screen"
+    timeout: 10000
+- tapOn:
+    id: "child-menu-coloring"
+- extendedWaitUntil:
+    visible:
+      id: "coloring-menu-screen"
+    timeout: 10000
+- tapOn:
+    id: "child-menu-coloring-emblem"
+- extendedWaitUntil:
+    visible:
+      id: "coloring-screen"
+    timeout: 10000
+- tapOn:
+    id: "coloring-back-button"
+- extendedWaitUntil:
+    visible:
+      id: "coloring-menu-screen"
+    timeout: 10000
+- tapOn:
+    id: "child-menu-stories"
+- extendedWaitUntil:
+    visible:
+      id: "stories-menu-screen"
+    timeout: 10000
+- tapOn:
+    id: "child-menu-story-kintu"
+- extendedWaitUntil:
+    visible:
+      id: "story-page"
+    timeout: 10000
+- back
+- extendedWaitUntil:
+    visible:
+      id: "stories-menu-screen"
+    timeout: 10000
+- tapOn:
+    id: "child-menu-museum"
+- extendedWaitUntil:
+    visible:
+      id: "museum-menu-screen"
+    timeout: 10000
+- tapOn:
+    id: "child-menu-museum-artifacts"
+- extendedWaitUntil:
+    visible:
+      id: "museum-artifacts-screen"
+    timeout: 10000
+- back

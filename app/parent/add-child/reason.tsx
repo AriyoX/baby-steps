@@ -67,7 +67,7 @@ export default function ReasonForDownloadingScreen() {
     <>
       <StatusBar translucent backgroundColor="white" barStyle="dark-content" />
 
-      <SafeAreaView className="flex-1 bg-primary-50">
+      <SafeAreaView className="flex-1 bg-primary-50" testID="add-child-reason-screen">
         {/* Header with back button - Fixed at top */}
         <View className="flex-row items-center p-4 bg-white border-b border-gray-200">
           <TouchableOpacity

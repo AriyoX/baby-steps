@@ -740,7 +740,7 @@ const WordGame: React.FC = () => {
   }
 
   return (
-    <View ref={containerRef} className="flex-1 bg-primary-50">
+    <View ref={containerRef} className="flex-1 bg-primary-50" testID="word-game-screen">
       <StatusBar style="dark" translucent backgroundColor="transparent" />
       {renderAchievementUnlockedModalWG()}
 
@@ -759,6 +759,8 @@ const WordGame: React.FC = () => {
           className="w-12 h-12 rounded-full bg-white items-center justify-center shadow-md border-2 border-primary-200"
           onPress={() => router.back()}
           activeOpacity={0.7}
+          testID="word-game-back-button"
+          accessibilityLabel="Back from word game"
         >
           <Ionicons name="arrow-back" size={22} color="#7b5af0" />
         </TouchableOpacity>
@@ -781,6 +783,8 @@ const WordGame: React.FC = () => {
             className="w-12 h-12 rounded-full bg-white items-center justify-center shadow-md border-2 border-accent-200 mr-2"
             onPress={() => setShowLevelSelect(true)}
             activeOpacity={0.7}
+            testID="word-game-level-select-button"
+            accessibilityLabel="Open word game level selector"
           >
             <Ionicons name="list" size={22} color="#7b5af0" />
           </TouchableOpacity>
@@ -871,6 +875,8 @@ const WordGame: React.FC = () => {
                   onPress={() => handleLetterPress(letter, index)}
                   disabled={isDisabled}
                   activeOpacity={0.8}
+                  testID={isDisabled ? `word-game-letter-option-${index}-disabled` : "word-game-letter-option"}
+                  accessibilityLabel={`Word game letter ${letter}`}
                 >
                   <Text variant="bold" className="text-white text-2xl">
                     {letter}
@@ -887,6 +893,8 @@ const WordGame: React.FC = () => {
             className="w-20 h-20 bg-white rounded-full justify-center items-center shadow-lg border-4 border-accent-200"
             onPress={() => setShowHintModal(true)}
             activeOpacity={0.8}
+            testID="word-game-hint-button"
+            accessibilityLabel="Open word game hint"
           >
             <Image
               source={require("@/assets/images/info.png")}
@@ -994,6 +1002,8 @@ const WordGame: React.FC = () => {
                 className="bg-primary-500 py-3 px-5 rounded-full shadow-lg border-2 border-primary-400 active:scale-95"
                 onPress={goToNextLevel}
                 activeOpacity={0.7}
+                testID="word-game-next-button"
+                accessibilityLabel={isGameCompleted ? "Play word game again" : "Go to next word level"}
               >
                 <Text variant="bold" className="text-white text-sm">
                   {isGameCompleted ? "Play Again" : "Next Level"}
@@ -1151,6 +1161,8 @@ const WordGame: React.FC = () => {
               className="bg-primary-500 py-1.5 px-6 rounded-full shadow-lg border-2 border-primary-400 active:scale-95"
               onPress={() => setShowLevelIntroModal(false)}
               activeOpacity={0.7}
+              testID="word-game-start-level-button"
+              accessibilityLabel="Start word game level"
             >
               <Text variant="bold" className="text-white text-sm">
                 Start Level
@@ -1262,6 +1274,8 @@ const WordGame: React.FC = () => {
               className="absolute -top-3 -right-3 w-10 h-10 bg-white rounded-full items-center justify-center shadow-lg border-2 border-primary-300 z-10"
               onPress={() => setShowLevelSelect(false)}
               activeOpacity={0.7}
+              testID="word-game-level-select-close-button"
+              accessibilityLabel="Close word game level selector"
             >
               <Ionicons name="close" size={20} color="#7b5af0" />
             </TouchableOpacity>

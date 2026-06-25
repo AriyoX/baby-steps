@@ -918,7 +918,7 @@ const LugandaCountingGame: React.FC = () => {
   // RENDER: Stage Selection Screen
   const renderStageSelectionScreen = () => {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50">
+      <SafeAreaView className="flex-1 bg-slate-50" testID="counting-stage-select-screen">
         <StatusBar style="dark" />
 
         {/* Header with back button and title */}
@@ -926,6 +926,8 @@ const LugandaCountingGame: React.FC = () => {
           <TouchableOpacity
             className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-100"
             onPress={() => router.back()}
+            testID="counting-back-button"
+            accessibilityLabel="Back from counting game"
           >
             <Ionicons name="arrow-back" size={20} color="#818cf8" />
           </TouchableOpacity>
@@ -993,6 +995,8 @@ const LugandaCountingGame: React.FC = () => {
                   onPress={() => selectStage(stage.id)}
                   disabled={!isUnlocked}
                   activeOpacity={0.9}
+                  testID={`counting-stage-${stage.id}`}
+                  accessibilityLabel={`Counting stage ${stage.id}: ${stage.title}`}
                 >
                   <LinearGradient
                     colors={isCompleted ? ["#10b981", "#059669"] : ["#6366f1", "#4f46e5"]} // Existing color logic
@@ -1053,6 +1057,8 @@ const LugandaCountingGame: React.FC = () => {
                           <TouchableOpacity
                             className="bg-white px-3 py-1.5 rounded-full items-center shadow-sm"
                             onPress={() => selectStage(stage.id)}
+                            testID={`counting-stage-${stage.id}-start`}
+                            accessibilityLabel={`Start counting stage ${stage.id}`}
                           >
                             <Text
                               variant="bold"
@@ -1130,7 +1136,7 @@ const LugandaCountingGame: React.FC = () => {
 
   // Render the game screen
   return (
-    <SafeAreaView className="flex-1 bg-indigo-50 pt-3">
+    <SafeAreaView className="flex-1 bg-indigo-50 pt-3" testID="counting-stage-screen">
       <StatusBar style="dark" />
 
       {/* Decorative elements */}
@@ -1147,6 +1153,8 @@ const LugandaCountingGame: React.FC = () => {
         <TouchableOpacity
           className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-100"
           onPress={() => setGameState("stageSelect")}
+          testID="counting-stage-back-button"
+          accessibilityLabel="Back to counting stages"
         >
           <Ionicons name="arrow-back" size={20} color="#818cf8" />
         </TouchableOpacity>
@@ -1208,7 +1216,7 @@ const LugandaCountingGame: React.FC = () => {
           </View>
 
           {/* Items container */}
-          <View className="w-full h-56 relative bg-white rounded-xl p-4 shadow-sm">
+          <View className="w-full h-56 relative bg-white rounded-xl p-4 shadow-sm" testID="counting-items-container">
             {/* Grid for visual guidance */}
             <View className="absolute inset-0 w-full h-full rounded-xl overflow-hidden">
               {Array.from({ length: 10 }).map((_, i) => (
@@ -1266,6 +1274,8 @@ const LugandaCountingGame: React.FC = () => {
                     }`}
                     onPress={() => handleNumberPress(number)}
                     disabled={showFeedback && isCorrect}
+                    testID="counting-answer-option"
+                    accessibilityLabel={`Counting answer ${number}`}
                   >
                     <Text variant="bold" className="text-xl text-white">
                       {number}
@@ -1357,7 +1367,12 @@ const LugandaCountingGame: React.FC = () => {
               </View>
             </View>
 
-            <TouchableOpacity className="bg-indigo-500 py-4 px-6 rounded-xl shadow-md" onPress={continueStage}>
+            <TouchableOpacity
+              className="bg-indigo-500 py-4 px-6 rounded-xl shadow-md"
+              onPress={continueStage}
+              testID="counting-continue-button"
+              accessibilityLabel="Continue counting game"
+            >
               <Text variant="bold" className="text-white text-lg text-center">
                 {currentStage < countingStages.length ? "Next Stage" : "Play Again"}
               </Text>

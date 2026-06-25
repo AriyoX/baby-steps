@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { View } from 'react-native';
 import { useChild } from '@/context/ChildContext';
 import { saveActivity } from '@/lib/utils';
 
@@ -68,7 +69,9 @@ export const StoryProgress: React.FC<StoryProgressProps> = ({
   };
 
   return (
-    <>{children}</>
+    <View style={{ flex: 1 }} testID="story-page" accessibilityLabel={`${storyTitle} story page`}>
+      {children}
+    </View>
   );
 };
 

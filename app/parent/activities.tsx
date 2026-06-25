@@ -189,9 +189,14 @@ export default function ActivitiesScreen() {
   return (
     <>
       <StatusBar style="dark" />
-      <SafeAreaView className="flex-1 bg-white" edges={["top", "left", "right"]}>
+      <SafeAreaView className="flex-1 bg-white" edges={["top", "left", "right"]} testID="parent-activities-screen">
         <View className="flex-row items-center px-4 py-3 border-b border-gray-100">
-          <TouchableOpacity onPress={() => router.back()} className="mr-3">
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="mr-3"
+            testID="parent-activities-back-button"
+            accessibilityLabel="Back from activities"
+          >
             <Ionicons name="arrow-back" size={24} color="#374151" />
           </TouchableOpacity>
           <Text variant="bold" className="text-xl text-gray-800">

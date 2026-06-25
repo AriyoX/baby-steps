@@ -154,7 +154,7 @@ export default function InstrumentsScreen() {
   }, [sound])
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <SafeAreaView className="flex-1 bg-slate-50" testID="museum-instruments-screen">
       <StatusBar style="dark" />
 
       {/* Header with back button and title */}
@@ -162,6 +162,8 @@ export default function InstrumentsScreen() {
         <TouchableOpacity
           className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
           onPress={() => router.back()}
+          testID="museum-instruments-back-button"
+          accessibilityLabel="Back from instruments"
         >
           <Ionicons name="arrow-back" size={20} color="#7b5af0" />
         </TouchableOpacity>
@@ -204,6 +206,8 @@ export default function InstrumentsScreen() {
                   onPress={() => setSelectedInstrument(instrument)}
                   activeOpacity={0.7}
                   className="bg-white rounded-xl overflow-hidden shadow-sm border-2 border-indigo-100 h-full"
+                  testID="museum-instruments-item"
+                  accessibilityLabel={`Open instrument ${instrument.name}`}
                 >
                   <Image source={instrument.image} className="w-full h-28" resizeMode="cover" />
 
@@ -229,6 +233,8 @@ export default function InstrumentsScreen() {
                             playSound(instrument.sound, instrument.id)
                           }
                         }}
+                        testID="museum-audio-button"
+                        accessibilityLabel={`Play ${instrument.name}`}
                       >
                         <MaterialCommunityIcons
                           name={playingId === instrument.id ? "stop" : "play"}
@@ -285,6 +291,8 @@ export default function InstrumentsScreen() {
                 <TouchableOpacity
                   className="bg-yellow-100 p-2.5 mr-3 rounded-full shadow-sm border-2 border-yellow-200 flex-row items-center"
                   onPress={() => playSound(selectedInstrument.sound, selectedInstrument.id)}
+                  testID="museum-audio-button"
+                  accessibilityLabel="Play selected instrument sound"
                 >
                   <MaterialCommunityIcons name="volume-high" size={20} color="#7b5af0" />
                   <TranslatedText variant="medium" className="text-primary-600 ml-1.5">
@@ -297,6 +305,8 @@ export default function InstrumentsScreen() {
                   className="bg-primary-500 py-2.5 px-6 rounded-full shadow-sm border-2 border-primary-400"
                   onPress={() => setSelectedInstrument(null)}
                   activeOpacity={0.8}
+                  testID="museum-detail-close-button"
+                  accessibilityLabel="Close instrument details"
                 >
                   <TranslatedText variant="bold" className="text-white">
                     Close

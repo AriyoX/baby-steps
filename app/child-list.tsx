@@ -121,6 +121,8 @@ export default function ChildListScreen() {
         className="flex-row p-4 items-center"
         onPress={() => navigateToProfile(item.id)}
         activeOpacity={0.8}
+        testID="child-profile-card"
+        accessibilityLabel={`Open ${item.name} profile`}
       >
         {/* Avatar with gender-based emoji */}
         <View className="relative w-[70px] h-[70px] rounded-full bg-primary-50 justify-center items-center mr-4">
@@ -160,13 +162,15 @@ export default function ChildListScreen() {
       {/* Status Bar - Added for visibility */}
       <StatusBar translucent backgroundColor="white" barStyle="dark-content" />
 
-      <SafeAreaView className="flex-1 bg-primary-50" edges={["top"]}>
+      <SafeAreaView className="flex-1 bg-primary-50" edges={["top"]} testID="child-list-screen">
         {/* Header with back button */}
         <View className="px-5 py-4 bg-white border-b border-gray-200">
           <View className="flex-row items-center mb-2">
             <TouchableOpacity
               onPress={() => router.push("/")}
               className="w-10 h-10 rounded-full bg-primary-100 items-center justify-center mr-3"
+              testID="child-list-back-button"
+              accessibilityLabel="Back from child profiles"
             >
               <FontAwesome5 name="arrow-left" size={16} color={brandColors.victoriaBlue} />
             </TouchableOpacity>
@@ -203,6 +207,8 @@ export default function ChildListScreen() {
                     className="flex-row bg-secondary-500 py-4 px-6 rounded-full items-center justify-center shadow-md"
                     onPress={navigateToAddChild}
                     activeOpacity={0.8}
+                    testID="add-child-profile-button"
+                    accessibilityLabel="Add another child profile"
                   >
                     <FontAwesome5 name="plus" size={18} color="#fff" />
                     <TranslatedText variant="bold" className="text-white text-base ml-2">
@@ -251,6 +257,8 @@ export default function ChildListScreen() {
                     className="flex-row bg-primary-500 py-4 px-6 rounded-full items-center justify-center w-full shadow-lg"
                     onPress={navigateToAddChild}
                     activeOpacity={0.8}
+                    testID="add-child-profile-button"
+                    accessibilityLabel="Add child profile"
                   >
                     <FontAwesome5 name="plus" size={18} color="#fff" />
                     <TranslatedText variant="bold" className="text-white text-base ml-2">

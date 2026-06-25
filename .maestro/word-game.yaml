@@ -1,0 +1,72 @@
+appId: ${APP_ID}
+---
+- stopApp
+- launchApp
+- runFlow:
+    when:
+      visible:
+        id: "onboarding-skip-button"
+    commands:
+      - tapOn:
+          id: "onboarding-skip-button"
+- runFlow:
+    when:
+      visible:
+        id: "login-screen"
+    commands:
+      - tapOn:
+          id: "login-email-input"
+      - eraseText
+      - inputText: ${PARENT_EMAIL}
+      - tapOn:
+          id: "login-password-input"
+      - eraseText
+      - inputText: ${PARENT_PASSWORD}
+      - hideKeyboard
+      - tapOn:
+          id: "parent-mode-button"
+- extendedWaitUntil:
+    visible:
+      id: "parent-dashboard-screen"
+    timeout: 15000
+- tapOn:
+    id: "parent-view-child-list-button"
+- extendedWaitUntil:
+    visible:
+      id: "child-profile-card"
+    timeout: 10000
+- tapOn:
+    id: "child-profile-card"
+- extendedWaitUntil:
+    visible:
+      id: "child-detail-screen"
+    timeout: 10000
+- tapOn:
+    id: "child-mode-button"
+- extendedWaitUntil:
+    visible:
+      id: "child-menu-screen"
+    timeout: 10000
+- tapOn:
+    id: "child-menu-word-game"
+- extendedWaitUntil:
+    visible:
+      id: "word-game-screen"
+    timeout: 10000
+- runFlow:
+    when:
+      visible:
+        id: "word-game-start-level-button"
+    commands:
+      - tapOn:
+          id: "word-game-start-level-button"
+- extendedWaitUntil:
+    visible:
+      id: "word-game-letter-option"
+    timeout: 10000
+- tapOn:
+    id: "word-game-letter-option"
+- extendedWaitUntil:
+    visible:
+      id: "word-game-screen"
+    timeout: 5000

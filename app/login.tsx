@@ -116,6 +116,7 @@ export default function Auth() {
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       className="flex-1 bg-primary-50"
+      testID="login-screen"
     >
       <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
 
@@ -180,6 +181,8 @@ export default function Auth() {
                   keyboardType="email-address"
                   placeholderTextColor={brandColors.neutral[400]}
                   style={{ textDecorationLine: "none", fontFamily: "Quicksand-Regular" }}
+                  testID="login-email-input"
+                  accessibilityLabel="Parent email"
                 />
               </View>
             </View>
@@ -199,8 +202,15 @@ export default function Auth() {
                   autoCapitalize="none"
                   placeholderTextColor={brandColors.neutral[400]}
                   style={{ textDecorationLine: "none", fontFamily: "Quicksand-Regular" }}
+                  testID="login-password-input"
+                  accessibilityLabel="Parent password"
                 />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} className="px-2">
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  className="px-2"
+                  testID="login-toggle-password-button"
+                  accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                >
                   <FontAwesome
                     name={showPassword ? "eye-slash" : "eye"}
                     size={20}
@@ -215,6 +225,8 @@ export default function Auth() {
               onPress={signInWithEmail}
               disabled={loading}
               activeOpacity={0.84}
+              testID="parent-mode-button"
+              accessibilityLabel="Sign in to parent mode"
             >
               <Text variant="bold" className="text-white text-xl">
                 {loading ? "Signing In..." : "Sign In"}

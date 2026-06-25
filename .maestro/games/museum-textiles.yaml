@@ -1,0 +1,76 @@
+appId: ${APP_ID}
+---
+- stopApp
+- launchApp
+- runFlow:
+    when:
+      visible:
+        id: "onboarding-skip-button"
+    commands:
+      - tapOn:
+          id: "onboarding-skip-button"
+- runFlow:
+    when:
+      visible:
+        id: "login-screen"
+    commands:
+      - tapOn:
+          id: "login-email-input"
+      - eraseText
+      - inputText: ${PARENT_EMAIL}
+      - tapOn:
+          id: "login-password-input"
+      - eraseText
+      - inputText: ${PARENT_PASSWORD}
+      - hideKeyboard
+      - tapOn:
+          id: "parent-mode-button"
+- extendedWaitUntil:
+    visible:
+      id: "parent-dashboard-screen"
+    timeout: 15000
+- tapOn:
+    id: "parent-view-child-list-button"
+- extendedWaitUntil:
+    visible:
+      id: "child-profile-card"
+    timeout: 10000
+- tapOn:
+    id: "child-profile-card"
+- extendedWaitUntil:
+    visible:
+      id: "child-detail-screen"
+    timeout: 10000
+- tapOn:
+    id: "child-mode-button"
+- extendedWaitUntil:
+    visible:
+      id: "child-menu-screen"
+    timeout: 10000
+- tapOn:
+    id: "child-menu-museum"
+- extendedWaitUntil:
+    visible:
+      id: "museum-menu-screen"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: "child-menu-museum-textiles"
+    direction: RIGHT
+    timeout: 10000
+- tapOn:
+    id: "child-menu-museum-textiles"
+- extendedWaitUntil:
+    visible:
+      id: "museum-textiles-screen"
+    timeout: 10000
+- tapOn:
+    id: "museum-textiles-item"
+- extendedWaitUntil:
+    visible:
+      id: "museum-detail-close-button"
+    timeout: 10000
+- tapOn:
+    id: "museum-detail-close-button"
+- assertVisible:
+    id: "museum-textiles-screen"

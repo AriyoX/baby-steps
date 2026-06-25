@@ -162,10 +162,15 @@ export default function AllAchievementsScreen() {
   return (
     <>
       <StatusBar style="dark" />
-      <SafeAreaView className="flex-1 bg-slate-50" edges={["top", "left", "right"]}>
+      <SafeAreaView className="flex-1 bg-slate-50" edges={["top", "left", "right"]} testID="parent-achievements-screen">
         {/* Header */}
         <View className="flex-row items-center px-4 py-3 border-b border-gray-100 bg-white">
-          <TouchableOpacity onPress={() => router.back()} className="mr-3 p-1">
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="mr-3 p-1"
+            testID="parent-achievements-back-button"
+            accessibilityLabel="Back from achievements"
+          >
             <Ionicons name="arrow-back" size={24} color="#374151" />
           </TouchableOpacity>
           <TranslatedText variant="bold" className="text-xl text-gray-800">

@@ -40,8 +40,12 @@ export default function TabLayout() {
   return (
     <LanguageProvider>
       <Tabs
+        detachInactiveScreens={false}
         screenOptions={{
           headerShown: false,
+          animation: "none",
+          freezeOnBlur: false,
+          lazy: false,
           tabBarStyle: {
             backgroundColor: "rgba(2, 116, 187, 0.95)",
             borderTopWidth: 0,

@@ -36,7 +36,7 @@ import {
 import { useAchievements } from "./achievements/useAchievements"; 
 import { AchievementDefinition } from "./achievements/achievementTypes"; 
 
-const WORD_GAME_MODAL_ORIENTATIONS: ModalProps["supportedOrientations"] = ["landscape-left"];
+const WORD_GAME_MODAL_ORIENTATIONS: ModalProps["supportedOrientations"] = ["landscape-left", "landscape-right"];
 
 // Define types for the component's state and props
 type LetterPosition = {

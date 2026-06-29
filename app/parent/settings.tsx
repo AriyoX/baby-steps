@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect } from "react"
+import React from "react"
 import { View, ScrollView, TouchableOpacity, Switch, Alert, Text as RNText } from "react-native"
 import { Text } from "@/components/StyledText"
 import { useRouter } from "expo-router"
@@ -8,7 +8,6 @@ import { StatusBar } from "expo-status-bar"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons"
 import { supabase } from "../../lib/supabase"
-import * as ScreenOrientation from "expo-screen-orientation"
 import { useLanguage } from "@/context/language-context"
 import { TranslatedText } from "@/components/translated-text"
 import { TestTranslation } from "@/components/test-translation"
@@ -60,17 +59,6 @@ export default function SettingsScreen() {
       },
     ])
   }
-
-  useEffect(() => {
-    // Lock to portrait initially when screen loads
-    const lockToPortrait = async () => {
-      await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP)
-    }
-
-    lockToPortrait()
-
-    return () => {}
-  }, [])
 
   // Fixed component with proper TypeScript typing
   const SettingItem: React.FC<SettingItemProps> = ({

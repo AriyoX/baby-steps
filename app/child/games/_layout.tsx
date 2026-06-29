@@ -1,6 +1,8 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 
+const CHILD_ROUTE_ORIENTATION = "landscape_left" as const;
+
 export default function GamesLayout() {
   return (
     <>
@@ -9,7 +11,7 @@ export default function GamesLayout() {
         screenOptions={{
           headerShown: false,
           animation: "slide_from_right",
-          orientation: "landscape_left",
+          orientation: CHILD_ROUTE_ORIENTATION,
         }}
       />
     </>

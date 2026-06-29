@@ -167,7 +167,7 @@ const ParentDashboard = () => {
           {/* Header */}
           <View className="flex-row justify-between items-center p-4 border-b border-muted-200 bg-white">
             <View className="flex-row items-center flex-1 pr-3">
-              <BrandMark kind="icon" width={44} height={44} containerStyle={{ marginRight: 12 }} />
+              <BrandMark kind="wordmark" tone="main" width={64} height={64} containerStyle={{ marginRight: 12 }} />
               <View className="flex-1">
                 <TranslatedText variant="bold" className="text-neutral-800 text-2xl">
                   Parent Dashboard

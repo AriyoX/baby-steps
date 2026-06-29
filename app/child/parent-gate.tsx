@@ -30,7 +30,7 @@ export default function ParentGate() {
       if (newInput.length === 3) {
         if (newInput === correctPin) {
           setActiveChild(null) // Clear active child
-          router.push("/parent")
+          router.replace("/parent")
         } else {
           // No alert for incorrect PIN, just redirect back
           router.back() // Using router.back() is safer than hardcoding a path

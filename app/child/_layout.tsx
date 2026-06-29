@@ -1,43 +1,57 @@
 "use client"
 
-import { Stack, useFocusEffect, usePathname, useRouter } from "expo-router"
-import { useCallback, useEffect } from "react"
+import { Stack, useFocusEffect, useRouter } from "expo-router"
+import { useCallback, useEffect, useRef } from "react"
+import { AppState } from "react-native"
 import * as ScreenOrientation from "expo-screen-orientation"
 import { useChild } from "@/context/ChildContext"
 import { LanguageProvider } from "@/context/language-context"
 
+const CHILD_ROUTE_ORIENTATION = "landscape_left" as const
+const CHILD_ORIENTATION_LOCK = ScreenOrientation.OrientationLock.LANDSCAPE_LEFT
+
 export default function TabLayout() {
   const { activeChild } = useChild()
   const router = useRouter()
-  const pathname = usePathname()
+  const hasRequestedLandscape = useRef(false)
 
-  const lockChildLandscape = useCallback(() => {
-    const lockToLandscape = async () => {
-      try {
-        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE_LEFT)
-      } catch (error) {
-        console.error("Failed to lock child layout to landscape:", error)
-      }
+  const ensureChildLandscape = useCallback(async (forceLock = false) => {
+    if (!forceLock && hasRequestedLandscape.current) {
+      return
     }
 
-    lockToLandscape()
-    const retryAfterTransition = setTimeout(lockToLandscape, 250)
-    const retryAfterModalSettle = setTimeout(lockToLandscape, 750)
-
-    return () => {
-      clearTimeout(retryAfterTransition)
-      clearTimeout(retryAfterModalSettle)
+    try {
+      const currentLock = await ScreenOrientation.getOrientationLockAsync()
+      if (forceLock || currentLock !== CHILD_ORIENTATION_LOCK) {
+        await ScreenOrientation.lockAsync(CHILD_ORIENTATION_LOCK)
+      }
+      hasRequestedLandscape.current = true
+    } catch (error) {
+      console.error("Failed to lock child layout to landscape:", error)
     }
   }, [])
 
   useEffect(() => {
-    if (!activeChild) return
-    return lockChildLandscape()
-  }, [activeChild, pathname, lockChildLandscape])
+    void ensureChildLandscape()
+  }, [ensureChildLandscape])
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
+        void ensureChildLandscape(true)
+      }
+    })
+
+    return () => {
+      subscription.remove()
+    }
+  }, [ensureChildLandscape])
 
   // This will run both on initial mount AND when screen comes into focus
   useFocusEffect(
     useCallback(() => {
+      void ensureChildLandscape()
+
       // Redirect to parent dashboard if no active child
       if (!activeChild) {
         router.replace("/parent")
@@ -45,13 +59,11 @@ export default function TabLayout() {
       }
 
       console.log("Child tabs screen focused - locking to landscape")
-      const clearLandscapeRetries = lockChildLandscape()
 
       return () => {
-        clearLandscapeRetries()
         console.log("Child screen unfocused")
       }
-    }, [activeChild, router, lockChildLandscape]),
+    }, [activeChild, router, ensureChildLandscape]),
   )
 
   if (!activeChild) {
@@ -60,11 +72,30 @@ export default function TabLayout() {
 
   return (
     <LanguageProvider>
-      <Stack screenOptions={{ headerShown: false, orientation: "landscape_left" }}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          orientation: CHILD_ROUTE_ORIENTATION,
+        }}
+      >
+        <Stack.Screen
+          name="(tabs)"
+          options={{
+            animation: "none",
+            orientation: CHILD_ROUTE_ORIENTATION,
+          }}
+        />
+        <Stack.Screen
+          name="games"
+          options={{
+            orientation: CHILD_ROUTE_ORIENTATION,
+          }}
+        />
         <Stack.Screen
           name="parent-gate"
           options={{
             headerShown: false,
+            orientation: CHILD_ROUTE_ORIENTATION,
           }}
         />
       </Stack>

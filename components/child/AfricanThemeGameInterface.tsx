@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useCallback, useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   View,
   TouchableOpacity,
@@ -14,13 +14,12 @@ import {
   ActivityIndicator,
 } from "react-native"
 import { StatusBar } from "expo-status-bar"
-import { useRouter, usePathname, useFocusEffect } from "expo-router"
+import { useRouter, usePathname } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import * as Speech from "expo-speech"
 import { Text } from "@/components/StyledText"
 import { TranslatedText } from "@/components/translated-text"
 import { SafeAreaView } from "react-native-safe-area-context"
-import * as ScreenOrientation from "expo-screen-orientation"
 import { useChild } from "@/context/ChildContext"
 import { CachedImage } from "@/components/common/CachedImage"
 import {
@@ -32,6 +31,7 @@ import {
 import { preloadContentBundleImages } from "@/content/imagePreloader"
 import { BrandMark } from "@/components/brand/BrandMark"
 import { brandColors } from "@/constants/Brand"
+import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation"
 
 // Define types
 type LearningCard = {
@@ -82,43 +82,11 @@ const AfricanThemeGameInterface: React.FC = () => {
   const [isContentLoading, setIsContentLoading] = useState(true)
   const router = useRouter()
   const { activeChild } = useChild()
+  useChildLandscapeOrientation("child activity screen")
 
   // Animation values for avatar
   const pulseAnim = useRef(new Animated.Value(1)).current
   const bounceAnim = useRef(new Animated.Value(0)).current
-
-  useFocusEffect(
-    useCallback(() => {
-      console.log("AfricanThemeGameInterface focused - locking to landscape")
-      const lockToLandscape = async () => {
-        try {
-          await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE_LEFT)
-        } catch (error) {
-          console.error("Failed to lock orientation:", error)
-        }
-      }
-
-      lockToLandscape()
-
-      return () => {
-        // No cleanup needed here as we want to keep landscape
-        // when navigating to games
-      }
-    }, []),
-  )
-
-  useEffect(() => {
-    console.log("AfricanThemeGameInterface arrived - locking to landscape")
-    const lockToLandscape = async () => {
-      try {
-        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE_LEFT)
-      } catch (error) {
-        console.error("Failed to lock orientation:", error)
-      }
-    }
-
-    lockToLandscape()
-  }, [])
 
   // Set up animation
   useEffect(() => {

@@ -15,7 +15,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Audio } from "expo-av"
 import { StatusBar } from "expo-status-bar"
-import * as ScreenOrientation from "expo-screen-orientation"
 import { useRouter } from "expo-router"
 import { Ionicons } from "@expo/vector-icons" // Already imported
 import { LinearGradient } from "expo-linear-gradient"
@@ -227,24 +226,6 @@ const LugandaCountingGame: React.FC = () => {
       isMounted = false
     }
   }, [isLoadingAch, activeChild, languageCode])
-
-  // Add orientation locking
-  useEffect(() => {
-    // Lock to landscape orientation
-    async function setLandscapeOrientation(): Promise<void> {
-      try {
-        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE_LEFT)
-      } catch (error) {
-        console.error("Failed to lock counting game orientation:", error)
-      }
-    }
-
-    setLandscapeOrientation()
-
-    return () => {
-      // Reset orientation when component unmounts
-    }
-  }, [])
 
   useEffect(() => {
     setDimensions({

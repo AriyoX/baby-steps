@@ -4,7 +4,7 @@
     "slug": "baby-steps",
     "version": "1.0.0",
     "orientation": "default",
-    "icon": "./assets/logo/Profile-pic.jpg",
+    "icon": "./assets/logo/Profile-pic.png",
     "scheme": "babysteps",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -14,7 +14,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/logo/Profile-pic.jpg",
+        "foregroundImage": "./assets/logo/Profile-pic.png",
         "backgroundColor": "#F8F6F1"
       },
       "blockedPermissions": [
@@ -28,7 +28,7 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/logo/Profile-pic.jpg"
+      "favicon": "./assets/logo/Profile-pic.png"
     },
     "plugins": [
       "expo-router",

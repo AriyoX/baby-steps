@@ -1,17 +1,39 @@
 "use client"
 
-import { Stack, useFocusEffect } from "expo-router"
-import { useCallback } from "react"
-import { useSafeAreaInsets } from "react-native-safe-area-context"
+import { Stack, useFocusEffect, usePathname, useRouter } from "expo-router"
+import { useCallback, useEffect } from "react"
 import * as ScreenOrientation from "expo-screen-orientation"
 import { useChild } from "@/context/ChildContext"
-import { useRouter } from "expo-router"
 import { LanguageProvider } from "@/context/language-context"
 
 export default function TabLayout() {
-  const insets = useSafeAreaInsets()
   const { activeChild } = useChild()
   const router = useRouter()
+  const pathname = usePathname()
+
+  const lockChildLandscape = useCallback(() => {
+    const lockToLandscape = async () => {
+      try {
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE_LEFT)
+      } catch (error) {
+        console.error("Failed to lock child layout to landscape:", error)
+      }
+    }
+
+    lockToLandscape()
+    const retryAfterTransition = setTimeout(lockToLandscape, 250)
+    const retryAfterModalSettle = setTimeout(lockToLandscape, 750)
+
+    return () => {
+      clearTimeout(retryAfterTransition)
+      clearTimeout(retryAfterModalSettle)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!activeChild) return
+    return lockChildLandscape()
+  }, [activeChild, pathname, lockChildLandscape])
 
   // This will run both on initial mount AND when screen comes into focus
   useFocusEffect(
@@ -23,26 +45,13 @@ export default function TabLayout() {
       }
 
       console.log("Child tabs screen focused - locking to landscape")
-      const lockToLandscape = async () => {
-        try {
-          await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE_LEFT)
-        } catch (error) {
-          console.error("Failed to lock orientation:", error)
-        }
-      }
+      const clearLandscapeRetries = lockChildLandscape()
 
-      lockToLandscape()
-
-      // Cleanup function when screen loses focus
       return () => {
+        clearLandscapeRetries()
         console.log("Child screen unfocused")
-        const resetOrientation = async () => {
-          await ScreenOrientation.unlockAsync()
-        }
-
-        resetOrientation()
       }
-    }, [activeChild]),
+    }, [activeChild, router, lockChildLandscape]),
   )
 
   if (!activeChild) {
@@ -51,7 +60,7 @@ export default function TabLayout() {
 
   return (
     <LanguageProvider>
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack screenOptions={{ headerShown: false, orientation: "landscape_left" }}>
         <Stack.Screen
           name="parent-gate"
           options={{

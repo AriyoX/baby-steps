@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons"
 import { supabase } from "@/lib/supabase" // Assuming this is your Supabase client
 import { useChild } from "@/context/ChildContext"
 import { getLearningLanguage } from "@/content/languages"
+import * as ScreenOrientation from "expo-screen-orientation"
 
 // Achievement imports
 import { useAchievements } from "@/components/games/achievements/useAchievements" // Ensure this path is correct
@@ -113,9 +114,15 @@ export default function ChildDetailScreen() {
   }, [childId, definedAchievements, earnedChildAchievements, isLoadingAchievements]);
 
 
-  const handleLaunchChildMode = () => {
+  const handleLaunchChildMode = async () => {
     // ... (your existing handleLaunchChildMode remains the same)
     if (childData) {
+      try {
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE_LEFT)
+      } catch (error) {
+        console.error("Failed to lock landscape before launching child mode:", error)
+      }
+
       setActiveChild(childData)
       router.push({
         pathname: "/child" as any,

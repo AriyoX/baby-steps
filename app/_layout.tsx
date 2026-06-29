@@ -1,15 +1,14 @@
 "use client";
 
-import { Stack } from "expo-router";
+import { SplashScreen, Stack, usePathname, useRouter } from "expo-router";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import { AppState, type AppStateStatus } from "react-native"; // Add AppState
 import type { Session } from "@supabase/supabase-js";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter, usePathname } from "expo-router";
 import { useFonts } from "expo-font";
-import { SplashScreen } from "expo-router";
 import { Audio } from "expo-av";
+import * as ScreenOrientation from "expo-screen-orientation";
 import "@/global.css";
 import { ChildProvider } from '@/context/ChildContext';
 
@@ -197,7 +196,21 @@ export default function RootLayout() {
         router.replace("/login");
       }
     }
-  }, [isLoading, fontsLoaded, showOnboarding, session, pathname]);
+  }, [isLoading, fontsLoaded, showOnboarding, session, pathname, router]);
+
+  useEffect(() => {
+    if (isLoading || !fontsLoaded || pathname.startsWith("/child")) return;
+
+    const lockToPortrait = async () => {
+      try {
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+      } catch (error) {
+        console.error("Failed to lock non-child route to portrait:", error);
+      }
+    };
+
+    lockToPortrait();
+  }, [isLoading, fontsLoaded, pathname]);
 
   // Return null until everything is ready
   if (!fontsLoaded || isLoading) {
@@ -213,12 +226,13 @@ export default function RootLayout() {
           headerShown: false,
         }}
       >
-        <Stack.Screen name="index" options={{ gestureEnabled: false }} />
-        <Stack.Screen name="login" />
-        <Stack.Screen name="signup" />
-        <Stack.Screen name="forgot-password" />
-        <Stack.Screen name="child-list" />
-        <Stack.Screen name="parent" />
+        <Stack.Screen name="index" options={{ gestureEnabled: false, orientation: "portrait_up" }} />
+        <Stack.Screen name="login" options={{ orientation: "portrait_up" }} />
+        <Stack.Screen name="signup" options={{ orientation: "portrait_up" }} />
+        <Stack.Screen name="forgot-password" options={{ orientation: "portrait_up" }} />
+        <Stack.Screen name="child-list" options={{ orientation: "portrait_up" }} />
+        <Stack.Screen name="parent" options={{ orientation: "portrait_up" }} />
+        <Stack.Screen name="child" options={{ orientation: "landscape_left" }} />
       </Stack>
     </ChildProvider>
   );

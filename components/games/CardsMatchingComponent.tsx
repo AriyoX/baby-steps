@@ -869,7 +869,7 @@ const BugandaMatchingGame: React.FC = () => {
   return (
     <View className="flex-1 flex-col bg-primary-50">
       <StatusBar style="dark" />
-      {renderAchievementUnlockedModalCM()} {/* Show achievement modal if any */}
+      {renderAchievementUnlockedModalCM()}
 
       {/* Decorative Background Elements */}
       <View className="absolute top-5 left-5">

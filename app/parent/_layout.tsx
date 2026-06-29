@@ -4,7 +4,7 @@ import { LanguageProvider } from "@/context/language-context";
 export default function RootLayout() {
   return (
     <LanguageProvider>
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack screenOptions={{ headerShown: false, orientation: "portrait_up" }}>
         <Stack.Screen
           name="index"
           options={{

@@ -42,10 +42,22 @@ const ensureUnlockedProgress = (
   progress: WordGameProgress,
   levelCount: number
 ): WordGameProgress => {
+  const maxLevelIndex = Math.max(0, levelCount - 1);
+  const unlockedLevels = Array.isArray(progress.unlockedLevels)
+    ? progress.unlockedLevels.filter((level) => Number.isInteger(level) && level >= 0 && level <= maxLevelIndex)
+    : [0];
+  const completedLevels = Array.isArray(progress.completedLevels)
+    ? progress.completedLevels.filter((level) => Number.isInteger(level) && level >= 0 && level <= maxLevelIndex)
+    : [];
+  const currentLevel = Number.isInteger(progress.currentLevel)
+    ? Math.min(Math.max(progress.currentLevel, 0), maxLevelIndex)
+    : 0;
+
   const normalizedProgress = {
     ...progress,
-    unlockedLevels: [...progress.unlockedLevels],
-    completedLevels: [...progress.completedLevels],
+    currentLevel,
+    unlockedLevels: unlockedLevels.length > 0 ? [...unlockedLevels] : [0],
+    completedLevels: [...completedLevels],
   };
 
   normalizedProgress.completedLevels.forEach(level => {

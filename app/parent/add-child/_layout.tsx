@@ -6,7 +6,7 @@ export default function OnboardingLayout() {
   return (
     <UserProvider>
       <LanguageProvider>
-        <Stack screenOptions={{ headerShown: false }}>
+        <Stack screenOptions={{ headerShown: false, orientation: "portrait_up" }}>
           <Stack.Screen
             name="gender"
             options={{

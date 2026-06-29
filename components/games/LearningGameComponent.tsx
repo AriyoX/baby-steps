@@ -7,10 +7,10 @@ import {
   TouchableOpacity,
   Image,
   Animated,
-  Dimensions,
   ScrollView,
   FlatList,
   ActivityIndicator,
+  useWindowDimensions,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import type { Audio } from "expo-av"
@@ -120,8 +120,17 @@ const LugandaLearningGame: React.FC = () => {
   const gameStartTime = useRef(Date.now())
 
   // Get dimensions for responsive layout
-  const { width, height } = Dimensions.get("window")
-  const isLandscape = width > height
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions()
+  const isLandscape = windowWidth > windowHeight
+  const landscapeWidth = Math.max(windowWidth, windowHeight)
+  const landscapeHeight = Math.min(windowWidth, windowHeight)
+  const stageCardGap = 16
+  const stageCardWidth = Math.min(250, Math.max(220, landscapeWidth * 0.3))
+  const stageCardHeight = Math.max(166, Math.min(210, landscapeHeight * 0.48))
+  const stageCardImageHeight = Math.round(stageCardHeight * 0.56)
+  const stageCardBodyHeight = stageCardHeight - stageCardImageHeight
+  const stageListEndPadding = Math.max(16, landscapeWidth - stageCardWidth - 32)
+  const learningImageHeight = Math.min(260, Math.max(180, landscapeHeight * 0.5))
 
   // Game state management
   const [gameState, setGameState] = useState<GameState>("stageSelect")
@@ -783,119 +792,83 @@ const LugandaLearningGame: React.FC = () => {
             data={stages}
             horizontal
             showsHorizontalScrollIndicator={false}
-            snapToInterval={width * 0.55 + 8}
+            snapToInterval={stageCardWidth + stageCardGap}
             snapToAlignment="start"
             decelerationRate="fast"
             contentContainerStyle={{
               paddingVertical: 12,
-              paddingLeft: 6,
-              paddingRight: width * 0.45,
+              paddingLeft: 16,
+              paddingRight: stageListEndPadding,
             }}
-            renderItem={({ item: stage }) => (
-              <TouchableOpacity
-                key={stage.id}
-                style={{
-                  width: width * 0.4,
-                  marginRight: 8,
-                  height: height * 0.5,
-                  maxHeight: 450,
-                }}
-                className={`rounded-2xl overflow-hidden shadow-md mx-2 ${stage.isLocked ? "opacity-70" : ""}`}
-                onPress={() => selectStage(stage)}
-                disabled={stage.isLocked}
-                activeOpacity={0.9}
-              >
-                <LinearGradient
-                  colors={[stage.color, `${stage.color}DD`]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  className="p-4 flex-1"
+            renderItem={({ item: stage }) => {
+              const completedLevelCount = stage.levels.filter((level) => completedLevels.includes(level.id)).length
+              const isCompleted = completedLevelCount === stage.levels.length
+
+              return (
+                <TouchableOpacity
+                  key={stage.id}
+                  style={{
+                    width: stageCardWidth,
+                    marginRight: stageCardGap,
+                    height: stageCardHeight,
+                  }}
+                  className={`bg-white rounded-2xl overflow-hidden shadow-md border-2 border-accent-500 ${
+                    stage.isLocked ? "opacity-70" : ""
+                  }`}
+                  onPress={() => selectStage(stage)}
+                  disabled={stage.isLocked}
+                  activeOpacity={stage.isLocked ? 1 : 0.75}
                 >
-                  {/* Top section */}
                   <View>
-                    {/* Stage Header */}
-                    <View className="flex-row items-center mb-2">
-                      <View className="w-8 h-8 rounded-full bg-white bg-opacity-40 justify-center items-center mr-2">
-                        <Text variant="bold" style={{ color: stage.color }}>
-                          {stage.id}
-                        </Text>
-                      </View>
-
-                      {/* Image alongside title */}
-                      <View className="ml-auto bg-white p-2 rounded-full shadow-sm">
-                        <CachedImage
-                          source={stage.image as any}
-                          fallbackSource={resolveImageSource("coin.png")}
-                          style={{ width: 24, height: 24 }}
-                          resizeMode="contain"
-                          accessibilityLabel={`${stage.title} picture`}
-                        />
-                      </View>
+                    <CachedImage
+                      source={stage.image as any}
+                      fallbackSource={resolveImageSource("coin.png")}
+                      className="w-full"
+                      style={{ height: stageCardImageHeight }}
+                      resizeMode="cover"
+                      accessibilityLabel={`${stage.title} picture`}
+                    />
+                    <View className="absolute top-2 left-2 bg-white/90 px-2 py-1 rounded-full">
+                      <Text variant="bold" className="text-[11px] text-primary-700">
+                        Stage {stage.id}
+                      </Text>
                     </View>
-
-                    {/* Stage title */}
-                    <Text variant="bold" className="text-lg  text-white mb-1.5 tracking-wide">
-                      {stage.title}
-                    </Text>
-
-                    {/* Description */}
-                    <Text
-                      className="text-white text-opacity-95 mb-3 text-sm"
-                      style={{ lineHeight: 18 }}
-                      numberOfLines={2}
-                    >
-                      {stage.description}
-                    </Text>
-                  </View>
-
-                  {/* Info badges and action button in one horizontal line */}
-                  <View className="flex-row items-center justify-between mt-3">
-                    {/* Left side - Info badges */}
-                    <View className="flex-row flex-wrap">
-                      {/* Level count badge */}
-                      <View className="flex-row items-center bg-white bg-opacity-60 px-3 py-1.5 rounded-full mr-2">
-                        <Ionicons name="school-outline" size={14} color={stage.color} />
-                        <Text variant="bold" className="text-sm ml-1" style={{ color: stage.color }}>
-                          {stage.levels.length}
-                        </Text>
-                      </View>
-
-                      {/* Completed levels badge */}
-                      <View className="flex-row items-center bg-white bg-opacity-60 px-3 py-1.5 rounded-full mr-2">
-                        <Ionicons name="checkmark-circle-outline" size={14} color={stage.color} />
-                        <Text variant="bold" className="ml-1" style={{ color: stage.color }}>
-                          {stage.levels.filter((level) => completedLevels.includes(level.id)).length}/
-                          {stage.levels.length}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Right side - Action button */}
-                    <View className="ml-auto">
-                      {!stage.isLocked ? (
-                        <TouchableOpacity
-                          className="bg-white px-3 py-1.5 rounded-full items-center shadow-sm"
-                          onPress={() => selectStage(stage)}
-                        >
-                          <Text variant="bold" style={{ color: stage.color }}>
-                            Start
-                          </Text>
-                        </TouchableOpacity>
-                      ) : (
-                        <View className="flex-row items-center justify-center bg-black bg-opacity-25 px-3 py-1.5 rounded-full border border-white border-opacity-30">
-                          <Ionicons name="lock-closed" size={14} color="white" />
-                          <Text variant="bold" className="text-white ml-1">
-                            {stage.requiredScore}
-                          </Text>
-                        </View>
-                      )}
+                    <View className="absolute top-2 right-2 bg-white/90 w-8 h-8 rounded-full items-center justify-center">
+                      <Ionicons
+                        name={stage.isLocked ? "lock-closed" : isCompleted ? "checkmark-circle" : "play-circle"}
+                        size={18}
+                        color={stage.isLocked ? "#64748b" : isCompleted ? "#10b981" : "#0274BB"}
+                      />
                     </View>
                   </View>
-                </LinearGradient>
-              </TouchableOpacity>
-            )}
+
+                  <View className="bg-white px-3 py-2 justify-between" style={{ height: stageCardBodyHeight }}>
+                    <View>
+                      <Text variant="bold" className="text-base text-primary-700 mb-0.5" numberOfLines={1}>
+                        {stage.title}
+                      </Text>
+                      <Text className="text-xs text-neutral-600 leading-4" numberOfLines={2}>
+                        {stage.description}
+                      </Text>
+                    </View>
+
+                    <View className="flex-row items-center justify-between">
+                      <View className="flex-row items-center">
+                        <Ionicons name="school-outline" size={13} color="#0274BB" />
+                        <Text variant="medium" className="text-[11px] text-primary-700 ml-1">
+                          {stage.levels.length} levels
+                        </Text>
+                      </View>
+                      <Text variant="medium" className="text-[11px] text-neutral-600">
+                        {stage.isLocked ? `${stage.requiredScore} pts` : `${completedLevelCount}/${stage.levels.length}`}
+                      </Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              )
+            }}
             ListFooterComponent={() => (
-              <View style={{ width: 20 }} /> // Small spacer at the end
+              <View style={{ width: 1 }} />
             )}
           />
         </Animated.View>
@@ -1010,7 +983,7 @@ const LugandaLearningGame: React.FC = () => {
               {selectedStage.levels.map((level) => (
                 <TouchableOpacity
                   key={level.id}
-                  style={{ width: "48%", marginBottom: 10 }}
+                  style={{ width: "48%", minHeight: 112, marginBottom: 10 }}
                   className={`rounded shadow-sm overflow-hidden border
                   ${
                     level.isLocked
@@ -1112,12 +1085,12 @@ const LugandaLearningGame: React.FC = () => {
             <View className="w-1/2 p-4 justify-center items-center">
               <Animated.View
                 className="bg-white p-5 rounded-2xl shadow-sm w-full justify-center items-center"
-                style={{ opacity: fadeAnim }}
+                style={{ opacity: fadeAnim, minHeight: learningImageHeight + 40 }}
               >
                 <CachedImage
                   source={currentLearnWord.image as any}
                   fallbackSource={resolveImageSource("learning-beginner.jpg")}
-                  style={{ width: "100%", height: "80%" }}
+                  style={{ width: "100%", height: learningImageHeight }}
                   resizeMode="contain"
                   accessibilityLabel={`${currentLearnWord.english} picture`}
                 />
@@ -1202,7 +1175,7 @@ const LugandaLearningGame: React.FC = () => {
                   <CachedImage
                     source={currentLearnWord.image as any}
                     fallbackSource={resolveImageSource("learning-beginner.jpg")}
-                    style={{ width: width * 0.7, height: width * 0.5 }}
+                    style={{ width: windowWidth * 0.7, height: windowWidth * 0.5 }}
                     resizeMode="contain"
                     accessibilityLabel={`${currentLearnWord.english} picture`}
                   />

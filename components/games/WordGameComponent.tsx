@@ -3,16 +3,15 @@ import {
   View,
   TouchableOpacity,
   Image,
-  Dimensions,
   Animated,
   Modal,
+  type ModalProps,
   ScrollView,
   ActivityIndicator,
 } from "react-native";
 import { Audio } from "expo-av";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
-import * as ScreenOrientation from "expo-screen-orientation";
 import { Ionicons } from "@expo/vector-icons";
 import { Text } from "@/components/StyledText";
 import { ComingSoonState } from "@/components/child/ComingSoonState";
@@ -37,8 +36,7 @@ import {
 import { useAchievements } from "./achievements/useAchievements"; 
 import { AchievementDefinition } from "./achievements/achievementTypes"; 
 
-// Get screen dimensions
-const { width, height } = Dimensions.get("window");
+const WORD_GAME_MODAL_ORIENTATIONS: ModalProps["supportedOrientations"] = ["landscape-left"];
 
 // Define types for the component's state and props
 type LetterPosition = {
@@ -97,6 +95,7 @@ const WordGame: React.FC = () => {
   const [progress, setProgress] = useState<WordGameProgress>(DEFAULT_PROGRESS);
   const [showLevelSelect, setShowLevelSelect] = useState<boolean>(false);
   const [fadeAnim] = useState(new Animated.Value(1));
+  const levelIntroTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Animation values
   const letterScale = useState(new Animated.Value(1))[0];
@@ -153,15 +152,18 @@ const WordGame: React.FC = () => {
     }
 
     if (levelIndex >= levels.length) {
+      setCurrentLevelIndex(levels.length - 1);
       setIsGameCompleted(true);
       trackGameCompletion(); // Track full game completion
       return;
     }
 
+    const safeLevelIndex = Math.max(0, levelIndex);
+
     // Reset the level start time when loading a new level
     levelStartTime.current = Date.now();
 
-    const level = levels[levelIndex];
+    const level = levels[safeLevelIndex];
     const word = level.word;
     const firstLetter = level.firstLetter || word[0];
 
@@ -176,23 +178,20 @@ const WordGame: React.FC = () => {
     setCurrentQuestion(level.question);
     setLetters(generateLetterChoices(word));
     setSelectedLetters([]);
+    setCurrentLevelIndex(safeLevelIndex);
 
     // Reset refs
     letterRefs.current = {};
     wordSlotRefs.current = {};
 
-    // Show the level intro modal
-    setShowLevelIntroModal(true);
-    
-    // Update current level in progress if it's different
-    if (activeChild && progress.currentLevel !== levelIndex) {
-      const updatedProgress = {
-        ...progress,
-        currentLevel: levelIndex
-      };
-      setProgress(updatedProgress);
-      saveGameProgress(updatedProgress, activeChild.id, languageCode);
+    if (levelIntroTimeoutRef.current) {
+      clearTimeout(levelIntroTimeoutRef.current);
     }
+
+    levelIntroTimeoutRef.current = setTimeout(() => {
+      setShowLevelIntroModal(true);
+    }, 250);
+
   };
 
   // Function to handle level selection from the level select modal
@@ -251,7 +250,9 @@ const WordGame: React.FC = () => {
   // Modified goToNextLevel to track level completion and unlock the next level
   const goToNextLevel = async () => {
     await trackLevelCompletion(); // Original tracking
-    
+
+    const nextLevelIdx = currentLevelIndex + 1;
+    const nextCurrentLevel = Math.min(nextLevelIdx, Math.max(0, gameLevels.length - 1));
     let finalProgress = progress; // Start with current progress
 
     if (activeChild) {
@@ -314,6 +315,7 @@ const WordGame: React.FC = () => {
       // Add achievement points to the progress that will be saved
       finalProgress = {
           ...progressAfterLevel,
+          currentLevel: nextCurrentLevel,
           totalScore: progressAfterLevel.totalScore + achievementPointsEarned,
       };
       // --- END ACHIEVEMENT CHECKING ---
@@ -329,10 +331,13 @@ const WordGame: React.FC = () => {
           gameLevels.length,
           undefined // no childId
         );
+      finalProgress = {
+        ...finalProgress,
+        currentLevel: nextCurrentLevel,
+      };
       setProgress(finalProgress);
     }
-    
-    const nextLevelIdx = currentLevelIndex + 1;
+
     setShowSuccessModal(false);
     setSelectedLetters([]); // Should be done when new level loads
     
@@ -376,15 +381,8 @@ const WordGame: React.FC = () => {
     }
   };
 
-  // Updated useEffect to lock screen orientation and load the first level
+  // Load game sounds on mount.
   useEffect(() => {
-    // Lock to landscape orientation
-    async function setLandscapeOrientation() {
-      await ScreenOrientation.lockAsync(
-        ScreenOrientation.OrientationLock.LANDSCAPE
-      );
-    }
-
     // Load sounds
     async function loadSounds() {
       const correctSoundObject = new Audio.Sound();
@@ -427,10 +425,12 @@ const WordGame: React.FC = () => {
     // Initialize level start time
     levelStartTime.current = Date.now();
 
-    setLandscapeOrientation();
     loadSounds();
 
     return () => {
+      if (levelIntroTimeoutRef.current) {
+        clearTimeout(levelIntroTimeoutRef.current);
+      }
       if (correctSound) correctSound.unloadAsync();
       if (wrongSound) wrongSound.unloadAsync();
       if (successSound) successSound.unloadAsync();
@@ -442,83 +442,65 @@ const WordGame: React.FC = () => {
     let isMounted = true;
 
     const loadSavedProgress = async () => {
-      // Reset all game-related state when child changes
-      setIsLoading(true);
-      setShowSuccessModal(false);
-      setIsGameCompleted(false);
-      setShowLevelIntroModal(false);
-      setShowHintModal(false);
-      setShowSubHint(false);
-      setSelectedLetters([]);
+      try {
+        // Reset all game-related state when child changes
+        setIsLoading(true);
+        setShowSuccessModal(false);
+        setIsGameCompleted(false);
+        setShowLevelIntroModal(false);
+        setShowHintModal(false);
+        setShowSubHint(false);
+        setSelectedLetters([]);
 
-      const contentResult = await loadContentBundle(languageCode);
-      const levels = contentResult.bundle?.wordGame.levels ?? [];
-      if (contentResult.bundle) {
-        void preloadContentBundleImages(contentResult.bundle);
-      }
-
-      if (!isMounted) return;
-
-      setGameLevels(levels);
-
-      if (levels.length === 0) {
-        setIsLoading(false);
-        return;
-      }
-      
-      if (activeChild) {
-        // Declare the variable outside the try block so it's accessible in finally
-        let savedProgress: WordGameProgress | undefined;
-        
-        try {
-          console.log(`Loading word game progress for child: ${activeChild.id}`);
-          savedProgress = await loadGameProgress(activeChild.id, languageCode, levels.length);
-          console.log('Loaded progress:', JSON.stringify(savedProgress));
-          
-          // Completely reset the previous progress before setting new progress
-          setProgress(savedProgress);
-          
-          // If we have a current level saved, set it
-          if (savedProgress.currentLevel >= 0) {
-            setCurrentLevelIndex(savedProgress.currentLevel);
-          } else {
-            setCurrentLevelIndex(0); // Explicitly reset to level 0 if no saved level
-          }
-        } catch (error) {
-          console.error("Error loading progress:", error);
-          // Set default progress specific to this child
-          const defaultProgress = {...DEFAULT_PROGRESS, childId: activeChild.id};
-          setProgress(defaultProgress);
-          setCurrentLevelIndex(0);
-          // Update savedProgress so we can use it safely in finally
-          savedProgress = defaultProgress;
-        } finally {
-          setIsLoading(false);
-          
-          // Fade in animation
-          Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: 500,
-            useNativeDriver: true,
-          }).start();
-          
-          // Now load the correct level - savedProgress is now accessible
-          try {
-            const levelToLoad = savedProgress?.currentLevel ?? 0;
-            console.log(`Loading level: ${levelToLoad}`);
-            loadLevel(levelToLoad, levels);
-          } catch (err) {
-            console.error("Error loading level:", err);
-            // Fallback to level 0 if anything goes wrong
-            loadLevel(0, levels);
-          }
+        const contentResult = await loadContentBundle(languageCode);
+        const levels = contentResult.bundle?.wordGame.levels ?? [];
+        if (contentResult.bundle) {
+          void preloadContentBundleImages(contentResult.bundle);
         }
-      } else {
-        setIsLoading(false);
-        // Set a temporary default progress 
-        setProgress(DEFAULT_PROGRESS);
-        setCurrentLevelIndex(0);
-        loadLevel(0, levels);
+
+        if (!isMounted) return;
+
+        setGameLevels(levels);
+
+        if (levels.length === 0) {
+          return;
+        }
+
+        let levelToLoad = 0;
+
+        if (activeChild) {
+          try {
+            console.log(`Loading word game progress for child: ${activeChild.id}`);
+            const savedProgress = await loadGameProgress(activeChild.id, languageCode, levels.length);
+            console.log('Loaded progress:', JSON.stringify(savedProgress));
+            setProgress(savedProgress);
+            levelToLoad = savedProgress.currentLevel;
+          } catch (error) {
+            console.error("Error loading progress:", error);
+            setProgress({ ...DEFAULT_PROGRESS, childId: activeChild.id });
+          }
+        } else {
+          setProgress(DEFAULT_PROGRESS);
+        }
+
+        const safeLevelToLoad = Math.min(Math.max(levelToLoad, 0), levels.length - 1);
+        console.log(`Loading level: ${safeLevelToLoad}`);
+        loadLevel(safeLevelToLoad, levels);
+
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }).start();
+      } catch (error) {
+        console.error("Error loading word game:", error);
+        if (isMounted) {
+          setGameLevels([]);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
@@ -739,6 +721,8 @@ const WordGame: React.FC = () => {
     return <ComingSoonState title="Word game coming soon" />;
   }
 
+  const currentLevel = gameLevels[currentLevelIndex] ?? gameLevels[0];
+
   return (
     <View ref={containerRef} className="flex-1 bg-primary-50">
       <StatusBar style="dark" translucent backgroundColor="transparent" />
@@ -788,7 +772,7 @@ const WordGame: React.FC = () => {
           {/* Level indicator */}
           <View className="flex-row items-center bg-white px-4 py-2 rounded-full shadow-md border-2 border-primary-200">
             <Text variant="bold" className="text-primary-700">
-              {currentLevelIndex + 1}/{gameLevels.length}
+              {Math.min(currentLevelIndex + 1, gameLevels.length)}/{gameLevels.length}
             </Text>
           </View>
         </View>
@@ -801,11 +785,11 @@ const WordGame: React.FC = () => {
         <View className="w-[15%] items-center justify-center">
           <View className="w-24 h-24 bg-white rounded-full items-center justify-center shadow-lg border-4 border-secondary-200">
             <CachedImage
-              source={getImageSource(gameLevels[currentLevelIndex].image)}
+              source={getImageSource(currentLevel.image)}
               fallbackSource={resolveImageSource("coin.png")}
               className="w-20 h-20 rounded-full"
               resizeMode="cover"
-              accessibilityLabel={`${gameLevels[currentLevelIndex].question} picture`}
+              accessibilityLabel={`${currentLevel.question} picture`}
             />
           </View>
         </View>
@@ -926,7 +910,13 @@ const WordGame: React.FC = () => {
       )}
 
       {/* Success Modal */}
-      <Modal transparent={true} visible={showSuccessModal} animationType="fade">
+      <Modal
+        transparent={true}
+        visible={showSuccessModal}
+        animationType="fade"
+        presentationStyle="overFullScreen"
+        supportedOrientations={WORD_GAME_MODAL_ORIENTATIONS}
+      >
         <View className="flex-1 justify-center items-center bg-black/50">
           <View className="bg-white rounded-3xl p-6 pt-8 w-4/5 items-center shadow-xl border-4 border-primary-100">
             {/* Decorative elements */}
@@ -986,7 +976,7 @@ const WordGame: React.FC = () => {
                   <Text variant="bold" className="text-white text-sm">Previous</Text>
                 </TouchableOpacity>
               ) : (
-                <View style={{ width: 100 }} /> /* Empty spacer */
+                <View style={{ width: 100 }} />
               )}
               
               {/* Next level or play again button */}
@@ -1005,7 +995,13 @@ const WordGame: React.FC = () => {
       </Modal>
 
       {/* Game Completed Modal */}
-      <Modal transparent={true} visible={isGameCompleted} animationType="fade">
+      <Modal
+        transparent={true}
+        visible={isGameCompleted}
+        animationType="fade"
+        presentationStyle="overFullScreen"
+        supportedOrientations={WORD_GAME_MODAL_ORIENTATIONS}
+      >
         <ScrollView
           contentContainerStyle={{ flexGrow: 1 }}
           className="flex-1 bg-black/50"
@@ -1091,7 +1087,14 @@ const WordGame: React.FC = () => {
       </Modal>
 
       {/* Level Intro Modal */}
-      <Modal transparent={true} visible={showLevelIntroModal} animationType="fade">
+      <Modal
+        transparent={true}
+        visible={showLevelIntroModal}
+        animationType="fade"
+        presentationStyle="overFullScreen"
+        supportedOrientations={WORD_GAME_MODAL_ORIENTATIONS}
+        onShow={() => console.log("Word game level intro modal shown")}
+      >
         <View className="flex-1 justify-center items-center bg-black/50 px-4">
           <View className="bg-white rounded-2xl p-3 w-[80%] max-w-md items-center shadow-xl border-4 border-primary-100">
             {/* Close button - repositioned to be more visible */}
@@ -1122,11 +1125,11 @@ const WordGame: React.FC = () => {
             {/* Image - slightly smaller */}
             <View className="w-1/2 aspect-square bg-white rounded-xl items-center justify-center shadow-lg border-2 border-secondary-200 mb-2 overflow-hidden">
               <CachedImage
-                source={getImageSource(gameLevels[currentLevelIndex].image)}
+                source={getImageSource(currentLevel.image)}
                 fallbackSource={resolveImageSource("coin.png")}
                 className="w-full h-full"
                 resizeMode="cover"
-                accessibilityLabel={`${gameLevels[currentLevelIndex].question} picture`}
+                accessibilityLabel={`${currentLevel.question} picture`}
               />
             </View>
 
@@ -1161,7 +1164,13 @@ const WordGame: React.FC = () => {
       </Modal>
 
       {/* Hint Modal */}
-      <Modal transparent={true} visible={showHintModal} animationType="fade">
+      <Modal
+        transparent={true}
+        visible={showHintModal}
+        animationType="fade"
+        presentationStyle="overFullScreen"
+        supportedOrientations={WORD_GAME_MODAL_ORIENTATIONS}
+      >
         <View className="flex-1 justify-center items-center bg-black/50 px-4">
           <View className="bg-white rounded-2xl p-4 w-[80%] max-w-md items-center shadow-xl border-4 border-primary-100">
             {/* Close button */}
@@ -1201,7 +1210,7 @@ const WordGame: React.FC = () => {
                 variant="medium"
                 className="text-base text-primary-700 text-center"
               >
-                {gameLevels[currentLevelIndex].hint}
+                {currentLevel.hint}
               </Text>
             </View>
 
@@ -1231,7 +1240,7 @@ const WordGame: React.FC = () => {
                   variant="medium"
                   className="text-sm text-secondary-700 text-center"
                 >
-                  {gameLevels[currentLevelIndex].subHint}
+                  {currentLevel.subHint}
                 </Text>
               </View>
             )}
@@ -1254,7 +1263,13 @@ const WordGame: React.FC = () => {
       </Modal>
 
       {/* Level Select Modal */}
-      <Modal transparent={true} visible={showLevelSelect} animationType="fade">
+      <Modal
+        transparent={true}
+        visible={showLevelSelect}
+        animationType="fade"
+        presentationStyle="overFullScreen"
+        supportedOrientations={WORD_GAME_MODAL_ORIENTATIONS}
+      >
         <View className="flex-1 justify-center items-center bg-black/50 px-4">
           <View className="bg-white rounded-2xl p-3 max-h-[80%] w-[80%] items-center shadow-xl border-4 border-primary-100">
             {/* Close button */}

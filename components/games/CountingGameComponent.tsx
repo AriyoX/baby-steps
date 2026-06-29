@@ -7,9 +7,9 @@ import {
   Image,
   TouchableOpacity,
   Animated,
-  Dimensions,
   ActivityIndicator,
   FlatList, // Ensure FlatList is imported
+  useWindowDimensions,
   // ScrollView - Will be removed if FlatList replaces its primary use here
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -45,11 +45,18 @@ import {
 import { useAchievements } from "./achievements/useAchievements" // Adjust path
 import type { AchievementDefinition } from "./achievements/achievementTypes" // Adjust path
 
-const { width, height } = Dimensions.get("window")
-
 const DEFAULT_COUNTING_ITEM: CountingGameItem = {
   name: "items",
   image: "coin.png",
+}
+
+const getCountingCanvasHeight = (screenHeight: number): number =>
+  Math.min(224, Math.max(180, screenHeight * 0.48))
+
+const getCountingStageImage = (stage: CountingGameStage) => {
+  if (stage.usesCurrency) return resolveImageSource("coin.png")
+  if (stage.useBunches) return resolveImageSource("basket.png")
+  return resolveImageSource("numbers.png")
 }
 
 // Define TypeScript interfaces for our data structures
@@ -74,6 +81,16 @@ const LugandaCountingGame: React.FC = () => {
   const router = useRouter()
   const { activeChild } = useChild()
   const languageCode = activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions()
+  const landscapeWidth = Math.max(windowWidth, windowHeight)
+  const landscapeHeight = Math.min(windowWidth, windowHeight)
+  const stageCardGap = 16
+  const stageCardWidth = Math.min(250, Math.max(220, landscapeWidth * 0.3))
+  const stageCardHeight = Math.max(166, Math.min(210, landscapeHeight * 0.48))
+  const stageCardImageHeight = Math.round(stageCardHeight * 0.56)
+  const stageCardBodyHeight = stageCardHeight - stageCardImageHeight
+  const stageListEndPadding = Math.max(16, landscapeWidth - stageCardWidth - 32)
+  const countingCanvasHeight = getCountingCanvasHeight(landscapeHeight)
   const [gameState, setGameState] = useState<GameState>("stageSelect")
   const [currentStage, setCurrentStage] = useState<number>(1)
   const [currentLevel, setCurrentLevel] = useState<number>(1)
@@ -87,8 +104,8 @@ const LugandaCountingGame: React.FC = () => {
   const [sound, setSound] = useState<Audio.Sound | null>(null)
   const [numberOptions, setNumberOptions] = useState<number[]>([])
   const [dimensions, setDimensions] = useState<WindowDimensions>({
-    width,
-    height,
+    width: landscapeWidth,
+    height: landscapeHeight,
   })
   const [targetNumber, setTargetNumber] = useState<number>(1)
   const [gameLevels, setGameLevels] = useState<number[]>([])
@@ -216,9 +233,9 @@ const LugandaCountingGame: React.FC = () => {
     // Lock to landscape orientation
     async function setLandscapeOrientation(): Promise<void> {
       try {
-        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE)
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE_LEFT)
       } catch (error) {
-        console.error("Failed to lock orientation:", error)
+        console.error("Failed to lock counting game orientation:", error)
       }
     }
 
@@ -229,16 +246,12 @@ const LugandaCountingGame: React.FC = () => {
     }
   }, [])
 
-  // Add listener for dimension changes
   useEffect(() => {
-    const subscription = Dimensions.addEventListener("change", ({ window }) => {
-      setDimensions(window)
+    setDimensions({
+      width: landscapeWidth,
+      height: landscapeHeight,
     })
-
-    return () => {
-      subscription?.remove()
-    }
-  }, [])
+  }, [landscapeWidth, landscapeHeight])
 
   // Handle stage completion and update progress
   const handleStageCompletion = async () => {
@@ -339,7 +352,7 @@ const LugandaCountingGame: React.FC = () => {
         sound.unloadAsync()
       }
     }
-  }, [currentLevel, gameLevels, gameState, activeChild, languageCode])
+  }, [currentLevel, gameLevels, gameState, activeChild, languageCode, dimensions.width, dimensions.height])
 
   // Initialize a stage with randomized levels
   const initializeStage = (stageId: number): void => {
@@ -410,8 +423,8 @@ const LugandaCountingGame: React.FC = () => {
       setTargetNumber(numberToUse)
 
       // Calculate container dimensions
-      const containerWidth = dimensions.width * 0.6 // Center section is 4/6 of width = ~60%
-      const containerHeight = 200 // Fixed height for items container
+      const containerWidth = Math.max(240, dimensions.width * 0.6 - 48)
+      const containerHeight = getCountingCanvasHeight(dimensions.height)
 
       // Item dimensions
       const itemSize = 56 // Slightly smaller than before for better fit
@@ -959,14 +972,13 @@ const LugandaCountingGame: React.FC = () => {
             data={countingStages}
             horizontal
             showsHorizontalScrollIndicator={false}
-            snapToInterval={width * 0.48 + 8} // From LugandaLearningGame example
+            snapToInterval={stageCardWidth + stageCardGap}
             snapToAlignment="start"
             decelerationRate="fast"
             contentContainerStyle={{
-              // From LugandaLearningGame example
               paddingVertical: 12,
-              paddingLeft: 6,
-              paddingRight: width * 0.52,
+              paddingLeft: 16,
+              paddingRight: stageListEndPadding,
             }}
             renderItem={({ item: stage }) => {
               const isUnlocked = isStageUnlocked(progress, stage.id)
@@ -984,102 +996,71 @@ const LugandaCountingGame: React.FC = () => {
                 <TouchableOpacity
                   key={stage.id}
                   style={{
-                    width: width * 0.46,
-                    marginRight: 8,
-                    height: height * 0.52,
-                    maxHeight: 360,
+                    width: stageCardWidth,
+                    marginRight: stageCardGap,
+                    height: stageCardHeight,
                   }}
-                  className={`rounded-2xl overflow-hidden shadow-md mx-2 ${!isUnlocked ? "opacity-70" : ""}`}
+                  className={`bg-white rounded-2xl overflow-hidden shadow-md border-2 border-accent-500 ${
+                    !isUnlocked ? "opacity-70" : ""
+                  }`}
                   onPress={() => selectStage(stage.id)}
                   disabled={!isUnlocked}
-                  activeOpacity={0.9}
+                  activeOpacity={isUnlocked ? 0.75 : 1}
                 >
-                  <LinearGradient
-                    colors={isCompleted ? ["#10b981", "#059669"] : ["#6366f1", "#4f46e5"]} // Existing color logic
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    className="p-4 flex-1" // p-4 as in example
-                  >
-                    {/* Top section: ID badge, Icon, Title, Description */}
-                    <View>
-                      {/* Stage Header: ID Badge and Icon */}
-                      <View className="flex-row justify-between items-center mb-2">
-                        <View className="w-8 h-8 rounded-full bg-white/30 justify-center items-center">
-                          <Text variant="bold" className="text-white text-sm">
-                            {stage.id}
-                          </Text>
-                        </View>
-                        <View className="bg-white/25 p-2 rounded-full shadow-sm">
-                          <Ionicons name={stageIconName} size={18} color="white" />
-                        </View>
-                      </View>
+                  <View>
+                    <CachedImage
+                      source={getCountingStageImage(stage)}
+                      fallbackSource={resolveImageSource("numbers.png")}
+                      className="w-full"
+                      style={{ height: stageCardImageHeight }}
+                      resizeMode="cover"
+                      accessibilityLabel={`${stage.title} picture`}
+                    />
+                    <View className="absolute top-2 left-2 bg-white/90 px-2 py-1 rounded-full">
+                      <Text variant="bold" className="text-[11px] text-primary-700">
+                        Stage {stage.id}
+                      </Text>
+                    </View>
+                    <View className="absolute top-2 right-2 bg-white/90 w-8 h-8 rounded-full items-center justify-center">
+                      <Ionicons
+                        name={!isUnlocked ? "lock-closed" : isCompleted ? "checkmark-circle" : stageIconName}
+                        size={18}
+                        color={!isUnlocked ? "#64748b" : isCompleted ? "#10b981" : "#0274BB"}
+                      />
+                    </View>
+                  </View>
 
-                      {/* Stage title */}
-                      <Text variant="bold" className="text-lg text-white mb-1 tracking-wide">
+                  <View className="bg-white px-3 py-2 justify-between" style={{ height: stageCardBodyHeight }}>
+                    <View>
+                      <Text variant="bold" className="text-base text-primary-700 mb-0.5" numberOfLines={1}>
                         {stage.title}
                       </Text>
-
-                      {/* Description */}
-                      <Text className="text-white/90 text-sm mb-3" numberOfLines={3}>
+                      <Text className="text-xs text-neutral-600 leading-4" numberOfLines={2}>
                         {stage.description}
                       </Text>
                     </View>
 
-                    {/* Info badges and action button row */}
-                    <View className="flex-row items-end justify-between mt-3">
-                      {/* Left side - Info badges */}
-                      <View className="space-y-1.5">
-                        <View className="flex-row items-center bg-white/20 px-2.5 py-1 rounded-full">
-                          <Ionicons name="layers-outline" size={14} color="white" />
-                          <Text variant="medium" className="text-xs text-white ml-1.5">
-                            {stage.levels} Levels
-                          </Text>
-                        </View>
-                        <View className="flex-row items-center bg-white/20 px-2.5 py-1 rounded-full">
-                          <Ionicons name="calculator-outline" size={14} color="white" />
-                          <Text variant="medium" className="text-xs text-white ml-1.5">
-                            {stage.numbersRange.min} - {stage.numbersRange.max}
-                          </Text>
-                        </View>
-                      </View>
-
-                      {/* Right side - Action button */}
-                      <View className="ml-2">
-                        {!isUnlocked ? (
-                          <View className="flex-row items-center justify-center bg-black/30 px-3 py-1.5 rounded-full">
-                            <Ionicons name="lock-closed" size={14} color="white" />
-                          </View>
-                        ) : (
-                          <TouchableOpacity
-                            className="bg-white px-3 py-1.5 rounded-full items-center shadow-sm"
-                            onPress={() => selectStage(stage.id)}
-                          >
-                            <Text
-                              variant="bold"
-                              className={`text-sm ${isCompleted ? "text-emerald-600" : "text-indigo-600"}`}
-                            >
-                              {isCompleted ? "Replay" : "Start"}
-                            </Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    </View>
-
-                    {/* "Continue from" text at the very bottom of the card */}
-                    {progress.lastPlayedLevel[stage.id] && isUnlocked && !isCompleted && (
-                      <View className="mt-auto pt-2">
-                        <Text className="text-white/80 text-center text-xs">
-                          Continue: Lvl {progress.lastPlayedLevel[stage.id]}
+                    <View className="flex-row items-center justify-between">
+                      <View className="flex-row items-center">
+                        <Ionicons name="layers-outline" size={13} color="#0274BB" />
+                        <Text variant="medium" className="text-[11px] text-primary-700 ml-1">
+                          {stage.levels} levels
                         </Text>
                       </View>
-                    )}
-                  </LinearGradient>
+                      <Text variant="medium" className="text-[11px] text-neutral-600">
+                        {isCompleted
+                          ? "Done"
+                          : progress.lastPlayedLevel[stage.id] && isUnlocked
+                            ? `Lvl ${progress.lastPlayedLevel[stage.id]}`
+                            : `${stage.numbersRange.min}-${stage.numbersRange.max}`}
+                      </Text>
+                    </View>
+                  </View>
                 </TouchableOpacity>
               )
             }}
             ListFooterComponent={() => (
-              // From LugandaLearningGame example
-              <View style={{ width: width * 0.1 }} /> // Adjusted spacer at the end
+              <View style={{ width: 1 }} />
             )}
           />
         </Animated.View>
@@ -1196,7 +1177,7 @@ const LugandaCountingGame: React.FC = () => {
         </View>
 
         {/* Center section - Items to count */}
-        <View className="w-3/5 items-center px-4 -top-20">
+        <View className="w-3/5 items-center justify-center px-4">
           {/* Question prompt */}
           <View className="items-center mb-1 bg-white px-6 py-2 rounded-xl shadow-sm">
             <Text variant="bold" className="text-lg text-slate-800 text-center">
@@ -1208,7 +1189,7 @@ const LugandaCountingGame: React.FC = () => {
           </View>
 
           {/* Items container */}
-          <View className="w-full h-56 relative bg-white rounded-xl p-4 shadow-sm">
+          <View className="w-full relative bg-white rounded-xl p-4 shadow-sm" style={{ height: countingCanvasHeight }}>
             {/* Grid for visual guidance */}
             <View className="absolute inset-0 w-full h-full rounded-xl overflow-hidden">
               {Array.from({ length: 10 }).map((_, i) => (
@@ -1216,7 +1197,7 @@ const LugandaCountingGame: React.FC = () => {
                   key={`grid-h-${i}`}
                   className="absolute border-t border-indigo-50"
                   style={{
-                    top: (i * 224) / 10, // Assuming h-56 is 224px
+                    top: (i * countingCanvasHeight) / 10,
                     left: 0,
                     right: 0,
                   }}

@@ -616,25 +616,10 @@ const BugandaPuzzleGame: React.FC = () => {
   };
 
   const handleReset = () => {
-    // Track the current attempt before resetting
-    if (gameStarted && !showPreview && !isComplete && moves > 0) {
-      trackActivity(false);
-    }
-    
     // Reset gameStartTime
     gameStartTime.current = Date.now();
     initializePuzzle();
   };
-
-  // When leaving the game, track the unfinished activity
-  useEffect(() => {
-    return () => {
-      // Only track if game was actually played but not completed
-      if (gameStarted && !showPreview && !isComplete && moves > 0) {
-        trackActivity(false);
-      }
-    };
-  }, [gameStarted, showPreview, isComplete, moves]);
 
   const createTilePanResponder = (tileId: number, tileRow: number, tileCol: number) => {
     return PanResponder.create({
@@ -762,10 +747,6 @@ const BugandaPuzzleGame: React.FC = () => {
       <TouchableOpacity
         className="w-12 h-12 rounded-full bg-white items-center justify-center shadow-md border-2 border-primary-200 mx-6 mt-6"
         onPress={() => {
-          // Track activity before leaving if puzzle was started but not completed
-          if (gameStarted && !showPreview && !isComplete && moves > 0) {
-            trackActivity(false);
-          }
           router.back();
         }}
         activeOpacity={0.7}

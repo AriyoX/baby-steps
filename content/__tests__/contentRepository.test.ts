@@ -317,6 +317,34 @@ describe("loadContentBundle cache behavior", () => {
     expect(fromMock).toHaveBeenCalledTimes(2);
   });
 
+  it("returns stale cached DB content while refreshing in the background", async () => {
+    const nowSpy = jest.spyOn(Date, "now");
+    let now = 1000;
+    nowSpy.mockImplementation(() => now);
+
+    const fromMock = supabase.from as jest.Mock;
+    fromMock
+      .mockReturnValueOnce(
+        createContentItemsQuery({ data: [menuItem("nyn", "cached-menu")], error: null }),
+      )
+      .mockReturnValueOnce(
+        createContentItemsQuery({ data: [menuItem("nyn", "refreshed-menu")], error: null }),
+      );
+
+    await loadContentBundle("nyn", { maxAgeMs: 100 });
+    now = 1200;
+    const stale = await loadContentBundle("nyn", { maxAgeMs: 100 });
+
+    expect(stale.bundle?.menuCardsByTab.games[0].id).toBe("cached-menu");
+    expect(stale.cache?.isStale).toBe(true);
+    expect(fromMock).toHaveBeenCalledTimes(2);
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    nowSpy.mockRestore();
+  });
+
   it("never serves cached Luganda content to a Runyankole request", async () => {
     const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
     const fromMock = supabase.from as jest.Mock;

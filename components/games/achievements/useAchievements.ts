@@ -4,7 +4,6 @@ import {
   fetchAllDefinedAchievements as fetchAllDefinedAchievementsLogic, // Renamed for clarity
   fetchChildEarnedAchievements,
   checkAndGrantNewAchievements as checkAndGrantNewAchievementsLogic,
-  awardAchievementToChild,
 } from './achievementManager';
 import { AchievementDefinition, ChildAchievement } from './achievementTypes';
 // Remove game-specific progress types from here unless absolutely needed by the hook itself

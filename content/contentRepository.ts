@@ -193,6 +193,10 @@ const contentItemsMemoryCache = new Map<
   SupportedLearningLanguageCode,
   ContentItemsCacheEntry
 >();
+const contentItemsBackgroundRefreshes = new Map<
+  SupportedLearningLanguageCode,
+  Promise<void>
+>();
 
 const LOCAL_CONTENT_BY_LANGUAGE: Record<
   SupportedLearningLanguageCode,
@@ -385,16 +389,84 @@ const writeCachedContentItems = async (
   }
 };
 
+const loadDatabaseContentBundle = async (
+  languageCode: SupportedLearningLanguageCode,
+  maxAgeMs: number,
+): Promise<ContentLoadResult | undefined> => {
+  const { data, error } = await supabase
+    .from("content_items")
+    .select("id, language_code, content_type, slug, title, payload, sort_order, is_active")
+    .eq("language_code", languageCode)
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data || data.length === 0) {
+    return undefined;
+  }
+
+  const contentItems = data as ContentItemRecord[];
+  const bundle = buildUsableDatabaseBundle(languageCode, contentItems);
+
+  if (!bundle) {
+    console.warn(
+      `Database content for ${languageCode} did not contain any usable payloads; using same-language bundled content if available.`,
+    );
+    return undefined;
+  }
+
+  const loadedAt = Date.now();
+  await writeCachedContentItems(languageCode, contentItems, loadedAt);
+
+  return {
+    languageCode,
+    source: "database",
+    bundle,
+    cache: {
+      cacheKey: getContentBundleCacheKey(languageCode),
+      loadedAt,
+      source: "network",
+      isStale: false,
+      maxAgeMs,
+    },
+  };
+};
+
+const refreshContentBundleInBackground = (
+  languageCode: SupportedLearningLanguageCode,
+  maxAgeMs: number,
+): void => {
+  if (contentItemsBackgroundRefreshes.has(languageCode)) {
+    return;
+  }
+
+  const refresh = loadDatabaseContentBundle(languageCode, maxAgeMs)
+    .catch((error) => {
+      console.warn(`Could not refresh cached content for ${languageCode}.`, error);
+    })
+    .then(() => undefined)
+    .finally(() => {
+      contentItemsBackgroundRefreshes.delete(languageCode);
+    });
+
+  contentItemsBackgroundRefreshes.set(languageCode, refresh);
+};
+
 export const clearContentBundleCache = async (
   languageCode?: SupportedLearningLanguageCode,
 ): Promise<void> => {
   if (languageCode) {
     contentItemsMemoryCache.delete(languageCode);
+    contentItemsBackgroundRefreshes.delete(languageCode);
     await AsyncStorage.removeItem(getContentBundleCacheKey(languageCode));
     return;
   }
 
   contentItemsMemoryCache.clear();
+  contentItemsBackgroundRefreshes.clear();
 
   await Promise.all(
     (Object.keys(LOCAL_CONTENT_BY_LANGUAGE) as SupportedLearningLanguageCode[]).map(
@@ -1129,48 +1201,32 @@ export const loadContentBundle = async (
         cache: cached.metadata,
       };
     }
+
+    const staleCached = await readCachedContentBundle(normalizedLanguageCode, {
+      allowExpired: true,
+      maxAgeMs,
+      now,
+    });
+
+    if (staleCached) {
+      refreshContentBundleInBackground(normalizedLanguageCode, maxAgeMs);
+      return {
+        languageCode: normalizedLanguageCode,
+        source: "database",
+        bundle: staleCached.bundle,
+        cache: staleCached.metadata,
+      };
+    }
   }
 
   try {
-    const { data, error } = await supabase
-      .from("content_items")
-      .select("id, language_code, content_type, slug, title, payload, sort_order, is_active")
-      .eq("language_code", normalizedLanguageCode)
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true });
+    const databaseResult = await loadDatabaseContentBundle(
+      normalizedLanguageCode,
+      maxAgeMs,
+    );
 
-    if (error) {
-      throw error;
-    }
-
-    if (data && data.length > 0) {
-      const contentItems = data as ContentItemRecord[];
-      const bundle = buildUsableDatabaseBundle(
-        normalizedLanguageCode,
-        contentItems,
-      );
-
-      if (bundle) {
-        const loadedAt = Date.now();
-        await writeCachedContentItems(normalizedLanguageCode, contentItems, loadedAt);
-
-        return {
-          languageCode: normalizedLanguageCode,
-          source: "database",
-          bundle,
-          cache: {
-            cacheKey: getContentBundleCacheKey(normalizedLanguageCode),
-            loadedAt,
-            source: "network",
-            isStale: false,
-            maxAgeMs,
-          },
-        };
-      }
-
-      console.warn(
-        `Database content for ${normalizedLanguageCode} did not contain any usable payloads; using same-language bundled content if available.`,
-      );
+    if (databaseResult) {
+      return databaseResult;
     }
   } catch (error) {
     console.warn(

@@ -544,20 +544,6 @@ const BugandaMatchingGame: React.FC = () => {
     gameStartTime.current = Date.now();
   };
 
-  // Track activity when a match is found
-  const trackMatchActivity = async (matchedCard: Card) => {
-    if (!activeChild) return;
-    
-    await saveActivity({
-      child_id: activeChild.id,
-      activity_type: "cultural",
-      activity_name: "Matched Cultural Cards",
-      score: `${matchedCount+1}/${PAIRS_PER_GAME}`,
-      completed_at: new Date().toISOString(),
-      details: `Found a match: ${matchedCard.value} - ${matchedCard.info.substring(0, 30)}...`
-    });
-  };
-
   // Track activity when game completes
   const trackGameCompletion = async () => {
     if (!activeChild) return;
@@ -661,9 +647,6 @@ const BugandaMatchingGame: React.FC = () => {
           setCards(matchedCards);
           setFlippedCards([]);
           setMatchedCount((prevCount) => prevCount + 1);
-          
-          // Track match activity
-          await trackMatchActivity(firstCard);
           
           // Save game state with new match
           if (activeChild) {

@@ -65,7 +65,7 @@ export default function ActivitiesScreen() {
 
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchData = async (forceRefresh = false) => {
       try {
         setLoading(true);
         const { data: sessionData } = await supabase.auth.getSession();
@@ -87,7 +87,9 @@ export default function ActivitiesScreen() {
           }));
           setChildren(transformedChildren);
 
-          const activityPromises = childrenData.map(child => getChildActivities(child.id));
+          const activityPromises = childrenData.map(child =>
+            getChildActivities(child.id, { forceRefresh }),
+          );
           const nestedActivities = await Promise.all(activityPromises);
           const allActivitiesRaw = nestedActivities.flat();
           
@@ -122,7 +124,7 @@ export default function ActivitiesScreen() {
         table: 'activities' 
       }, (payload) => {
         // console.log('Change received!', payload);
-        fetchData(); // Re-fetch data on any change
+        fetchData(true); // Re-fetch data on any change
       })
       .subscribe();
 

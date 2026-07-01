@@ -76,3 +76,45 @@ CREATE TABLE public.content_items (
   CONSTRAINT content_items_pkey PRIMARY KEY (id),
   CONSTRAINT content_items_language_code_fkey FOREIGN KEY (language_code) REFERENCES public.languages(code)
 );
+CREATE TABLE public.child_activity_progress (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  child_id uuid NOT NULL,
+  language_code text NOT NULL CHECK (length(TRIM(BOTH FROM language_code)) > 0),
+  activity_type text NOT NULL CHECK (length(TRIM(BOTH FROM activity_type)) > 0),
+  status text NOT NULL DEFAULT 'not_started'::text CHECK (status = ANY (ARRAY['not_started'::text, 'in_progress'::text, 'completed'::text])),
+  score integer CHECK (score IS NULL OR score >= 0),
+  stars integer CHECK (stars IS NULL OR stars >= 0),
+  attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+  last_stage_id text,
+  highest_unlocked_stage integer CHECK (highest_unlocked_stage IS NULL OR highest_unlocked_stage >= 0),
+  completed_stage_count integer NOT NULL DEFAULT 0 CHECK (completed_stage_count >= 0),
+  progress_payload jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(progress_payload) = 'object'::text),
+  local_updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  server_updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT child_activity_progress_pkey PRIMARY KEY (id),
+  CONSTRAINT child_activity_progress_child_id_fkey FOREIGN KEY (child_id) REFERENCES public.children(id),
+  CONSTRAINT child_activity_progress_language_code_fkey FOREIGN KEY (language_code) REFERENCES public.languages(code)
+);
+CREATE TABLE public.child_stage_progress (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  child_id uuid NOT NULL,
+  language_code text NOT NULL CHECK (length(TRIM(BOTH FROM language_code)) > 0),
+  activity_type text NOT NULL CHECK (length(TRIM(BOTH FROM activity_type)) > 0),
+  stage_id text NOT NULL CHECK (length(TRIM(BOTH FROM stage_id)) > 0),
+  level_id text NOT NULL DEFAULT ''::text,
+  status text NOT NULL DEFAULT 'not_started'::text CHECK (status = ANY (ARRAY['not_started'::text, 'in_progress'::text, 'completed'::text])),
+  score integer CHECK (score IS NULL OR score >= 0),
+  stars integer CHECK (stars IS NULL OR stars >= 0),
+  attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+  progress_payload jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(progress_payload) = 'object'::text),
+  completed_at timestamp with time zone,
+  local_updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  server_updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT child_stage_progress_pkey PRIMARY KEY (id),
+  CONSTRAINT child_stage_progress_child_id_fkey FOREIGN KEY (child_id) REFERENCES public.children(id),
+  CONSTRAINT child_stage_progress_language_code_fkey FOREIGN KEY (language_code) REFERENCES public.languages(code)
+);

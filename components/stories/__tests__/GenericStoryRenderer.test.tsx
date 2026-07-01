@@ -1,6 +1,7 @@
 import React from "react";
 import renderer, { act } from "react-test-renderer";
 import { TouchableOpacity } from "react-native";
+import * as Speech from "expo-speech";
 import { GenericStoryRenderer } from "../GenericStoryRenderer";
 import { lugandaStories } from "@/content/luganda/stories";
 import { runyankoleContent } from "@/content/runyankole";
@@ -35,6 +36,11 @@ jest.mock("@/lib/supabase", () => ({
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ back: mockBack }),
+}));
+
+jest.mock("expo-speech", () => ({
+  speak: jest.fn(),
+  stop: jest.fn(),
 }));
 
 jest.mock("@expo/vector-icons", () => ({
@@ -107,6 +113,21 @@ const findButtonByText = (
   return button;
 };
 
+const findButtonByAccessibilityLabel = (
+  root: renderer.ReactTestInstance,
+  label: string,
+): renderer.ReactTestInstance => {
+  const button = root.findAllByType(TouchableOpacity).find((candidate) =>
+    candidate.props.accessibilityLabel === label,
+  );
+
+  if (!button) {
+    throw new Error(`Could not find button with accessibility label: ${label}`);
+  }
+
+  return button;
+};
+
 const renderStory = (story: LocalStory) => {
   let tree: renderer.ReactTestRenderer | undefined;
 
@@ -171,7 +192,8 @@ describe("GenericStoryRenderer", () => {
       "stories",
       "nyn-sample-morning-greeting",
     );
-    expect(JSON.stringify(tree.toJSON())).toContain("Webare, Mama");
+    expect(JSON.stringify(tree.toJSON())).toContain("Webare,");
+    expect(JSON.stringify(tree.toJSON())).toContain("Mama.");
     expect(markStageStarted).toHaveBeenCalledWith(
       "child-1",
       "nyn",
@@ -263,6 +285,56 @@ describe("GenericStoryRenderer", () => {
     );
     expect(syncProgressNow).toHaveBeenCalledWith("child-1");
     expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads the current story page aloud at the selected speed", async () => {
+    const story = {
+      ...lugandaStories.find((item) => item.id === "kintu")!,
+      pages: [lugandaStories.find((item) => item.id === "kintu")!.pages[0]],
+      questions: [],
+    };
+    const tree = renderStory(story);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      findButtonByAccessibilityLabel(tree.root, "Open accessibility options").props.onPress();
+    });
+
+    await act(async () => {
+      findButtonByText(tree.root, "Fast").props.onPress();
+    });
+
+    await act(async () => {
+      findButtonByAccessibilityLabel(tree.root, "Read page aloud").props.onPress();
+    });
+
+    expect(Speech.speak).toHaveBeenCalledWith(
+      expect.stringContaining("Long ago, Kintu"),
+      expect.objectContaining({
+        rate: 1,
+      }),
+    );
+
+    const speechOptions = (Speech.speak as jest.Mock).mock.calls[0][1] as {
+      onBoundary: (event: { charIndex: number; charLength: number }) => void;
+      onDone: () => void;
+    };
+
+    await act(async () => {
+      speechOptions.onBoundary({
+        charIndex: story.pages[0].text.indexOf("Kintu"),
+        charLength: "Kintu".length,
+      });
+    });
+
+    expect(JSON.stringify(tree.toJSON())).toContain("#FDE68A");
+
+    await act(async () => {
+      speechOptions.onDone();
+    });
   });
 
   it("does not log or downgrade progress when reopening an already completed story", async () => {

@@ -20,6 +20,7 @@ import { Text } from "@/components/StyledText";
 
 const { width, height } = Dimensions.get("window");
 
+// Deprecated legacy renderer. Luganda stories now render from content_items via GenericStoryRenderer.
 interface StoryPage {
   text: string;
   image: any;

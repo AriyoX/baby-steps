@@ -14,11 +14,13 @@ import {
   buildContentBundleFromItems,
   buildLocalContentBundle,
   clearContentBundleCache,
+  findStoryById,
   loadContentBundle,
   mergeDatabaseBundleWithLegacyLugandaContent,
   validateContentItemPayload,
   type ContentItemRecord,
 } from "../contentRepository";
+import { lugandaStories } from "../luganda/stories";
 
 const createContentItemsQuery = (
   result: { data: ContentItemRecord[] | null; error: unknown },
@@ -244,6 +246,137 @@ describe("content repository mapping", () => {
     expect(bundle.menuCardsByTab.stories[0].targetPage).toBe(
       "child/stories/nyn-sample-morning-greeting",
     );
+  });
+
+  it("loads migrated Luganda stories from content_items with generic menu routes", () => {
+    const items: ContentItemRecord[] = [
+      {
+        language_code: "lg",
+        content_type: "child_menu",
+        slug: "stories",
+        title: "Stories",
+        payload: {
+          cards: lugandaStories.map((story) => ({
+            id: story.id,
+            title: story.title,
+            description: story.summary,
+            image: story.pages[0]?.image,
+            targetPage: `child/stories/${story.id}`,
+          })),
+        },
+      },
+      ...lugandaStories.map((story, index): ContentItemRecord => ({
+        language_code: "lg",
+        content_type: "story",
+        slug: story.id,
+        title: story.title,
+        sort_order: 60 + index,
+        is_active: true,
+        payload: story as unknown as Record<string, unknown>,
+      })),
+    ];
+
+    const bundle = buildContentBundleFromItems("lg", items);
+    const kintu = findStoryById(bundle, "kintu");
+    const figTree = findStoryById(bundle, "fig-tree");
+
+    expect(bundle.stories).toHaveLength(lugandaStories.length);
+    expect(bundle.menuCardsByTab.stories.map((card) => card.targetPage)).toEqual(
+      lugandaStories.map((story) => `child/stories/${story.id}`),
+    );
+    expect(kintu?.pages[0].text).toContain("Long ago, Kintu was the first person");
+    expect(kintu?.pages[0].image).toBe("story/kintu/kintu-cow.jpeg");
+    expect(figTree?.questions?.[0].options).toContain(
+      "It produced bark cloth precious to the Baganda",
+    );
+    expect(figTree?.questions?.[0].correctAnswer).toBe(1);
+  });
+
+  it("normalizes DB-backed story payloads and skips stories with empty pages", () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const bundle = buildContentBundleFromItems("nyn", [
+      {
+        language_code: "nyn",
+        content_type: "story",
+        slug: "nyn-normalized-story",
+        title: "Normalized Story",
+        payload: {
+          languageCode: "nyn",
+          pages: [
+            { text: "  " },
+            {
+              text: "Agandi",
+              imageKey: "learning-beginner.jpg",
+            },
+          ],
+          questions: [
+            {
+              question: "Which greeting appears?",
+              options: ["Agandi", "Oli otya"],
+              correctAnswer: 0,
+            },
+          ],
+        },
+      },
+      {
+        language_code: "nyn",
+        content_type: "story",
+        slug: "empty-story",
+        title: "Empty Story",
+        payload: {
+          languageCode: "nyn",
+          pages: [{ text: "" }],
+        },
+      },
+    ]);
+
+    expect(bundle.stories).toHaveLength(1);
+    expect(bundle.stories[0]).toEqual(
+      expect.objectContaining({
+        id: "nyn-normalized-story",
+        title: "Normalized Story",
+        languageCode: "nyn",
+      }),
+    );
+    expect(bundle.stories[0].pages[0]).toEqual(
+      expect.objectContaining({
+        id: "nyn-normalized-story-page-2",
+        text: "Agandi",
+        image: "learning-beginner.jpg",
+      }),
+    );
+    expect(bundle.stories[0].questions?.[0].id).toBe(
+      "nyn-normalized-story-question-1",
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it("keeps local Luganda story fallback on generic story routes", () => {
+    const bundle = buildLocalContentBundle("lg");
+
+    expect(bundle.stories).toHaveLength(lugandaStories.length);
+    expect(bundle.stories.every((story) => story.pages.length > 0)).toBe(true);
+    expect(bundle.menuCardsByTab.stories.map((card) => card.targetPage)).toEqual([
+      "child/stories/kintu",
+      "child/stories/mwanga",
+      "child/stories/kasubi-tombs",
+      "child/stories/walumbe",
+      "child/stories/ssezibwa",
+      "child/stories/millet",
+      "child/stories/kasokambirye",
+      "child/stories/fig-tree",
+    ]);
+  });
+
+  it("renders seeded Runyankole stories as non-empty generic story payloads", () => {
+    const bundle = buildLocalContentBundle("nyn");
+    const story = findStoryById(bundle, "nyn-sample-morning-greeting");
+
+    expect(story?.pages.length).toBeGreaterThan(0);
+    expect(story?.pages[0].text).toContain("Agandi");
+    expect(story?.questions?.[0].options.length).toBeGreaterThan(1);
   });
 
   it("keeps full legacy Luganda game content when DB Luganda payloads are only partial samples", () => {

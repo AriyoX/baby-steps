@@ -13,6 +13,8 @@ import type {
   LocalLanguageContent,
   LocalLearningStage,
   LocalStory,
+  LocalStoryPage,
+  LocalStoryQuestion,
   LocalWordGameLevel,
   SupportedLearningLanguageCode,
 } from "./types";
@@ -556,64 +558,56 @@ const LEGACY_LUGANDA_MENU_CARDS: Record<string, ChildMenuCard[]> = {
       title: "Kintu",
       image: "kintu.jpg",
       description: "Learn about Kintu, the first person on Earth according to Buganda mythology",
-      targetPage: "child/stories/kintustory",
-      availability: "legacy-lg",
+      targetPage: "child/stories/kintu",
     },
     {
       id: "mwanga",
       title: "Kabaka Mwanga",
       image: "mwanga.jpg",
       description: "Discover the story of Kabaka Mwanga II of Buganda",
-      targetPage: "child/stories/mwangastory",
-      availability: "legacy-lg",
+      targetPage: "child/stories/mwanga",
     },
     {
-      id: "kasubi",
+      id: "kasubi-tombs",
       title: "Kasubi Tombs",
       image: "kasubi.jpg",
       description: "Explore the UNESCO World Heritage Site of Kasubi Tombs",
-      targetPage: "child/stories/kasubitombsstory",
-      availability: "legacy-lg",
+      targetPage: "child/stories/kasubi-tombs",
     },
     {
       id: "walumbe",
       title: "Walumbe and Death",
       image: "buganda-kingdom.jpg",
       description: "Learn about the story of Walumbe and the origin of death",
-      targetPage: "child/stories/walumbestory",
-      availability: "legacy-lg",
+      targetPage: "child/stories/walumbe",
     },
     {
       id: "ssezibwa",
       title: "Ssezibwa Falls",
       image: "kabaka-trail.jpg",
       description: "Follow the historical origin of Ssezibwa Falls",
-      targetPage: "child/stories/ssezibwafallsstory",
-      availability: "legacy-lg",
+      targetPage: "child/stories/ssezibwa",
     },
     {
       id: "millet",
       title: "Nambi and the First Millet",
       image: "culture.jpg",
       description: "Discover the story of Nambi and the first millet",
-      targetPage: "child/stories/milletstory",
-      availability: "legacy-lg",
+      targetPage: "child/stories/millet",
     },
     {
       id: "kasokambirye",
       title: "Kasokambirye and the Moon",
       image: "culture.jpg",
       description: "Discover the story of Kasokambirye and the moon",
-      targetPage: "child/stories/kasokambiryestory",
-      availability: "legacy-lg",
+      targetPage: "child/stories/kasokambirye",
     },
     {
       id: "fig-tree",
       title: "The Generous Fig Tree",
       image: "culture.jpg",
       description: "Discover the story of the generous fig tree",
-      targetPage: "child/stories/figtreestory",
-      availability: "legacy-lg",
+      targetPage: "child/stories/fig-tree",
     },
   ],
   museum: [
@@ -1009,6 +1003,115 @@ const mapLocalCountingContent = (
     currency: [],
   });
 
+const mapStoryPages = (
+  pages: unknown[],
+  storyId: string,
+): LocalStoryPage[] => {
+  return pages
+    .map((pageValue, pageIndex) => {
+      const page = asRecord(pageValue);
+      const text = asString(page.text).trim();
+
+      if (!text) {
+        return undefined;
+      }
+
+      const image = asString(page.image, asString(page.imageKey));
+
+      return {
+        id: asString(page.id, `${storyId}-page-${pageIndex + 1}`),
+        text,
+        translation: asString(page.translation) || undefined,
+        image: image || undefined,
+        altText: asString(page.altText) || undefined,
+      };
+    })
+    .filter(Boolean) as LocalStoryPage[];
+};
+
+const mapStoryQuestions = (
+  questions: unknown[],
+  storyId: string,
+): LocalStoryQuestion[] | undefined => {
+  const mappedQuestions = questions
+    .map((questionValue, questionIndex) => {
+      const question = asRecord(questionValue);
+      const prompt = asString(question.question).trim();
+      const options = asArray(question.options)
+        .map((option) => asString(option).trim())
+        .filter(Boolean);
+      const correctAnswer = asNumber(
+        question.correctAnswer,
+        asNumber(question.correctAnswerIndex, -1),
+      );
+
+      if (
+        !prompt ||
+        options.length < 2 ||
+        correctAnswer < 0 ||
+        correctAnswer >= options.length
+      ) {
+        return undefined;
+      }
+
+      return {
+        id: asString(question.id, `${storyId}-question-${questionIndex + 1}`),
+        question: prompt,
+        options,
+        correctAnswer,
+      };
+    })
+    .filter(Boolean) as LocalStoryQuestion[];
+
+  return mappedQuestions.length > 0 ? mappedQuestions : undefined;
+};
+
+const mapStoryPayload = (
+  payload: Record<string, unknown>,
+  item: ContentItemRecord,
+): LocalStory | undefined => {
+  const storyId = normalizeContentSlug(
+    asString(payload.id, asString(payload.storyId, item.slug)),
+  );
+  const title = asString(payload.title, item.title ?? storyId).trim();
+  const pages = mapStoryPages(asArray(payload.pages), storyId);
+
+  if (!storyId || !title || pages.length === 0) {
+    return undefined;
+  }
+
+  const metadata = asRecord(payload.metadata);
+
+  return {
+    id: storyId,
+    title,
+    summary: asString(payload.summary, asString(payload.description)),
+    languageCode: item.language_code,
+    metadata: {
+      status:
+        metadata.status === "existing-prototype" ||
+        metadata.status === "placeholder" ||
+        metadata.status === "reviewed"
+          ? metadata.status
+          : "placeholder",
+      notes: asString(metadata.notes) || undefined,
+      sources: asArray(metadata.sources)
+        .map((sourceValue) => {
+          const source = asRecord(sourceValue);
+          const label = asString(source.label);
+          if (!label) return undefined;
+          return {
+            label,
+            url: asString(source.url) || undefined,
+          };
+        })
+        .filter(Boolean) as LocalStory["metadata"]["sources"],
+    },
+    pages,
+    questions: mapStoryQuestions(asArray(payload.questions), storyId),
+  };
+};
+
 export const buildContentBundleFromItems = (
   languageCode: SupportedLearningLanguageCode,
   items: ContentItemRecord[],
@@ -1083,7 +1186,16 @@ export const buildContentBundleFromItems = (
         continue;
       }
 
-      stories.push(payload as unknown as LocalStory);
+      const story = mapStoryPayload(payload, item);
+
+      if (!story) {
+        console.warn(
+          `Skipping story/${slug} content for ${languageCode}; story payload does not contain renderable pages.`,
+        );
+        continue;
+      }
+
+      stories.push(story);
     }
   }
 
@@ -1275,7 +1387,8 @@ export const findStoryById = (
 ): LocalStory | undefined => {
   const normalizedStoryId = Array.isArray(storyId) ? storyId[0] : storyId;
   if (!bundle || !normalizedStoryId) return undefined;
-  return bundle.stories.find((story) => story.id === normalizedStoryId);
+  const storySlug = normalizeContentSlug(normalizedStoryId);
+  return bundle.stories.find((story) => normalizeContentSlug(story.id) === storySlug);
 };
 
 export { resolveImageSource };

@@ -22,6 +22,16 @@ describe("local language content registry", () => {
     expect(content?.lessons.stages.length).toBeGreaterThan(0);
     expect(content?.games.wordGameLevels.length).toBeGreaterThan(0);
     expect(content?.games.counting.stages.length).toBeGreaterThan(0);
+    expect(content?.stories.map((story) => story.id)).toEqual([
+      "kintu",
+      "mwanga",
+      "kasubi-tombs",
+      "walumbe",
+      "ssezibwa",
+      "millet",
+      "kasokambirye",
+      "fig-tree",
+    ]);
   });
 
   it("loads Runyankole sample content without falling back to Luganda", () => {

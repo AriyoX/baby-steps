@@ -8,6 +8,7 @@ import {
 } from "@/content/games/countingGameStages";
 import { LUGANDA_STAGES } from "@/content/games/lugandawords";
 import { gameLevels } from "@/content/games/wordgamewords";
+import { lugandaStories } from "@/content/luganda/stories";
 import type {
   LocalCountingNumber,
   LocalLanguageContent,
@@ -90,9 +91,9 @@ export const lugandaContent: LocalLanguageContent = {
   metadata: {
     status: "existing-prototype",
     notes:
-      "This registry adapts existing Luganda prototype game content. Story and museum content still live in their current screen components.",
+      "This registry adapts existing Luganda prototype content. Stories are mirrored from the legacy components in content_items-compatible payloads.",
   },
-  stories: [],
+  stories: lugandaStories,
   lessons: {
     stages: mapLugandaLearningStages(),
   },

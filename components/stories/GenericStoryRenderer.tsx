@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/StyledText";
 import { ComingSoonState } from "@/components/child/ComingSoonState";
 import { CachedImage } from "@/components/common/CachedImage";
+import { useAudio } from "@/context/AudioContext";
 import { useChild } from "@/context/ChildContext";
 import { resolveImageSource } from "@/content/contentRepository";
 import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages";
@@ -23,6 +24,7 @@ import {
   syncProgressNow,
   updateActivityProgress,
 } from "@/lib/progressRepository";
+import { audioManager } from "@/lib/audioManager";
 import { saveActivity } from "@/lib/utils";
 import type { LocalStory } from "@/content/types";
 
@@ -139,6 +141,7 @@ const getBoundaryWordIndex = (
 export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryRendererProps) {
   const router = useRouter();
   const { activeChild } = useChild();
+  const { settings: audioSettings } = useAudio();
   const { width, height } = useWindowDimensions();
   const [pageIndex, setPageIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, number>>({});
@@ -301,10 +304,15 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
       return;
     }
 
+    if (audioSettings.appSoundsMuted) {
+      finishReading();
+      return;
+    }
+
     Speech.stop();
     speechBoundaryReceivedRef.current = false;
     setIsReading(true);
-    Speech.speak(storyText, {
+    audioManager.speakAppText(storyText, {
       pitch: 1,
       rate: readingSpeedConfig.rate,
       onStart: startFallbackWordHighlight,
@@ -314,6 +322,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
       onError: finishReading,
     });
   }, [
+    audioSettings.appSoundsMuted,
     finishReading,
     handleSpeechBoundary,
     isReading,
@@ -340,6 +349,12 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
   useEffect(() => {
     stopReading();
   }, [pageIndex, progressScopeKey, stopReading]);
+
+  useEffect(() => {
+    if (audioSettings.appSoundsMuted && isReading) {
+      stopReading();
+    }
+  }, [audioSettings.appSoundsMuted, isReading, stopReading]);
 
   useEffect(() => {
     setPageIndex(0);

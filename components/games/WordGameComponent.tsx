@@ -9,7 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from "react-native";
-import { Audio } from "expo-av";
+import type { Audio } from "expo-av";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -36,6 +36,7 @@ import {
 } from './utils/progressManagerWordGame';
 import { useAchievements } from "./achievements/useAchievements"; 
 import { AchievementDefinition } from "./achievements/achievementTypes"; 
+import { audioManager } from "@/lib/audioManager";
 
 const WORD_GAME_MODAL_ORIENTATIONS: ModalProps["supportedOrientations"] = ["landscape-left", "landscape-right"];
 
@@ -392,37 +393,44 @@ const WordGame: React.FC = () => {
 
   // Load game sounds on mount.
   useEffect(() => {
+    const loadedSounds: Audio.Sound[] = [];
+
     // Load sounds
     async function loadSounds() {
-      const correctSoundObject = new Audio.Sound();
-      const wrongSoundObject = new Audio.Sound();
-      const successSoundObject = new Audio.Sound();
-
       try {
         // Add error handling for each sound file
         try {
-          await correctSoundObject.loadAsync(
+          const correctSoundObject = await audioManager.createAppSound(
             require("@/assets/sounds/correct.mp3")
           );
-          setCorrectSound(correctSoundObject);
+          if (correctSoundObject) {
+            loadedSounds.push(correctSoundObject);
+            setCorrectSound(correctSoundObject);
+          }
         } catch (error) {
           console.log("Could not load correct sound:", error);
         }
 
         try {
-          await wrongSoundObject.loadAsync(
+          const wrongSoundObject = await audioManager.createAppSound(
             require("@/assets/sounds/wrong.mp3")
           );
-          setWrongSound(wrongSoundObject);
+          if (wrongSoundObject) {
+            loadedSounds.push(wrongSoundObject);
+            setWrongSound(wrongSoundObject);
+          }
         } catch (error) {
           console.log("Could not load wrong sound:", error);
         }
 
         try {
-          await successSoundObject.loadAsync(
+          const successSoundObject = await audioManager.createAppSound(
             require("@/assets/sounds/correct.mp3")
           );
-          setSuccessSound(successSoundObject);
+          if (successSoundObject) {
+            loadedSounds.push(successSoundObject);
+            setSuccessSound(successSoundObject);
+          }
         } catch (error) {
           console.log("Could not load success sound:", error);
         }
@@ -440,9 +448,9 @@ const WordGame: React.FC = () => {
       if (levelIntroTimeoutRef.current) {
         clearTimeout(levelIntroTimeoutRef.current);
       }
-      if (correctSound) correctSound.unloadAsync();
-      if (wrongSound) wrongSound.unloadAsync();
-      if (successSound) successSound.unloadAsync();
+      loadedSounds.forEach((loadedSound) => {
+        void audioManager.unloadAppSound(loadedSound);
+      });
     };
   }, []);
 
@@ -640,7 +648,7 @@ const WordGame: React.FC = () => {
     if (!newDisplay.includes("_")) {
       // Play success sound
       if (successSound) {
-        successSound.replayAsync();
+        void audioManager.replayAppSound(successSound);
       }
 
       // Animate word bounce
@@ -683,7 +691,7 @@ const WordGame: React.FC = () => {
 
       if (remainingOccurrences > 0) {
         if (correctSound) {
-          correctSound.replayAsync();
+          void audioManager.replayAppSound(correctSound);
         }
 
         // Only add to selectedLetters if all occurrences are now filled
@@ -705,12 +713,12 @@ const WordGame: React.FC = () => {
         }
       } else {
         if (wrongSound) {
-          wrongSound.replayAsync();
+          void audioManager.replayAppSound(wrongSound);
         }
       }
     } else {
       if (wrongSound) {
-        wrongSound.replayAsync();
+        void audioManager.replayAppSound(wrongSound);
       }
     }
   };

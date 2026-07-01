@@ -16,10 +16,10 @@ import {
 import { StatusBar } from "expo-status-bar"
 import { useRouter, usePathname } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
-import * as Speech from "expo-speech"
 import { Text } from "@/components/StyledText"
 import { TranslatedText } from "@/components/translated-text"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { useAudio } from "@/context/AudioContext"
 import { useChild } from "@/context/ChildContext"
 import { CachedImage } from "@/components/common/CachedImage"
 import {
@@ -32,6 +32,7 @@ import { preloadContentBundleImages } from "@/content/imagePreloader"
 import { BrandMark } from "@/components/brand/BrandMark"
 import { brandColors } from "@/constants/Brand"
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation"
+import { audioManager } from "@/lib/audioManager"
 
 // Define types
 type LearningCard = {
@@ -82,6 +83,11 @@ const AfricanThemeGameInterface: React.FC = () => {
   const [isContentLoading, setIsContentLoading] = useState(true)
   const router = useRouter()
   const { activeChild } = useChild()
+  const {
+    settings: audioSettings,
+    toggleBackgroundMusicMuted,
+    toggleAppSoundsMuted,
+  } = useAudio()
   useChildLandscapeOrientation("child activity screen")
 
   // Animation values for avatar
@@ -186,7 +192,7 @@ const AfricanThemeGameInterface: React.FC = () => {
   }, [contentBundle, tabId])
 
   const handleParentalPress = () => {
-    Speech.speak("For parents only", {
+    audioManager.speakAppText("For parents only", {
       language: "en",
       pitch: 1,
       rate: 1,
@@ -247,15 +253,47 @@ const AfricanThemeGameInterface: React.FC = () => {
                   </TranslatedText>
                 </View>
 
-                <TouchableOpacity
-                  className="bg-white rounded-3xl px-4 py-1.5 flex-row items-center border-2 border-accent-500 mt-0.5"
-                  onPress={handleParentalPress}
-                >
-                  <Ionicons name="people-sharp" size={30} color={brandColors.shanaOrange} />
-                  <TranslatedText variant="medium" className="text-primary-700 text-base ml-1">
-                    For parents
-                  </TranslatedText>
-                </TouchableOpacity>
+                <View className="flex-row items-center">
+                  <TouchableOpacity
+                    className="bg-white rounded-full w-11 h-11 items-center justify-center border-2 border-accent-500 mr-2"
+                    onPress={toggleBackgroundMusicMuted}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      audioSettings.backgroundMusicMuted ? "Turn background music on" : "Turn background music off"
+                    }
+                    accessibilityState={{ selected: !audioSettings.backgroundMusicMuted }}
+                  >
+                    <Ionicons
+                      name={audioSettings.backgroundMusicMuted ? "volume-mute" : "musical-notes"}
+                      size={23}
+                      color={audioSettings.backgroundMusicMuted ? "#64748b" : "#F59E0B"}
+                    />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    className="bg-white rounded-full w-11 h-11 items-center justify-center border-2 border-accent-500 mr-2"
+                    onPress={toggleAppSoundsMuted}
+                    accessibilityRole="button"
+                    accessibilityLabel={audioSettings.appSoundsMuted ? "Turn app sounds on" : "Turn app sounds off"}
+                    accessibilityState={{ selected: !audioSettings.appSoundsMuted }}
+                  >
+                    <Ionicons
+                      name={audioSettings.appSoundsMuted ? "volume-mute" : "volume-high"}
+                      size={23}
+                      color={audioSettings.appSoundsMuted ? "#64748b" : brandColors.victoriaBlue}
+                    />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    className="bg-white rounded-3xl px-4 py-1.5 flex-row items-center border-2 border-accent-500 mt-0.5"
+                    onPress={handleParentalPress}
+                  >
+                    <Ionicons name="people-sharp" size={30} color={brandColors.shanaOrange} />
+                    <TranslatedText variant="medium" className="text-primary-700 text-base ml-1">
+                      For parents
+                    </TranslatedText>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {/* Cards section */}

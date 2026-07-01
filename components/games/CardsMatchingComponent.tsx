@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { Audio } from "expo-av";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -34,6 +33,7 @@ import {
   DEFAULT_OVERALL_STATS // Import the default stats constant
   // ... other existing imports from progressManagerCardGame
 } from './utils/progressManagerCardGame';
+import { audioManager } from "@/lib/audioManager";
 
 // Define card interface
 interface Card {
@@ -613,10 +613,8 @@ const BugandaMatchingGame: React.FC = () => {
     }
 
     // Play sound effect
-    const soundObject = new Audio.Sound();
     try {
-      await soundObject.loadAsync(require("@/assets/audio/page-turn.mp3"));
-      await soundObject.playAsync();
+      await audioManager.playAppSound(require("@/assets/audio/page-turn.mp3"));
     } catch (error) {
       console.log("Error playing sound", error);
     }
@@ -712,10 +710,8 @@ const BugandaMatchingGame: React.FC = () => {
           }
 
           // Play match sound
-          const matchSound = new Audio.Sound();
           try {
-            await matchSound.loadAsync(require("@/assets/sounds/correct.mp3"));
-            await matchSound.playAsync();
+            await audioManager.playAppSound(require("@/assets/sounds/correct.mp3"));
           } catch (error) {
             console.log("Error playing sound", error);
           }

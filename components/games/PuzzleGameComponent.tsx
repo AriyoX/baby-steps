@@ -13,7 +13,7 @@ import {
   GestureResponderEvent,
   PanResponderGestureState,
 } from "react-native";
-import { Audio } from "expo-av";
+import type { Audio } from "expo-av";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -28,6 +28,7 @@ import {
     loadPuzzleProgress, 
     savePuzzleProgress 
 } from "./utils/progressManagerPuzzleGame"; // Import new progress manager
+import { audioManager } from "@/lib/audioManager";
 
 // Get dimensions for landscape mode
 const { width, height } = Dimensions.get("window");
@@ -211,12 +212,20 @@ const BugandaPuzzleGame: React.FC = () => {
   }, [activeChild]);
 
   useEffect(() => {
+    const loadedSounds: Audio.Sound[] = [];
+
     const loadSounds = async () => {
-      const tileMoveSound = new Audio.Sound();
-      const successSound = new Audio.Sound();
       try {
-        await tileMoveSound.loadAsync(require("../../assets/audio/page-turn.mp3"));
-        await successSound.loadAsync(require("../../assets/audio/complete.mp3"));
+        const tileMoveSound = await audioManager.createAppSound(require("../../assets/audio/page-turn.mp3"));
+        const successSound = await audioManager.createAppSound(require("../../assets/audio/complete.mp3"));
+
+        if (tileMoveSound) {
+          loadedSounds.push(tileMoveSound);
+        }
+        if (successSound) {
+          loadedSounds.push(successSound);
+        }
+
         setSoundEffects({ tileMove: tileMoveSound, success: successSound });
       } catch (error) {
         console.error("Failed to load sounds", error);
@@ -224,8 +233,9 @@ const BugandaPuzzleGame: React.FC = () => {
     };
     loadSounds();
     return () => {
-      soundEffects.tileMove?.unloadAsync();
-      soundEffects.success?.unloadAsync();
+      loadedSounds.forEach((loadedSound) => {
+        void audioManager.unloadAppSound(loadedSound);
+      });
     };
   }, []);
 
@@ -426,7 +436,7 @@ const BugandaPuzzleGame: React.FC = () => {
     const isAdjacent = Math.abs(tr - er) + Math.abs(tc - ec) === 1;
 
     if (isAdjacent) {
-      soundEffects.tileMove?.replayAsync();
+      void audioManager.replayAppSound(soundEffects.tileMove);
 
       const newLeft = ec * (TILE_SIZE + TILE_MARGIN * 2) + PUZZLE_PADDING;
       const newTop = er * (TILE_SIZE + TILE_MARGIN * 2) + PUZZLE_PADDING;
@@ -499,7 +509,7 @@ const BugandaPuzzleGame: React.FC = () => {
 
     if (completed) {
       setIsComplete(true);
-      soundEffects.success?.replayAsync();
+      void audioManager.replayAppSound(soundEffects.success);
       
       // Track the completed activity
       trackActivity(true);

@@ -3,13 +3,14 @@
 import React, { useState, useEffect } from "react"
 import { View, ScrollView, TouchableOpacity, Image, Animated, BackHandler } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { Audio, type AVPlaybackSource } from "expo-av"
+import type { Audio, AVPlaybackSource } from "expo-av"
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { Text } from "@/components/StyledText"
 import { TranslatedText } from "@/components/translated-text"
 import { LinearGradient } from "expo-linear-gradient"
+import { audioManager } from "@/lib/audioManager"
 
 export default function InstrumentsScreen() {
   const [sound, setSound] = useState<Audio.Sound | null>(null)
@@ -39,7 +40,7 @@ export default function InstrumentsScreen() {
         // Close modal if open
         setSelectedInstrument(null)
         if (sound) {
-          sound.stopAsync()
+          void audioManager.unloadAppSound(sound)
         }
         return true
       }
@@ -128,13 +129,13 @@ export default function InstrumentsScreen() {
   async function playSound(audioFile: AVPlaybackSource, instrumentId: number | null) {
     // Stop previous sound if playing
     if (sound) {
-      await sound.stopAsync()
-      await sound.unloadAsync()
+      await audioManager.unloadAppSound(sound)
     }
 
-    const { sound: newSound } = await Audio.Sound.createAsync(audioFile)
+    const newSound = await audioManager.createAppSound(audioFile)
+    if (!newSound) return
+
     setSound(newSound)
-    setPlayingId(instrumentId)
 
     newSound.setOnPlaybackStatusUpdate((status) => {
       if (status.isLoaded && status.didJustFinish) {
@@ -142,13 +143,14 @@ export default function InstrumentsScreen() {
       }
     })
 
-    await newSound.playAsync()
+    const didPlay = await audioManager.replayAppSound(newSound)
+    setPlayingId(didPlay ? instrumentId : null)
   }
 
   React.useEffect(() => {
     return sound
       ? () => {
-          sound.unloadAsync()
+          void audioManager.unloadAppSound(sound)
         }
       : undefined
   }, [sound])
@@ -221,9 +223,10 @@ export default function InstrumentsScreen() {
                           if (playingId === instrument.id) {
                             // Stop playing
                             if (sound) {
-                              sound.stopAsync()
-                              setPlayingId(null)
+                              void audioManager.unloadAppSound(sound)
+                              setSound(null)
                             }
+                            setPlayingId(null)
                           } else {
                             // Start playing
                             playSound(instrument.sound, instrument.id)

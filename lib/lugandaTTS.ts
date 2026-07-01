@@ -1,5 +1,5 @@
 import axios from "axios";
-import { Audio } from "expo-av";
+import { audioManager } from "@/lib/audioManager";
 
 const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJTb2NjZXJEZXZDIiwiYWNjb3VudF90eXBlIjoiRnJlZSIsImV4cCI6NDg5ODIzNDY1MH0.R4KBL_aYqA1ZGXa6w8blGZDMErOXBWAdqGpLEPT24dY"; // replace this with your actual key
 
@@ -21,16 +21,7 @@ export const speakLuganda = async (text: string) => {
 
     const audioUrl = response.data.audio_url;
 
-    const { sound } = await Audio.Sound.createAsync(
-      { uri: audioUrl },
-      { shouldPlay: true }
-    );
-
-    sound.setOnPlaybackStatusUpdate((status) => {
-      if ((status as any).didJustFinish) {
-        sound.unloadAsync();
-      }
-    });
+    await audioManager.playAppSound({ uri: audioUrl });
   }catch (error: unknown) {
     if (axios.isAxiosError(error)) {
       console.error("Axios error:", error.response?.data || error.message);

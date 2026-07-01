@@ -11,13 +11,14 @@ import {
   Dimensions,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { Audio, type AVPlaybackSource } from "expo-av"
+import type { Audio, AVPlaybackSource } from "expo-av"
 import { MaterialIcons } from "@expo/vector-icons"
 import { Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { TranslatedText } from "@/components/translated-text"
 import { LinearGradient } from "expo-linear-gradient"
+import { audioManager } from "@/lib/audioManager"
 
 export default function ArtifactsScreen() {
   const [selectedArtifact, setSelectedArtifact] = useState<{
@@ -45,7 +46,7 @@ export default function ArtifactsScreen() {
         // Close modal if open
         setSelectedArtifact(null)
         if (sound) {
-          sound.stopAsync()
+          void audioManager.unloadAppSound(sound)
         }
         return true
       }
@@ -101,18 +102,17 @@ export default function ArtifactsScreen() {
   async function playSound(audioFile: AVPlaybackSource) {
     // Stop any currently playing sound
     if (sound) {
-      await sound.unloadAsync()
+      await audioManager.unloadAppSound(sound)
     }
 
-    const { sound: newSound } = await Audio.Sound.createAsync(audioFile)
+    const newSound = await audioManager.playAppSound(audioFile)
     setSound(newSound)
-    await newSound.playAsync()
   }
 
   React.useEffect(() => {
     return sound
       ? () => {
-          sound.unloadAsync()
+          void audioManager.unloadAppSound(sound)
         }
       : undefined
   }, [sound])
@@ -130,7 +130,8 @@ export default function ArtifactsScreen() {
   const closeModal = () => {
     setSelectedArtifact(null)
     if (sound) {
-      sound.stopAsync()
+      void audioManager.unloadAppSound(sound)
+      setSound(null)
     }
   }
 

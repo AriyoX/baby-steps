@@ -1,6 +1,7 @@
 // audioManager.ts
-import { Audio } from "expo-av"
+import type { Audio } from "expo-av"
 import { Asset } from "expo-asset"
+import { audioManager } from "@/lib/audioManager"
 
 interface LearningAudioWord {
   targetText: string
@@ -123,7 +124,10 @@ const resolveAudioSource = async (audioFile: any) => {
 
 const createSoundFromAsset = async (audioFile: any): Promise<Audio.Sound> => {
   const source = await resolveAudioSource(audioFile)
-  const { sound } = await Audio.Sound.createAsync(source)
+  const sound = await audioManager.createAppSound(source)
+  if (!sound) {
+    throw new Error("Could not create app sound")
+  }
   return sound
 }
 
@@ -131,25 +135,28 @@ const unloadSoundSafely = async (sound?: Audio.Sound) => {
   if (!sound) return
 
   try {
-    await sound.unloadAsync()
+    await audioManager.unloadAppSound(sound)
   } catch (error) {
     console.warn("Could not unload previous sound:", error)
   }
 }
 
 // Play a word's audio
-export const playWordAudio = async (word: LearningAudioWord, currentSound?: Audio.Sound): Promise<Audio.Sound> => {
+export const playWordAudio = async (
+  word: LearningAudioWord,
+  currentSound?: Audio.Sound,
+): Promise<Audio.Sound | undefined> => {
   try {
     await unloadSoundSafely(currentSound)
 
     // Get the audio file for this word
     const audioFile = getAudioForWord(word.targetText)
 
-    // Load and play the sound
-    const newSound = await createSoundFromAsset(audioFile)
-    await newSound.playAsync()
+    // Load and play the sound through central app-sound settings.
+    const source = await resolveAudioSource(audioFile)
+    const newSound = await audioManager.playAppSound(source)
 
-    return newSound
+    return newSound ?? undefined
   } catch (error) {
     console.error("Error playing word audio:", error)
     throw error

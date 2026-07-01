@@ -15,6 +15,11 @@ import {
 import { saveActivity } from "@/lib/utils";
 import type { LocalStory } from "@/content/types";
 
+const mockSpeakAppText = jest.fn((text: string, options: Record<string, unknown>) => {
+  Speech.speak(text, options);
+  return true;
+});
+
 let mockActiveChild: { id: string; selected_language_code?: string } | null = null;
 const mockBack = jest.fn();
 let mockStageProgress: {
@@ -41,6 +46,25 @@ jest.mock("expo-router", () => ({
 jest.mock("expo-speech", () => ({
   speak: jest.fn(),
   stop: jest.fn(),
+}));
+
+jest.mock("@/context/AudioContext", () => ({
+  useAudio: () => ({
+    settings: {
+      backgroundMusicMuted: false,
+      backgroundMusicVolume: 0.35,
+      appSoundsMuted: false,
+      appSoundsVolume: 1,
+      selectedBackgroundTrackId: "default",
+    },
+  }),
+}));
+
+jest.mock("@/lib/audioManager", () => ({
+  audioManager: {
+    speakAppText: (text: string, options: Record<string, unknown>) =>
+      mockSpeakAppText(text, options),
+  },
 }));
 
 jest.mock("@expo/vector-icons", () => ({

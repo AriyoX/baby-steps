@@ -11,12 +11,13 @@ import {
   Animated,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { Audio, type AVPlaybackSource } from "expo-av"
+import type { Audio, AVPlaybackSource } from "expo-av"
 import { MaterialIcons, Ionicons } from "@expo/vector-icons"
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler"
 import { useRouter } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { TranslatedText } from "@/components/translated-text"
+import { audioManager } from "@/lib/audioManager"
 
 interface Textile {
   id: number
@@ -46,7 +47,7 @@ export default function TextilesScreen() {
       if (selectedTextile) {
         setSelectedTextile(null)
         if (sound) {
-          sound.stopAsync()
+          void audioManager.unloadAppSound(sound)
         }
         return true
       }
@@ -89,12 +90,11 @@ export default function TextilesScreen() {
 
   async function playSound(audioFile: AVPlaybackSource) {
     if (sound) {
-      await sound.unloadAsync()
+      await audioManager.unloadAppSound(sound)
     }
 
-    const { sound: newSound } = await Audio.Sound.createAsync(audioFile)
+    const newSound = await audioManager.playAppSound(audioFile)
     setSound(newSound)
-    await newSound.playAsync()
   }
 
   const TextileCard = ({ item }: { item: Textile; key?: React.Key }) => {
@@ -148,7 +148,7 @@ export default function TextilesScreen() {
   useEffect(() => {
     return sound
       ? () => {
-          sound.unloadAsync()
+          void audioManager.unloadAppSound(sound)
         }
       : undefined
   }, [sound])

@@ -13,7 +13,7 @@ import {
   // ScrollView - Will be removed if FlatList replaces its primary use here
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { Audio } from "expo-av"
+import type { Audio } from "expo-av"
 import { StatusBar } from "expo-status-bar"
 import { useRouter } from "expo-router"
 import { Ionicons } from "@expo/vector-icons" // Already imported
@@ -44,6 +44,7 @@ import {
 } from "./utils/progressManagerCountingGame"
 import { useAchievements } from "./achievements/useAchievements" // Adjust path
 import type { AchievementDefinition } from "./achievements/achievementTypes" // Adjust path
+import { audioManager } from "@/lib/audioManager"
 
 const DEFAULT_COUNTING_ITEM: CountingGameItem = {
   name: "items",
@@ -341,7 +342,7 @@ const LugandaCountingGame: React.FC = () => {
 
     return () => {
       if (sound) {
-        sound.unloadAsync()
+        void audioManager.unloadAppSound(sound)
       }
     }
   }, [currentLevel, gameLevels, gameState, activeChild, languageCode, dimensions.width, dimensions.height])
@@ -528,7 +529,7 @@ const LugandaCountingGame: React.FC = () => {
   const playNumberSound = async (number: number): Promise<void> => {
     try {
       if (sound) {
-        await sound.unloadAsync()
+        await audioManager.unloadAppSound(sound)
       }
 
       // In a real app, you'd have actual audio files
@@ -536,9 +537,8 @@ const LugandaCountingGame: React.FC = () => {
       console.log(`Playing sound for: ${getNumberLabel(number)}`)
 
       try {
-        const { sound: newSound } = await Audio.Sound.createAsync(require("@/assets/sounds/correct.mp3"))
+        const newSound = await audioManager.playAppSound(require("@/assets/sounds/correct.mp3"))
         setSound(newSound)
-        await newSound.playAsync()
       } catch (audioError) {
         console.error("Error loading sound file:", audioError)
       }

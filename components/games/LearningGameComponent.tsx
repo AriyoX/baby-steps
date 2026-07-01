@@ -36,6 +36,7 @@ import { syncProgressNow } from "@/lib/progressRepository"
 import { useAchievements } from "./achievements/useAchievements"
 import type { AchievementDefinition } from "./achievements/achievementTypes"
 import { playWordAudio, loadGameSounds } from "./utils/audioManager"
+import { audioManager } from "@/lib/audioManager"
 
 import {
   loadGameProgress as loadProgress,
@@ -168,7 +169,7 @@ const LugandaLearningGame: React.FC = () => {
   const unloadSound = (loadedSound?: Audio.Sound) => {
     if (!loadedSound) return
 
-    void loadedSound.unloadAsync().catch((error) => {
+    void audioManager.unloadAppSound(loadedSound).catch((error) => {
       console.warn("Could not unload learning-game sound:", error)
     })
   }
@@ -399,7 +400,7 @@ const LugandaLearningGame: React.FC = () => {
 
       // Play sound and animate
       if (correctSound) {
-        void correctSound.replayAsync().catch((error) => {
+        void audioManager.replayAppSound(correctSound).catch((error) => {
           console.warn("Could not replay correct sound:", error)
         })
       }
@@ -423,7 +424,7 @@ const LugandaLearningGame: React.FC = () => {
       setShakingOption(option)
 
       if (wrongSound) {
-        void wrongSound.replayAsync().catch((error) => {
+        void audioManager.replayAppSound(wrongSound).catch((error) => {
           console.warn("Could not replay wrong sound:", error)
         })
       }

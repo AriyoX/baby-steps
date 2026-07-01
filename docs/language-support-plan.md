@@ -216,7 +216,7 @@ Recommended sequence:
 8. Migrate local content into seed files.
 9. Replace local content reads with database/API reads behind the same service.
 
-Stories should migrate later than simple word/lesson content because story components currently mix content, media, highlighting, quiz logic, audio, activity writes, and UI layout.
+Luganda stories have since moved into `content_items` story payloads rendered by the generic story route. Future story content should follow that contract, while any remaining legacy story components can stay deprecated until they are safe to delete.
 
 ## Risks And Open Questions
 

@@ -12,7 +12,7 @@ Stories teach Buganda folklore, history, and cultural topics through illustrated
 
 1. Child opens the Stories tab.
 2. Child selects a story card.
-3. The story route opens a story component.
+3. The generic story route opens `GenericStoryRenderer` for DB/content-repository stories. Deprecated legacy Luganda routes/components still exist for compatibility.
 4. Child reads through 8 pages.
 5. Reaching the final page records a read activity.
 6. Child can take a 5-question quiz.
@@ -55,11 +55,11 @@ Stories teach Buganda folklore, history, and cultural topics through illustrated
 | `components/stories/SsezibwaStory.tsx` | Ssezibwa Falls | 8 | 5 |
 | `components/stories/WalumbeStory.tsx` | The Tale of Walumbe | 8 | 5 |
 
-Story pages, image references, alt text, and quiz questions are hardcoded in each story component.
+The migrated Luganda story pages, image references, alt text, and quiz questions are mirrored in `content_items`-compatible payloads and rendered by the generic story route. Deprecated legacy components still keep hardcoded copies until they are deleted.
 
 ## State Management And Logic Notes
 
-- Story screens keep local state for current page, highlighted word index, quiz visibility, answers, score, and quiz completion.
+- The generic story renderer keeps local state for current page, highlighted word index, quiz visibility, answers, score, and quiz completion.
 - Page-turn sounds use `expo-av`.
 - `StoryProgress` records reading completion when `currentPage === totalPages - 1`.
 - Each story component separately handles quiz scoring and quiz activity writes.
@@ -68,7 +68,7 @@ Story pages, image references, alt text, and quiz questions are hardcoded in eac
 ## API Or Database Usage
 
 - Story read and quiz completion activities write to Supabase `activities` with `activity_type: "stories"`.
-- Stories themselves are not database-backed.
+- Luganda stories and the Runyankole sample story are loaded through `content_items`/the content repository. Deprecated legacy Luganda components remain hardcoded compatibility code.
 
 ## Tests
 
@@ -76,9 +76,9 @@ No tests currently cover story rendering, navigation, read tracking, quiz scorin
 
 ## Known Limitations Or Bugs
 
-- Story code is duplicated across eight large components.
-- Story content, quiz data, and media are hardcoded.
-- There is no shared story content model.
+- Deprecated story code is duplicated across eight large components.
+- Deprecated legacy components still duplicate story content, quiz data, and media.
+- Legacy Luganda story routes/components remain until they are safely deleted.
 - Some source text/media references show encoding artifacts.
 - No automated test catches inconsistent story behavior.
 
@@ -86,7 +86,8 @@ No tests currently cover story rendering, navigation, read tracking, quiz scorin
 
 - Define a story content contract with pages, media, quiz questions, and localization fields.
 - Build a shared story player.
-- Migrate one story to the shared model before changing all stories.
+- Add reviewed story payloads for future languages through the shared model.
+- Delete deprecated Luganda story components/routes after compatibility links are no longer needed.
 - Add story smoke tests and quiz scoring tests.
 
 ## Manual QA Checklist

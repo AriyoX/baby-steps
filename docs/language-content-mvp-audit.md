@@ -30,7 +30,7 @@ This audit documents the controlled vertical slice that moves language-specific 
 
 - `content/luganda/index.ts` adapts existing Luganda prototype content into the local fallback bundle.
 - `components/stories/*Story.tsx` still contain Luganda/Buganda story pages, images, quizzes, and route-specific layout.
-- `app/child/stories/*story.tsx` still point to those legacy Luganda story components.
+- `app/child/stories/*story.tsx` are deprecated compatibility routes that redirect to the generic story route.
 - `components/games/CardsMatchingComponent.tsx` still contains Buganda cultural cards and activity details.
 - `components/games/PuzzleGameComponent.tsx` still contains Buganda heritage puzzle data.
 - `app/child/games/museum/*.tsx` still contains hardcoded museum content.

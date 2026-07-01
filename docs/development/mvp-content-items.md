@@ -4,6 +4,8 @@
 
 Game and story logic stays in the React Native codebase. The database only supplies the words, labels, prompts, answer choices, menu cards, story pages, and media references that vary by learning language.
 
+For step-by-step authoring guidance and new-game considerations, see [Content Authoring And New Games](./content-authoring-and-new-games.md).
+
 ## Naming
 
 - `content_type` values are lowercase keys: `child_menu`, `learning_game`, `word_game`, `counting_game`, `story`.

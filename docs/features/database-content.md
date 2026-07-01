@@ -14,6 +14,8 @@ The app now loads language-specific menu cards and the primary language gameplay
 
 Game rules, route definitions, rendering, scoring, progress, achievements, and fallback decisions remain in React Native code.
 
+For content authoring examples, progress rules, and new-game checklists, see [Content Authoring And New Games](../development/content-authoring-and-new-games.md).
+
 ## Main Files
 
 - `supabase/migrations/20260619001000_add_mvp_content_items.sql`

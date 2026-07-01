@@ -4,6 +4,8 @@
 
 Content is mixed. Baby Steps has an MVP `content_items` table for language-specific menu/game/story payloads, but it does not have CMS tooling, admin publishing, creator workflows, or full remote content management.
 
+For the practical process of adding DB-backed content or planning a new activity, see [Content Authoring And New Games](./content-authoring-and-new-games.md).
+
 ## Where Content Lives
 
 | Content type | Current location |
@@ -23,7 +25,9 @@ Content is mixed. Baby Steps has an MVP `content_items` table for language-speci
 
 ## How Stories Are Structured
 
-Each story component defines:
+DB-backed stories use `content_items` story payloads and `components/stories/GenericStoryRenderer.tsx`. The migrated Luganda stories and the Runyankole sample story follow that generic model.
+
+Deprecated legacy Luganda story components still define their own:
 
 - `storyPages`
 - `storyQuestions`
@@ -34,7 +38,7 @@ Each story component defines:
 - Supabase activity writes
 - story UI layout
 
-There is no shared story content model yet.
+Those legacy components are compatibility code and do not define the current shared story content contract.
 
 ## How Games Are Structured
 
@@ -82,6 +86,6 @@ Recommended first candidates:
 
 - Completing reviewed Luganda and Runyankole lesson payloads.
 - Completing reviewed Runyankole word and counting payloads.
-- Moving one story at a time to the generic story renderer.
+- Extending reviewed story payloads for future languages through the generic story renderer.
 
-Stories should migrate later because they currently mix page content, quiz data, audio, highlighting, and UI code in each component.
+Additional story migrations should still account for page content, quiz data, audio, highlighting, and UI behavior that older components bundled together.

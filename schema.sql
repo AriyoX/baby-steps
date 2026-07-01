@@ -38,7 +38,8 @@ CREATE TABLE public.child_achievements (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
   CONSTRAINT child_achievements_pkey PRIMARY KEY (id),
   CONSTRAINT child_achievements_achievement_id_fkey FOREIGN KEY (achievement_id) REFERENCES public.achievements(id),
-  CONSTRAINT child_achievements_child_id_fkey FOREIGN KEY (child_id) REFERENCES public.children(id)
+  CONSTRAINT child_achievements_child_id_fkey FOREIGN KEY (child_id) REFERENCES public.children(id),
+  CONSTRAINT child_achievements_unique_child_achievement UNIQUE (child_id, achievement_id)
 );
 CREATE TABLE public.children (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),

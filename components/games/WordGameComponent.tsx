@@ -25,6 +25,7 @@ import {
 } from "@/content/contentRepository";
 import { preloadContentBundleImages } from "@/content/imagePreloader";
 import { saveActivity } from "@/lib/utils"; // Import saveActivity function
+import { syncProgressNow } from "@/lib/progressRepository";
 import {
   WordGameProgress,
   DEFAULT_PROGRESS,
@@ -204,7 +205,9 @@ const WordGame: React.FC = () => {
           currentLevel: levelIndex
         };
         setProgress(updatedProgress);
-        saveGameProgress(updatedProgress, activeChild.id, languageCode);
+        saveGameProgress(updatedProgress, activeChild.id, languageCode, {
+          levelCount: gameLevels.length,
+        });
       }
       
       setCurrentLevelIndex(levelIndex);
@@ -321,7 +324,10 @@ const WordGame: React.FC = () => {
       // --- END ACHIEVEMENT CHECKING ---
 
       setProgress(finalProgress); // Update local state with points
-      await saveGameProgress(finalProgress, activeChild.id, languageCode); // Save progress with new points
+      await saveGameProgress(finalProgress, activeChild.id, languageCode, {
+        levelCount: gameLevels.length,
+      }); // Save progress with new points
+      void syncProgressNow(activeChild.id);
     } else {
       // If no active child, still update local state for non-persistent play
       finalProgress = updateProgressForLevelCompletion(
@@ -370,7 +376,10 @@ const WordGame: React.FC = () => {
                         totalScore: finalProgress.totalScore + pointsFromAllComplete,
                     };
                     setProgress(finalProgressWithAllCompletePoints);
-                    await saveGameProgress(finalProgressWithAllCompletePoints, activeChild.id, languageCode);
+                    await saveGameProgress(finalProgressWithAllCompletePoints, activeChild.id, languageCode, {
+                      levelCount: gameLevels.length,
+                    });
+                    void syncProgressNow(activeChild.id);
                 }
             }
         }

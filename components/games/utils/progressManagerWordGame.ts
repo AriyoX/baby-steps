@@ -1,4 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  ensureActivityProgressSnapshot,
+  getActivityProgress,
+  hydrateProgressFromRemote,
+  markStageCompleted,
+  updateActivityProgress,
+} from '@/lib/progressRepository';
+
+const WORD_ACTIVITY_TYPE = 'words';
 
 // Types for progress tracking
 export interface WordGameProgress {
@@ -75,6 +84,84 @@ const ensureUnlockedProgress = (
   return normalizedProgress;
 };
 
+const buildActivityProgressSnapshot = (
+  progress: WordGameProgress,
+  levelCount: number
+) => {
+  const completedLevelCount = progress.completedLevels.length;
+  const hasCompletedAllLevels = levelCount > 0 && completedLevelCount >= levelCount;
+  const hasStarted =
+    progress.totalScore > 0 ||
+    completedLevelCount > 0 ||
+    progress.playHistory.length > 0;
+  const highestUnlockedLevel =
+    progress.unlockedLevels.length > 0 ? Math.max(...progress.unlockedLevels) : 0;
+
+  return {
+    status: hasCompletedAllLevels
+      ? 'completed' as const
+      : hasStarted
+        ? 'in_progress' as const
+        : 'not_started' as const,
+    score: progress.totalScore,
+    last_stage_id: String(progress.currentLevel),
+    highest_unlocked_stage: highestUnlockedLevel,
+    completed_stage_count: completedLevelCount,
+    progress_payload: {
+      ...progress,
+      levelCount,
+    },
+  };
+};
+
+const persistNormalizedWordProgress = async (
+  progress: WordGameProgress,
+  childId: string,
+  languageCode: string,
+  levelCount: number,
+  options: { onlyIfMissing?: boolean; markDirty?: boolean } = {}
+) => {
+  const normalizedProgress = ensureUnlockedProgress(
+    { ...progress, childId },
+    levelCount
+  );
+  const snapshot = buildActivityProgressSnapshot(normalizedProgress, levelCount);
+
+  if (options.onlyIfMissing) {
+    const existing = await getActivityProgress(
+      childId,
+      languageCode,
+      WORD_ACTIVITY_TYPE
+    );
+    if (existing) return;
+
+    await ensureActivityProgressSnapshot(
+      childId,
+      languageCode,
+      WORD_ACTIVITY_TYPE,
+      snapshot
+    );
+  } else {
+    await updateActivityProgress(
+      childId,
+      languageCode,
+      WORD_ACTIVITY_TYPE,
+      snapshot,
+      { markDirty: options.markDirty }
+    );
+  }
+
+  if (options.markDirty === false) return;
+
+  await Promise.all(
+    normalizedProgress.completedLevels.map((levelIndex) =>
+      markStageCompleted(childId, languageCode, WORD_ACTIVITY_TYPE, levelIndex, {
+        score: normalizedProgress.totalScore,
+      })
+    )
+  );
+};
+
 /**
  * Load saved game progress from AsyncStorage
  */
@@ -119,8 +206,46 @@ export const loadGameProgress = async (
         currentLevel: normalizedProgress.currentLevel
       });
       
+      void persistNormalizedWordProgress(
+        normalizedProgress,
+        childId,
+        languageCode,
+        levelCount,
+        { onlyIfMissing: true }
+      );
+      void hydrateProgressFromRemote(childId, languageCode, {
+        activityType: WORD_ACTIVITY_TYPE,
+      });
+      
       return normalizedProgress;
     }
+
+    const hydratedLocalProgress = await getActivityProgress(
+      childId,
+      languageCode,
+      WORD_ACTIVITY_TYPE
+    );
+
+    if (hydratedLocalProgress) {
+      const restoredProgress = ensureUnlockedProgress(
+        {
+          ...createDefaultProgress(childId),
+          ...(hydratedLocalProgress.progress_payload as Partial<WordGameProgress>),
+          childId,
+        },
+        levelCount
+      );
+      await saveGameProgress(restoredProgress, childId, languageCode, {
+        markDirty: false,
+        levelCount,
+      });
+      return restoredProgress;
+    }
+
+    void hydrateProgressFromRemote(childId, languageCode, {
+      activityType: WORD_ACTIVITY_TYPE,
+      force: true,
+    });
     
     console.log(`No saved progress found for child ${childId}, creating default`);
     // If no saved progress found, return default progress for this child
@@ -137,7 +262,8 @@ export const loadGameProgress = async (
 export const saveGameProgress = async (
   progress: WordGameProgress,
   childId: string,
-  languageCode: string
+  languageCode: string,
+  options: { markDirty?: boolean; levelCount?: number } = {}
 ): Promise<void> => {
   if (!childId) {
     console.warn('No child ID provided for saving progress, aborting');
@@ -146,13 +272,20 @@ export const saveGameProgress = async (
 
   try {
     // Ensure the progress object has the correct childId
-    const updatedProgress = {
+    const updatedProgress = ensureUnlockedProgress({
       ...progress,
       childId // Always ensure the childId is set correctly
-    };
+    }, options.levelCount ?? Math.max(1, progress.unlockedLevels.length, progress.completedLevels.length + 1));
     
     const key = getStorageKey(childId, languageCode);
     await AsyncStorage.setItem(key, JSON.stringify(updatedProgress));
+    await persistNormalizedWordProgress(
+      updatedProgress,
+      childId,
+      languageCode,
+      options.levelCount ?? Math.max(1, updatedProgress.unlockedLevels.length, updatedProgress.completedLevels.length + 1),
+      { markDirty: options.markDirty }
+    );
     
     // Add this line to ensure data is flushed to persistent storage
     await AsyncStorage.flushGetRequests();

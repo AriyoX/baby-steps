@@ -12,8 +12,7 @@ import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from 'expo-router';
-import StoryProgress from './StoryProgress';
-import { saveActivity } from '@/lib/utils';
+import StoryProgress, { saveStoryQuizProgress } from './StoryProgress';
 import { useChild } from '@/context/ChildContext';
 import { StatusBar } from "expo-status-bar";
 import { Text } from "@/components/StyledText";
@@ -248,13 +247,12 @@ const KasokambiryeStory: React.FC = () => {
     setQuizCompleted(true);
 
     if (activeChild) {
-      await saveActivity({
-        child_id: activeChild.id,
-        activity_type: 'stories',
-        activity_name: 'Completed Kasokambirye and the Moon Story Quiz',
-        score: `${correctAnswers}/${storyQuestions.length}`,
-        completed_at: new Date().toISOString(),
-        details: `Scored ${correctAnswers} out of ${storyQuestions.length} questions correctly in the Kasokambirye and the Moon story quiz`
+      await saveStoryQuizProgress({
+        activeChild,
+        storyId: 'kasokambirye',
+        storyTitle: 'Kasokambirye and the Moon',
+        score: correctAnswers,
+        total: storyQuestions.length,
       });
     }
   };

@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useChild } from '@/context/ChildContext';
+import { DEFAULT_LEARNING_LANGUAGE_CODE } from '@/content/languages';
+import {
+  markStageCompleted,
+  syncProgressNow,
+  updateActivityProgress,
+} from '@/lib/progressRepository';
 import { saveActivity } from '@/lib/utils';
 
 interface StoryProgressProps {
@@ -10,6 +16,71 @@ interface StoryProgressProps {
   onQuizComplete?: (score: number, total: number) => void;
   children: React.ReactNode;
 }
+
+interface StoryProgressChild {
+  id: string;
+  selected_language_code?: string;
+}
+
+interface SaveStoryQuizProgressInput {
+  activeChild: StoryProgressChild;
+  storyId: string;
+  storyTitle: string;
+  score: number;
+  total: number;
+  durationSeconds?: number;
+}
+
+export const saveStoryQuizProgress = async ({
+  activeChild,
+  storyId,
+  storyTitle,
+  score,
+  total,
+  durationSeconds,
+}: SaveStoryQuizProgressInput): Promise<void> => {
+  const duration = durationSeconds ?? 0;
+  const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
+  const languageCode = activeChild.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE;
+  const completedAt = new Date().toISOString();
+
+  await saveActivity({
+    child_id: activeChild.id,
+    activity_type: 'stories',
+    activity_name: `Completed Quiz for "${storyTitle}"`,
+    score: `${score}/${total}`,
+    duration,
+    completed_at: completedAt,
+    details: `Scored ${score}/${total} (${percentage}%) on the quiz for "${storyTitle}"`,
+    language_code: languageCode,
+  });
+
+  await updateActivityProgress(activeChild.id, languageCode, 'stories', {
+    status: 'completed',
+    score: percentage,
+    last_stage_id: storyId,
+    completed_stage_count: 1,
+    progress_payload: {
+      storyId,
+      storyTitle,
+      quizScore: score,
+      quizTotal: total,
+      quizPercentage: percentage,
+      quizCompletedAt: completedAt,
+      durationSeconds: duration,
+    },
+  });
+  await markStageCompleted(activeChild.id, languageCode, 'stories', storyId, {
+    score: percentage,
+    progress_payload: {
+      storyTitle,
+      quizScore: score,
+      quizTotal: total,
+      quizPercentage: percentage,
+    },
+  });
+  void syncProgressNow(activeChild.id);
+};
 
 export const StoryProgress: React.FC<StoryProgressProps> = ({
   storyId,
@@ -29,6 +100,7 @@ export const StoryProgress: React.FC<StoryProgressProps> = ({
 
       if (currentPage === totalPages - 1) {
         const duration = Math.round((Date.now() - startTime) / 1000);
+        const languageCode = activeChild.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE;
         
         await saveActivity({
           child_id: activeChild.id,
@@ -37,8 +109,29 @@ export const StoryProgress: React.FC<StoryProgressProps> = ({
           duration,
           completed_at: new Date().toISOString(),
           details: `Completed reading the story "${storyTitle}"`,
-          language_code: activeChild.selected_language_code,
+          language_code: languageCode,
         });
+
+        await updateActivityProgress(activeChild.id, languageCode, 'stories', {
+          status: 'completed',
+          last_stage_id: storyId,
+          completed_stage_count: 1,
+          progress_payload: {
+            storyId,
+            storyTitle,
+            totalPages,
+            completedAt: new Date().toISOString(),
+            durationSeconds: duration,
+          },
+        });
+        await markStageCompleted(activeChild.id, languageCode, 'stories', storyId, {
+          progress_payload: {
+            storyTitle,
+            totalPages,
+            durationSeconds: duration,
+          },
+        });
+        void syncProgressNow(activeChild.id);
         
         setHasTrackedCompletion(true);
       }
@@ -51,17 +144,13 @@ export const StoryProgress: React.FC<StoryProgressProps> = ({
     if (!activeChild || !onQuizComplete) return;
 
     const duration = Math.round((Date.now() - startTime) / 1000);
-    const percentage = Math.round((score / total) * 100);
-
-    await saveActivity({
-      child_id: activeChild.id,
-      activity_type: 'stories',
-      activity_name: `Completed Quiz for "${storyTitle}"`,
-      score: score.toString(),
-      duration,
-      completed_at: new Date().toISOString(),
-      details: `Scored ${score}/${total} (${percentage}%) on the quiz for "${storyTitle}"`,
-      language_code: activeChild.selected_language_code,
+    await saveStoryQuizProgress({
+      activeChild,
+      storyId,
+      storyTitle,
+      score,
+      total,
+      durationSeconds: duration,
     });
 
     onQuizComplete(score, total);

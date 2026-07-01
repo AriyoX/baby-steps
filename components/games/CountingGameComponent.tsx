@@ -31,6 +31,7 @@ import {
 } from "@/content/contentRepository"
 import { preloadContentBundleImages } from "@/content/imagePreloader"
 import { saveActivity } from "@/lib/utils"
+import { syncProgressNow } from "@/lib/progressRepository"
 import { Text } from "@/components/StyledText"
 import {
   type CountingGameProgress,
@@ -120,6 +121,7 @@ const LugandaCountingGame: React.FC = () => {
   const rotateAnim = useRef(new Animated.Value(0)).current
   const gameStartTime = useRef(Date.now())
   const countingStages = countingContent?.stages ?? []
+  const countingStageIds = countingStages.map((stage) => stage.id)
   const countingItems = countingContent?.culturalItems ?? [DEFAULT_COUNTING_ITEM]
   const currencyItems = countingContent?.currency ?? []
 
@@ -194,7 +196,11 @@ const LugandaCountingGame: React.FC = () => {
 
         if (activeChild) {
           console.log(`Loading progress for child: ${activeChild.id}`)
-          const savedProgress = await loadGameProgress(activeChild.id, languageCode)
+          const savedProgress = await loadGameProgress(
+            activeChild.id,
+            languageCode,
+            loadedCountingContent?.stages.map((stage) => stage.id) ?? [],
+          )
           setProgress(savedProgress)
 
           if (savedProgress.currentStage) {
@@ -243,7 +249,7 @@ const LugandaCountingGame: React.FC = () => {
       progress,
       currentStage,
       score + 10, // Add bonus points for completing the stage
-      countingStages.length,
+      countingStageIds,
       activeChild.id,
     )
 
@@ -274,7 +280,10 @@ const LugandaCountingGame: React.FC = () => {
     }
 
     setProgress(updatedProgress)
-    await saveGameProgress(updatedProgress, activeChild.id, languageCode)
+    await saveGameProgress(updatedProgress, activeChild.id, languageCode, {
+      availableStageIds: countingStageIds,
+    })
+    void syncProgressNow(activeChild.id)
     console.log(`Stage ${currentStage} completed for child: ${activeChild.id}`)
   }
 
@@ -324,7 +333,9 @@ const LugandaCountingGame: React.FC = () => {
           activeChild.id, // Pass the child ID to ensure it's set correctly
         )
         setProgress(updatedProgress)
-        saveGameProgress(updatedProgress, activeChild.id, languageCode)
+        saveGameProgress(updatedProgress, activeChild.id, languageCode, {
+          availableStageIds: countingStageIds,
+        })
       }
     }
 
@@ -639,7 +650,9 @@ const LugandaCountingGame: React.FC = () => {
         if (currentLevel < currentStageData.levels) {
           await trackActivity(false)
           if (achievementPointsEarned > 0 && activeChild) {
-            await saveGameProgress(progressWithScoreAchievements, activeChild.id, languageCode)
+            await saveGameProgress(progressWithScoreAchievements, activeChild.id, languageCode, {
+              availableStageIds: countingStageIds,
+            })
           }
           setCurrentLevel((prevLevel) => prevLevel + 1)
         } else {
@@ -887,7 +900,9 @@ const LugandaCountingGame: React.FC = () => {
           childId: activeChild.id, // Ensure child ID is set
         }
         setProgress(updatedProgress)
-        saveGameProgress(updatedProgress, activeChild.id, languageCode)
+        saveGameProgress(updatedProgress, activeChild.id, languageCode, {
+          availableStageIds: countingStageIds,
+        })
         console.log(`Selected stage ${stageId} for child: ${activeChild.id}`)
       }
 

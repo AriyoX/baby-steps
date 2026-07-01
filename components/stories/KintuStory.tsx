@@ -13,8 +13,7 @@ import * as Speech from "expo-speech";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 // Added imports for activity tracking
-import StoryProgress from "./StoryProgress";
-import { saveActivity } from "@/lib/utils";
+import StoryProgress, { saveStoryQuizProgress } from "./StoryProgress";
 import { useChild } from "@/context/ChildContext";
 import { StatusBar } from "expo-status-bar";
 import { Text } from "@/components/StyledText";
@@ -278,14 +277,12 @@ const KintuStory: React.FC = () => {
 
     // Added activity saving logic
     if (activeChild) {
-      await saveActivity({
-        child_id: activeChild.id,
-        activity_type: "stories",
-        // Updated activity name and details for Kintu Story
-        activity_name: "Completed Kintu Story Quiz",
-        score: `${correctAnswers}/${storyQuestions.length}`,
-        completed_at: new Date().toISOString(),
-        details: `Scored ${correctAnswers} out of ${storyQuestions.length} questions correctly in the Kintu story quiz`,
+      await saveStoryQuizProgress({
+        activeChild,
+        storyId: "kintu",
+        storyTitle: "The Tale of Kintu",
+        score: correctAnswers,
+        total: storyQuestions.length,
       });
     }
 

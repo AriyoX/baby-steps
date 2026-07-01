@@ -32,6 +32,7 @@ import {
 } from "@/content/contentRepository"
 import { preloadContentBundleImages } from "@/content/imagePreloader"
 import { saveActivity } from "@/lib/utils"
+import { syncProgressNow } from "@/lib/progressRepository"
 import { useAchievements } from "./achievements/useAchievements"
 import type { AchievementDefinition } from "./achievements/achievementTypes"
 import { playWordAudio, loadGameSounds } from "./utils/audioManager"
@@ -509,7 +510,9 @@ const LugandaLearningGame: React.FC = () => {
     const isCurrentStageNowCompleted = isStageCompleted(selectedStage.id, newCompletedLevelsState, currentLocalStagesState)
     if (isCurrentStageNowCompleted) {
       wasStageNewlyCompleted = true // Mark that this stage was just completed
-      const nextStageDefinition = currentLocalStagesState.find((s) => s.id === selectedStage.id + 1)
+      const currentStageIndex = currentLocalStagesState.findIndex((s) => s.id === selectedStage.id)
+      const nextStageDefinition =
+        currentStageIndex >= 0 ? currentLocalStagesState[currentStageIndex + 1] : undefined
       if (nextStageDefinition && newTotalScoreState >= nextStageDefinition.requiredScore) {
         currentLocalStagesState = unlockNextStage(selectedStage.id, currentLocalStagesState)
         nextStageUnlocked = true
@@ -627,6 +630,7 @@ const LugandaLearningGame: React.FC = () => {
         activeChild.id,
         languageCode,
       )
+      void syncProgressNow(activeChild.id)
       console.log("Learning game progress saved successfully.")
     } catch (error) {
       console.error("Learning game: Failed to save game progress:", error)

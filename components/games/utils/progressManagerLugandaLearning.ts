@@ -1,12 +1,20 @@
 // progressManager.ts
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { LearningGameStage } from '@/content/contentRepository';
+import {
+  ensureActivityProgressSnapshot,
+  getActivityProgress,
+  hydrateProgressFromRemote,
+  markStageCompleted,
+  updateActivityProgress,
+} from '@/lib/progressRepository';
 
 // Keys for AsyncStorage
 const SCORE_KEY = 'learning_total_score';
 const COMPLETED_LEVELS_KEY = 'learning_completed_levels';
 const STAGES_DATA_KEY = 'learning_stages';
 const USER_STATS_KEY = 'learning_user_stats';
+const LEARNING_ACTIVITY_TYPE = 'learning';
 
 const LEGACY_SCORE_KEY = 'luganda_total_score';
 const LEGACY_COMPLETED_LEVELS_KEY = 'luganda_completed_levels';
@@ -40,6 +48,181 @@ const getLegacyStorageKey = (baseKey: string, childId: string) =>
 const cloneStages = (stages: LearningGameStage[]): LearningGameStage[] =>
   JSON.parse(JSON.stringify(stages));
 
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+
+const asNumberArray = (value: unknown): number[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is number => Number.isInteger(item))
+    : [];
+
+const getAvailableLevelIds = (stages: LearningGameStage[]): Set<number> =>
+  new Set(stages.flatMap((stage) => stage.levels.map((level) => level.id)));
+
+const mergeStagesWithSavedLocks = (
+  defaultStages: LearningGameStage[],
+  savedStages: LearningGameStage[] | undefined,
+): LearningGameStage[] => {
+  const savedStageById = new Map(
+    (savedStages ?? []).map((stage) => [stage.id, stage]),
+  );
+
+  return cloneStages(defaultStages).map((stage) => {
+    const savedStage = savedStageById.get(stage.id);
+    const savedLevelsById = new Map(
+      (savedStage?.levels ?? []).map((level) => [level.id, level]),
+    );
+
+    return {
+      ...stage,
+      isLocked: savedStage?.isLocked ?? stage.isLocked,
+      levels: stage.levels.map((level) => {
+        const savedLevel = savedLevelsById.get(level.id);
+        return {
+          ...level,
+          isLocked: savedLevel?.isLocked ?? level.isLocked,
+        };
+      }),
+    };
+  });
+};
+
+const getCompletedStageIds = (
+  completedLevels: number[],
+  stages: LearningGameStage[],
+): number[] =>
+  stages
+    .filter((stage) =>
+      stage.levels.length > 0 &&
+      stage.levels.every((level) => completedLevels.includes(level.id)),
+    )
+    .map((stage) => stage.id);
+
+const getHighestUnlockedStage = (stages: LearningGameStage[]): number | null => {
+  const unlockedIds = stages
+    .filter((stage) => !stage.isLocked)
+    .map((stage) => stage.id);
+
+  return unlockedIds.length > 0 ? Math.max(...unlockedIds) : null;
+};
+
+const buildActivityProgressSnapshot = (
+  totalScore: number,
+  completedLevels: number[],
+  stages: LearningGameStage[],
+  userStats: UserStats,
+) => {
+  const completedStageIds = getCompletedStageIds(completedLevels, stages);
+  const highestUnlockedStage = getHighestUnlockedStage(stages);
+  const hasStarted = totalScore > 0 || completedLevels.length > 0;
+  const hasCompletedAllStages =
+    stages.length > 0 && completedStageIds.length === stages.length;
+
+  return {
+    status: hasCompletedAllStages
+      ? 'completed' as const
+      : hasStarted
+        ? 'in_progress' as const
+        : 'not_started' as const,
+    score: totalScore,
+    last_stage_id:
+      highestUnlockedStage === null ? null : String(highestUnlockedStage),
+    highest_unlocked_stage: highestUnlockedStage,
+    completed_stage_count: completedStageIds.length,
+    progress_payload: {
+      totalScore,
+      completedLevels,
+      stages,
+      userStats,
+    },
+  };
+};
+
+const persistNormalizedLearningProgress = async (
+  childId: string,
+  languageCode: string,
+  totalScore: number,
+  completedLevels: number[],
+  stages: LearningGameStage[],
+  userStats: UserStats,
+  options: { onlyIfMissing?: boolean } = {},
+) => {
+  const snapshot = buildActivityProgressSnapshot(
+    totalScore,
+    completedLevels,
+    stages,
+    userStats,
+  );
+
+  if (options.onlyIfMissing) {
+    const existing = await getActivityProgress(
+      childId,
+      languageCode,
+      LEARNING_ACTIVITY_TYPE,
+    );
+    if (existing) return;
+
+    await ensureActivityProgressSnapshot(
+      childId,
+      languageCode,
+      LEARNING_ACTIVITY_TYPE,
+      snapshot,
+    );
+  } else {
+    await updateActivityProgress(
+      childId,
+      languageCode,
+      LEARNING_ACTIVITY_TYPE,
+      snapshot,
+    );
+  }
+
+  await Promise.all(
+    getCompletedStageIds(completedLevels, stages).map((stageId) =>
+      markStageCompleted(childId, languageCode, LEARNING_ACTIVITY_TYPE, stageId, {
+        score: totalScore,
+        progress_payload: {
+          completedLevelIds: stages
+            .find((stage) => stage.id === stageId)
+            ?.levels
+            .filter((level) => completedLevels.includes(level.id))
+            .map((level) => level.id) ?? [],
+        },
+      }),
+    ),
+  );
+};
+
+const restoreProgressFromSnapshot = (
+  payload: Record<string, unknown>,
+  defaultStages: LearningGameStage[],
+  fallbackScore = 0,
+) => {
+  const availableLevelIds = getAvailableLevelIds(defaultStages);
+  const completedLevels = asNumberArray(payload.completedLevels).filter((levelId) =>
+    availableLevelIds.has(levelId),
+  );
+  const savedStages = Array.isArray(payload.stages)
+    ? (payload.stages as LearningGameStage[])
+    : undefined;
+  const userStats = {
+    ...DEFAULT_USER_STATS,
+    ...asRecord(payload.userStats),
+  } as UserStats;
+
+  return {
+    totalScore:
+      typeof payload.totalScore === 'number'
+        ? payload.totalScore
+        : fallbackScore,
+    completedLevels,
+    stages: mergeStagesWithSavedLocks(defaultStages, savedStages),
+    userStats,
+  };
+};
+
 // Load user's game progress
 export const loadGameProgress = async (
   childId: string,
@@ -63,13 +246,71 @@ export const loadGameProgress = async (
       }
     }
 
+    const hasLocalProgress = Boolean(scoreData || completedLevelsData || stagesData || userStatsData);
     const fallbackStages = cloneStages(defaultStages);
 
+    if (!hasLocalProgress) {
+      const hydratedLocalProgress = await getActivityProgress(
+        childId,
+        languageCode,
+        LEARNING_ACTIVITY_TYPE,
+      );
+
+      if (hydratedLocalProgress) {
+        const restored = restoreProgressFromSnapshot(
+          hydratedLocalProgress.progress_payload,
+          fallbackStages,
+          hydratedLocalProgress.score ?? 0,
+        );
+
+        await saveGameProgress(
+          restored.totalScore,
+          restored.completedLevels,
+          restored.stages,
+          restored.userStats,
+          childId,
+          languageCode,
+          { markDirty: false },
+        );
+
+        return restored;
+      }
+
+      void hydrateProgressFromRemote(childId, languageCode, {
+        activityType: LEARNING_ACTIVITY_TYPE,
+        force: true,
+      });
+    }
+
+    const completedLevels = completedLevelsData ? JSON.parse(completedLevelsData) : [];
+    const normalizedCompletedLevels = asNumberArray(completedLevels).filter((levelId) =>
+      getAvailableLevelIds(fallbackStages).has(levelId),
+    );
+    const savedStages = stagesData ? JSON.parse(stagesData) : undefined;
+    const userStats = userStatsData ? JSON.parse(userStatsData) : { ...DEFAULT_USER_STATS };
+    const totalScore = scoreData ? parseInt(scoreData) : 0;
+    const stages = mergeStagesWithSavedLocks(fallbackStages, savedStages);
+
+    if (hasLocalProgress) {
+      void hydrateProgressFromRemote(childId, languageCode, {
+        activityType: LEARNING_ACTIVITY_TYPE,
+      });
+      void persistNormalizedLearningProgress(
+        childId,
+        languageCode,
+        totalScore,
+        normalizedCompletedLevels,
+        stages,
+        userStats,
+        { onlyIfMissing: true },
+      );
+    }
+
     return {
-      totalScore: scoreData ? parseInt(scoreData) : 0,
-      completedLevels: completedLevelsData ? JSON.parse(completedLevelsData) : [],
-      stages: stagesData ? JSON.parse(stagesData) : fallbackStages,
-      userStats: userStatsData ? JSON.parse(userStatsData) : { ...DEFAULT_USER_STATS }, // Return a copy of default
+      totalScore,
+      completedLevels: normalizedCompletedLevels,
+      stages,
+      userStats,
     };
   } catch (error) {
     console.error('Error loading game progress', error);
@@ -89,13 +330,32 @@ export const saveGameProgress = async (
   stages: LearningGameStage[],
   userStats: UserStats,
   childId: string,
-  languageCode: string
+  languageCode: string,
+  options: { markDirty?: boolean } = {}
 ) => {
   try {
     await AsyncStorage.setItem(getStorageKey(SCORE_KEY, childId, languageCode), totalScore.toString());
     await AsyncStorage.setItem(getStorageKey(COMPLETED_LEVELS_KEY, childId, languageCode), JSON.stringify(completedLevels));
     await AsyncStorage.setItem(getStorageKey(STAGES_DATA_KEY, childId, languageCode), JSON.stringify(stages));
     await AsyncStorage.setItem(getStorageKey(USER_STATS_KEY, childId, languageCode), JSON.stringify(userStats));
+    if (options.markDirty === false) {
+      await updateActivityProgress(
+        childId,
+        languageCode,
+        LEARNING_ACTIVITY_TYPE,
+        buildActivityProgressSnapshot(totalScore, completedLevels, stages, userStats),
+        { markDirty: false },
+      );
+    } else {
+      await persistNormalizedLearningProgress(
+        childId,
+        languageCode,
+        totalScore,
+        completedLevels,
+        stages,
+        userStats,
+      );
+    }
     return true;
   } catch (error) {
     console.error('Error saving game progress', error);

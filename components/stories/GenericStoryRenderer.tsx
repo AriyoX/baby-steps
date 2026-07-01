@@ -8,7 +8,13 @@ import { ComingSoonState } from "@/components/child/ComingSoonState";
 import { CachedImage } from "@/components/common/CachedImage";
 import { useChild } from "@/context/ChildContext";
 import { resolveImageSource } from "@/content/contentRepository";
+import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages";
 import { preloadStoryImages } from "@/content/imagePreloader";
+import {
+  markStageCompleted,
+  syncProgressNow,
+  updateActivityProgress,
+} from "@/lib/progressRepository";
 import { saveActivity } from "@/lib/utils";
 import type { LocalStory } from "@/content/types";
 
@@ -46,6 +52,11 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
 
     const duration = Math.round((Date.now() - startedAt) / 1000);
     const totalQuestions = story.questions?.length ?? 0;
+    const languageCode = activeChild.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE;
+    const percentage =
+      totalQuestions > 0 && quizScore !== undefined
+        ? Math.round((quizScore / totalQuestions) * 100)
+        : undefined;
 
     await saveActivity({
       child_id: activeChild.id,
@@ -55,8 +66,34 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
       duration,
       completed_at: new Date().toISOString(),
       details: `Completed story "${story.title}"`,
-      language_code: activeChild.selected_language_code,
+      language_code: languageCode,
     });
+
+    await updateActivityProgress(activeChild.id, languageCode, "stories", {
+      status: "completed",
+      score: percentage,
+      last_stage_id: story.id,
+      completed_stage_count: 1,
+      progress_payload: {
+        storyId: story.id,
+        storyTitle: story.title,
+        totalPages: story.pages.length,
+        quizScore,
+        quizTotal: totalQuestions,
+        durationSeconds: duration,
+        completedAt: new Date().toISOString(),
+      },
+    });
+    await markStageCompleted(activeChild.id, languageCode, "stories", story.id, {
+      score: percentage,
+      progress_payload: {
+        storyTitle: story.title,
+        totalPages: story.pages.length,
+        quizScore,
+        quizTotal: totalQuestions,
+      },
+    });
+    void syncProgressNow(activeChild.id);
 
     setHasSavedCompletion(true);
   };

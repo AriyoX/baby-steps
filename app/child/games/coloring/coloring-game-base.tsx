@@ -25,6 +25,13 @@ import * as MediaLibrary from "expo-media-library"
 import * as Sharing from "expo-sharing"
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons"
 import { ReactNativeZoomableView } from "@openspacelabs/react-native-zoomable-view"
+import { useChild } from "@/context/ChildContext"
+import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages"
+import {
+  markStageCompleted,
+  syncProgressNow,
+  updateActivityProgress,
+} from "@/lib/progressRepository"
 
 // Define types for our drawing data
 interface Point {
@@ -95,6 +102,7 @@ const smoothPath = (points: Point[]): string => {
 export default function ColoringGameScreen({ imageSource, pageName, colors = DEFAULT_COLORS }: ColoringGameProps) {
   const insets = useSafeAreaInsets()
   const colorScheme = useColorScheme()
+  const { activeChild } = useChild()
   // Modify the state to include color name feedback
   const [selectedColor, setSelectedColor] = useState(colors[0])
   const [selectedColorName, setSelectedColorName] = useState("")
@@ -365,6 +373,24 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
           // Save to gallery
           const asset = await MediaLibrary.createAssetAsync(uri)
           await MediaLibrary.createAlbumAsync("ColoringBook", asset, false)
+          if (activeChild) {
+            const languageCode = activeChild.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE
+            await updateActivityProgress(activeChild.id, languageCode, "coloring", {
+              status: "completed",
+              last_stage_id: pageName,
+              completed_stage_count: 1,
+              progress_payload: {
+                pageName,
+                savedAt: new Date().toISOString(),
+              },
+            })
+            await markStageCompleted(activeChild.id, languageCode, "coloring", pageName, {
+              progress_payload: {
+                pageName,
+              },
+            })
+            void syncProgressNow(activeChild.id)
+          }
 
           // Show success message with baby-friendly language
           Alert.alert("Yay! 🎉", `Your beautiful ${pageName} picture is saved!`, [

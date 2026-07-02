@@ -136,7 +136,7 @@ Account deletion has a 30-day grace period. When deletion is requested, the acco
 
 During the 30-day period, the user can log in again and reactivate the account before the deadline. Reactivating restores child profiles and learning progress where available.
 
-After the 30-day period, Baby Steps will delete or anonymize associated user-owned data through a secure Baby Steps process outside the app. User-owned data includes parent account information, child profile information, learning progress, activity history, and achievement history tied to the account.
+After the 30-day period, the account is waiting for final removal. Associated user-owned data is prepared for deletion or anonymization through a secure Baby Steps process outside the app. User-owned data includes parent account information, child profile information, learning progress, activity history, and achievement history tied to the account.
 
 Some limited data may be retained only if required for legal, security, fraud prevention, dispute, compliance, backup, or operational reasons.
 

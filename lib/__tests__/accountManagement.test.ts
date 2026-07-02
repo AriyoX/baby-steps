@@ -167,6 +167,34 @@ describe("account management deletion helpers", () => {
     expect(query.in).toHaveBeenCalledWith("status", ["requested", "processing", "completed"]);
   });
 
+  it("routes expired and completed deletion accounts to the status screen", () => {
+    expect(
+      getPostLoginRouteForAccountState({
+        phase: "expired",
+        graceEndsAt: "2026-07-01T00:00:00.000Z",
+        request: {
+          id: "request-1",
+          user_id: "parent-1",
+          status: "requested",
+          requested_at: "2026-06-01T00:00:00.000Z",
+        },
+      }),
+    ).toBe("/account-reactivation");
+
+    expect(
+      getPostLoginRouteForAccountState({
+        phase: "completed",
+        graceEndsAt: "2026-07-01T00:00:00.000Z",
+        request: {
+          id: "request-1",
+          user_id: "parent-1",
+          status: "completed",
+          requested_at: "2026-06-01T00:00:00.000Z",
+        },
+      }),
+    ).toBe("/account-reactivation");
+  });
+
   it("treats an expired grace period honestly and does not reactivate it", async () => {
     (supabase.rpc as jest.Mock).mockResolvedValue({
       data: null,

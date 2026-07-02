@@ -67,6 +67,7 @@ export default function ChildDetailScreen() {
         .from("children")
         .select("id, name, gender, age, selected_language_code")
         .eq("id", childId)
+        .is("deleted_at", null)
         .single();
       if (error) throw error;
       setChildData({

@@ -16,6 +16,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { Text } from "@/components/StyledText";
 import { brandColors } from "@/constants/Brand";
+import {
+  getSignUpErrorMessage,
+  isExistingAccountSignUpError,
+} from "@/lib/accountManagement";
 import { supabase } from "../lib/supabase";
 
 export default function SignUp() {
@@ -93,7 +97,12 @@ export default function SignUp() {
     });
 
     if (error) {
-      Alert.alert("Oops!", error.message);
+      Alert.alert(
+        isExistingAccountSignUpError(error.message) ? "Account already exists" : "Oops!",
+        getSignUpErrorMessage(error.message),
+      );
+    } else if (session?.user.identities?.length === 0) {
+      Alert.alert("Account already exists", getSignUpErrorMessage("User already registered"));
     } else if (!session) {
       Alert.alert("Almost there!", "Please check your email to verify your account!");
     }

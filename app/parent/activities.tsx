@@ -77,7 +77,8 @@ export default function ActivitiesScreen() {
         const { data: childrenData } = await supabase
           .from("children")
           .select("*")
-          .eq("parent_id", sessionData.session.user.id);
+          .eq("parent_id", sessionData.session.user.id)
+          .is("deleted_at", null);
 
         if (childrenData) {
           const transformedChildren = childrenData.map(child => ({

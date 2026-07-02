@@ -71,7 +71,8 @@ export default function AllAchievementsScreen() {
         const { data: childrenData, error: childrenError } = await supabase
           .from("children")
           .select("id, name, gender")
-          .eq("parent_id", userId);
+          .eq("parent_id", userId)
+          .is("deleted_at", null);
 
         if (childrenError) throw childrenError;
 

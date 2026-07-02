@@ -16,6 +16,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { Text } from "@/components/StyledText";
 import { brandColors } from "@/constants/Brand";
+import {
+  getAccountDeletionState,
+  getPostLoginRouteForAccountState,
+} from "@/lib/accountManagement";
 import { supabase } from "../lib/supabase";
 
 export default function Auth() {
@@ -78,18 +82,32 @@ export default function Auth() {
 
   async function signInWithEmail() {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (error) {
-      Alert.alert("Oops!", error.message);
-    } else {
-      router.replace("/parent");
+      if (error) {
+        Alert.alert("Oops!", error.message);
+        return;
+      }
+
+      const userId = data.user?.id ?? data.session?.user.id;
+      if (!userId) {
+        Alert.alert("Oops!", "We could not confirm your account. Please try again.");
+        return;
+      }
+
+      const accountState = await getAccountDeletionState(userId);
+      router.replace(getPostLoginRouteForAccountState(accountState) as any);
+    } catch (error) {
+      console.error("Could not complete sign in:", error);
+      await supabase.auth.signOut();
+      Alert.alert("Could not sign in", "Please try again.");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   const translateY = floatValue.interpolate({

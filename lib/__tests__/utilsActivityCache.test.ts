@@ -44,12 +44,14 @@ const createActivitiesQuery = (
 const createChildNameQuery = () => ({
   select: jest.fn().mockReturnThis(),
   eq: jest.fn().mockReturnThis(),
+  is: jest.fn().mockReturnThis(),
   single: jest.fn().mockResolvedValue({ data: { name: "Amina" }, error: null }),
 });
 
 const createChildrenLookupQuery = () => ({
   select: jest.fn().mockReturnThis(),
-  in: jest.fn().mockResolvedValue({
+  in: jest.fn().mockReturnThis(),
+  is: jest.fn().mockResolvedValue({
     data: [{ id: "child-1", name: "Amina" }],
     error: null,
   }),

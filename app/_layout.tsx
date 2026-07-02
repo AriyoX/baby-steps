@@ -8,6 +8,11 @@ import type { Session } from "@supabase/supabase-js";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFonts } from "expo-font";
 import * as ScreenOrientation from "expo-screen-orientation";
+import {
+  getAccountDeletionState,
+  isAccountDeletionBlockingNormalAccess,
+  type AccountDeletionState,
+} from "@/lib/accountManagement";
 import "@/global.css";
 import { ChildProvider } from '@/context/ChildContext';
 import { AudioProvider } from "@/context/AudioContext";
@@ -28,7 +33,11 @@ export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAccountStateLoading, setIsAccountStateLoading] = useState(false);
+  const [accountDeletionState, setAccountDeletionState] =
+    useState<AccountDeletionState | null>(null);
   const pathnameRef = useRef("/");
+  const blockedRouteRefreshPathRef = useRef<string | null>(null);
   const lastRequestedOrientationMode = useRef<RouteOrientationMode | null>(null);
   const router = useRouter();
   const pathname = usePathname();
@@ -57,6 +66,25 @@ export default function RootLayout() {
     pathnameRef.current = pathname;
   }, [pathname]);
 
+  const loadAccountDeletionState = useCallback(async (currentSession: Session | null) => {
+    if (!currentSession) {
+      setAccountDeletionState(null);
+      setIsAccountStateLoading(false);
+      return;
+    }
+
+    setIsAccountStateLoading(true);
+    try {
+      const state = await getAccountDeletionState(currentSession.user.id);
+      setAccountDeletionState(state);
+    } catch (error) {
+      console.error("Could not load account deletion state:", error);
+      setAccountDeletionState(null);
+    } finally {
+      setIsAccountStateLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     const initApp = async () => {
       await checkOnboardingStatus();
@@ -64,6 +92,7 @@ export default function RootLayout() {
       // Check Supabase session
       const { data } = await supabase.auth.getSession();
       setSession(data.session);
+      await loadAccountDeletionState(data.session);
 
       setIsLoading(false);
     };
@@ -72,12 +101,13 @@ export default function RootLayout() {
 
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      void loadAccountDeletionState(session);
     });
 
     return () => {
       data.subscription.unsubscribe();
     };
-  }, []);
+  }, [loadAccountDeletionState]);
 
   useEffect(() => {
     if (fontsLoaded && !isLoading) {
@@ -87,19 +117,55 @@ export default function RootLayout() {
 
   // Handle routing based on authentication and onboarding state
   useEffect(() => {
-    if (isLoading || !fontsLoaded) return;
+    if (isLoading || isAccountStateLoading || !fontsLoaded) return;
+
+    const isAccountReactivationRoute = pathname === "/account-reactivation";
+    const accountAccessBlocked = isAccountDeletionBlockingNormalAccess(accountDeletionState);
+
+    if (!session && isAccountReactivationRoute) {
+      router.replace("/login");
+      return;
+    }
+
+    if (session && accountAccessBlocked && !isAccountReactivationRoute) {
+      if (blockedRouteRefreshPathRef.current !== pathname) {
+        blockedRouteRefreshPathRef.current = pathname;
+        void loadAccountDeletionState(session);
+        return;
+      }
+
+      router.replace("/account-reactivation" as any);
+      return;
+    }
+
+    blockedRouteRefreshPathRef.current = null;
+
+    if (session && !accountAccessBlocked && isAccountReactivationRoute) {
+      router.replace("/parent");
+      return;
+    }
 
     // Only redirect if we're on the root ("/") to avoid redirect loops
     if (pathname === "/") {
       if (showOnboarding) {
         router.replace("/");
       } else if (session) {
-        router.replace("/parent");
+        router.replace(accountAccessBlocked ? ("/account-reactivation" as any) : "/parent");
       } else {
         router.replace("/login");
       }
     }
-  }, [isLoading, fontsLoaded, showOnboarding, session, pathname, router]);
+  }, [
+    accountDeletionState,
+    fontsLoaded,
+    isAccountStateLoading,
+    isLoading,
+    loadAccountDeletionState,
+    pathname,
+    router,
+    session,
+    showOnboarding,
+  ]);
 
   const applyRouteOrientation = useCallback(async (routePathname: string, reason: string, force = false) => {
     const orientationMode = getRouteOrientationMode(routePathname);
@@ -127,13 +193,13 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (isLoading || !fontsLoaded) return;
+    if (isLoading || isAccountStateLoading || !fontsLoaded) return;
 
     void applyRouteOrientation(pathname, "route change");
-  }, [applyRouteOrientation, isLoading, fontsLoaded, pathname]);
+  }, [applyRouteOrientation, fontsLoaded, isAccountStateLoading, isLoading, pathname]);
 
   useEffect(() => {
-    if (isLoading || !fontsLoaded) return;
+    if (isLoading || isAccountStateLoading || !fontsLoaded) return;
 
     const subscription = AppState.addEventListener("change", (nextAppState) => {
       if (nextAppState === "active") {
@@ -144,10 +210,10 @@ export default function RootLayout() {
     return () => {
       subscription.remove();
     };
-  }, [applyRouteOrientation, isLoading, fontsLoaded]);
+  }, [applyRouteOrientation, fontsLoaded, isAccountStateLoading, isLoading]);
 
   // Return null until everything is ready
-  if (!fontsLoaded || isLoading) {
+  if (!fontsLoaded || isLoading || isAccountStateLoading) {
     return null; // This keeps the splash screen visible
   }
 
@@ -166,6 +232,7 @@ export default function RootLayout() {
           <Stack.Screen name="signup" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
           <Stack.Screen name="forgot-password" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
           <Stack.Screen name="reset-password" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+          <Stack.Screen name="account-reactivation" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
           <Stack.Screen name="child-list" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
           <Stack.Screen name="parent" options={{ orientation: ADULT_ROUTE_ORIENTATION, animation: "none" }} />
           <Stack.Screen name="child" options={{ orientation: CHILD_ROUTE_ORIENTATION, animation: "none" }} />

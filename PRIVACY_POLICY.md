@@ -1,19 +1,19 @@
 # Privacy Policy for Baby Steps
 
-**Last updated:** June 18, 2026
+**Last updated:** July 2, 2026
 
-Baby Steps ("we," "our," or "us") is an educational prototype app for young children and their parents/guardians. This Privacy Policy explains what the current app implementation collects or processes, how it is used, and the choices users have.
+Baby Steps ("we," "our," or "us") is an educational app for young children and their parents/guardians. This Privacy Policy explains what the app collects or processes, how it is used, and the choices users have.
 
 ## 1. Information We Collect
 
 ### Account Information
 
-When a parent/guardian creates an account, the app uses Supabase Authentication to process:
+When a parent/guardian creates an account, the app processes:
 
 - Email address
 - Password
 
-Passwords are handled by Supabase Authentication.
+Passwords are handled by our authentication provider.
 
 ### Child Profile Information
 
@@ -37,7 +37,7 @@ To support the parent dashboard, activity history, and achievements, the app may
 
 The app stores certain data locally on the device with AsyncStorage, including:
 
-- Supabase auth session data
+- Auth session data
 - App onboarding status
 - Language preference
 - Game progress
@@ -52,7 +52,7 @@ The coloring feature uses device media and sharing APIs. If a user chooses to sa
 
 ### Text Sent To Third-Party Language Services
 
-The current UI language toggle uses hardcoded local translations. Prototype Sunbird helpers also exist in the codebase for translation and text-to-speech. If those helpers are enabled or used, text may be sent to Sunbird AI endpoints.
+The current UI language toggle uses hardcoded local translations. Some translation and text-to-speech helpers also exist in the codebase. If those helpers are enabled or used, text may be sent to third-party language service providers.
 
 ## 2. Information We Do Not Intentionally Collect
 
@@ -74,15 +74,15 @@ We use collected information to:
 - Show parent dashboard summaries
 - Display earned achievements
 - Provide password reset and account security features
-- Support optional translation/text-to-speech prototype features when used
-- Improve app reliability and MVP readiness
+- Support optional translation/text-to-speech features when used
+- Improve app reliability and quality
 
 ## 4. How We Share Information
 
 We may share information with service providers that help operate the app:
 
 - **Supabase** for authentication and database storage
-- **Sunbird AI** for translation/text-to-speech processing if those prototype features are used
+- Third-party language service providers for translation/text-to-speech processing if those features are used
 
 We may also share information:
 
@@ -113,8 +113,6 @@ Baby Steps is intended for children's learning, but account control is designed 
 
 We use reasonable technical and organizational measures to protect information. No method of storage or transmission is 100% secure.
 
-Current MVP-readiness note: `lib/lugandaTTS.ts` contains a hardcoded prototype service token and must be secured before production release.
-
 ## 8. International Data Processing
 
 Depending on user region and provider infrastructure, data may be processed or stored outside the user's country.
@@ -125,12 +123,26 @@ Users can:
 
 - Update profile details where the app supports it
 - Manage optional media permissions through device settings
-- Avoid prototype translation/text-to-speech features if they do not want text sent to a third-party language service
-- Request account or data deletion by contacting us
+- Avoid optional translation/text-to-speech features if they do not want text sent to a third-party language service
+- Request account or data deletion in the app or by contacting us
 
 ## 10. Account And Data Deletion
 
-Account and data deletion request instructions are available at:
+Users can request account deletion in the app from:
+
+**Settings -> Account -> Delete Account**
+
+Account deletion has a 30-day grace period. When deletion is requested, the account is scheduled for deletion, child profiles and learning progress are hidden, and account access is disabled for normal app use. The parent is signed out.
+
+During the 30-day period, the user can log in again and reactivate the account before the deadline. Reactivating restores child profiles and learning progress where available.
+
+After the 30-day period, Baby Steps will delete or anonymize associated user-owned data through a secure Baby Steps process outside the app. User-owned data includes parent account information, child profile information, learning progress, activity history, and achievement history tied to the account.
+
+Some limited data may be retained only if required for legal, security, fraud prevention, dispute, compliance, backup, or operational reasons.
+
+Shared educational content is not user-owned and is not deleted. This includes shared learning content, language content, stories, achievement definitions, and other global Baby Steps app content.
+
+Account and data deletion request instructions are also available at:
 
 - [docs/delete-account.html](docs/delete-account.html)
 

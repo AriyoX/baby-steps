@@ -53,8 +53,10 @@ The `children` table stores:
 - `reason`
 - `selected_language_code`
 - `created_at`
+- `deleted_at`
 
 `selected_language_code` is required profile data. It is selected during add-child setup and is not switchable in child mode.
+Child profile deletion is currently a soft-delete/archive flow: the app sets `children.deleted_at`, hides archived children from normal parent and child selection, and does not hard-delete child-owned progress history.
 
 Several add-child screens contain hardcoded copy, sample community stats, sample testimonials, and simple assessment questions.
 
@@ -70,6 +72,7 @@ Several add-child screens contain hardcoded copy, sample community stats, sample
 - Reads and writes `children`.
 - Requires an active Supabase Auth session.
 - Requires the minimal language schema so `children.selected_language_code` exists.
+- Requires the account-management soft-deletion schema so `children.deleted_at` exists.
 
 ## Tests
 
@@ -80,12 +83,12 @@ No tests currently cover child profile creation, listing, or child mode launch.
 - Child detail navigation uses the route path `/parent/child-detail/1` with `childId` passed as a param.
 - Add-child screens include marketing-style/sample claims that are not backed by app data.
 - Some UI copy has encoding artifacts.
-- There is no edit/delete child profile flow documented in current code.
+- Child profile deletion is archive-only for the MVP; shared/global content is not deleted.
 
 ## Future MVP Improvements
 
 - Persist active child selection or make child mode route recovery explicit.
-- Add edit/delete child profile support if in scope.
+- Add true child data purge support only if a future server-side deletion workflow is approved.
 - Replace sample add-child claims with verified copy or remove them.
 - Add tests for adding a child and launching child mode.
 

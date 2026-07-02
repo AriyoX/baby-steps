@@ -1003,3 +1003,31 @@ export const clearProgressRepositoryStorage = async (): Promise<void> => {
     ),
   );
 };
+
+export const clearProgressRepositoryStorageForChild = async (
+  childId: string,
+): Promise<void> => {
+  if (!childId) return;
+
+  if (syncTimer) {
+    clearTimeout(syncTimer);
+    syncTimer = null;
+  }
+
+  const encodedChildId = encodeKeyPart(childId);
+  const keys = await AsyncStorage.getAllKeys();
+  const childProgressKeyPrefixes = [
+    `${PROGRESS_STORAGE_PREFIX}:activity:${encodedChildId}:`,
+    `${PROGRESS_STORAGE_PREFIX}:stage:${encodedChildId}:`,
+    `${PROGRESS_HYDRATION_PREFIX}:${encodedChildId}:`,
+  ];
+
+  await AsyncStorage.multiRemove(
+    keys.filter((key) =>
+      childProgressKeyPrefixes.some((prefix) => key.startsWith(prefix)),
+    ),
+  );
+
+  const queue = await loadQueue();
+  await saveQueue(queue.filter((item) => item.child_id !== childId));
+};

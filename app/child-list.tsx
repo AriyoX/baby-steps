@@ -77,7 +77,11 @@ export default function ChildListScreen() {
       const userId = sessionData.session.user.id
 
       // Fetch child profiles from the 'children' table
-      const { data, error } = await supabase.from("children").select("*").eq("parent_id", userId)
+      const { data, error } = await supabase
+        .from("children")
+        .select("*")
+        .eq("parent_id", userId)
+        .is("deleted_at", null)
 
       if (error) {
         console.error("Error fetching profiles:", error.message)

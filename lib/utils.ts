@@ -153,9 +153,16 @@ export const clearRecentActivitiesCache = async (
   languageCode?: string,
 ): Promise<void> => {
   if (childId) {
-    const keysToRemove = [getRecentActivitiesCacheKey(childId)];
+    const childCachePrefix = getRecentActivitiesCacheKey(childId);
+    let keysToRemove = [childCachePrefix];
+
     if (languageCode) {
       keysToRemove.push(getRecentActivitiesCacheKey(childId, languageCode));
+    } else {
+      const keys = await AsyncStorage.getAllKeys();
+      keysToRemove = keys.filter(
+        (key) => key === childCachePrefix || key.startsWith(`${childCachePrefix}:`),
+      );
     }
 
     keysToRemove.forEach((key) => recentActivitiesMemoryCache.delete(key));
@@ -227,6 +234,7 @@ export const saveActivity = async (activity: Activity): Promise<boolean> => {
       .from('children')
       .select('name')
       .eq('id', activity.child_id)
+      .is('deleted_at', null)
       .single();
 
     if (!childData) {
@@ -341,7 +349,8 @@ export const getFormattedActivities = async (activities: Activity[]) => {
   const { data: childrenData } = await supabase
     .from('children')
     .select('id, name')
-    .in('id', childIds);
+    .in('id', childIds)
+    .is('deleted_at', null);
 
   // Create a map of child IDs to names
   const childNames = (childrenData || []).reduce((map, child) => {

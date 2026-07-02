@@ -59,7 +59,11 @@ const ParentDashboard = () => {
       const userId = sessionData.session.user.id
 
       // Fetch child profiles from the 'children' table
-      const { data, error } = await supabase.from("children").select("*").eq("parent_id", userId)
+      const { data, error } = await supabase
+        .from("children")
+        .select("*")
+        .eq("parent_id", userId)
+        .is("deleted_at", null)
 
       if (error) {
         console.error("Error fetching profiles:", error.message)
@@ -97,6 +101,7 @@ const ParentDashboard = () => {
           .from("children")
           .select("id")
           .eq("parent_id", sessionData.session.user.id)
+          .is("deleted_at", null)
 
         if (!children?.length) return
 

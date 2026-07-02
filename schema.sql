@@ -38,8 +38,7 @@ CREATE TABLE public.child_achievements (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
   CONSTRAINT child_achievements_pkey PRIMARY KEY (id),
   CONSTRAINT child_achievements_achievement_id_fkey FOREIGN KEY (achievement_id) REFERENCES public.achievements(id),
-  CONSTRAINT child_achievements_child_id_fkey FOREIGN KEY (child_id) REFERENCES public.children(id),
-  CONSTRAINT child_achievements_unique_child_achievement UNIQUE (child_id, achievement_id)
+  CONSTRAINT child_achievements_child_id_fkey FOREIGN KEY (child_id) REFERENCES public.children(id)
 );
 CREATE TABLE public.children (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -50,9 +49,12 @@ CREATE TABLE public.children (
   reason text NOT NULL,
   created_at timestamp with time zone DEFAULT now(),
   selected_language_code text NOT NULL DEFAULT 'lg'::text,
+  deleted_at timestamp with time zone,
+  archived_by_account_deletion_request_id uuid,
   CONSTRAINT children_pkey PRIMARY KEY (id),
   CONSTRAINT children_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES auth.users(id),
-  CONSTRAINT children_selected_language_code_fkey FOREIGN KEY (selected_language_code) REFERENCES public.languages(code)
+  CONSTRAINT children_selected_language_code_fkey FOREIGN KEY (selected_language_code) REFERENCES public.languages(code),
+  CONSTRAINT children_archived_by_account_deletion_request_id_fkey FOREIGN KEY (archived_by_account_deletion_request_id) REFERENCES public.account_deletion_requests(id) ON DELETE SET NULL
 );
 CREATE TABLE public.languages (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -119,3 +121,25 @@ CREATE TABLE public.child_stage_progress (
   CONSTRAINT child_stage_progress_child_id_fkey FOREIGN KEY (child_id) REFERENCES public.children(id),
   CONSTRAINT child_stage_progress_language_code_fkey FOREIGN KEY (language_code) REFERENCES public.languages(code)
 );
+CREATE TABLE public.account_deletion_requests (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  email text,
+  status text NOT NULL DEFAULT 'requested'::text CHECK (status = ANY (ARRAY['requested'::text, 'processing'::text, 'completed'::text, 'cancelled'::text])),
+  requested_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  fulfilled_at timestamp with time zone,
+  note text,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  grace_ends_at timestamp with time zone,
+  cancelled_at timestamp with time zone,
+  reactivated_at timestamp with time zone,
+  completed_at timestamp with time zone,
+  archived_child_ids uuid[] NOT NULL DEFAULT ARRAY[]::uuid[],
+  CONSTRAINT account_deletion_requests_pkey PRIMARY KEY (id),
+  CONSTRAINT account_deletion_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+);
+
+-- Account deletion lifecycle RPCs in the intended final schema:
+-- public.request_account_deletion_with_grace(p_note text DEFAULT NULL) RETURNS jsonb
+-- public.reactivate_account_deletion() RETURNS jsonb

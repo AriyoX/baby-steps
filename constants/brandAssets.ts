@@ -65,7 +65,7 @@ export const brandAssets = {
       name: "Baby Steps profile icon",
       type: "icon",
       format: "raster",
-      source: require("@/assets/logo/Profile-pic.jpg"),
+      source: require("@/assets/logo/profile-pic-2.png"),
     },
   },
   pattern: {
@@ -104,7 +104,8 @@ export const brandAssetAudit = [
   { file: "Wordmark Yellow.svg", role: "single-color Equatorial Gold wordmark" },
   { file: "Wordmark B&w.svg", role: "mono wordmark" },
   { file: "Mascot.svg", role: "Shana mascot" },
-  { file: "Profile-pic.jpg", role: "app icon, splash/loading image, and in-app profile brand mark" },
+  { file: "profile-pic-2.png", role: "in-app profile brand mark for Settings" },
+  { file: "Profile-pic.jpg", role: "legacy app icon, splash/loading image, and in-app profile brand mark" },
   { file: "Profile pic copy 3.svg", role: "legacy SVG profile brand mark" },
   { file: "Pattern 01.svg", role: "brand pattern" },
   { file: "Pattern 02.svg", role: "brand pattern" },

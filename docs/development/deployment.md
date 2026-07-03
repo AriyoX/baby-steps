@@ -70,9 +70,9 @@ BABY_STEPS_ACCOUNT_DELETION_ADMIN_SECRET
 
 Do not expose `SUPABASE_SERVICE_ROLE_KEY` or `BABY_STEPS_ACCOUNT_DELETION_ADMIN_SECRET` through Expo public variables or React Native client code.
 
-Security blocker:
+Language-service credential note:
 
-- `lib/lugandaTTS.ts` contains a hardcoded Sunbird token and must be moved out of client code before production.
+- Prototype Sunbird helpers are disabled. Keep third-party language-service credentials out of Expo and React Native client code unless calls are routed through a secure server-side endpoint.
 
 ## Current CI/Workflow Notes
 
@@ -94,7 +94,7 @@ Mismatch to fix:
 - No full Android/iOS manual QA pass documented.
 - No UI/E2E regression coverage.
 - `expo-av` is deprecated.
-- Hardcoded Sunbird token in client code.
+- Prototype Sunbird helpers are disabled until a secure server-side endpoint exists.
 - Settings links point to missing routes.
 - Some app copy/media has encoding artifacts.
 - Parent dashboard and progress screens contain placeholders.

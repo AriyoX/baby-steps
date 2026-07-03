@@ -1,20 +1,19 @@
-
-  export const translateText = async (text: string, sourceLang = 'en', targetLang = 'lug') => {
-    const res = await fetch('https://api.sunbird.ai/tasks/nllb_translate', {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer YOUR_ACCESS_TOKEN`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        source_language: sourceLang,
-        target_language: targetLang,
-        text: text,
-      }),
-    });
-  
-    const data = await res.json();
-    return data;
+export interface SunbirdTranslationResponse {
+  translated_text?: string;
+  result?: {
+    translated_text?: string;
   };
-  
+  data?: {
+    translated_text?: string;
+  };
+}
+
+export const translateText = async (
+  _text: string,
+  _sourceLang = "en",
+  _targetLang = "lug",
+): Promise<SunbirdTranslationResponse> => {
+  throw new Error(
+    "Sunbird translation is disabled until it is routed through a server-side endpoint.",
+  );
+};

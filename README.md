@@ -57,7 +57,7 @@ Note: `expo-av` is deprecated in current Expo guidance and should be replaced du
 | Coloring | Implemented prototype | Five drawing templates with brush, eraser, fill, undo/redo, save, and share controls. |
 | Museum | Implemented prototype | Hardcoded artifacts, art, instruments, and textiles screens. Museum activity tracking is not wired yet. |
 | Progress and achievements | Partially implemented | Game/story activities write to Supabase; achievements depend on seeded `achievements` rows. |
-| Language/audio | Partially implemented | Hardcoded Luganda translation map, bundled audio, `expo-speech`, and prototype Sunbird helpers. |
+| Language/audio | Partially implemented | Hardcoded Luganda translation map, bundled audio, `expo-speech`, and disabled prototype Sunbird helpers. |
 | Payments | Planned only | Discussed in the refactor report, not implemented. |
 | Database content | Planned only | `schema.sql` covers children, activities, and achievements, not curriculum content. |
 
@@ -110,7 +110,7 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 Create a local `.env` file with those values. Do not commit real environment values.
 There is currently no committed `.env.example`; use the variable names above when creating local or build-environment config.
 
-Important security note: `lib/lugandaTTS.ts` currently contains a hardcoded Sunbird token. Move language-service credentials to a secure backend or environment-controlled service before any production deployment.
+Important security note: third-party language-service credentials must not be added to Expo or React Native client code. The prototype Sunbird helpers are disabled until they can be routed through a secure server-side endpoint.
 
 ## Run Locally
 

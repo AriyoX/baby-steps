@@ -12,7 +12,6 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
-import * as Linking from "expo-linking";
 import { FontAwesome } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { BrandMark } from "@/components/brand/BrandMark";
@@ -95,34 +94,6 @@ export default function ResetPassword() {
       spinAnimation.stop();
     };
   }, [bounceValue, floatValue, scaleValue, spinValue]);
-
-  useEffect(() => {
-    const handleDeepLink = (url: string) => {
-      if (!url) return;
-
-      const { queryParams } = Linking.parse(url);
-
-      if (queryParams?.access_token) {
-        console.log("Received access token from deep link:", queryParams.access_token);
-      }
-    };
-
-    const getInitialURL = async () => {
-      const initialUrl = await Linking.getInitialURL();
-      if (initialUrl) {
-        handleDeepLink(initialUrl);
-      }
-    };
-
-    getInitialURL();
-    const linkingListener = Linking.addEventListener("url", (event) => {
-      handleDeepLink(event.url);
-    });
-
-    return () => {
-      linkingListener.remove();
-    };
-  }, []);
 
   const handleResetPassword = async () => {
     if (!password || !confirmPassword) {

@@ -24,7 +24,7 @@ The prototype is not yet a deployable MVP because major data, testing, content, 
 - Replace placeholder/random dashboard metrics.
 - Remove or implement missing settings routes.
 - Clean encoding artifacts in source text.
-- Secure third-party credentials.
+- Keep third-party credentials out of client code.
 - Replace or plan replacement for deprecated `expo-av`.
 - Add UI/integration smoke coverage for core flows.
 - Complete manual Android QA and iOS QA if iOS launch is in scope.
@@ -64,14 +64,14 @@ These may be future MVP or post-MVP work, but they are not implemented today.
 - No UI/E2E tests cover the main user journeys.
 - The parent progress screen is sample/static.
 - `expo-av` deprecation will become more important with future Expo upgrades.
-- Hardcoded Sunbird token is a production security blocker.
+- Sunbird helpers are disabled until a secure server-side endpoint exists.
 - Missing settings routes can produce broken navigation.
 - App text/media needs cultural, language, and encoding review.
 
 ## Recommended MVP Sequence
 
 1. Fix broken/future settings routes.
-2. Secure credentials.
+2. Keep credentials out of client code.
 3. Stabilize auth and child mode entry/exit.
 4. Decide the exact stories/games/lessons to ship.
 5. Normalize progress and activity tracking.

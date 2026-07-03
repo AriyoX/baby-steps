@@ -14,7 +14,7 @@ Audio and language features support child-friendly feedback, Luganda learning, a
 2. Games and stories play bundled sounds for feedback, page turns, pronunciation, and completion.
 3. Parent settings includes a language toggle.
 4. When Luganda is enabled, `TranslatedText` looks up exact string matches in a hardcoded translation map.
-5. Prototype Sunbird translation and text-to-speech helpers exist but are not the main UI translation path.
+5. Prototype Sunbird translation and text-to-speech helpers are disabled and are not the main UI translation path.
 
 ## Main Files Involved
 
@@ -47,7 +47,7 @@ Audio and language features support child-friendly feedback, Luganda learning, a
 - Hardcoded UI translations in `lib/translations.ts`.
 - Bundled word audio in `assets/audio/`.
 - Bundled game/museum/story sounds in `assets/sounds/` and `assets/audio/`.
-- Sunbird API endpoints in prototype helper files.
+- Disabled prototype Sunbird helper functions.
 
 ## State Management And Logic Notes
 
@@ -60,8 +60,7 @@ Audio and language features support child-friendly feedback, Luganda learning, a
 ## API Or Database Usage
 
 - Normal UI translation does not use a database or API.
-- `lib/sunbirdApi.ts` uses a placeholder `YOUR_ACCESS_TOKEN`.
-- `lib/lugandaTTS.ts` contains a hardcoded Sunbird token and calls a Sunbird TTS endpoint.
+- Sunbird translation and TTS helpers are disabled until a server-side endpoint exists.
 
 ## Tests
 
@@ -71,15 +70,14 @@ No tests currently cover translation lookup, audio playback, app-state audio beh
 
 - `expo-av` is deprecated and should be replaced.
 - Hardcoded exact-string translations are brittle.
-- A hardcoded Sunbird token is present and must not ship in production.
-- Sunbird helper behavior and API response shapes are not verified by tests.
+- Sunbird helper behavior and API response shapes are not verified by integration tests.
 - Some source strings show encoding artifacts.
 
 ## Future MVP Improvements
 
 - Replace `expo-av` with supported Expo audio APIs.
-- Move third-party language credentials out of client code.
-- Decide whether Sunbird is part of MVP or remove unused prototype helpers.
+- If Sunbird becomes part of MVP, route it through a secure server-side endpoint.
+- Decide whether Sunbird is part of MVP or remove the disabled prototype helpers.
 - Define a localization strategy with stable keys instead of exact source strings.
 - Add audio error handling and tests for non-network translation paths.
 

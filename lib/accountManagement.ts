@@ -536,9 +536,8 @@ export const requestAccountDeletion = async (
 
   await clearAccountLocalData(result.archivedChildIds);
 
-  // TODO: A secure server-side job should run after grace_ends_at to delete or
-  // anonymize user-owned app data, then delete the Supabase Auth user with
-  // admin privileges. Shared/global content must never be deleted here.
+  // Permanent deletion after grace_ends_at is handled by the server-side
+  // finalize-account-deletions Edge Function, never by the client.
   const { error: signOutError } = await supabase.auth.signOut();
   if (signOutError) throw signOutError;
 

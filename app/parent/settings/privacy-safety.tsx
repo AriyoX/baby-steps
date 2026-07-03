@@ -51,10 +51,10 @@ export default function PrivacySafetyScreen() {
           account and restore child profiles and progress where available.
         </Text>
         <Text className="text-gray-600 leading-6">
-          After 30 days, the account is prepared for final removal. Shared
-          learning content, language content, achievement definitions, and other
-          global Baby Steps content are not deleted because they are not owned by
-          one family account.
+          After 30 days, the account is finalized through a secure server-side
+          removal process. Shared learning content, language content,
+          achievement definitions, and other global Baby Steps content are not
+          deleted because they are not owned by one family account.
         </Text>
       </View>
 

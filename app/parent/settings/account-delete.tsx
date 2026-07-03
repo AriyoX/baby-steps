@@ -69,7 +69,7 @@ export default function AccountDeleteScreen() {
         </Text>
         <Text className="text-red-800 leading-6 mb-3">
           After 30 days, your account and associated user-owned data will be
-          prepared for final removal by our secure removal process. Some
+          finalized by our secure server-side removal process. Some
           information may be kept only if needed for legal, safety, security, or
           operational reasons.
         </Text>

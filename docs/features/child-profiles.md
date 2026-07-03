@@ -56,7 +56,7 @@ The `children` table stores:
 - `deleted_at`
 
 `selected_language_code` is required profile data. It is selected during add-child setup and is not switchable in child mode.
-Child profile deletion is currently a soft-delete/archive flow: the app sets `children.deleted_at`, hides archived children from normal parent and child selection, and does not hard-delete child-owned progress history.
+Individual child profile deletion is currently a soft-delete/archive flow: the app sets `children.deleted_at`, hides archived children from normal parent and child selection, and does not hard-delete child-owned progress history. Full account deletion is different: after the 30-day grace period, the secure server-side account deletion finalizer permanently deletes child profiles and child-owned activity/progress/achievement rows for the deleted parent account.
 
 Several add-child screens contain hardcoded copy, sample community stats, sample testimonials, and simple assessment questions.
 
@@ -83,12 +83,12 @@ No tests currently cover child profile creation, listing, or child mode launch.
 - Child detail navigation uses the route path `/parent/child-detail/1` with `childId` passed as a param.
 - Add-child screens include marketing-style/sample claims that are not backed by app data.
 - Some UI copy has encoding artifacts.
-- Child profile deletion is archive-only for the MVP; shared/global content is not deleted.
+- Individual child profile deletion is archive-only for the MVP; full account deletion finalization permanently deletes child-owned rows after the grace period. Shared/global content is not deleted.
 
 ## Future MVP Improvements
 
 - Persist active child selection or make child mode route recovery explicit.
-- Add true child data purge support only if a future server-side deletion workflow is approved.
+- If future child-only permanent deletion is added, implement it as a trusted server-side workflow with the same shared-content safeguards as account deletion finalization.
 - Replace sample add-child claims with verified copy or remove them.
 - Add tests for adding a child and launching child mode.
 

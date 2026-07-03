@@ -60,6 +60,16 @@ EXPO_PUBLIC_SUPABASE_URL
 EXPO_PUBLIC_SUPABASE_ANON_KEY
 ```
 
+Required only in Supabase/server-side configuration for final account deletion:
+
+```bash
+SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+BABY_STEPS_ACCOUNT_DELETION_ADMIN_SECRET
+```
+
+Do not expose `SUPABASE_SERVICE_ROLE_KEY` or `BABY_STEPS_ACCOUNT_DELETION_ADMIN_SECRET` through Expo public variables or React Native client code.
+
 Security blocker:
 
 - `lib/lugandaTTS.ts` contains a hardcoded Sunbird token and must be moved out of client code before production.
@@ -117,6 +127,7 @@ Before release:
 - [ ] iOS EAS/build succeeds if in scope.
 - [ ] Required env vars exist in build environment.
 - [ ] No hardcoded secrets remain.
+- [ ] `finalize-account-deletions` is deployed, has its admin secret set, and has a daily scheduled invocation or documented manual admin run.
 - [ ] All app store claims match implemented features.
 - [ ] Privacy policy and deletion instructions are reachable.
 - [ ] Manual QA checklist is complete.

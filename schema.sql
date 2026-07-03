@@ -123,7 +123,7 @@ CREATE TABLE public.child_stage_progress (
 );
 CREATE TABLE public.account_deletion_requests (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  user_id uuid NOT NULL,
+  user_id uuid,
   email text,
   status text NOT NULL DEFAULT 'requested'::text CHECK (status = ANY (ARRAY['requested'::text, 'processing'::text, 'completed'::text, 'cancelled'::text])),
   requested_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
@@ -136,10 +136,21 @@ CREATE TABLE public.account_deletion_requests (
   reactivated_at timestamp with time zone,
   completed_at timestamp with time zone,
   archived_child_ids uuid[] NOT NULL DEFAULT ARRAY[]::uuid[],
+  finalization_started_at timestamp with time zone,
+  finalization_attempted_at timestamp with time zone,
+  finalization_attempt_count integer NOT NULL DEFAULT 0 CHECK (finalization_attempt_count >= 0),
+  finalization_error text,
+  app_data_deleted_at timestamp with time zone,
+  auth_user_deleted_at timestamp with time zone,
+  finalized_at timestamp with time zone,
   CONSTRAINT account_deletion_requests_pkey PRIMARY KEY (id),
-  CONSTRAINT account_deletion_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+  CONSTRAINT account_deletion_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL
 );
 
 -- Account deletion lifecycle RPCs in the intended final schema:
 -- public.request_account_deletion_with_grace(p_note text DEFAULT NULL) RETURNS jsonb
 -- public.reactivate_account_deletion() RETURNS jsonb
+-- public.claim_expired_account_deletion_requests(p_limit integer DEFAULT 25, p_dry_run boolean DEFAULT false) RETURNS TABLE(...)
+-- public.finalize_expired_account_deletion_request_app_data(p_request_id uuid, p_dry_run boolean DEFAULT false) RETURNS jsonb
+-- public.complete_finalized_account_deletion_request(p_request_id uuid, p_auth_user_deleted_at timestamp with time zone DEFAULT now()) RETURNS jsonb
+-- public.record_account_deletion_finalization_failure(p_request_id uuid, p_error text) RETURNS jsonb

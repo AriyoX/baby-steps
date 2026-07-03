@@ -136,9 +136,9 @@ Account deletion has a 30-day grace period. When deletion is requested, the acco
 
 During the 30-day period, the user can log in again and reactivate the account before the deadline. Reactivating restores child profiles and learning progress where available.
 
-After the 30-day period, the account is waiting for final removal. Associated user-owned data is prepared for deletion or anonymization through a secure Baby Steps process outside the app. User-owned data includes parent account information, child profile information, learning progress, activity history, and achievement history tied to the account.
+After the 30-day period, Baby Steps finalizes deletion through a secure server-side process outside the app. Associated user-owned data is deleted or anonymized, and the Supabase Auth account is deleted using server-only admin privileges. User-owned data includes parent account information, child profile information, learning progress, activity history, and achievement history tied to the account.
 
-Some limited data may be retained only if required for legal, security, fraud prevention, dispute, compliance, backup, or operational reasons.
+Some minimal deletion-record data may be retained only if required for legal, security, fraud prevention, dispute, compliance, backup, or operational reasons.
 
 Shared educational content is not user-owned and is not deleted. This includes shared learning content, language content, stories, achievement definitions, and other global Baby Steps app content.
 

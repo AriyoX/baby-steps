@@ -32,7 +32,11 @@ yarn-error.*
 # local env files
 .env*.local
 
+# Supabase CLI local scratch
+supabase/.temp/
+
 # typescript
 *.tsbuildinfo
 
 .env
+.vscode/settings.json

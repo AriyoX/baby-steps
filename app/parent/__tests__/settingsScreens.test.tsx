@@ -154,7 +154,7 @@ describe("settings management screens", () => {
     expect(text).toContain("learning progress will be hidden");
     expect(text).toContain("30 days");
     expect(text).toContain("log in again and reactivate your account");
-    expect(text).toContain("prepared for final removal");
+    expect(text).toContain("secure server-side removal process");
     expect(text).toContain("Shared Baby Steps learning content");
     expect(text).toContain("Schedule Account Deletion");
     expect(text).not.toMatch(/permanently deleted|deleted forever|delete immediately|all your data is gone/i);

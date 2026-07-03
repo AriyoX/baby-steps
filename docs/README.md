@@ -13,6 +13,7 @@ This folder documents the current Baby Steps prototype and the work needed to mo
 | [Testing guide](development/testing.md) | Developers, QA | Current test setup and test gaps. |
 | [Content management](development/content-management.md) | Developers, content contributors | Where hardcoded content lives and how to update it safely. |
 | [Database notes](development/database.md) | Developers | Current Supabase schema snapshot and gaps. |
+| [Account deletion finalization](development/account-deletion-finalization.md) | Developers, release owners | Secure server-side final account deletion process and manual QA. |
 | [Deployment readiness](development/deployment.md) | Developers, release owners | Build commands, readiness status, blockers, and launch notes. |
 | [Manual QA checklist](qa/manual-qa-checklist.md) | QA, developers | Device and regression testing checklist. |
 | [MVP roadmap](mvp-roadmap.md) | Product, developers | 8-week MVP preparation priorities, risks, and out-of-scope items. |

@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabase";
 import { AppState, View } from "react-native";
 import type { Session } from "@supabase/supabase-js";
 import { useFonts } from "expo-font";
+import * as Linking from "expo-linking";
 import * as ScreenOrientation from "expo-screen-orientation";
 import {
   getAccountDeletionState,
@@ -13,6 +14,7 @@ import {
   type AccountDeletionState,
 } from "@/lib/accountManagement";
 import { AnimatedSplashTransition } from "@/components/brand/AnimatedSplashTransition";
+import { rememberAuthRedirectUrl } from "@/lib/authRedirectEvents";
 import { hasCompletedOnboarding } from "@/lib/onboarding";
 import "@/global.css";
 import { ChildProvider } from '@/context/ChildContext';
@@ -66,6 +68,23 @@ export default function RootLayout() {
   useEffect(() => {
     pathnameRef.current = pathname;
   }, [pathname]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void Linking.getInitialURL().then((url) => {
+      if (isMounted) rememberAuthRedirectUrl(url);
+    });
+
+    const subscription = Linking.addEventListener("url", ({ url }) => {
+      rememberAuthRedirectUrl(url);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.remove();
+    };
+  }, []);
 
   const loadAccountDeletionState = useCallback(async (currentSession: Session | null) => {
     if (!currentSession) {
@@ -235,6 +254,7 @@ export default function RootLayout() {
             <Stack.Screen name="login" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
             <Stack.Screen name="signup" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
             <Stack.Screen name="forgot-password" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+            <Stack.Screen name="auth/callback" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
             <Stack.Screen name="reset-password" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
             <Stack.Screen name="account-reactivation" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
             <Stack.Screen name="child-list" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { FontAwesome } from "@expo/vector-icons";
+import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { Text } from "@/components/StyledText";
@@ -21,7 +22,20 @@ import {
   keyboardAwareScrollContentStyle,
   readableTextInputStyle,
 } from "@/constants/formStyles";
+import {
+  clearLatestAuthRedirectUrl,
+  getLatestAuthRedirectUrl,
+  subscribeAuthRedirectUrls,
+} from "@/lib/authRedirectEvents";
+import {
+  getFriendlyAuthRedirectErrorMessage,
+  handleSupabaseAuthRedirectUrl,
+  hasAuthRedirectPayload,
+  isPasswordResetRedirectUrl,
+} from "@/lib/authRedirects";
 import { supabase } from "../lib/supabase";
+
+type RecoveryLinkStatus = "checking" | "ready" | "error";
 
 export default function ResetPassword() {
   const router = useRouter();
@@ -29,12 +43,17 @@ export default function ResetPassword() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [passwordSent, setPasswordSent] = useState(false);
+  const [linkStatus, setLinkStatus] = useState<RecoveryLinkStatus>("checking");
+  const [linkErrorMessage, setLinkErrorMessage] = useState(
+    getFriendlyAuthRedirectErrorMessage(),
+  );
 
   const bounceValue = useRef(new Animated.Value(0)).current;
   const floatValue = useRef(new Animated.Value(0)).current;
   const scaleValue = useRef(new Animated.Value(0)).current;
   const spinValue = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView | null>(null);
+  const processedRecoveryUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     Animated.spring(scaleValue, {
@@ -100,7 +119,79 @@ export default function ResetPassword() {
     };
   }, [bounceValue, floatValue, scaleValue, spinValue]);
 
+  const ensureRecoverySession = useCallback(
+    async (candidateUrl?: string | null) => {
+      const recoveryUrl =
+        candidateUrl && isPasswordResetRedirectUrl(candidateUrl) ? candidateUrl : null;
+
+      if (recoveryUrl && hasAuthRedirectPayload(recoveryUrl)) {
+        if (processedRecoveryUrlRef.current === recoveryUrl) return;
+
+        processedRecoveryUrlRef.current = recoveryUrl;
+        setLinkStatus("checking");
+
+        try {
+          await handleSupabaseAuthRedirectUrl(recoveryUrl);
+          clearLatestAuthRedirectUrl(recoveryUrl);
+          setLinkStatus("ready");
+        } catch {
+          clearLatestAuthRedirectUrl(recoveryUrl);
+          setLinkErrorMessage(getFriendlyAuthRedirectErrorMessage());
+          setLinkStatus("error");
+        }
+
+        return;
+      }
+
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !data.session) {
+        setLinkErrorMessage(getFriendlyAuthRedirectErrorMessage());
+        setLinkStatus("error");
+        return;
+      }
+
+      setLinkStatus("ready");
+    },
+    [],
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const validateInitialLink = async () => {
+      const storedUrl = getLatestAuthRedirectUrl();
+      if (storedUrl && isPasswordResetRedirectUrl(storedUrl)) {
+        await ensureRecoverySession(storedUrl);
+        return;
+      }
+
+      const initialUrl = await Linking.getInitialURL();
+      if (!isMounted) return;
+
+      if (initialUrl && isPasswordResetRedirectUrl(initialUrl)) {
+        await ensureRecoverySession(initialUrl);
+      } else {
+        await ensureRecoverySession();
+      }
+    };
+
+    void validateInitialLink();
+
+    const unsubscribe = subscribeAuthRedirectUrls((url) => {
+      if (isPasswordResetRedirectUrl(url)) {
+        void ensureRecoverySession(url);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [ensureRecoverySession]);
+
   const handleResetPassword = async () => {
+    if (linkStatus !== "ready") return;
+
     if (!password || !confirmPassword) {
       Alert.alert("Error", "Please fill in all fields");
       return;
@@ -126,9 +217,17 @@ export default function ResetPassword() {
         throw error;
       }
 
+      const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
+      if (signOutError) {
+        console.warn("Could not clear password recovery session.");
+      }
+
       setPasswordSent(true);
-    } catch (error: any) {
-      Alert.alert("Error", error.message || "An error occurred while resetting your password");
+    } catch {
+      Alert.alert(
+        "Could not reset password",
+        "Please request a new link and try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -218,7 +317,41 @@ export default function ResetPassword() {
             className="mx-6 bg-white p-6 rounded-3xl shadow-md border-2 border-secondary-100"
             style={{ transform: [{ scale: scaleValue }], opacity: scaleValue }}
           >
-            {!passwordSent ? (
+            {linkStatus === "checking" ? (
+              <View className="items-center py-4">
+                <View className="bg-secondary-100 p-4 rounded-2xl mb-4 w-full">
+                  <Text className="text-secondary-700 text-center text-base">
+                    Checking your link...
+                  </Text>
+                </View>
+              </View>
+            ) : linkStatus === "error" ? (
+              <View className="items-center py-4">
+                <View className="bg-secondary-100 p-4 rounded-2xl mb-4 w-full">
+                  <Text className="text-secondary-700 text-center text-base">
+                    {linkErrorMessage}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  className="bg-secondary-500 py-4 rounded-xl items-center shadow-md w-full mb-3"
+                  onPress={() => router.replace("/forgot-password")}
+                  activeOpacity={0.84}
+                >
+                  <Text variant="bold" className="text-white text-xl">
+                    Request a new link
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className="bg-primary-500 py-4 rounded-xl items-center shadow-md w-full"
+                  onPress={() => router.replace("/login")}
+                  activeOpacity={0.84}
+                >
+                  <Text variant="bold" className="text-white text-xl">
+                    Back to Login
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : !passwordSent ? (
               <>
                 <View className="mb-5">
                   <Text className="text-secondary-700 mb-3 text-lg">New Password</Text>
@@ -298,7 +431,7 @@ export default function ResetPassword() {
               </View>
             )}
 
-            {!passwordSent && (
+            {linkStatus === "ready" && !passwordSent && (
               <View className="mt-8 items-center">
                 <TouchableOpacity className="flex-row items-center" onPress={() => router.replace("/login")}>
                   <FontAwesome

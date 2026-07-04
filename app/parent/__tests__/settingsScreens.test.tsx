@@ -1,4 +1,5 @@
 import React from "react";
+import { jest, beforeEach, describe, it, expect } from "@jest/globals";
 import renderer, { act } from "react-test-renderer";
 import type { ReactTestRenderer } from "react-test-renderer";
 import { PlaceholderSettingsScreen } from "@/components/settings/PlaceholderSettingsScreen";
@@ -82,12 +83,37 @@ const textContent = (node: unknown): string => {
   return textContent(maybeNode.children);
 };
 
+type MockSessionResult = {
+  data: { session: { user: { id: string } } };
+};
+
+type MockSignOutResult = {
+  error: null;
+};
+
+type MockUserResult = {
+  data: { user: { id: string; email: string } };
+  error: null;
+};
+
+const mockGetSession = supabase.auth.getSession as unknown as jest.Mock<
+  () => Promise<MockSessionResult>
+>;
+const mockSignOut = supabase.auth.signOut as unknown as jest.Mock<
+  () => Promise<MockSignOutResult>
+>;
+const mockGetUser = supabase.auth.getUser as unknown as jest.Mock<
+  () => Promise<MockUserResult>
+>;
+const mockFetchActiveChildProfiles =
+  fetchActiveChildProfiles as jest.MockedFunction<typeof fetchActiveChildProfiles>;
+
 beforeEach(() => {
   jest.clearAllMocks();
-  (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+  mockGetSession.mockResolvedValue({
     data: { session: { user: { id: "parent-1" } } },
   });
-  (supabase.auth.signOut as jest.Mock).mockResolvedValue({ error: null });
+  mockSignOut.mockResolvedValue({ error: null });
 });
 
 describe("settings management screens", () => {
@@ -124,7 +150,7 @@ describe("settings management screens", () => {
   });
 
   it("renders the Account Management screen with user details", async () => {
-    (supabase.auth.getUser as jest.Mock).mockResolvedValue({
+    mockGetUser.mockResolvedValue({
       data: { user: { id: "parent-1", email: "parent@example.com" } },
       error: null,
     });
@@ -239,7 +265,7 @@ describe("settings management screens", () => {
   });
 
   it("renders the Child Profiles Management screen with active children", async () => {
-    (fetchActiveChildProfiles as jest.Mock).mockResolvedValue([
+    mockFetchActiveChildProfiles.mockResolvedValue([
       {
         id: "child-1",
         parent_id: "parent-1",

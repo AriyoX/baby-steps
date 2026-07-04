@@ -20,6 +20,7 @@ import {
   keyboardAwareScrollContentStyle,
   readableTextInputStyle,
 } from "@/constants/formStyles";
+import { PASSWORD_RESET_REDIRECT_URL } from "@/lib/authRedirects";
 import { supabase } from "../lib/supabase";
 
 export default function ForgotPassword() {
@@ -106,11 +107,11 @@ export default function ForgotPassword() {
 
     setLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: "babysteps://reset-password",
+      redirectTo: PASSWORD_RESET_REDIRECT_URL,
     });
 
     if (error) {
-      Alert.alert("Oops!", error.message);
+      Alert.alert("Could not send reset link", "Please check the email address and try again.");
     } else {
       setResetSent(true);
     }

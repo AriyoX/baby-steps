@@ -24,6 +24,7 @@ import {
   getSignUpErrorMessage,
   isExistingAccountSignUpError,
 } from "@/lib/accountManagement";
+import { SIGNUP_EMAIL_REDIRECT_URL } from "@/lib/authRedirects";
 import { supabase } from "../lib/supabase";
 
 export default function SignUp() {
@@ -105,6 +106,9 @@ export default function SignUp() {
       } = await supabase.auth.signUp({
         email: email.trim(),
         password,
+        options: {
+          emailRedirectTo: SIGNUP_EMAIL_REDIRECT_URL,
+        },
       });
 
       if (error) {

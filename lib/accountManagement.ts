@@ -115,7 +115,7 @@ const DELETION_REQUESTS_BLOCKING_NORMAL_ACCESS = [
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export const SIGNUP_EXISTING_ACCOUNT_DELETION_MESSAGE =
-  "An account with this email already exists or may already be scheduled for deletion. Please log in to reactivate it if it is still within the deletion period, or contact support if the deletion period has ended.";
+  "An account with this email already exists or may be scheduled for deletion. Try signing in. If it was scheduled for deletion, signing in within 30 days lets you keep it.";
 
 const REQUEST_ACCOUNT_DELETION_FAILED_MESSAGE =
   "We could not schedule account deletion. Please try again.";
@@ -188,14 +188,14 @@ const getFriendlyAccountLifecycleErrorMessage = (
   const message = getErrorMessage(error);
 
   if (message.includes("grace period has ended")) {
-    return "The account deletion grace period has ended.";
+    return "The 30-day window for this account has ended.";
   }
 
   if (
     message.includes("final removal") ||
     message.includes("already been completed")
   ) {
-    return "The account deletion grace period has ended.";
+    return "The 30-day window for this account has ended.";
   }
 
   if (message.includes("signed in")) {
@@ -567,7 +567,7 @@ export const cancelAccountDeletionRequest = async (
   }
 
   if (state.phase === "expired" || state.phase === "completed") {
-    throw new Error("The account deletion grace period has ended.");
+    throw new Error("The 30-day window for this account has ended.");
   }
 
   const reactivatedAt = nowIso();

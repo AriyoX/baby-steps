@@ -1,0 +1,1 @@
+was able to somehow log back in after signing out but no session information, that and the splash screen is not done correctly, that and deeplinks need to be handled appropriately

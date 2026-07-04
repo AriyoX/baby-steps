@@ -202,7 +202,7 @@ describe("account management deletion helpers", () => {
     });
 
     await expect(reactivateAccount("parent-1")).rejects.toThrow(
-      "The account deletion grace period has ended.",
+      "The 30-day window for this account has ended.",
     );
     expect(supabase.rpc).toHaveBeenCalledWith("reactivate_account_deletion");
     expect(supabase.from).not.toHaveBeenCalled();
@@ -339,7 +339,7 @@ describe("account management deletion helpers", () => {
 
   it("shows friendly signup copy when Supabase blocks an existing account", () => {
     expect(getSignUpErrorMessage("User already registered")).toBe(
-      "An account with this email already exists or may already be scheduled for deletion. Please log in to reactivate it if it is still within the deletion period, or contact support if the deletion period has ended.",
+      "An account with this email already exists or may be scheduled for deletion. Try signing in. If it was scheduled for deletion, signing in within 30 days lets you keep it.",
     );
     expect(getSignUpErrorMessage("Password should be at least 6 characters")).toBe(
       "Password should be at least 6 characters",

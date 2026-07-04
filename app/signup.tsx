@@ -17,6 +17,10 @@ import { BrandMark } from "@/components/brand/BrandMark";
 import { Text } from "@/components/StyledText";
 import { brandColors } from "@/constants/Brand";
 import {
+  keyboardAwareScrollContentStyle,
+  readableTextInputStyle,
+} from "@/constants/formStyles";
+import {
   getSignUpErrorMessage,
   isExistingAccountSignUpError,
 } from "@/lib/accountManagement";
@@ -33,6 +37,7 @@ export default function SignUp() {
   const bounceValue = useRef(new Animated.Value(0)).current;
   const floatValue = useRef(new Animated.Value(0)).current;
   const scaleValue = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView | null>(null);
 
   useEffect(() => {
     Animated.spring(scaleValue, {
@@ -82,32 +87,61 @@ export default function SignUp() {
   }, [bounceValue, floatValue, scaleValue]);
 
   async function signUpWithEmail() {
+    if (!email.trim() || !password || !confirmPassword) {
+      Alert.alert("Oops!", "Please fill in all fields.");
+      return;
+    }
+
     if (password !== confirmPassword) {
       Alert.alert("Oops!", "Passwords don't match. Please try again.");
       return;
     }
 
-    setLoading(true);
-    const {
-      data: { session },
-      error,
-    } = await supabase.auth.signUp({
-      email,
-      password,
-    });
+    try {
+      setLoading(true);
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
 
-    if (error) {
-      Alert.alert(
-        isExistingAccountSignUpError(error.message) ? "Account already exists" : "Oops!",
-        getSignUpErrorMessage(error.message),
-      );
-    } else if (session?.user.identities?.length === 0) {
-      Alert.alert("Account already exists", getSignUpErrorMessage("User already registered"));
-    } else if (!session) {
-      Alert.alert("Almost there!", "Please check your email to verify your account!");
+      if (error) {
+        Alert.alert(
+          isExistingAccountSignUpError(error.message) ? "Account already exists" : "Oops!",
+          getSignUpErrorMessage(error.message),
+        );
+        return;
+      }
+
+      if (session?.user.identities?.length === 0) {
+        Alert.alert("Account already exists", getSignUpErrorMessage("User already registered"));
+        return;
+      }
+
+      if (!session) {
+        Alert.alert(
+          "Almost there!",
+          "Please check your email to verify your account. After that, sign in to create a child profile.",
+        );
+        return;
+      }
+
+      router.replace("/parent/add-child/gender");
+    } catch (error) {
+      console.error("Could not create account:", error);
+      Alert.alert("Could not create account", "Please try again.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
+
+  const scrollToInput = (y: number) => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y, animated: true });
+    }, 80);
+  };
 
   const translateY = floatValue.interpolate({
     inputRange: [0, 1],
@@ -126,13 +160,19 @@ export default function SignUp() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : "padding"}
       className="flex-1 bg-secondary-50"
     >
       <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
 
       <SafeAreaView className="flex-1">
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={keyboardAwareScrollContentStyle}
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <View className="absolute top-10 left-8">
             <Animated.View
               className="w-12 h-12 rounded-full bg-secondary-200 opacity-50"
@@ -150,10 +190,10 @@ export default function SignUp() {
             <BrandMark kind="wordmark" width={180} height={44} containerStyle={{ marginBottom: 12 }} />
             <Animated.View style={{ transform: [{ translateY }, { scale: scaleValue }] }}>
               <Text variant="bold" className="text-4xl text-secondary-600 pt-3 text-center">
-                Join the Fun!
+                Create Your Account
               </Text>
               <Text className="text-lg text-center text-neutral-600 mt-2">
-                Create a new account for your child
+                {"Save your child's progress and learning history"}
               </Text>
             </Animated.View>
           </View>
@@ -178,14 +218,19 @@ export default function SignUp() {
                   <FontAwesome name="envelope" size={20} color={brandColors.shanaOrange} />
                 </View>
                 <TextInput
-                  className="flex-1 ml-4 text-base text-neutral-800"
+                  className="flex-1 ml-4 text-lg text-neutral-800"
                   placeholder="parent@email.com"
                   value={email}
                   onChangeText={setEmail}
                   autoCapitalize="none"
+                  autoComplete="email"
+                  autoCorrect={false}
                   keyboardType="email-address"
+                  onFocus={() => scrollToInput(150)}
                   placeholderTextColor={brandColors.neutral[400]}
-                  style={{ textDecorationLine: "none", fontFamily: "Quicksand-Regular" }}
+                  returnKeyType="next"
+                  style={readableTextInputStyle}
+                  textContentType="emailAddress"
                 />
               </View>
             </View>
@@ -197,14 +242,19 @@ export default function SignUp() {
                   <FontAwesome name="lock" size={20} color={brandColors.shanaOrange} />
                 </View>
                 <TextInput
-                  className="flex-1 ml-4 text-base text-neutral-800"
+                  className="flex-1 ml-4 text-lg text-neutral-800"
                   placeholder="Create password"
                   secureTextEntry={!showPassword}
                   value={password}
                   onChangeText={setPassword}
                   autoCapitalize="none"
+                  autoComplete="new-password"
+                  autoCorrect={false}
+                  onFocus={() => scrollToInput(240)}
                   placeholderTextColor={brandColors.neutral[400]}
-                  style={{ textDecorationLine: "none", fontFamily: "Quicksand-Regular" }}
+                  returnKeyType="next"
+                  style={readableTextInputStyle}
+                  textContentType="newPassword"
                 />
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)} className="px-2">
                   <FontAwesome
@@ -223,14 +273,19 @@ export default function SignUp() {
                   <FontAwesome name="check-circle" size={20} color={brandColors.shanaOrange} />
                 </View>
                 <TextInput
-                  className="flex-1 ml-4 text-base text-neutral-800"
+                  className="flex-1 ml-4 text-lg text-neutral-800"
                   placeholder="Confirm password"
                   secureTextEntry={!showPassword}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   autoCapitalize="none"
+                  autoComplete="new-password"
+                  autoCorrect={false}
+                  onFocus={() => scrollToInput(320)}
                   placeholderTextColor={brandColors.neutral[400]}
-                  style={{ textDecorationLine: "none", fontFamily: "Quicksand-Regular" }}
+                  returnKeyType="done"
+                  style={readableTextInputStyle}
+                  textContentType="newPassword"
                 />
               </View>
             </View>
@@ -242,7 +297,7 @@ export default function SignUp() {
               activeOpacity={0.84}
             >
               <Text variant="bold" className="text-white text-xl">
-                {loading ? "Creating Account..." : "Create Account"}
+                {loading ? "Creating Account..." : "Create Parent Account"}
               </Text>
             </TouchableOpacity>
 

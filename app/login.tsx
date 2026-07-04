@@ -17,6 +17,10 @@ import { BrandMark } from "@/components/brand/BrandMark";
 import { Text } from "@/components/StyledText";
 import { brandColors } from "@/constants/Brand";
 import {
+  keyboardAwareScrollContentStyle,
+  readableTextInputStyle,
+} from "@/constants/formStyles";
+import {
   getAccountDeletionState,
   getPostLoginRouteForAccountState,
 } from "@/lib/accountManagement";
@@ -32,6 +36,7 @@ export default function Auth() {
   const bounceValue = useRef(new Animated.Value(0)).current;
   const floatValue = useRef(new Animated.Value(0)).current;
   const scaleValue = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView | null>(null);
 
   useEffect(() => {
     Animated.spring(scaleValue, {
@@ -110,6 +115,12 @@ export default function Auth() {
     }
   }
 
+  const scrollToInput = (y: number) => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y, animated: true });
+    }, 80);
+  };
+
   const translateY = floatValue.interpolate({
     inputRange: [0, 1],
     outputRange: [0, -12],
@@ -132,13 +143,19 @@ export default function Auth() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : "padding"}
       className="flex-1 bg-primary-50"
     >
       <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
 
       <SafeAreaView className="flex-1">
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={keyboardAwareScrollContentStyle}
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <View className="absolute top-5 left-5">
             <Animated.View
               className="w-12 h-12 rounded-full bg-primary-200 opacity-50"
@@ -165,7 +182,7 @@ export default function Auth() {
                 Welcome Back!
               </Text>
               <Text className="text-lg text-center text-neutral-600 mt-2">
-                {"Let's continue your adventure!"}
+                {"Continue your child's learning journey."}
               </Text>
             </Animated.View>
           </View>
@@ -190,14 +207,19 @@ export default function Auth() {
                   <FontAwesome name="envelope" size={20} color={brandColors.victoriaBlue} />
                 </View>
                 <TextInput
-                  className="flex-1 ml-4 text-base text-neutral-800"
+                  className="flex-1 ml-4 text-lg text-neutral-800"
                   placeholder="parent@email.com"
                   value={email}
                   onChangeText={setEmail}
                   autoCapitalize="none"
+                  autoComplete="email"
+                  autoCorrect={false}
                   keyboardType="email-address"
+                  onFocus={() => scrollToInput(150)}
                   placeholderTextColor={brandColors.neutral[400]}
-                  style={{ textDecorationLine: "none", fontFamily: "Quicksand-Regular" }}
+                  returnKeyType="next"
+                  style={readableTextInputStyle}
+                  textContentType="emailAddress"
                 />
               </View>
             </View>
@@ -209,14 +231,19 @@ export default function Auth() {
                   <FontAwesome name="lock" size={20} color={brandColors.victoriaBlue} />
                 </View>
                 <TextInput
-                  className="flex-1 ml-4 text-base text-neutral-800"
+                  className="flex-1 ml-4 text-lg text-neutral-800"
                   placeholder="Your password"
                   secureTextEntry={!showPassword}
                   value={password}
                   onChangeText={setPassword}
                   autoCapitalize="none"
+                  autoComplete="password"
+                  autoCorrect={false}
+                  onFocus={() => scrollToInput(240)}
                   placeholderTextColor={brandColors.neutral[400]}
-                  style={{ textDecorationLine: "none", fontFamily: "Quicksand-Regular" }}
+                  returnKeyType="done"
+                  style={readableTextInputStyle}
+                  textContentType="password"
                 />
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)} className="px-2">
                   <FontAwesome
@@ -254,18 +281,6 @@ export default function Auth() {
             </View>
           </Animated.View>
 
-          <View className="mt-8 mx-6">
-            <TouchableOpacity
-              className="bg-muted-200 py-3 rounded-xl items-center"
-              onPress={() => router.push("/reset-password")}
-              disabled={loading}
-              activeOpacity={0.84}
-            >
-              <Text variant="bold" className="text-secondary-700">
-                Reset Password
-              </Text>
-            </TouchableOpacity>
-          </View>
         </ScrollView>
       </SafeAreaView>
     </KeyboardAvoidingView>

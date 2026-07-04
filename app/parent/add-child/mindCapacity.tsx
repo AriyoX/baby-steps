@@ -13,11 +13,11 @@ export default function CanYourChildFigureOutWhatsChangedScreen() {
   const [selectedOption, setSelectedOption] = useState<string | null>(null)
 
   const handleBack = () => {
-    router.push("/parent/add-child/knowledge")
+    router.replace("/parent/add-child/knowledge")
   }
 
   const navigateToNextScreen = () => {
-    router.push("/parent/add-child/final")
+    router.replace("/parent/add-child/final")
   }
 
   return (

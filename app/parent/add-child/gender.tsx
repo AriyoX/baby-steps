@@ -7,19 +7,20 @@ import { Text } from "@/components/StyledText"
 import { TranslatedText } from "@/components/translated-text"
 import { FontAwesome5 } from "@expo/vector-icons"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { readableTextInputStyle } from "@/constants/formStyles"
 
 export default function GenderScreen() {
   const { setName, setGender, name, gender } = useUser()
   const router = useRouter()
 
   const handleBack = () => {
-    router.back()
+    router.replace("/parent")
   }
 
   const handleNext = () => {
     if (gender && name?.trim()) {
       // Navigate to the next screen in your flow
-      router.push("/parent/add-child/age")
+      router.replace("/parent/add-child/age")
     } else {
       // You could add some validation feedback here
       alert("Please select a gender and enter a name")
@@ -90,12 +91,14 @@ export default function GenderScreen() {
               <View className="flex-row items-center bg-primary-50 rounded-xl px-4 py-3 border border-primary-100">
                 <FontAwesome5 name="child" size={18} color="#6366f1" />
                 <TextInput
-                  className="flex-1 ml-3 text-base text-neutral-800"
+                  className="flex-1 ml-3 text-lg text-neutral-800"
                   placeholder="Enter your child's name"
                   placeholderTextColor="#9CA3AF"
                   value={name}
                   onChangeText={setName}
-                  style={{ fontFamily: "Quicksand-Regular" }}
+                  autoCapitalize="words"
+                  returnKeyType="next"
+                  style={readableTextInputStyle}
                 />
               </View>
             </View>
@@ -105,7 +108,7 @@ export default function GenderScreen() {
               className="self-center mb-8"
               onPress={() => {
                 setGender("")
-                router.push("/parent/add-child/age")
+                router.replace("/parent/add-child/age")
               }}
             >
               <TranslatedText variant="medium" className="text-neutral-500">

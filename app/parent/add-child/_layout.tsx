@@ -59,6 +59,7 @@ export default function OnboardingLayout() {
             name="final"
             options={{
               headerShown: false,
+              gestureEnabled: false,
             }}
           />
         </Stack>

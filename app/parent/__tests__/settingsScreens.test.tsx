@@ -139,7 +139,7 @@ describe("settings management screens", () => {
     expect(text).toContain("Signed-in Parent");
     expect(text).toContain("parent@example.com");
     expect(text).toContain("Delete account");
-    expect(text).toContain("Schedule account deletion");
+    expect(text).toContain("You can come back within 30 days");
   });
 
   it("renders Delete Account copy as a scheduled 30-day request", async () => {
@@ -150,13 +150,15 @@ describe("settings management screens", () => {
 
     const text = textContent(tree?.toJSON());
 
+    expect(text).toContain("Delete your account?");
     expect(text).toContain("schedule it for deletion");
-    expect(text).toContain("learning progress will be hidden");
+    expect(text).toContain("come back within 30 days");
+    expect(text).toContain("saved learning progress will be deleted");
     expect(text).toContain("30 days");
-    expect(text).toContain("log in again and reactivate your account");
-    expect(text).toContain("secure server-side removal process");
-    expect(text).toContain("Shared Baby Steps learning content");
-    expect(text).toContain("Schedule Account Deletion");
+    expect(text).toContain("Changed your mind?");
+    expect(text).toContain("Delete my account");
+    expect(text).toContain("Keep my account");
+    expect(text).not.toMatch(/server-side|finalizer|finalized|grace period|Schedule Account Deletion/i);
     expect(text).not.toMatch(/permanently deleted|deleted forever|delete immediately|all your data is gone/i);
   });
 
@@ -172,10 +174,11 @@ describe("settings management screens", () => {
       },
     });
 
-    expect(content.message).toContain("Your Baby Steps account is scheduled for deletion");
+    expect(content.title).toBe("Welcome back");
+    expect(content.message).toContain("Your account was scheduled for deletion");
     expect(content.message).toMatch(/before .*2026/);
-    expect(content.primaryButtonLabel).toBe("Reactivate Account");
-    expect(content.secondaryButtonLabel).toBe("Keep Deletion Request and Sign Out");
+    expect(content.primaryButtonLabel).toBe("Keep my account");
+    expect(content.secondaryButtonLabel).toBe("Continue with deletion");
     expect(content.showContactSupport).toBe(false);
   });
 
@@ -191,9 +194,9 @@ describe("settings management screens", () => {
       },
     });
 
-    expect(content.message).toContain("The deletion period for this account has ended");
-    expect(content.message).toContain("waiting for final removal");
-    expect(content.secondaryButtonLabel).toBe("Sign Out");
+    expect(content.message).toContain("The 30-day window for this account has ended");
+    expect(content.message).not.toContain("final removal");
+    expect(content.secondaryButtonLabel).toBe("Sign out");
     expect(content.showContactSupport).toBe(true);
     expect(content.primaryButtonLabel).toBeNull();
   });
@@ -226,10 +229,11 @@ describe("settings management screens", () => {
     const supportText = textContent(supportTree?.toJSON());
     const aboutText = textContent(aboutTree?.toJSON());
 
-    expect(privacyText).toContain("30-day period");
+    expect(privacyText).toContain("within 30 days");
     expect(privacyText).toContain("Data Deletion Information");
     expect(privacyText).toContain("Delete Account");
     expect(supportText).toContain("If you cannot access your account but want to request deletion");
+    expect(supportText).toContain("within 30 days to keep your account");
     expect(supportText).toContain("hello@babystepslearn.com");
     expect(aboutText).toContain("Privacy, account deletion, and support details");
   });

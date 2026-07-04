@@ -16,6 +16,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { Text } from "@/components/StyledText";
 import { brandColors } from "@/constants/Brand";
+import {
+  keyboardAwareScrollContentStyle,
+  readableTextInputStyle,
+} from "@/constants/formStyles";
 import { supabase } from "../lib/supabase";
 
 export default function ForgotPassword() {
@@ -28,6 +32,7 @@ export default function ForgotPassword() {
   const floatValue = useRef(new Animated.Value(0)).current;
   const scaleValue = useRef(new Animated.Value(0)).current;
   const spinValue = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView | null>(null);
 
   useEffect(() => {
     Animated.spring(scaleValue, {
@@ -112,6 +117,12 @@ export default function ForgotPassword() {
     setLoading(false);
   }
 
+  const scrollToInput = (y: number) => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y, animated: true });
+    }, 80);
+  };
+
   const translateY = floatValue.interpolate({
     inputRange: [0, 1],
     outputRange: [0, -12],
@@ -134,13 +145,19 @@ export default function ForgotPassword() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : "padding"}
       className="flex-1 bg-accent-50"
     >
       <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
 
       <SafeAreaView className="flex-1">
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={keyboardAwareScrollContentStyle}
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <View className="absolute top-10 left-8">
             <Animated.View
               className="w-12 h-12 rounded-full bg-accent-200 opacity-50"
@@ -194,14 +211,19 @@ export default function ForgotPassword() {
                       <FontAwesome name="envelope" size={20} color={brandColors.equatorialGold} />
                     </View>
                     <TextInput
-                      className="flex-1 ml-4 text-base text-neutral-800"
+                      className="flex-1 ml-4 text-lg text-neutral-800"
                       placeholder="parent@email.com"
                       value={email}
                       onChangeText={setEmail}
                       autoCapitalize="none"
+                      autoComplete="email"
+                      autoCorrect={false}
                       keyboardType="email-address"
+                      onFocus={() => scrollToInput(220)}
                       placeholderTextColor={brandColors.neutral[400]}
-                      style={{ textDecorationLine: "none", fontFamily: "Quicksand-Regular" }}
+                      returnKeyType="done"
+                      style={readableTextInputStyle}
+                      textContentType="emailAddress"
                     />
                   </View>
                 </View>

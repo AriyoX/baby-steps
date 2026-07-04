@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SettingsScaffold } from "@/components/settings/SettingsScaffold";
 import { Text } from "@/components/StyledText";
+import { readableTextInputStyle } from "@/constants/formStyles";
 import { useChild } from "@/context/ChildContext";
 import {
   archiveChildProfile,
@@ -100,7 +101,8 @@ export default function ChildProfileDeleteScreen() {
               autoCapitalize="words"
               placeholder={child.name}
               placeholderTextColor="#9CA3AF"
-              className="border border-gray-200 rounded-xl px-4 py-3 text-gray-800"
+              className="border border-gray-200 rounded-xl px-4 py-3 text-lg text-gray-800"
+              style={readableTextInputStyle}
               accessibilityLabel="Child profile deletion confirmation"
             />
             <TouchableOpacity

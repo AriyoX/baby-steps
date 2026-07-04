@@ -5,7 +5,6 @@ import {
   Alert,
   Linking,
   ScrollView,
-  TouchableOpacity,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,6 +12,7 @@ import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BrandMark } from "@/components/brand/BrandMark";
+import { AppButton } from "@/components/common/AppButton";
 import { Text } from "@/components/StyledText";
 import { useChild } from "@/context/ChildContext";
 import {
@@ -42,20 +42,20 @@ export const getAccountReactivationContent = (
 
   const title =
     phase === "expired" || phase === "completed"
-      ? "Deletion Period Ended"
-      : "Account Scheduled for Deletion";
+      ? "Deletion can no longer be changed"
+      : "Welcome back";
   const message =
     phase === "expired" || phase === "completed"
-      ? "The deletion period for this account has ended. The account is now waiting for final removal. Please contact support if you need help."
-      : `Your Baby Steps account is scheduled for deletion.${
-          deadline ? ` You can still reactivate it before ${deadline}.` : ""
-        } Reactivating will restore your child profiles and learning progress where available.`;
+      ? "The 30-day window for this account has ended. Please contact support if you need help."
+      : `Your account was scheduled for deletion, but you can still keep it.${
+          deadline ? ` Choose Keep my account before ${deadline} to keep your child profiles and saved progress.` : ""
+        }`;
 
   return {
     canReactivate,
     message,
-    primaryButtonLabel: canReactivate ? "Reactivate Account" : null,
-    secondaryButtonLabel: canReactivate ? "Keep Deletion Request and Sign Out" : "Sign Out",
+    primaryButtonLabel: canReactivate ? "Keep my account" : null,
+    secondaryButtonLabel: canReactivate ? "Continue with deletion" : "Sign out",
     showContactSupport: !canReactivate,
     title,
   };
@@ -83,7 +83,10 @@ export default function AccountReactivationScreen() {
   const { setActiveChild } = useChild();
   const [accountState, setAccountState] = React.useState<AccountDeletionState | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [submitting, setSubmitting] = React.useState(false);
+  const [submittingAction, setSubmittingAction] = React.useState<
+    "keep" | "continue-deletion" | "sign-out" | null
+  >(null);
+  const submitting = submittingAction !== null;
 
   const loadState = React.useCallback(async () => {
     setLoading(true);
@@ -115,7 +118,7 @@ export default function AccountReactivationScreen() {
   }, [loadState]);
 
   const signOut = async () => {
-    setSubmitting(true);
+    setSubmittingAction("continue-deletion");
     try {
       await signOutFromDeletionStatus({
         setActiveChild,
@@ -126,21 +129,21 @@ export default function AccountReactivationScreen() {
       console.error("Could not sign out:", error);
       Alert.alert("Could not sign out", "Please try again.");
     } finally {
-      setSubmitting(false);
+      setSubmittingAction(null);
     }
   };
 
   const handleReactivate = async () => {
     if (submitting) return;
 
-    setSubmitting(true);
+    setSubmittingAction("keep");
     try {
       const result = await reactivateAccount();
       setActiveChild(null);
       Alert.alert(
-        "Account reactivated",
+        "Welcome back",
         result.restoredChildIds.length > 0
-          ? "Your child profiles and learning progress are available again where available."
+          ? "Your child profiles and saved progress are available again where possible."
           : "Your account is active again.",
         [{ text: "Continue", onPress: () => router.replace("/parent") }],
       );
@@ -148,13 +151,14 @@ export default function AccountReactivationScreen() {
       console.error("Could not reactivate account:", error);
       Alert.alert("Could not reactivate", "Please contact support if you need help.");
     } finally {
-      setSubmitting(false);
+      setSubmittingAction(null);
     }
   };
 
   const {
     canReactivate,
     message,
+    primaryButtonLabel,
     secondaryButtonLabel,
     showContactSupport,
     title,
@@ -199,46 +203,36 @@ export default function AccountReactivationScreen() {
           {!loading && (
             <View className="mt-6">
               {canReactivate && (
-                <TouchableOpacity
-                  className={`rounded-xl py-4 items-center bg-primary-500 ${
-                    submitting ? "opacity-70" : ""
-                  }`}
+                <AppButton
+                  label={primaryButtonLabel ?? "Keep my account"}
+                  loadingLabel="Keeping account..."
+                  icon="heart-outline"
                   onPress={handleReactivate}
-                  disabled={submitting}
-                  accessibilityRole="button"
-                >
-                  <Text variant="bold" className="text-white text-base">
-                    {submitting ? "Reactivating..." : "Reactivate Account"}
-                  </Text>
-                </TouchableOpacity>
+                  loading={submittingAction === "keep"}
+                  disabled={submitting && submittingAction !== "keep"}
+                />
               )}
 
-              <TouchableOpacity
-                className={`rounded-xl py-4 items-center border border-neutral-200 ${
-                  canReactivate ? "mt-3" : ""
-                } ${submitting ? "opacity-70" : ""}`}
+              <AppButton
+                label={secondaryButtonLabel}
+                loadingLabel={canReactivate ? "Continuing..." : "Signing out..."}
+                variant={canReactivate ? "destructive" : "secondary"}
+                className={canReactivate ? "mt-3" : ""}
+                icon={canReactivate ? "trash-outline" : "log-out-outline"}
                 onPress={signOut}
-                disabled={submitting}
-                accessibilityRole="button"
-              >
-                <Text variant="bold" className="text-neutral-700 text-base">
-                  {secondaryButtonLabel}
-                </Text>
-              </TouchableOpacity>
+                loading={submittingAction === "continue-deletion"}
+                disabled={submitting && submittingAction !== "continue-deletion"}
+              />
 
               {showContactSupport && (
-                <TouchableOpacity
-                  className={`mt-3 rounded-xl py-4 items-center border border-primary-200 ${
-                    submitting ? "opacity-70" : ""
-                  }`}
+                <AppButton
+                  label="Contact support"
+                  variant="secondary"
+                  className="mt-3"
+                  icon="mail-outline"
                   onPress={contactSupport}
                   disabled={submitting}
-                  accessibilityRole="button"
-                >
-                  <Text variant="bold" className="text-primary-700 text-base">
-                    Contact Support
-                  </Text>
-                </TouchableOpacity>
+                />
               )}
             </View>
           )}

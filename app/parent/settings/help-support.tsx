@@ -47,8 +47,8 @@ export default function HelpSupportScreen() {
         </Text>
         <Text className="text-gray-600 leading-6">
           If you can sign in, go to Settings, then Account, then Delete Account.
-          Your account will be scheduled for deletion, and you will have 30 days
-          to log in again and reactivate before secure server-side final removal.
+          Your account will be scheduled for deletion. You can sign in again
+          within 30 days to keep your account.
         </Text>
       </View>
 

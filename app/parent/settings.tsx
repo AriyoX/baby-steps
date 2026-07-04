@@ -1,16 +1,31 @@
 "use client";
 
 import React from "react";
-import { View } from "react-native";
+import { Alert, View } from "react-native";
 import { useRouter } from "expo-router";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { Text } from "@/components/StyledText";
 import { SettingsRow } from "@/components/settings/SettingsRow";
 import { SettingsScaffold } from "@/components/settings/SettingsScaffold";
+import { brandColors } from "@/constants/Brand";
 import { SETTINGS_SECTIONS } from "@/lib/settingsOptions";
 
 export default function SettingsScreen() {
   const router = useRouter();
+
+  const handleResetOnboardingForDev = React.useCallback(async () => {
+    try {
+      const { resetOnboardingForDev } = await import("@/lib/onboarding");
+      const clearedKeys = await resetOnboardingForDev();
+      Alert.alert(
+        "Onboarding reset",
+        `Cleared ${clearedKeys.join(", ")}. Sign out or restart the app while signed out to view onboarding again.`,
+      );
+    } catch (error) {
+      console.error("Could not reset onboarding:", error);
+      Alert.alert("Could not reset onboarding", "Please try again from a development build.");
+    }
+  }, []);
 
   return (
     <SettingsScaffold title="Settings" showBrandIcon>
@@ -47,6 +62,27 @@ export default function SettingsScreen() {
           </View>
         </View>
       ))}
+
+      {__DEV__ ? (
+        <View className="mb-5">
+          <Text
+            variant="medium"
+            className="text-gray-500 text-sm uppercase tracking-wider mb-2 px-1"
+          >
+            Developer
+          </Text>
+          <View className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <SettingsRow
+              title="Reset onboarding"
+              description="Clears the pre-login onboarding flag only."
+              icon="refresh-circle-outline"
+              iconColor={brandColors.shanaOrange}
+              onPress={handleResetOnboardingForDev}
+              last
+            />
+          </View>
+        </View>
+      ) : null}
 
       <View className="py-6 items-center">
         <Text className="text-gray-400 text-sm">Baby Steps v1.0.0</Text>

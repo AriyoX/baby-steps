@@ -13,11 +13,11 @@ export default function StatisticsDisplayScreen() {
   const { name } = useUser()
 
   const handleBack = () => {
-    router.push("/parent/add-child/reason")
+    router.replace("/parent/add-child/reason")
   }
 
   const handleNext = () => {
-    router.push("/parent/add-child/ourPriority")
+    router.replace("/parent/add-child/ourPriority")
   }
 
   // Sample testimonials data

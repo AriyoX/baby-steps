@@ -13,11 +13,11 @@ export default function CanYourKidMatchNumbersToObjectsScreen() {
   const [selectedOption, setSelectedOption] = useState<string | null>(null)
 
   const handleBack = () => {
-    router.push("/parent/add-child/ourPriority")
+    router.replace("/parent/add-child/ourPriority")
   }
 
   const navigateToNextScreen = () => {
-    router.push("/parent/add-child/mindCapacity")
+    router.replace("/parent/add-child/mindCapacity")
   }
 
   return (

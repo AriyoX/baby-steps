@@ -3,9 +3,8 @@
 import { SplashScreen, Stack, usePathname, useRouter } from "expo-router";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../lib/supabase";
-import { AppState } from "react-native";
+import { AppState, View } from "react-native";
 import type { Session } from "@supabase/supabase-js";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFonts } from "expo-font";
 import * as ScreenOrientation from "expo-screen-orientation";
 import {
@@ -13,6 +12,8 @@ import {
   isAccountDeletionBlockingNormalAccess,
   type AccountDeletionState,
 } from "@/lib/accountManagement";
+import { AnimatedSplashTransition } from "@/components/brand/AnimatedSplashTransition";
+import { hasCompletedOnboarding } from "@/lib/onboarding";
 import "@/global.css";
 import { ChildProvider } from '@/context/ChildContext';
 import { AudioProvider } from "@/context/AudioContext";
@@ -34,6 +35,7 @@ export default function RootLayout() {
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAccountStateLoading, setIsAccountStateLoading] = useState(false);
+  const [showSplashTransition, setShowSplashTransition] = useState(true);
   const [accountDeletionState, setAccountDeletionState] =
     useState<AccountDeletionState | null>(null);
   const pathnameRef = useRef("/");
@@ -54,8 +56,7 @@ export default function RootLayout() {
   // Add a function to check onboarding status
   const checkOnboardingStatus = async () => {
     try {
-      const value = await AsyncStorage.getItem("@onboarding_completed");
-      setShowOnboarding(value !== "true");
+      setShowOnboarding(!(await hasCompletedOnboarding()));
     } catch (error) {
       console.error("Failed to get onboarding status", error);
       setShowOnboarding(true);
@@ -147,11 +148,9 @@ export default function RootLayout() {
 
     // Only redirect if we're on the root ("/") to avoid redirect loops
     if (pathname === "/") {
-      if (showOnboarding) {
-        router.replace("/");
-      } else if (session) {
+      if (session) {
         router.replace(accountAccessBlocked ? ("/account-reactivation" as any) : "/parent");
-      } else {
+      } else if (showOnboarding === false) {
         router.replace("/login");
       }
     }
@@ -192,6 +191,10 @@ export default function RootLayout() {
     }
   }, []);
 
+  const handleSplashTransitionDone = useCallback(() => {
+    setShowSplashTransition(false);
+  }, []);
+
   useEffect(() => {
     if (isLoading || isAccountStateLoading || !fontsLoaded) return;
 
@@ -213,30 +216,35 @@ export default function RootLayout() {
   }, [applyRouteOrientation, fontsLoaded, isAccountStateLoading, isLoading]);
 
   // Return null until everything is ready
-  if (!fontsLoaded || isLoading || isAccountStateLoading) {
+  if (!fontsLoaded || isLoading) {
     return null; // This keeps the splash screen visible
   }
 
   return (
     <AudioProvider>
       <ChildProvider>
-        <Stack
-          screenOptions={{
-            animation: "fade_from_bottom",
-            headerTitleStyle: { fontFamily: "Quicksand-Medium" },
-            headerShown: false,
-          }}
-        >
-          <Stack.Screen name="index" options={{ gestureEnabled: false, orientation: ADULT_ROUTE_ORIENTATION }} />
-          <Stack.Screen name="login" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
-          <Stack.Screen name="signup" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
-          <Stack.Screen name="forgot-password" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
-          <Stack.Screen name="reset-password" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
-          <Stack.Screen name="account-reactivation" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
-          <Stack.Screen name="child-list" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
-          <Stack.Screen name="parent" options={{ orientation: ADULT_ROUTE_ORIENTATION, animation: "none" }} />
-          <Stack.Screen name="child" options={{ orientation: CHILD_ROUTE_ORIENTATION, animation: "none" }} />
-        </Stack>
+        <View style={{ flex: 1 }}>
+          <Stack
+            screenOptions={{
+              animation: "fade_from_bottom",
+              headerTitleStyle: { fontFamily: "Quicksand-Medium" },
+              headerShown: false,
+            }}
+          >
+            <Stack.Screen name="index" options={{ gestureEnabled: false, orientation: ADULT_ROUTE_ORIENTATION }} />
+            <Stack.Screen name="login" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+            <Stack.Screen name="signup" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+            <Stack.Screen name="forgot-password" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+            <Stack.Screen name="reset-password" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+            <Stack.Screen name="account-reactivation" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+            <Stack.Screen name="child-list" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+            <Stack.Screen name="parent" options={{ orientation: ADULT_ROUTE_ORIENTATION, animation: "none" }} />
+            <Stack.Screen name="child" options={{ orientation: CHILD_ROUTE_ORIENTATION, animation: "none" }} />
+          </Stack>
+          {showSplashTransition ? (
+            <AnimatedSplashTransition onDone={handleSplashTransitionDone} />
+          ) : null}
+        </View>
       </ChildProvider>
     </AudioProvider>
   );

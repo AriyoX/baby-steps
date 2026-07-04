@@ -17,6 +17,10 @@ import { useRouter } from "expo-router";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { Text } from "@/components/StyledText";
 import { brandColors } from "@/constants/Brand";
+import {
+  keyboardAwareScrollContentStyle,
+  readableTextInputStyle,
+} from "@/constants/formStyles";
 import { supabase } from "../lib/supabase";
 
 export default function ResetPassword() {
@@ -30,6 +34,7 @@ export default function ResetPassword() {
   const floatValue = useRef(new Animated.Value(0)).current;
   const scaleValue = useRef(new Animated.Value(0)).current;
   const spinValue = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView | null>(null);
 
   useEffect(() => {
     Animated.spring(scaleValue, {
@@ -129,6 +134,12 @@ export default function ResetPassword() {
     }
   };
 
+  const scrollToInput = (y: number) => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y, animated: true });
+    }, 80);
+  };
+
   const translateY = floatValue.interpolate({
     inputRange: [0, 1],
     outputRange: [0, -12],
@@ -151,12 +162,18 @@ export default function ResetPassword() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : "padding"}
       className="flex-1 bg-secondary-50"
     >
       <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={keyboardAwareScrollContentStyle}
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <View className="absolute top-20 left-8">
             <Animated.View
               className="w-12 h-12 rounded-full bg-secondary-200 opacity-50"
@@ -210,14 +227,19 @@ export default function ResetPassword() {
                       <FontAwesome name="lock" size={20} color={brandColors.shanaOrange} />
                     </View>
                     <TextInput
-                      className="flex-1 ml-4 text-base text-neutral-800"
+                      className="flex-1 ml-4 text-lg text-neutral-800"
                       placeholder="Enter new password"
                       value={password}
                       onChangeText={setPassword}
                       autoCapitalize="none"
+                      autoComplete="new-password"
+                      autoCorrect={false}
+                      onFocus={() => scrollToInput(220)}
                       secureTextEntry
                       placeholderTextColor={brandColors.neutral[400]}
-                      style={{ textDecorationLine: "none", fontFamily: "Quicksand-Regular" }}
+                      returnKeyType="next"
+                      style={readableTextInputStyle}
+                      textContentType="newPassword"
                     />
                   </View>
                 </View>
@@ -229,14 +251,19 @@ export default function ResetPassword() {
                       <FontAwesome name="lock" size={20} color={brandColors.shanaOrange} />
                     </View>
                     <TextInput
-                      className="flex-1 ml-4 text-base text-neutral-800"
+                      className="flex-1 ml-4 text-lg text-neutral-800"
                       placeholder="Confirm new password"
                       value={confirmPassword}
                       onChangeText={setConfirmPassword}
                       secureTextEntry
                       autoCapitalize="none"
+                      autoComplete="new-password"
+                      autoCorrect={false}
+                      onFocus={() => scrollToInput(300)}
                       placeholderTextColor={brandColors.neutral[400]}
-                      style={{ textDecorationLine: "none", fontFamily: "Quicksand-Regular" }}
+                      returnKeyType="done"
+                      style={readableTextInputStyle}
+                      textContentType="newPassword"
                     />
                   </View>
                 </View>

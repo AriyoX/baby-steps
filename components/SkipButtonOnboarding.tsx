@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 const SkipButton = () => {
   const router = useRouter();   
     return (
-        <TouchableOpacity style={styles.skipButton} onPress={() => router.push("/add-child" as any)}>
+        <TouchableOpacity style={styles.skipButton} onPress={() => router.replace("/login")}>
             <Text style={styles.skipButtonText}>Skip</Text>
         </TouchableOpacity>
     )}

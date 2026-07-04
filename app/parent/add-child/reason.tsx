@@ -15,14 +15,14 @@ export default function ReasonForDownloadingScreen() {
   const router = useRouter()
 
   const handleBack = () => {
-    router.push("/parent/add-child/language" as any)
+    router.replace("/parent/add-child/language" as any)
   }
 
   const handleNext = () => {
     if (selectedReason) {
       setReason(selectedReason)
       // Navigate to next screen
-      router.push("/parent/add-child/activities")
+      router.replace("/parent/add-child/activities")
     } else {
       // Simple validation matching the age screen format
       Alert.alert("Selection Required", "Please select a reason to continue")
@@ -116,7 +116,7 @@ export default function ReasonForDownloadingScreen() {
               className="self-center mt-4"
               onPress={() => {
                 setReason("")
-                router.push("/parent/add-child/activities")
+                router.replace("/parent/add-child/activities")
               }}
             >
               <TranslatedText variant="medium" className="text-neutral-500">

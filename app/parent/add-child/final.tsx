@@ -1,51 +1,82 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { View, TouchableOpacity, StatusBar, ActivityIndicator } from "react-native"
+import { AppButton } from "@/components/common/AppButton"
 import { useUser } from "@/context/UserContext"
+import { useChild } from "@/context/ChildContext"
 import { useRouter } from "expo-router"
 import { Text } from "@/components/StyledText"
 import { TranslatedText } from "@/components/translated-text"
 import { FontAwesome5 } from "@expo/vector-icons"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { LinearGradient } from "expo-linear-gradient"
 import { getLearningLanguage } from "@/content/languages"
 import { BrandMark } from "@/components/brand/BrandMark"
 import { brandColors } from "@/constants/Brand"
 
+type SavedChildProfile = {
+  id: string
+  name: string
+  gender: string
+  age: string
+  selected_language_code?: string
+}
+
 export default function SubmitScreen() {
   const router = useRouter()
   const { name, gender, age, reason, selectedLanguageCode, addChildProfile } = useUser()
+  const { setActiveChild } = useChild()
   const [isLoading, setIsLoading] = useState(true)
   const [isSuccess, setIsSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [savedChild, setSavedChild] = useState<SavedChildProfile | null>(null)
+  const hasSubmitted = useRef(false)
   const selectedLanguage = getLearningLanguage(selectedLanguageCode)
 
-  useEffect(() => {
-    const submitData = async () => {
-      try {
-        setIsLoading(true)
-        // Simulate a slight delay for better UX
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-        await addChildProfile()
-        setIsSuccess(true)
-      } catch (err) {
-        console.error("Error submitting profile:", err)
-        setError("Failed to save profile. Please try again.")
-      } finally {
-        setIsLoading(false)
-      }
+  const submitData = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      setIsSuccess(false)
+      // Simulate a slight delay for better UX
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      const child = await addChildProfile()
+      setSavedChild(child)
+      setIsSuccess(true)
+    } catch (err) {
+      console.error("Error submitting profile:", err)
+      setError("Failed to save profile. Please try again.")
+    } finally {
+      setIsLoading(false)
     }
+  }, [addChildProfile])
 
-    submitData()
-  }, [])
+  useEffect(() => {
+    if (hasSubmitted.current) return
+    hasSubmitted.current = true
+    void submitData()
+  }, [submitData])
 
   const handleBack = () => {
-    router.push("/parent/add-child/mindCapacity")
+    router.replace("/parent/add-child/mindCapacity")
   }
 
-  const handleContinue = () => {
-    router.push("/parent")
+  const handleStartLearning = () => {
+    if (!savedChild) return
+
+    setActiveChild({
+      ...savedChild,
+      selected_language_code: savedChild.selected_language_code || selectedLanguageCode,
+      avatar: savedChild.gender === "male" ? "boy" : savedChild.gender === "female" ? "girl" : "child",
+    })
+    router.replace({
+      pathname: "/child" as any,
+      params: { active: savedChild.id },
+    })
+  }
+
+  const handleViewDashboard = () => {
+    router.replace("/parent")
   }
 
   return (
@@ -53,16 +84,20 @@ export default function SubmitScreen() {
       <StatusBar translucent backgroundColor="white" barStyle="dark-content" />
 
       <SafeAreaView className="flex-1 bg-primary-50">
-        {/* Header with back button */}
+        {/* Header */}
         <View className="flex-row items-center p-4 bg-white border-b border-gray-200">
-          <TouchableOpacity
-            onPress={handleBack}
-            className="w-10 h-10 rounded-full bg-primary-100 items-center justify-center"
-          >
-            <FontAwesome5 name="arrow-left" size={16} color={brandColors.victoriaBlue} />
-          </TouchableOpacity>
+          {!isLoading && !isSuccess ? (
+            <TouchableOpacity
+              onPress={handleBack}
+              className="w-10 h-10 rounded-full bg-primary-100 items-center justify-center"
+            >
+              <FontAwesome5 name="arrow-left" size={16} color={brandColors.victoriaBlue} />
+            </TouchableOpacity>
+          ) : (
+            <View className="w-10 h-10" />
+          )}
           <TranslatedText variant="bold" className="flex-1 text-center text-2xl text-primary-800 mr-10">
-            Saving Profile
+            {isLoading ? "Creating Profile" : isSuccess ? "Ready to Learn" : "Profile Needs Help"}
           </TranslatedText>
         </View>
 
@@ -103,7 +138,7 @@ export default function SubmitScreen() {
               {isLoading
                 ? `We're saving ${name}'s profile information...`
                 : isSuccess
-                  ? `${name}'s profile has been successfully created. You can now access personalized content.`
+                  ? `${name} is ready to begin. Start with playful games, stories, and activities made for their learning journey.`
                   : error || "An error occurred while saving the profile."}
             </TranslatedText>
 
@@ -154,55 +189,35 @@ export default function SubmitScreen() {
             {!isLoading && (
               <View className="w-full">
                 {isSuccess ? (
-                  <TouchableOpacity
-                    className="py-4 rounded-full items-center justify-center overflow-hidden"
-                    onPress={handleContinue}
-                    activeOpacity={0.8}
-                  >
-                    <LinearGradient
-                      colors={[brandColors.victoriaBlue, brandColors.blue[700]]}
-                      start={[0, 0]}
-                      end={[1, 0]}
-                      className="absolute inset-0"
+                  <View className="gap-3">
+                    <AppButton
+                      label="Start learning"
+                      icon="play"
+                      onPress={handleStartLearning}
+                      disabled={!savedChild}
                     />
-                    <TranslatedText variant="bold" className="text-white text-lg">
-                      Continue to Dashboard
-                    </TranslatedText>
-                  </TouchableOpacity>
+                    <AppButton
+                      label="View dashboard"
+                      variant="secondary"
+                      icon="home-outline"
+                      onPress={handleViewDashboard}
+                    />
+                  </View>
                 ) : (
-                  <View className="space-y-3">
-                    <TouchableOpacity
-                      className="py-4 rounded-full bg-primary-500 items-center"
+                  <View className="gap-3">
+                    <AppButton
+                      label="Try again"
+                      icon="refresh"
                       onPress={() => {
-                        setIsLoading(true)
-                        setError(null)
-                        // Try again
-                        setTimeout(() => {
-                          addChildProfile()
-                            .then(() => {
-                              setIsSuccess(true)
-                              setIsLoading(false)
-                            })
-                            .catch((err) => {
-                              console.error("Error retrying:", err)
-                              setError("Failed to save profile. Please try again.")
-                              setIsLoading(false)
-                            })
-                        }, 1000)
+                        void submitData()
                       }}
-                    >
-                      <TranslatedText variant="bold" className="text-white">
-                        Try Again
-                      </TranslatedText>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      className="py-4 rounded-full bg-gray-200 items-center"
-                      onPress={() => router.push("/child-list")}
-                    >
-                      <TranslatedText variant="medium" className="text-neutral-700">
-                        Skip for Now
-                      </TranslatedText>
-                    </TouchableOpacity>
+                    />
+                    <AppButton
+                      label="Edit details"
+                      variant="secondary"
+                      icon="create-outline"
+                      onPress={handleBack}
+                    />
                   </View>
                 )}
               </View>

@@ -98,7 +98,7 @@ export default function AccountManagementScreen() {
         />
         <SettingsRow
           title="Delete account"
-          description="Schedule account deletion and hide child profiles and progress during the 30-day period."
+          description="Delete your account. You can come back within 30 days by signing in again."
           icon="trash-outline"
           iconColor="#DC2626"
           destructive

@@ -11,11 +11,11 @@ export default function YourChildIsOurPriorityScreen() {
   const router = useRouter()
 
   const handleBack = () => {
-    router.push("/parent/add-child/activities")
+    router.replace("/parent/add-child/activities")
   }
 
   const navigateToNextScreen = () => {
-    router.push("/parent/add-child/knowledge")
+    router.replace("/parent/add-child/knowledge")
   }
 
   return (

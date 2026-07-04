@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useCallback, useState, useEffect } from "react"
 import { View, ScrollView, TouchableOpacity } from "react-native"
 import { Text } from "@/components/StyledText"
-import { useRouter } from "expo-router"
+import { useFocusEffect, useRouter } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons"
@@ -39,11 +39,7 @@ const ParentDashboard = () => {
     averageScore: 0
   })
 
-  useEffect(() => {
-    fetchChildProfiles()
-  }, [])
-
-  const fetchChildProfiles = async () => {
+  const fetchChildProfiles = useCallback(async () => {
     try {
       setLoading(true)
 
@@ -87,7 +83,13 @@ const ParentDashboard = () => {
       console.error("Error in fetchChildProfiles:", error)
       setLoading(false)
     }
-  }
+  }, [])
+
+  useFocusEffect(
+    useCallback(() => {
+      void fetchChildProfiles()
+    }, [fetchChildProfiles]),
+  )
 
   useEffect(() => {
     const fetchActivities = async () => {
@@ -208,7 +210,7 @@ const ParentDashboard = () => {
                 </TranslatedText>
                 <TouchableOpacity
                   className="bg-primary-100 px-3 py-1 rounded-full"
-                  onPress={() => router.push("/child-list")}
+                  onPress={() => router.push("/parent/settings/child-profiles" as any)}
                 >
                   <TranslatedText variant="medium" className="text-primary-700">
                     View All

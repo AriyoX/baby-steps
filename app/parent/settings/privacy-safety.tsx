@@ -36,8 +36,8 @@ export default function PrivacySafetyScreen() {
         </Text>
         <Text className="text-gray-600 leading-6">
           Parents can request account deletion in the app. When deletion is
-          scheduled, child profiles and learning progress are hidden during the
-          30-day period.
+          scheduled, child profiles and learning progress are hidden while the
+          account can still be kept.
         </Text>
       </View>
 
@@ -47,14 +47,13 @@ export default function PrivacySafetyScreen() {
         </Text>
         <Text className="text-gray-600 leading-6 mb-3">
           Go to Settings, then Account, then Delete Account to schedule account
-          deletion. You can log in again before the deadline to reactivate your
-          account and restore child profiles and progress where available.
+          deletion. You can sign in again within 30 days to keep your account
+          and restore child profiles and progress where available.
         </Text>
         <Text className="text-gray-600 leading-6">
-          After 30 days, the account is finalized through a secure server-side
-          removal process. Shared learning content, language content,
-          achievement definitions, and other global Baby Steps content are not
-          deleted because they are not owned by one family account.
+          After 30 days, your account, child profiles, and saved learning
+          progress will be deleted. Shared Baby Steps stories, games, language
+          content, and achievement definitions stay in the app for everyone.
         </Text>
       </View>
 
@@ -69,7 +68,7 @@ export default function PrivacySafetyScreen() {
         />
         <SettingsRow
           title="Data Deletion Information"
-          description="Read what happens during the 30-day deletion period."
+          description="Read what happens after you request deletion."
           icon="document-text-outline"
           iconColor="#2563EB"
           onPress={() => router.push("/parent/settings/help-support" as any)}

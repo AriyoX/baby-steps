@@ -4,6 +4,17 @@ import type { SupportedLearningLanguageCode } from '@/content/types';
 
 type ChildLearningLanguageCode = SupportedLearningLanguageCode | '';
 
+interface CreatedChildProfile {
+  id: string;
+  parent_id: string;
+  name: string;
+  gender: string;
+  age: string;
+  reason?: string;
+  selected_language_code?: ChildLearningLanguageCode;
+  created_at?: string;
+}
+
 interface UserContextType {
   name: string;
   gender: string;
@@ -17,7 +28,7 @@ interface UserContextType {
   setReason: (reason: string) => void;
   setSelectedLanguageCode: (languageCode: ChildLearningLanguageCode) => void;
   setOnboardingComplete: (status: boolean) => void;
-  addChildProfile: () => Promise<void>; // Function to add child profile
+  addChildProfile: () => Promise<CreatedChildProfile>; // Function to add child profile
   userData: {
     name: string;
     gender: string;
@@ -64,7 +75,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Add child profile to Supabase
-  const addChildProfile = async () => {
+  const addChildProfile = async (): Promise<CreatedChildProfile> => {
     try {
       const session = await supabase.auth.getSession(); // Get the current user session
       if (!session.data.session) {
@@ -76,23 +87,32 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('Learning language is required before creating a child profile');
       }
 
-      const { error } = await supabase.from('children').insert([
-        {
-          parent_id,
-          name,
-          gender,
-          age,
-          reason,
-          selected_language_code: selectedLanguageCode,
-        },
-      ]);
+      const { data, error } = await supabase
+        .from('children')
+        .insert([
+          {
+            parent_id,
+            name,
+            gender,
+            age,
+            reason,
+            selected_language_code: selectedLanguageCode,
+          },
+        ])
+        .select('id, parent_id, name, gender, age, reason, selected_language_code, created_at')
+        .single();
 
       if (error) {
         throw new Error(`Failed to add child profile: ${error.message}`);
       }
 
+      if (!data) {
+        throw new Error('Failed to add child profile: no saved profile was returned.');
+      }
+
       console.log('Child profile added successfully!');
       setOnboardingComplete(true); // Mark onboarding as complete
+      return data as CreatedChildProfile;
     } catch (error) {
       console.error(error);
       throw error;

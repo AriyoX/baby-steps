@@ -26,7 +26,7 @@ The app onboarding introduces Baby Steps with three simple slides before sending
 
 - `OnboardingScreen` in `app/index.tsx`
 - `checkOnboardingStatus` in `app/_layout.tsx`
-- `hasCompletedOnboarding` and `resetOnboardingStatus` in `lib/utils.ts`
+- `hasCompletedOnboarding`, `setOnboardingCompleted`, and `resetOnboardingForDev` in `lib/onboarding.ts`
 
 ## Data And Content Used
 
@@ -35,8 +35,15 @@ Onboarding slide data is hardcoded in `app/index.tsx`. It includes slide title, 
 ## State Management And Logic Notes
 
 - Onboarding completion is stored locally in AsyncStorage.
-- The root layout checks the onboarding flag before deciding whether `/` should remain on onboarding, redirect to `/parent`, or redirect to `/login`.
+- The root layout checks the onboarding flag before deciding whether `/` should remain on onboarding or redirect to `/login`.
+- If a valid session already exists, the root route sends the parent to the app instead of showing pre-login onboarding.
 - `components/SkipButtonOnboarding.tsx` appears unused and points to stale `/add-child` routing.
+
+## Developer Reset
+
+In development builds only, go to `Settings -> Developer -> Reset onboarding`.
+
+This calls `resetOnboardingForDev`, which clears only `@onboarding_completed`. It does not sign out, delete child profiles, or clear progress. To view onboarding again, sign out or restart the app while signed out.
 
 ## API Or Database Usage
 
@@ -55,7 +62,6 @@ No tests currently cover onboarding.
 ## Future MVP Improvements
 
 - Add a route-level smoke test for first launch and completed onboarding.
-- Decide whether onboarding should be resettable from a developer-only tool.
 - Clean encoding artifacts in copy and visual placeholders.
 
 ## Manual QA Checklist
@@ -64,6 +70,6 @@ No tests currently cover onboarding.
 - [ ] Confirm `/` shows onboarding.
 - [ ] Swipe through each slide.
 - [ ] Tap `Next` on non-final slides.
-- [ ] Tap `Let's Play!` on the final slide and confirm `/login`.
+- [ ] Tap `Get started` on the final slide and confirm `/login`.
 - [ ] Clear storage again and confirm `Skip` also routes to `/login`.
 - [ ] Restart the app and confirm onboarding is not shown after completion.

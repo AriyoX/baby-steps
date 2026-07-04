@@ -14,12 +14,12 @@ export default function LearningLanguageScreen() {
   const router = useRouter()
 
   const handleBack = () => {
-    router.push("/parent/add-child/age")
+    router.replace("/parent/add-child/age")
   }
 
   const handleNext = () => {
     if (selectedLanguageCode) {
-      router.push("/parent/add-child/reason")
+      router.replace("/parent/add-child/reason")
       return
     }
 

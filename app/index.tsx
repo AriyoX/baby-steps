@@ -1,28 +1,27 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
-  Dimensions,
   FlatList,
   StatusBar,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BrandMark } from "@/components/brand/BrandMark";
+import { AppButton } from "@/components/common/AppButton";
 import { Text } from "@/components/StyledText";
 import { brandColors } from "@/constants/Brand";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
-
-const { width } = Dimensions.get("window");
+import { setOnboardingCompleted } from "@/lib/onboarding";
 
 const onboardingData = [
   {
     id: "1",
-    title: "Hello, Friend!",
-    description: "Let's explore Uganda together.",
+    title: "Baby Steps",
+    description: "Playful stories and games help your child learn language and culture.",
     icon: "child",
     mascot: true,
     shapeColor: "bg-primary-300",
@@ -31,8 +30,8 @@ const onboardingData = [
   },
   {
     id: "2",
-    title: "Magical Stories!",
-    description: "Listen to fun stories from Uganda!",
+    title: "Save Their Journey",
+    description: "A parent account keeps child profiles, progress, and learning history safe.",
     icon: "book-open",
     shapeColor: "bg-secondary-300",
     textColor: "text-secondary-700",
@@ -40,8 +39,8 @@ const onboardingData = [
   },
   {
     id: "3",
-    title: "Fun Games!",
-    description: "Play and learn Luganda words!",
+    title: "Start Small",
+    description: "Add a child profile, then begin with simple activities made for little learners.",
     icon: "gamepad",
     shapeColor: "bg-accent-300",
     textColor: "text-accent-800",
@@ -56,8 +55,26 @@ export default function OnboardingScreen() {
   const bounceValue = useRef(new Animated.Value(0)).current;
   const rotateValue = useRef(new Animated.Value(0)).current;
   const scaleValue = useRef(new Animated.Value(1)).current;
+  const currentIndexRef = useRef(0);
+  const previousWidthRef = useRef(0);
   const reduceMotion = useReducedMotion();
   const router = useRouter();
+  const { width } = useWindowDimensions();
+
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
+
+  useEffect(() => {
+    if (previousWidthRef.current === width) return;
+
+    previousWidthRef.current = width;
+    scrollX.setValue(currentIndexRef.current * width);
+    flatListRef.current?.scrollToIndex({
+      animated: false,
+      index: currentIndexRef.current,
+    });
+  }, [scrollX, width]);
 
   useEffect(() => {
     if (reduceMotion) {
@@ -125,7 +142,7 @@ export default function OnboardingScreen() {
 
   const handleOnboardingComplete = async () => {
     try {
-      await AsyncStorage.setItem("@onboarding_completed", "true");
+      await setOnboardingCompleted();
       router.replace("/login");
     } catch (error) {
       console.error("Failed to save onboarding status", error);
@@ -198,22 +215,22 @@ export default function OnboardingScreen() {
   const renderNextButton = () => {
     if (currentIndex === onboardingData.length - 1) {
       return (
-        <TouchableOpacity
-          className="w-64 h-16 bg-success-500 rounded-full flex-row items-center justify-center shadow-lg"
+        <AppButton
+          label="Get started"
+          icon="arrow-forward"
+          className="w-64 rounded-full shadow-lg"
+          fullWidth={false}
           onPress={handleOnboardingComplete}
-          activeOpacity={0.84}
-        >
-          <Text variant="bold" className="text-white text-xl mr-3">
-            {"Let's Play!"}
-          </Text>
-          <FontAwesome5 name="play" size={18} color={brandColors.white} />
-        </TouchableOpacity>
+        />
       );
     }
 
     return (
-      <TouchableOpacity
-        className="w-64 h-16 bg-primary-500 rounded-full flex-row items-center justify-center shadow-lg"
+      <AppButton
+        label="Next"
+        icon="arrow-forward"
+        className="w-64 rounded-full shadow-lg"
+        fullWidth={false}
         onPress={() => {
           if (currentIndex < onboardingData.length - 1) {
             flatListRef.current?.scrollToIndex({
@@ -222,13 +239,7 @@ export default function OnboardingScreen() {
             });
           }
         }}
-        activeOpacity={0.84}
-      >
-        <Text variant="bold" className="text-white text-xl mr-3">
-          Next
-        </Text>
-        <FontAwesome5 name="arrow-right" size={18} color={brandColors.white} />
-      </TouchableOpacity>
+      />
     );
   };
 
@@ -259,7 +270,14 @@ export default function OnboardingScreen() {
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         horizontal
+        getItemLayout={(_, index) => ({
+          index,
+          length: width,
+          offset: width * index,
+        })}
         pagingEnabled
+        snapToInterval={width}
+        decelerationRate="fast"
         showsHorizontalScrollIndicator={false}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
           useNativeDriver: false,
@@ -294,20 +312,18 @@ export default function OnboardingScreen() {
 
           return (
             <Animated.View
-              key={index}
-              className={`mx-3 rounded-full ${dotColor} border-2 ${borderColor} ${isActive ? "shadow" : ""}`}
+              key={`onboarding-dot-${index}`}
+              className={`mx-3 rounded-full ${dotColor} border-2 ${borderColor}`}
               style={{
                 width: isActive ? 20 : 12,
                 height: isActive ? 20 : 12,
                 opacity,
+                shadowColor: brandColors.charcoalBlack,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: isActive ? 0.22 : 0,
+                shadowRadius: isActive ? 3 : 0,
                 transform: [{ scale }],
-                ...(isActive && {
-                  shadowColor: brandColors.charcoalBlack,
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.22,
-                  shadowRadius: 3,
-                  elevation: 3,
-                }),
+                elevation: isActive ? 3 : 0,
               }}
             />
           );

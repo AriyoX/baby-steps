@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { FontAwesome } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { Text } from "@/components/StyledText";
@@ -24,6 +24,11 @@ import {
   getAccountDeletionState,
   getPostLoginRouteForAccountState,
 } from "@/lib/accountManagement";
+import {
+  getLoginErrorMessage,
+  isEmailNotConfirmedError,
+  validateLoginForm,
+} from "@/lib/authMessages";
 import { supabase } from "../lib/supabase";
 
 export default function Auth() {
@@ -32,6 +37,8 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
+  const params = useLocalSearchParams<{ resetRequested?: string }>();
+  const recentlyRequestedPasswordReset = params.resetRequested === "1";
 
   const bounceValue = useRef(new Animated.Value(0)).current;
   const floatValue = useRef(new Animated.Value(0)).current;
@@ -86,15 +93,32 @@ export default function Auth() {
   }, [bounceValue, floatValue, scaleValue]);
 
   async function signInWithEmail() {
+    const validationMessage = validateLoginForm(email, password);
+    if (validationMessage) {
+      Alert.alert("Let's check that", validationMessage);
+      return;
+    }
+
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password,
       });
 
       if (error) {
-        Alert.alert("Oops!", error.message);
+        if (isEmailNotConfirmedError(error)) {
+          router.replace({
+            pathname: "/check-email",
+            params: { flow: "unverified", email: email.trim() },
+          } as any);
+          return;
+        }
+
+        Alert.alert(
+          "Could not sign in",
+          getLoginErrorMessage(error, { recentlyRequestedPasswordReset }),
+        );
         return;
       }
 
@@ -107,9 +131,20 @@ export default function Auth() {
       const accountState = await getAccountDeletionState(userId);
       router.replace(getPostLoginRouteForAccountState(accountState) as any);
     } catch (error) {
-      console.error("Could not complete sign in:", error);
+      console.error("Could not complete sign in.");
       await supabase.auth.signOut();
-      Alert.alert("Could not sign in", "Please try again.");
+      if (isEmailNotConfirmedError(error)) {
+        router.replace({
+          pathname: "/check-email",
+          params: { flow: "unverified", email: email.trim() },
+        } as any);
+        return;
+      }
+
+      Alert.alert(
+        "Could not sign in",
+        getLoginErrorMessage(error, { recentlyRequestedPasswordReset }),
+      );
     } finally {
       setLoading(false);
     }

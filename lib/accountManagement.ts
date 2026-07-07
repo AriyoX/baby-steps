@@ -1,6 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { User } from "@supabase/supabase-js";
 import { clearAchievementCaches } from "@/components/games/achievements/achievementManager";
+import {
+  SIGNUP_EXISTING_ACCOUNT_DETECTED_MESSAGE,
+  getSignUpErrorMessage as getFriendlySignUpErrorMessage,
+  isExistingAccountSignUpError as isFriendlyExistingAccountSignUpError,
+} from "@/lib/authMessages";
 import { clearProgressRepositoryStorageForChild } from "@/lib/progressRepository";
 import { supabase } from "@/lib/supabase";
 import { clearRecentActivitiesCache } from "@/lib/utils";
@@ -115,7 +120,7 @@ const DELETION_REQUESTS_BLOCKING_NORMAL_ACCESS = [
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export const SIGNUP_EXISTING_ACCOUNT_DELETION_MESSAGE =
-  "An account with this email already exists or may be scheduled for deletion. Try signing in. If it was scheduled for deletion, signing in within 30 days lets you keep it.";
+  SIGNUP_EXISTING_ACCOUNT_DETECTED_MESSAGE;
 
 const REQUEST_ACCOUNT_DELETION_FAILED_MESSAGE =
   "We could not schedule account deletion. Please try again.";
@@ -640,20 +645,11 @@ export const reactivateAccount = async (
   return normalizeReactivateAccountRpcResult(data);
 };
 
-export const isExistingAccountSignUpError = (message: string): boolean => {
-  const normalized = message.toLowerCase();
-  return (
-    normalized.includes("already registered") ||
-    normalized.includes("already exists") ||
-    normalized.includes("user already") ||
-    normalized.includes("email already")
-  );
-};
+export const isExistingAccountSignUpError = (message: string): boolean =>
+  isFriendlyExistingAccountSignUpError(message);
 
 export const getSignUpErrorMessage = (message: string): string =>
-  isExistingAccountSignUpError(message)
-    ? SIGNUP_EXISTING_ACCOUNT_DELETION_MESSAGE
-    : message;
+  getFriendlySignUpErrorMessage(message);
 
 export const isChildDeleteConfirmationValid = (
   confirmationText: string,

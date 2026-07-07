@@ -34,11 +34,23 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 
 ## Auth
 
-- [ ] Signup works for a new account.
-- [ ] Login works for an existing account.
-- [ ] Invalid login shows an error.
-- [ ] Forgot password sends reset email.
-- [ ] Reset password deep link works on device.
+- [ ] New signup routes to the check-email screen.
+- [ ] New signup does not remain on the Create Parent Account form after Supabase accepts it.
+- [ ] Existing email signup gives helpful sign-in guidance where Supabase safely exposes it.
+- [ ] Login with an unconfirmed email routes to confirmation guidance instead of only showing an alert.
+- [ ] Resend confirmation email works from the confirmation guidance screen when an email is available.
+- [ ] Login with wrong password shows friendly copy and keeps Forgot password visible.
+- [ ] Login with a non-existent account shows friendly general copy and keeps Create Account visible.
+- [ ] Login after requesting a reset does not block the old password if it still works.
+- [ ] Login failure after returning from reset request mentions using the emailed reset link.
+- [ ] Forgot password routes to the safe check-email state.
+- [ ] Reset link opens the app and shows the reset-password screen.
+- [ ] Reset-password fields can show/hide password text.
+- [ ] Reset with the same old password shows friendly copy if Supabase returns that error.
+- [ ] Expired or invalid reset link shows request-new-link and back-to-sign-in actions.
+- [ ] Successful password reset routes clearly back to sign in.
+- [ ] Signup confirmation deep link still routes into the authenticated app.
+- [ ] Expired or invalid signup confirmation link shows signup/sign-in actions.
 - [ ] Logout returns user to unauthenticated flow.
 
 ## Child Profiles

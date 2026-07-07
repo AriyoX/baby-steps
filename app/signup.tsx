@@ -23,7 +23,9 @@ import {
 import {
   getSignUpErrorMessage,
   isExistingAccountSignUpError,
-} from "@/lib/accountManagement";
+  isSignUpExistingAccountResponse,
+  validateSignUpForm,
+} from "@/lib/authMessages";
 import { SIGNUP_EMAIL_REDIRECT_URL } from "@/lib/authRedirects";
 import { supabase } from "../lib/supabase";
 
@@ -88,23 +90,27 @@ export default function SignUp() {
   }, [bounceValue, floatValue, scaleValue]);
 
   async function signUpWithEmail() {
-    if (!email.trim() || !password || !confirmPassword) {
-      Alert.alert("Oops!", "Please fill in all fields.");
+    const validationMessage = validateSignUpForm(email, password, confirmPassword);
+    if (validationMessage) {
+      Alert.alert("Let's check that", validationMessage);
       return;
     }
 
-    if (password !== confirmPassword) {
-      Alert.alert("Oops!", "Passwords don't match. Please try again.");
-      return;
-    }
+    const trimmedEmail = email.trim();
+    const goToCheckEmail = (flow: "signup" | "signup-existing") => {
+      router.replace({
+        pathname: "/check-email",
+        params: { flow, email: trimmedEmail },
+      } as any);
+    };
 
     try {
       setLoading(true);
       const {
-        data: { session },
+        data,
         error,
       } = await supabase.auth.signUp({
-        email: email.trim(),
+        email: trimmedEmail,
         password,
         options: {
           emailRedirectTo: SIGNUP_EMAIL_REDIRECT_URL,
@@ -112,30 +118,31 @@ export default function SignUp() {
       });
 
       if (error) {
-        Alert.alert(
-          isExistingAccountSignUpError(error.message) ? "Account already exists" : "Oops!",
-          getSignUpErrorMessage(error.message),
-        );
+        if (isExistingAccountSignUpError(error)) {
+          goToCheckEmail("signup-existing");
+          return;
+        }
+
+        Alert.alert("Could not create account", getSignUpErrorMessage(error));
         return;
       }
 
-      if (session?.user.identities?.length === 0) {
-        Alert.alert("Account already exists", getSignUpErrorMessage("User already registered"));
+      if (isSignUpExistingAccountResponse(data)) {
+        goToCheckEmail("signup-existing");
         return;
       }
 
-      if (!session) {
-        Alert.alert(
-          "Almost there!",
-          "Please check your email to verify your account. After that, sign in to create a child profile.",
-        );
-        return;
+      if (data.session) {
+        const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
+        if (signOutError) {
+          console.warn("Could not clear signup session after account creation.");
+        }
       }
 
-      router.replace("/parent/add-child/gender");
+      goToCheckEmail("signup");
     } catch (error) {
-      console.error("Could not create account:", error);
-      Alert.alert("Could not create account", "Please try again.");
+      console.error("Could not create account.");
+      Alert.alert("Could not create account", getSignUpErrorMessage(error));
     } finally {
       setLoading(false);
     }

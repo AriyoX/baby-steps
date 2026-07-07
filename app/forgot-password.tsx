@@ -20,13 +20,16 @@ import {
   keyboardAwareScrollContentStyle,
   readableTextInputStyle,
 } from "@/constants/formStyles";
+import {
+  getForgotPasswordErrorMessage,
+  validateEmailAddress,
+} from "@/lib/authMessages";
 import { PASSWORD_RESET_REDIRECT_URL } from "@/lib/authRedirects";
 import { supabase } from "../lib/supabase";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [resetSent, setResetSent] = useState(false);
   const router = useRouter();
 
   const bounceValue = useRef(new Animated.Value(0)).current;
@@ -100,22 +103,32 @@ export default function ForgotPassword() {
   }, [bounceValue, floatValue, scaleValue, spinValue]);
 
   async function resetPassword() {
-    if (!email) {
-      Alert.alert("Oops!", "Please enter your email address.");
+    const validationMessage = validateEmailAddress(email);
+    if (validationMessage) {
+      Alert.alert("Let's check that", validationMessage);
       return;
     }
 
-    setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: PASSWORD_RESET_REDIRECT_URL,
-    });
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: PASSWORD_RESET_REDIRECT_URL,
+      });
 
-    if (error) {
-      Alert.alert("Could not send reset link", "Please check the email address and try again.");
-    } else {
-      setResetSent(true);
+      if (error) {
+        Alert.alert("Could not send reset link", getForgotPasswordErrorMessage(error));
+        return;
+      }
+
+      router.replace({
+        pathname: "/check-email",
+        params: { flow: "reset" },
+      } as any);
+    } catch (error) {
+      Alert.alert("Could not send reset link", getForgotPasswordErrorMessage(error));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   const scrollToInput = (y: number) => {
@@ -189,13 +202,9 @@ export default function ForgotPassword() {
               className="w-32 h-32 bg-white rounded-full items-center justify-center shadow-lg border-4 border-accent-200"
               style={{ transform: [{ translateY }, { scale: scaleValue }] }}
             >
-              {!resetSent ? (
-                <Animated.View style={{ transform: [{ rotate: spin }] }}>
-                  <FontAwesome name="key" size={60} color={brandColors.equatorialGold} />
-                </Animated.View>
-              ) : (
-                <FontAwesome name="check-circle" size={64} color={brandColors.success} />
-              )}
+              <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                <FontAwesome name="key" size={60} color={brandColors.equatorialGold} />
+              </Animated.View>
             </Animated.View>
           </View>
 
@@ -203,77 +212,54 @@ export default function ForgotPassword() {
             className="mx-6 bg-white p-6 rounded-3xl shadow-md border-2 border-accent-100"
             style={{ transform: [{ scale: scaleValue }], opacity: scaleValue }}
           >
-            {!resetSent ? (
-              <>
-                <View className="mb-8">
-                  <Text className="text-accent-800 mb-3 text-lg">Your Email</Text>
-                  <View className="flex-row items-center bg-accent-50 rounded-2xl px-5 py-4 border-2 border-accent-100">
-                    <View className="bg-accent-200 w-10 h-10 rounded-full items-center justify-center">
-                      <FontAwesome name="envelope" size={20} color={brandColors.equatorialGold} />
-                    </View>
-                    <TextInput
-                      className="flex-1 ml-4 text-lg text-neutral-800"
-                      placeholder="parent@email.com"
-                      value={email}
-                      onChangeText={setEmail}
-                      autoCapitalize="none"
-                      autoComplete="email"
-                      autoCorrect={false}
-                      keyboardType="email-address"
-                      onFocus={() => scrollToInput(220)}
-                      placeholderTextColor={brandColors.neutral[400]}
-                      returnKeyType="done"
-                      style={readableTextInputStyle}
-                      textContentType="emailAddress"
-                    />
-                  </View>
+            <View className="mb-8">
+              <Text className="text-accent-800 mb-3 text-lg">Your Email</Text>
+              <View className="flex-row items-center bg-accent-50 rounded-2xl px-5 py-4 border-2 border-accent-100">
+                <View className="bg-accent-200 w-10 h-10 rounded-full items-center justify-center">
+                  <FontAwesome name="envelope" size={20} color={brandColors.equatorialGold} />
                 </View>
-
-                <TouchableOpacity
-                  className={`bg-accent-500 py-4 rounded-xl items-center shadow-md ${loading ? "opacity-70" : ""}`}
-                  onPress={resetPassword}
-                  disabled={loading}
-                  activeOpacity={0.84}
-                >
-                  <Text variant="bold" className="text-neutral-800 text-xl">
-                    {loading ? "Sending..." : "Send Reset Link"}
-                  </Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <View className="items-center py-4">
-                <View className="bg-success-100 p-4 rounded-2xl mb-4 w-full">
-                  <Text className="text-success-700 text-center text-base">
-                    Reset link sent! Check your email inbox or spam for instructions.
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  className="bg-primary-500 py-4 rounded-xl items-center shadow-md w-full"
-                  onPress={() => router.replace("/login")}
-                  activeOpacity={0.84}
-                >
-                  <Text variant="bold" className="text-white text-xl">
-                    Back to Login
-                  </Text>
-                </TouchableOpacity>
+                <TextInput
+                  className="flex-1 ml-4 text-lg text-neutral-800"
+                  placeholder="parent@email.com"
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  onFocus={() => scrollToInput(220)}
+                  placeholderTextColor={brandColors.neutral[400]}
+                  returnKeyType="done"
+                  style={readableTextInputStyle}
+                  textContentType="emailAddress"
+                />
               </View>
-            )}
+            </View>
 
-            {!resetSent && (
-              <View className="mt-8 items-center">
-                <TouchableOpacity className="flex-row items-center" onPress={() => router.replace("/login")}>
-                  <FontAwesome
-                    name="arrow-left"
-                    size={16}
-                    color={brandColors.victoriaBlue}
-                    style={{ marginRight: 6 }}
-                  />
-                  <Text variant="bold" className="text-primary-600 text-base">
-                    Back to Login
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
+            <TouchableOpacity
+              className={`bg-accent-500 py-4 rounded-xl items-center shadow-md ${loading ? "opacity-70" : ""}`}
+              onPress={resetPassword}
+              disabled={loading}
+              activeOpacity={0.84}
+            >
+              <Text variant="bold" className="text-neutral-800 text-xl">
+                {loading ? "Sending..." : "Send Reset Link"}
+              </Text>
+            </TouchableOpacity>
+
+            <View className="mt-8 items-center">
+              <TouchableOpacity className="flex-row items-center" onPress={() => router.replace("/login")}>
+                <FontAwesome
+                  name="arrow-left"
+                  size={16}
+                  color={brandColors.victoriaBlue}
+                  style={{ marginRight: 6 }}
+                />
+                <Text variant="bold" className="text-primary-600 text-base">
+                  Back to Login
+                </Text>
+              </TouchableOpacity>
+            </View>
           </Animated.View>
         </ScrollView>
       </SafeAreaView>

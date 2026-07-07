@@ -33,6 +33,10 @@ import {
   hasAuthRedirectPayload,
   isPasswordResetRedirectUrl,
 } from "@/lib/authRedirects";
+import {
+  getPasswordUpdateErrorMessage,
+  validateResetPasswordForm,
+} from "@/lib/authMessages";
 import { supabase } from "../lib/supabase";
 
 type RecoveryLinkStatus = "checking" | "ready" | "error";
@@ -43,9 +47,11 @@ export default function ResetPassword() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [passwordSent, setPasswordSent] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [linkStatus, setLinkStatus] = useState<RecoveryLinkStatus>("checking");
   const [linkErrorMessage, setLinkErrorMessage] = useState(
-    getFriendlyAuthRedirectErrorMessage(),
+    getFriendlyAuthRedirectErrorMessage("recovery"),
   );
 
   const bounceValue = useRef(new Animated.Value(0)).current;
@@ -136,7 +142,7 @@ export default function ResetPassword() {
           setLinkStatus("ready");
         } catch {
           clearLatestAuthRedirectUrl(recoveryUrl);
-          setLinkErrorMessage(getFriendlyAuthRedirectErrorMessage());
+          setLinkErrorMessage(getFriendlyAuthRedirectErrorMessage("recovery"));
           setLinkStatus("error");
         }
 
@@ -145,7 +151,7 @@ export default function ResetPassword() {
 
       const { data, error } = await supabase.auth.getSession();
       if (error || !data.session) {
-        setLinkErrorMessage(getFriendlyAuthRedirectErrorMessage());
+        setLinkErrorMessage(getFriendlyAuthRedirectErrorMessage("recovery"));
         setLinkStatus("error");
         return;
       }
@@ -192,18 +198,9 @@ export default function ResetPassword() {
   const handleResetPassword = async () => {
     if (linkStatus !== "ready") return;
 
-    if (!password || !confirmPassword) {
-      Alert.alert("Error", "Please fill in all fields");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
-      return;
-    }
-
-    if (password.length < 6) {
-      Alert.alert("Error", "Password must be at least 6 characters");
+    const validationMessage = validateResetPasswordForm(password, confirmPassword);
+    if (validationMessage) {
+      Alert.alert("Let's check that", validationMessage);
       return;
     }
 
@@ -222,11 +219,13 @@ export default function ResetPassword() {
         console.warn("Could not clear password recovery session.");
       }
 
+      setPassword("");
+      setConfirmPassword("");
       setPasswordSent(true);
-    } catch {
+    } catch (error) {
       Alert.alert(
         "Could not reset password",
-        "Please request a new link and try again.",
+        getPasswordUpdateErrorMessage(error),
       );
     } finally {
       setLoading(false);
@@ -368,12 +367,24 @@ export default function ResetPassword() {
                       autoComplete="new-password"
                       autoCorrect={false}
                       onFocus={() => scrollToInput(220)}
-                      secureTextEntry
+                      secureTextEntry={!showPassword}
                       placeholderTextColor={brandColors.neutral[400]}
                       returnKeyType="next"
                       style={readableTextInputStyle}
                       textContentType="newPassword"
                     />
+                    <TouchableOpacity
+                      onPress={() => setShowPassword(!showPassword)}
+                      className="px-2"
+                      accessibilityRole="button"
+                      accessibilityLabel={showPassword ? "Hide new password" : "Show new password"}
+                    >
+                      <FontAwesome
+                        name={showPassword ? "eye-slash" : "eye"}
+                        size={20}
+                        color={brandColors.shanaOrange}
+                      />
+                    </TouchableOpacity>
                   </View>
                 </View>
 
@@ -388,7 +399,7 @@ export default function ResetPassword() {
                       placeholder="Confirm new password"
                       value={confirmPassword}
                       onChangeText={setConfirmPassword}
-                      secureTextEntry
+                      secureTextEntry={!showConfirmPassword}
                       autoCapitalize="none"
                       autoComplete="new-password"
                       autoCorrect={false}
@@ -398,6 +409,22 @@ export default function ResetPassword() {
                       style={readableTextInputStyle}
                       textContentType="newPassword"
                     />
+                    <TouchableOpacity
+                      onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="px-2"
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        showConfirmPassword
+                          ? "Hide password confirmation"
+                          : "Show password confirmation"
+                      }
+                    >
+                      <FontAwesome
+                        name={showConfirmPassword ? "eye-slash" : "eye"}
+                        size={20}
+                        color={brandColors.shanaOrange}
+                      />
+                    </TouchableOpacity>
                   </View>
                 </View>
 
@@ -416,7 +443,7 @@ export default function ResetPassword() {
               <View className="items-center py-4">
                 <View className="bg-success-100 p-4 rounded-2xl mb-4 w-full">
                   <Text className="text-success-700 text-center text-base">
-                    Your new password has been set.
+                    Your password has been updated. Please sign in.
                   </Text>
                 </View>
                 <TouchableOpacity

@@ -339,10 +339,10 @@ describe("account management deletion helpers", () => {
 
   it("shows friendly signup copy when Supabase blocks an existing account", () => {
     expect(getSignUpErrorMessage("User already registered")).toBe(
-      "An account with this email already exists or may be scheduled for deletion. Try signing in. If it was scheduled for deletion, signing in within 30 days lets you keep it.",
+      "An account with this email already exists. Please sign in instead.",
     );
     expect(getSignUpErrorMessage("Password should be at least 6 characters")).toBe(
-      "Password should be at least 6 characters",
+      "Please choose a password with at least 6 characters.",
     );
   });
 });

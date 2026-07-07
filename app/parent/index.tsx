@@ -254,7 +254,7 @@ const ParentDashboard = () => {
                           <Text variant="bold" className="text-gray-800 text-center mb-1">
                             {child.name}
                           </Text>
-                          <Text className="text-gray-500 text-xs text-center">{child.age}</Text>
+                          <Text className="text-gray-500 text-xs text-center">{child.age} years old</Text>
 
                           {/* Progress bar */}
                           <View className="mt-3 bg-accent-100 h-2 rounded-full overflow-hidden">

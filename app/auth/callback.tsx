@@ -14,8 +14,10 @@ import {
 } from "@/lib/authRedirectEvents";
 import {
   getFriendlyAuthRedirectErrorMessage,
+  getAuthRedirectFlowFromUrl,
   getPostAuthRedirectRoute,
   handleSupabaseAuthRedirectUrl,
+  type AuthRedirectFlow,
   isAuthRedirectUrl,
 } from "@/lib/authRedirects";
 
@@ -24,6 +26,7 @@ type CallbackState = "checking" | "error";
 export default function AuthCallback() {
   const router = useRouter();
   const [state, setState] = useState<CallbackState>("checking");
+  const [errorFlow, setErrorFlow] = useState<AuthRedirectFlow | null>(null);
   const processedUrlRef = useRef<string | null>(null);
 
   const processAuthUrl = useCallback(
@@ -32,6 +35,7 @@ export default function AuthCallback() {
 
       processedUrlRef.current = url;
       setState("checking");
+      setErrorFlow(getAuthRedirectFlowFromUrl(url));
 
       try {
         const result = await handleSupabaseAuthRedirectUrl(url);
@@ -40,6 +44,7 @@ export default function AuthCallback() {
         router.replace(route as any);
       } catch {
         clearLatestAuthRedirectUrl(url);
+        setErrorFlow(getAuthRedirectFlowFromUrl(url));
         setState("error");
       }
     },
@@ -62,6 +67,7 @@ export default function AuthCallback() {
       if (initialUrl && isAuthRedirectUrl(initialUrl)) {
         await processAuthUrl(initialUrl);
       } else {
+        setErrorFlow(null);
         setState("error");
       }
     };
@@ -86,6 +92,18 @@ export default function AuthCallback() {
     router.replace("/login");
   };
 
+  const goToSignup = () => {
+    router.replace("/signup");
+  };
+
+  const errorMessage = getFriendlyAuthRedirectErrorMessage(errorFlow);
+  const errorTitle =
+    errorFlow === "recovery"
+      ? "Reset link expired"
+      : errorFlow === "signup"
+        ? "Confirmation link expired"
+        : "Link expired";
+
   return (
     <SafeAreaView className="flex-1 bg-primary-50">
       <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
@@ -103,27 +121,37 @@ export default function AuthCallback() {
             </View>
 
             <Text variant="bold" className="text-center text-2xl text-primary-700">
-              {state === "checking" ? "Opening Baby Steps..." : "Link expired"}
+              {state === "checking" ? "Opening Baby Steps..." : errorTitle}
             </Text>
 
             <Text className="mt-3 text-center text-base leading-6 text-neutral-600">
-              {state === "checking"
-                ? "Checking your link..."
-                : getFriendlyAuthRedirectErrorMessage()}
+              {state === "checking" ? "Checking your link..." : errorMessage}
             </Text>
           </View>
 
           {state === "error" ? (
             <View className="mt-7">
-              <TouchableOpacity
-                className="mb-3 rounded-xl bg-secondary-500 py-4 shadow-md"
-                onPress={goToForgotPassword}
-                activeOpacity={0.84}
-              >
-                <Text variant="bold" className="text-center text-lg text-white">
-                  Request a new link
-                </Text>
-              </TouchableOpacity>
+              {errorFlow === "signup" ? (
+                <TouchableOpacity
+                  className="mb-3 rounded-xl bg-secondary-500 py-4 shadow-md"
+                  onPress={goToSignup}
+                  activeOpacity={0.84}
+                >
+                  <Text variant="bold" className="text-center text-lg text-white">
+                    Create account
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  className="mb-3 rounded-xl bg-secondary-500 py-4 shadow-md"
+                  onPress={goToForgotPassword}
+                  activeOpacity={0.84}
+                >
+                  <Text variant="bold" className="text-center text-lg text-white">
+                    Request a new link
+                  </Text>
+                </TouchableOpacity>
+              )}
 
               <TouchableOpacity
                 className="rounded-xl bg-primary-500 py-4 shadow-md"

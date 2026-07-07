@@ -253,6 +253,7 @@ export default function RootLayout() {
             <Stack.Screen name="index" options={{ gestureEnabled: false, orientation: ADULT_ROUTE_ORIENTATION }} />
             <Stack.Screen name="login" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
             <Stack.Screen name="signup" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+            <Stack.Screen name="check-email" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
             <Stack.Screen name="forgot-password" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
             <Stack.Screen name="auth/callback" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
             <Stack.Screen name="reset-password" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />

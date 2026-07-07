@@ -13,19 +13,26 @@ Authentication lets parents create accounts, sign in, sign out, and request pass
 1. After onboarding, unauthenticated users go to `/login`.
 2. Parents can sign in with email/password.
 3. Parents can navigate to `/signup` to create an account.
-4. Parents can request a reset link from `/forgot-password`.
-5. Reset links target the app scheme route `babysteps://reset-password`.
-6. Signed-in parents reach `/parent`.
-7. Parents sign out from `/parent/settings`.
+4. Accepted signup attempts route to `/check-email` so parents know to confirm their Baby Steps account; if Supabase returns a session during signup, the app clears the local session and still shows the confirmation step.
+5. Parents can request a reset link from `/forgot-password`.
+6. Reset links target the app scheme route `babysteps://auth/callback`; legacy `babysteps://reset-password` links remain supported.
+7. Recovery callbacks route to `/reset-password`.
+8. Login attempts for unconfirmed accounts route to the same `/check-email` guidance with a resend action when the email is available.
+9. Signed-in parents reach `/parent`.
+10. Parents sign out from `/parent/settings`.
 
 ## Main Files Involved
 
 - `app/login.tsx`
 - `app/signup.tsx`
+- `app/check-email.tsx`
 - `app/forgot-password.tsx`
 - `app/reset-password.tsx`
+- `app/auth/callback.tsx`
 - `app/parent/settings.tsx`
 - `app/_layout.tsx`
+- `lib/authMessages.ts`
+- `lib/authRedirects.ts`
 - `lib/supabase.ts`
 - `app.json`
 
@@ -33,6 +40,7 @@ Authentication lets parents create accounts, sign in, sign out, and request pass
 
 - `supabase.auth.signInWithPassword` in `app/login.tsx`
 - `supabase.auth.signUp` in `app/signup.tsx`
+- `supabase.auth.resend` in `app/check-email.tsx`
 - `supabase.auth.resetPasswordForEmail` in `app/forgot-password.tsx`
 - `supabase.auth.updateUser` in `app/reset-password.tsx`
 - `supabase.auth.signOut` in `app/parent/settings.tsx`
@@ -47,7 +55,10 @@ The auth screens use local component state for form fields and Supabase Auth for
 - Supabase session state is loaded in `app/_layout.tsx`.
 - Supabase auth persistence uses AsyncStorage on device.
 - During static rendering, `lib/supabase.ts` uses an in-memory storage fallback so web export can complete.
-- The reset-password screen parses deep links with `expo-linking`, but its `checkUserSession` helper is currently defined and not called.
+- Auth errors are mapped through `lib/authMessages.ts` before being shown to parents.
+- Unconfirmed-email login errors reuse the check-email screen instead of a transient alert.
+- Password reset and signup confirmation links are parsed in `lib/authRedirects.ts`.
+- The reset-password screen can process legacy reset-password links and validate an existing recovery session.
 
 ## API Or Database Usage
 
@@ -58,13 +69,15 @@ The auth screens use local component state for form fields and Supabase Auth for
 
 ## Tests
 
-No tests currently cover authentication or password reset flows.
+- `lib/__tests__/authMessages.test.ts` covers friendly auth error mapping, resend-confirmation copy, and validation helpers.
+- `app/__tests__/authScreens.test.tsx` covers accepted signup routing, session-returning signup routing, unconfirmed-login guidance, forgot-password check-email routing, and reset-password visibility toggles.
+- `lib/__tests__/accountManagement.test.ts` covers the compatibility signup error helper exported from account management.
 
 ## Known Limitations Or Bugs
 
 - Reset-password deep-link handling needs device testing.
 - Auth route guards are prototype-level and concentrated in `app/_layout.tsx`.
-- There is no automated coverage for signup confirmation, expired reset links, sign out, or missing environment variables.
+- There is no automated device-level coverage for real Supabase email delivery, signup confirmation clicks, sign out, or missing environment variables.
 
 ## Future MVP Improvements
 
@@ -77,6 +90,9 @@ No tests currently cover authentication or password reset flows.
 
 - [ ] Open app with no Supabase env vars and confirm failure mode is understandable.
 - [ ] Sign up with a new email.
+- [ ] Confirm signup always leaves the form and shows the check-email screen.
+- [ ] Try sign-in before email confirmation and confirm the app shows confirmation guidance.
+- [ ] Resend confirmation email from check-email when an email is available.
 - [ ] Confirm expected email-verification behavior for the Supabase project.
 - [ ] Sign in with valid credentials.
 - [ ] Try invalid credentials and confirm the app shows an error.

@@ -4,6 +4,9 @@ import {
   getAccountDeletionState,
   getPostLoginRouteForAccountState,
 } from "@/lib/accountManagement";
+import {
+  getFriendlyAuthRedirectErrorMessage as getFriendlyAuthRedirectErrorMessageForFlow,
+} from "@/lib/authMessages";
 import { supabase } from "@/lib/supabase";
 
 export const APP_DEEP_LINK_SCHEME = "babysteps";
@@ -14,9 +17,6 @@ export const AUTH_CALLBACK_REDIRECT_URL = `${APP_DEEP_LINK_SCHEME}://${AUTH_CALL
 export const SIGNUP_EMAIL_REDIRECT_URL = AUTH_CALLBACK_REDIRECT_URL;
 export const PASSWORD_RESET_REDIRECT_URL = AUTH_CALLBACK_REDIRECT_URL;
 export const LEGACY_PASSWORD_RESET_REDIRECT_URL = `${APP_DEEP_LINK_SCHEME}://${RESET_PASSWORD_PATH}`;
-
-const INVALID_AUTH_LINK_MESSAGE =
-  "This link has expired or is no longer valid. Please request a new one.";
 
 export type AuthRedirectFlow = "signup" | "recovery" | "magiclink" | "email_change";
 
@@ -32,8 +32,8 @@ export interface AuthRedirectResult {
 }
 
 export class AuthRedirectError extends Error {
-  constructor() {
-    super(INVALID_AUTH_LINK_MESSAGE);
+  constructor(flow?: AuthRedirectFlow | null) {
+    super(getFriendlyAuthRedirectErrorMessageForFlow(flow));
     this.name = "AuthRedirectError";
   }
 }
@@ -62,9 +62,6 @@ export const isAuthRedirectUrl = (url: string): boolean => {
   const path = getDeepLinkPath(url);
   return path === AUTH_CALLBACK_PATH || path === RESET_PASSWORD_PATH;
 };
-
-export const isPasswordResetRedirectUrl = (url: string): boolean =>
-  getDeepLinkPath(url) === RESET_PASSWORD_PATH;
 
 const appendSearchParams = (
   output: URLSearchParams,
@@ -107,9 +104,6 @@ export const hasAuthRedirectPayload = (url: string): boolean => {
   );
 };
 
-export const getFriendlyAuthRedirectErrorMessage = (): string =>
-  INVALID_AUTH_LINK_MESSAGE;
-
 const normalizeAuthRedirectFlow = (
   value: string | null | undefined,
 ): AuthRedirectFlow | null => {
@@ -137,6 +131,21 @@ const normalizeAuthRedirectFlow = (
 const getRedirectFlowFromParams = (params: URLSearchParams): AuthRedirectFlow | null =>
   normalizeAuthRedirectFlow(params.get("type") ?? params.get("flow"));
 
+export const getAuthRedirectFlowFromUrl = (url: string): AuthRedirectFlow | null =>
+  getRedirectFlowFromParams(getAuthRedirectParams(url));
+
+export const isPasswordResetRedirectUrl = (url: string): boolean => {
+  const path = getDeepLinkPath(url);
+  if (path === RESET_PASSWORD_PATH) return true;
+  if (path !== AUTH_CALLBACK_PATH) return false;
+
+  return getAuthRedirectFlowFromUrl(url) === "recovery";
+};
+
+export const getFriendlyAuthRedirectErrorMessage = (
+  flow?: AuthRedirectFlow | null,
+): string => getFriendlyAuthRedirectErrorMessageForFlow(flow);
+
 export const handleSupabaseAuthRedirectUrl = async (
   url: string,
 ): Promise<AuthRedirectResult> => {
@@ -148,13 +157,13 @@ export const handleSupabaseAuthRedirectUrl = async (
     params.get("error_code") ||
     params.get("error_description")
   ) {
-    throw new AuthRedirectError();
+    throw new AuthRedirectError(flowFromParams);
   }
 
   const code = params.get("code");
   if (code) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-    if (error || !data.session) throw new AuthRedirectError();
+    if (error || !data.session) throw new AuthRedirectError(flowFromParams);
 
     const redirectType = (data as typeof data & { redirectType?: string | null })
       .redirectType;
@@ -174,7 +183,7 @@ export const handleSupabaseAuthRedirectUrl = async (
       refresh_token: refreshToken,
     });
 
-    if (error || !data.session) throw new AuthRedirectError();
+    if (error || !data.session) throw new AuthRedirectError(flowFromParams);
 
     return {
       flow: flowFromParams,
@@ -183,7 +192,7 @@ export const handleSupabaseAuthRedirectUrl = async (
   }
 
   const { data, error } = await supabase.auth.getSession();
-  if (error || !data.session) throw new AuthRedirectError();
+  if (error || !data.session) throw new AuthRedirectError(flowFromParams);
 
   return {
     flow: flowFromParams,

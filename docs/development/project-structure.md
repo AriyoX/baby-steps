@@ -13,7 +13,7 @@ Baby Steps uses Expo Router, so most user-facing screens are file routes under `
 | `app/index.tsx` | First-run app onboarding. |
 | `app/login.tsx`, `app/signup.tsx`, `app/forgot-password.tsx`, `app/reset-password.tsx` | Auth routes. |
 | `app/parent/` | Parent dashboard, settings, activities, child detail, achievements, add-child flow. |
-| `app/child/` | Child mode layout, tabs, parent gate, games, stories, museum, coloring. |
+| `app/child/` | Child mode layout, tabs, parent gate, games, stories, learning, archived museum, coloring. |
 | `components/` | Shared UI, game components, story components, achievement logic. |
 | `components/games/` | Large prototype game components. |
 | `components/games/utils/` | Game-specific progress/audio managers. |
@@ -35,7 +35,7 @@ Baby Steps uses Expo Router, so most user-facing screens are file routes under `
 - The Stories tab route file is uppercase: `app/child/(tabs)/Stories.tsx`.
 - Game routes are under `app/child/games/`.
 - Story routes are under `app/child/stories/`.
-- Museum routes are under `app/child/games/museum/`.
+- Museum routes are archived under `app/child/games/museum/` and hidden from the current child tab bar.
 - Coloring routes are under `app/child/games/coloring/`.
 
 ## Naming Conventions

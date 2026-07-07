@@ -18,7 +18,7 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Parent dashboard routes to child list.
 - [ ] Parent dashboard routes to child detail.
 - [ ] Child detail launches child mode.
-- [ ] Child mode tabs render Games, Coloring, Stories, and Museum.
+- [ ] Child mode tabs render Games, Coloring, Stories, and Learning.
 - [ ] Parent gate returns to parent dashboard with correct PIN.
 - [ ] Android hardware back behavior is acceptable in child mode.
 - [ ] Settings future links are removed or handled before release.
@@ -97,6 +97,7 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 
 ## Museum
 
+- [ ] Museum is hidden from the child tab bar while archived.
 - [ ] Artifacts screen opens and each item modal renders.
 - [ ] Art screen opens, modal renders, and video links are valid or flagged.
 - [ ] Instruments screen opens, details render, and sounds play/stop.

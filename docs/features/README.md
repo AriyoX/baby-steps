@@ -13,7 +13,7 @@ These docs describe the current Baby Steps feature set as implemented in the cod
 | Luganda lessons | Implemented prototype | [luganda-lessons.md](luganda-lessons.md) |
 | Stories | Implemented prototype | [stories.md](stories.md) |
 | Coloring | Implemented prototype | [coloring.md](coloring.md) |
-| Museum | Implemented prototype | [museum.md](museum.md) |
+| Museum | Archived/hidden prototype | [museum.md](museum.md) |
 | Progress and achievements | Partially implemented | [progress-achievements.md](progress-achievements.md) |
 | Audio and language | Partially implemented | [audio-language.md](audio-language.md) |
 | Database-driven content | Planned | [database-content.md](database-content.md) |

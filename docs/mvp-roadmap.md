@@ -7,7 +7,7 @@ Baby Steps has a broad prototype foundation:
 - Supabase auth.
 - Parent dashboard and settings.
 - Add-child flow and child profiles.
-- Child mode with games, stories, coloring, and museum tabs.
+- Child mode with games, stories, coloring, and learning tabs; Museum is archived/hidden.
 - Several playable games.
 - Eight story screens with quizzes.
 - Local game progress.

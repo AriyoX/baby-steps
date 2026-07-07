@@ -361,6 +361,10 @@ export const getFormattedActivities = async (activities: Activity[]) => {
         icon = 'university';
         color = brandColors.shanaOrange;
         break;
+      case 'language':
+        icon = 'graduation-cap';
+        color = brandColors.victoriaBlue;
+        break;
       case 'other':
         icon = 'award';
         color = brandColors.equatorialGold;

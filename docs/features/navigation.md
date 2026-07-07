@@ -6,7 +6,7 @@ Implemented prototype.
 
 ## Purpose
 
-Child mode gives the active child a landscape learning area with tabs for games, coloring, stories, and museum content. It also includes a parent gate for returning to the parent dashboard.
+Child mode gives the active child a landscape learning area with tabs for games, coloring, stories, and learning content. It also includes a parent gate for returning to the parent dashboard.
 
 ## User Flow
 
@@ -18,8 +18,8 @@ Child mode gives the active child a landscape learning area with tabs for games,
    - `/child/(tabs)/index` for games
    - `/child/(tabs)/coloring`
    - `/child/(tabs)/Stories`
-   - `/child/(tabs)/museum`
-6. Each tab renders `AfricanThemeGameInterface` with different cards.
+   - `/child/(tabs)/learning`
+6. Games, coloring, and stories render `AfricanThemeGameInterface` with different cards. Learning renders a dedicated hub with placeholder stages for the upcoming learning path.
 7. The parent gate shows a random 3-digit PIN and returns to `/parent` after correct entry.
 
 ## Main Files Involved
@@ -29,7 +29,7 @@ Child mode gives the active child a landscape learning area with tabs for games,
 - `app/child/(tabs)/index.tsx`
 - `app/child/(tabs)/coloring.tsx`
 - `app/child/(tabs)/Stories.tsx`
-- `app/child/(tabs)/museum.tsx`
+- `app/child/(tabs)/learning.tsx`
 - `app/child/parent-gate.tsx`
 - `components/child/AfricanThemeGameInterface.tsx`
 - `context/ChildContext.tsx`
@@ -44,7 +44,7 @@ Child mode gives the active child a landscape learning area with tabs for games,
 
 ## Data And Content Used
 
-Navigation cards are hardcoded in `components/child/AfricanThemeGameInterface.tsx`. They include card title, image, description, and target route.
+Navigation cards are loaded through the content repository where available, with local fallback content for MVP readiness. The Learning hub currently shows planned stage placeholders instead of routing children into the older standalone games. It still reads content metadata for preview imagery and future planning, and keeps review practice locked until progress-based recommendations are implemented.
 
 ## State Management And Logic Notes
 
@@ -66,6 +66,7 @@ No tests currently cover child mode navigation, route guards, orientation, or pa
 
 - `activeChild` is in memory only.
 - The tab route is named `Stories` with uppercase `S`, which should be preserved when linking.
+- The legacy Museum tab route is intentionally hidden from child tab navigation during the Learning replacement. Museum routes, assets, and `react-native-webview` usage remain archived in place because the feature may return after redesign.
 - The default fallback card list still points to placeholder `tester` targets, though the normal `index` tab path maps to the real games card list.
 - Orientation behavior needs device testing.
 
@@ -81,8 +82,9 @@ No tests currently cover child mode navigation, route guards, orientation, or pa
 - [ ] Launch child mode from a real child detail screen.
 - [ ] Confirm child name and age appear.
 - [ ] Confirm device rotates/locks to landscape.
-- [ ] Visit Games, Coloring, Stories, and Museum tabs.
-- [ ] Tap every visible card and confirm it routes to an existing screen.
+- [ ] Visit Games, Coloring, Stories, and Learning tabs.
+- [ ] Tap Games, Coloring, and Stories cards and confirm they route to existing screens.
+- [ ] Tap every Learning stage and confirm it opens the friendly placeholder notice instead of an older game.
 - [ ] Press Android hardware back and confirm parent gate opens.
 - [ ] Enter wrong PIN and confirm it does not return to parent dashboard.
 - [ ] Enter displayed PIN and confirm return to `/parent`.

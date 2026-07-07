@@ -1,5 +1,6 @@
 import { Tabs } from "expo-router"
 import { Image, View } from "react-native"
+import { Ionicons } from "@expo/vector-icons"
 import { TranslatedText } from "@/components/translated-text"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { LanguageProvider } from "@/context/language-context"
@@ -7,8 +8,10 @@ import { brandColors } from "@/constants/Brand"
 
 type NavItem = {
   id: string
-  icon: any
   label: string
+  icon?: any
+  iconName?: keyof typeof Ionicons.glyphMap
+  activeIconName?: keyof typeof Ionicons.glyphMap
 }
 
 // Your navigation items
@@ -29,9 +32,10 @@ const navigationItems: NavItem[] = [
     label: "Stories",
   },
   {
-    id: "museum",
-    icon: require("@/assets/icons/museum.png"),
-    label: "Museum",
+    id: "learning",
+    label: "Learning",
+    iconName: "school-outline",
+    activeIconName: "school",
   },
 ]
 
@@ -87,26 +91,46 @@ export default function TabLayout() {
                   {item.label}
                 </TranslatedText>
               ),
-              tabBarIcon: ({ color, size, focused }) => (
-                <View className="items-center justify-center">
-                  <View className="relative">
-                    {focused && <View className="bg-accent-500" style={{ width: size + 10 }} />}
-                    <Image
-                      source={item.icon}
-                      style={{
-                        width: size,
-                        height: size,
-                        tintColor: color,
-                        resizeMode: "contain",
-                        transform: [{ scale: focused ? 1.1 : 0.9 }],
-                      }}
-                    />
+              tabBarIcon: ({ color, size, focused }) => {
+                const iconName = focused ? item.activeIconName ?? item.iconName : item.iconName
+
+                return (
+                  <View className="items-center justify-center">
+                    {iconName ? (
+                      <Ionicons
+                        name={iconName}
+                        size={focused ? size + 2 : size}
+                        color={color}
+                        style={{ transform: [{ scale: focused ? 1.08 : 0.92 }] }}
+                      />
+                    ) : (
+                      <View className="relative">
+                        {focused && <View className="bg-accent-500" style={{ width: size + 10 }} />}
+                        <Image
+                          source={item.icon}
+                          style={{
+                            width: size,
+                            height: size,
+                            tintColor: color,
+                            resizeMode: "contain",
+                            transform: [{ scale: focused ? 1.1 : 0.9 }],
+                          }}
+                        />
+                      </View>
+                    )}
                   </View>
-                </View>
-              ),
+                )
+              },
             }}
           />
         ))}
+        {/* Museum is intentionally archived and hidden while the Learning hub replaces it in child tabs. */}
+        <Tabs.Screen
+          name="museum"
+          options={{
+            href: null,
+          }}
+        />
       </Tabs>
     </LanguageProvider>
   )

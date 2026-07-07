@@ -2,19 +2,20 @@
 
 ## Current Status
 
-Implemented prototype.
+Archived/hidden prototype.
 
 ## Purpose
 
-Museum screens present Buganda cultural artifacts, artwork, instruments, and textiles through hardcoded galleries, modals, images, sounds, and videos.
+Museum screens present Buganda cultural artifacts, artwork, instruments, and textiles through hardcoded galleries, modals, images, sounds, and videos. The child tab is currently hidden while Learning replaces it in primary navigation, but the route files remain archived for a future redesign.
 
 ## User Flow
 
-1. Child opens the Museum tab.
-2. Child selects one of four museum cards.
-3. The selected category screen opens.
-4. Child taps gallery items to view details.
-5. Some categories play local sounds or open YouTube/WebView video content.
+1. Museum is not shown in the current child tab bar.
+2. A developer can still open the legacy Museum route directly for redesign or regression work.
+3. Child selects one of four museum cards.
+4. The selected category screen opens.
+5. Child taps gallery items to view details.
+6. Some categories play local sounds or open YouTube/WebView video content.
 
 ## Main Files Involved
 
@@ -64,12 +65,14 @@ No tests currently cover museum category navigation, modals, sounds, videos, or 
 ## Known Limitations Or Bugs
 
 - All museum content is hardcoded in screen files.
+- Museum is intentionally hidden from child navigation until it is redesigned.
 - Some art video URLs are placeholders such as `exampleVideo2` and `exampleVideo5`.
 - Museum interactions do not appear in parent activity history.
 - Audio behavior depends on `expo-av`, which should be replaced later.
 
 ## Future MVP Improvements
 
+- Decide how Museum should return to child navigation after redesign.
 - Move museum content into typed content files or database-backed content.
 - Replace placeholder video URLs.
 - Decide whether museum interactions should write activities.

@@ -24,16 +24,29 @@ export type LearningAudioResolution = {
   isPlaceholder: boolean
 }
 
-// TODO: Replace placeholder learning cues with reviewed native-speaker recorded audio before production.
-export const LEARNING_PLACEHOLDER_SOUND: AVPlaybackSource = require("@/assets/sounds/touch-1.mp3")
+type LearningAudioAssetEntry = {
+  source: AVPlaybackSource
+  isPlaceholder?: boolean
+}
 
-const LEARNING_WORD_AUDIO_SOURCES = {
-  amazzi: require("@/assets/audio/Amazzi.mp3"),
-  bulungi: require("@/assets/audio/bulungi.m4a"),
-  "oli-otya": require("@/assets/audio/oli-otya.m4a"),
-  omwana: require("@/assets/audio/omwana.m4a"),
-  webale: require("@/assets/audio/webale.m4a"),
-} satisfies Record<string, AVPlaybackSource>
+// TODO: Replace placeholder learning cues with reviewed native-speaker recorded audio before production.
+export const LEARNING_PLACEHOLDER_SOUND: AVPlaybackSource = require("@/assets/audio/Bulungi.mp3")
+
+export const LEARNING_AUDIO_ASSETS = {
+  placeholder_learning_cue: {
+    source: LEARNING_PLACEHOLDER_SOUND,
+    isPlaceholder: true,
+  },
+  amazzi: { source: require("@/assets/audio/Amazzi.mp3") },
+  bulungi: { source: require("@/assets/audio/Bulungi.mp3") },
+  "oli-otya": { source: require("@/assets/audio/oli-otya.m4a") },
+  omwana: { source: require("@/assets/audio/omwana.m4a") },
+  webale: { source: require("@/assets/audio/webale.m4a") },
+  // Future reviewed recording:
+  // "luganda.first_words.greetings.gyebale_ko": {
+  //   source: require("@/assets/audio/learning/luganda/first_words/greetings/gyebale-ko.mp3"),
+  // },
+} satisfies Record<string, LearningAudioAssetEntry>
 
 const normalizeAudioAssetKey = (audioAsset: unknown): string | null => {
   if (typeof audioAsset !== "string") {
@@ -51,46 +64,83 @@ const normalizeAudioAssetKey = (audioAsset: unknown): string | null => {
     .toLowerCase()
 }
 
-const buildLearningAudioAssetMap = (): Record<string, AVPlaybackSource> => {
-  const entries: Array<[string, AVPlaybackSource]> = []
+const buildLearningAudioAssetMap = (): Record<string, LearningAudioAssetEntry> => {
+  const entries: Array<[string, LearningAudioAssetEntry]> = []
 
-  for (const [key, source] of Object.entries(LEARNING_WORD_AUDIO_SOURCES)) {
-    entries.push([key, source])
-    entries.push([`audio/${key}.mp3`, source])
-    entries.push([`audio/${key}.m4a`, source])
-    entries.push([`assets/audio/${key}.mp3`, source])
-    entries.push([`assets/audio/${key}.m4a`, source])
+  const addEntry = (
+    key: string,
+    entry: LearningAudioAssetEntry,
+  ) => {
+    entries.push([key, entry])
   }
 
-  entries.push(["amazzi.mp3", LEARNING_WORD_AUDIO_SOURCES.amazzi])
-  entries.push(["assets/audio/amazzi.mp3", LEARNING_WORD_AUDIO_SOURCES.amazzi])
-  entries.push(["bulungi.m4a", LEARNING_WORD_AUDIO_SOURCES.bulungi])
-  entries.push(["assets/audio/bulungi.m4a", LEARNING_WORD_AUDIO_SOURCES.bulungi])
-  entries.push(["oli-otya.m4a", LEARNING_WORD_AUDIO_SOURCES["oli-otya"]])
-  entries.push(["assets/audio/oli-otya.m4a", LEARNING_WORD_AUDIO_SOURCES["oli-otya"]])
-  entries.push(["omwana.m4a", LEARNING_WORD_AUDIO_SOURCES.omwana])
-  entries.push(["assets/audio/omwana.m4a", LEARNING_WORD_AUDIO_SOURCES.omwana])
-  entries.push(["webale.m4a", LEARNING_WORD_AUDIO_SOURCES.webale])
-  entries.push(["assets/audio/webale.m4a", LEARNING_WORD_AUDIO_SOURCES.webale])
+  const manifestEntries = Object.entries(LEARNING_AUDIO_ASSETS) as Array<
+    [string, LearningAudioAssetEntry]
+  >
+
+  for (const [key, entry] of manifestEntries) {
+    addEntry(key, entry)
+
+    if (!entry.isPlaceholder) {
+      addEntry(`audio/${key}.mp3`, entry)
+      addEntry(`audio/${key}.m4a`, entry)
+      addEntry(`assets/audio/${key}.mp3`, entry)
+      addEntry(`assets/audio/${key}.m4a`, entry)
+    }
+  }
+
+  addEntry("amazzi.mp3", LEARNING_AUDIO_ASSETS.amazzi)
+  addEntry("assets/audio/amazzi.mp3", LEARNING_AUDIO_ASSETS.amazzi)
+  addEntry("bulungi.mp3", LEARNING_AUDIO_ASSETS.bulungi)
+  addEntry("assets/audio/bulungi.mp3", LEARNING_AUDIO_ASSETS.bulungi)
+  addEntry("bulungi.m4a", LEARNING_AUDIO_ASSETS.bulungi)
+  addEntry("assets/audio/bulungi.m4a", LEARNING_AUDIO_ASSETS.bulungi)
+  addEntry("oli-otya.m4a", LEARNING_AUDIO_ASSETS["oli-otya"])
+  addEntry("assets/audio/oli-otya.m4a", LEARNING_AUDIO_ASSETS["oli-otya"])
+  addEntry("omwana.m4a", LEARNING_AUDIO_ASSETS.omwana)
+  addEntry("assets/audio/omwana.m4a", LEARNING_AUDIO_ASSETS.omwana)
+  addEntry("webale.m4a", LEARNING_AUDIO_ASSETS.webale)
+  addEntry("assets/audio/webale.m4a", LEARNING_AUDIO_ASSETS.webale)
 
   return Object.fromEntries(entries)
 }
 
-const LEARNING_AUDIO_ASSETS = buildLearningAudioAssetMap()
+const LEARNING_AUDIO_ASSET_LOOKUP = buildLearningAudioAssetMap()
 
 export const isValidLearningAudioAsset = (audioAsset: unknown): boolean => {
   const normalizedAsset = normalizeAudioAssetKey(audioAsset)
-  return Boolean(normalizedAsset && LEARNING_AUDIO_ASSETS[normalizedAsset])
+  return Boolean(normalizedAsset && LEARNING_AUDIO_ASSET_LOOKUP[normalizedAsset])
 }
 
 export const resolveLearningAudioSource = (
   audioAsset: unknown,
+  audioKey?: unknown,
 ): LearningAudioResolution => {
   const normalizedAsset = normalizeAudioAssetKey(audioAsset)
-  const source = normalizedAsset ? LEARNING_AUDIO_ASSETS[normalizedAsset] : undefined
+  const normalizedAudioKey = normalizeAudioAssetKey(audioKey)
+  const assetEntry = normalizedAsset ? LEARNING_AUDIO_ASSET_LOOKUP[normalizedAsset] : undefined
+  const audioKeyEntry = normalizedAudioKey ? LEARNING_AUDIO_ASSET_LOOKUP[normalizedAudioKey] : undefined
 
-  if (source) {
-    return { source, isPlaceholder: false }
+  if (assetEntry && !assetEntry.isPlaceholder) {
+    return { source: assetEntry.source, isPlaceholder: false }
+  }
+
+  if (audioKeyEntry && !audioKeyEntry.isPlaceholder) {
+    return { source: audioKeyEntry.source, isPlaceholder: false }
+  }
+
+  if (assetEntry) {
+    return {
+      source: assetEntry.source,
+      isPlaceholder: Boolean(assetEntry.isPlaceholder),
+    }
+  }
+
+  if (audioKeyEntry) {
+    return {
+      source: audioKeyEntry.source,
+      isPlaceholder: Boolean(audioKeyEntry.isPlaceholder),
+    }
   }
 
   return { source: LEARNING_PLACEHOLDER_SOUND, isPlaceholder: true }

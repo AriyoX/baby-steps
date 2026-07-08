@@ -175,6 +175,10 @@ describe("ListenAndChooseCard", () => {
     expect(json).toContain("Tap the word you hear");
     expect(json).toContain("Webale");
     expect(json).toContain("Amazzi");
+    expect(mockResolveLearningAudioSource).toHaveBeenCalledWith(
+      "placeholder_learning_cue",
+      "luganda.first_words.greetings.webale",
+    );
   });
 
   it("replays audio safely when the listen button is pressed", async () => {
@@ -201,6 +205,31 @@ describe("ListenAndChooseCard", () => {
 
     expect(onComplete).not.toHaveBeenCalled();
     expect(JSON.stringify(tree.toJSON())).toContain("Try again");
+  });
+
+  it("still renders choices and can complete when audio cannot be loaded", async () => {
+    mockCreateAppSound.mockResolvedValue(null);
+    const onComplete = jest.fn();
+    const tree = await renderCard(onComplete);
+
+    expect(JSON.stringify(tree.toJSON())).toContain("Webale");
+
+    await act(async () => {
+      findButtonByAccessibilityLabel(tree.root, "Choose Webale").props.onPress();
+    });
+    await flushEffects();
+
+    await act(async () => {
+      findButtonByText(tree.root, "Next").props.onPress();
+    });
+
+    expect(onComplete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        itemId: "listen-webale",
+        mechanic: "listen_and_choose",
+        correct: true,
+      }),
+    );
   });
 
   it("enables completion after the correct option is selected", async () => {

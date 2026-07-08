@@ -43,12 +43,16 @@ export function TapToLearnCard({
   const englishText = item.englishText;
 
   const currentAudioResolution = useMemo(
-    () => resolveLearningAudioSource(item.audioAsset ?? item.audioKey),
+    () => resolveLearningAudioSource(item.audioAsset, item.audioKey),
     [item.audioAsset, item.audioKey],
   );
   const visualSource = resolveImageSource(item.imageAsset ?? item.imageKey, stageImageKey);
   const fallbackVisualSource = resolveImageSource(stageImageKey);
-  const lessonImageSize = Math.min(172, Math.max(116, height * 0.36));
+  const isShortScreen = height < 430;
+  const lessonImageSize = Math.min(
+    isShortScreen ? 126 : 156,
+    Math.max(88, height * 0.3),
+  );
   const availableLessonCardWidth = Math.max(240, width - 48);
   const lessonCardWidth = Math.min(
     540,
@@ -198,11 +202,11 @@ export function TapToLearnCard({
   };
 
   return (
-    <View className="flex-1 justify-center">
+    <View className="flex-1 justify-center" style={{ paddingVertical: isShortScreen ? 2 : 8 }}>
       <View className="items-center">
         <TouchableOpacity
-          className="bg-white rounded-2xl border-2 border-accent-500 p-5 items-center"
-          style={{ width: lessonCardWidth }}
+          className="bg-white rounded-2xl border-2 border-accent-500 items-center"
+          style={{ width: lessonCardWidth, padding: isShortScreen ? 14 : 18 }}
           onPress={replayCurrentItemAudio}
           activeOpacity={0.82}
           accessibilityRole="button"
@@ -216,20 +220,31 @@ export function TapToLearnCard({
             accessibilityLabel={`${englishText} picture`}
           />
 
-          <View className="mt-4 items-center w-full">
+          <View className="items-center w-full" style={{ marginTop: isShortScreen ? 10 : 14 }}>
             <Text
               variant="bold"
-              className="text-primary-700 text-4xl text-center"
+              className="text-primary-700 text-center"
+              style={{
+                fontSize: isShortScreen ? 30 : 36,
+                lineHeight: isShortScreen ? 36 : 42,
+              }}
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.7}
             >
               {localText}
             </Text>
-            <View className="bg-neutral-100 rounded-2xl px-5 py-3 mt-4 min-w-[220px] items-center">
+            <View
+              className="bg-neutral-100 rounded-2xl px-5 min-w-[220px] items-center"
+              style={{
+                marginTop: isShortScreen ? 8 : 12,
+                paddingVertical: isShortScreen ? 8 : 10,
+              }}
+            >
               <Text
                 variant="bold"
-                className="text-success text-2xl text-center"
+                className="text-success text-center"
+                style={{ fontSize: isShortScreen ? 20 : 23 }}
                 numberOfLines={2}
                 adjustsFontSizeToFit
                 minimumFontScale={0.78}
@@ -241,7 +256,7 @@ export function TapToLearnCard({
         </TouchableOpacity>
       </View>
 
-      <View className="items-end pt-4">
+      <View className="items-end" style={{ paddingTop: isShortScreen ? 8 : 12 }}>
         <TouchableOpacity
           className="rounded-full px-5 py-3 flex-row items-center"
           style={{

@@ -64,11 +64,17 @@ export function ListenAndChooseCard({
   const canComplete = answerState === "correct";
   const promptText = item.promptText ?? item.prompt ?? "Tap the word you hear";
   const currentAudioResolution = useMemo(
-    () => resolveLearningAudioSource(item.audioAsset ?? item.audioKey),
+    () => resolveLearningAudioSource(item.audioAsset, item.audioKey),
     [item.audioAsset, item.audioKey],
   );
-  const cardWidth = Math.min(560, Math.max(300, width - 48));
-  const optionImageSize = Math.min(72, Math.max(52, height * 0.13));
+  const isShortScreen = height < 430;
+  const isWideLayout = width >= 680;
+  const cardWidth = Math.min(680, Math.max(300, width - 48));
+  const replayButtonSize = isShortScreen ? 72 : 84;
+  const optionImageSize = Math.min(
+    isShortScreen ? 52 : 64,
+    Math.max(44, height * 0.11),
+  );
 
   const releaseReplayLockSoon = useCallback(() => {
     if (audioReplayCooldownRef.current) {
@@ -232,189 +238,224 @@ export function ListenAndChooseCard({
   };
 
   return (
-    <View className="flex-1 justify-center">
+    <View className="flex-1 justify-center" style={{ paddingVertical: isShortScreen ? 2 : 8 }}>
       <View className="items-center">
         <View
-          className="bg-white rounded-2xl border-2 border-accent-500 p-5"
-          style={{ width: cardWidth }}
+          className="bg-white rounded-2xl border-2 border-accent-500"
+          style={{ width: cardWidth, padding: isShortScreen ? 14 : 18 }}
         >
-          <View className="items-center">
-            <Text
-              variant="bold"
-              className="text-primary-700 text-3xl text-center"
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.78}
-            >
-              Listen and choose
-            </Text>
-            <Text
-              variant="medium"
-              className="text-neutral-600 text-lg text-center mt-1"
-              numberOfLines={2}
-              adjustsFontSizeToFit
-              minimumFontScale={0.82}
-            >
-              {promptText}
-            </Text>
-
-            <TouchableOpacity
-              className="rounded-full mt-4 w-24 h-24 items-center justify-center border-4"
+          <View
+            style={{
+              flexDirection: isWideLayout ? "row" : "column",
+              alignItems: isWideLayout ? "stretch" : "center",
+            }}
+          >
+            <View
               style={{
-                backgroundColor: audioLoadFailed ? brandColors.neutral[100] : brandColors.gold[50],
-                borderColor: audioLoadFailed ? brandColors.neutral[300] : brandColors.equatorialGold,
+                width: isWideLayout ? "38%" : "100%",
+                paddingRight: isWideLayout ? 16 : 0,
+                alignItems: "center",
+                justifyContent: "center",
               }}
-              onPress={replayCurrentItemAudio}
-              activeOpacity={0.78}
-              accessibilityRole="button"
-              accessibilityLabel="Replay word"
             >
-              <Ionicons
-                name={audioLoadFailed ? "volume-mute" : "volume-high"}
-                size={42}
-                color={audioLoadFailed ? brandColors.neutral[600] : brandColors.victoriaBlue}
-              />
-            </TouchableOpacity>
+              <Text
+                variant="bold"
+                className="text-primary-700 text-center"
+                style={{
+                  fontSize: isShortScreen ? 22 : 26,
+                  lineHeight: isShortScreen ? 27 : 31,
+                }}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.78}
+              >
+                Listen and choose
+              </Text>
+              <Text
+                variant="medium"
+                className="text-neutral-600 text-center mt-1"
+                style={{ fontSize: isShortScreen ? 15 : 17 }}
+                numberOfLines={2}
+                adjustsFontSizeToFit
+                minimumFontScale={0.82}
+              >
+                {promptText}
+              </Text>
 
-            <Text
-              className="text-neutral-500 text-sm text-center mt-2"
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.85}
+              <TouchableOpacity
+                className="rounded-full items-center justify-center border-4"
+                style={{
+                  width: replayButtonSize,
+                  height: replayButtonSize,
+                  marginTop: isShortScreen ? 8 : 12,
+                  backgroundColor: audioLoadFailed ? brandColors.neutral[100] : brandColors.gold[50],
+                  borderColor: audioLoadFailed ? brandColors.neutral[300] : brandColors.equatorialGold,
+                }}
+                onPress={replayCurrentItemAudio}
+                activeOpacity={0.78}
+                accessibilityRole="button"
+                accessibilityLabel="Replay word"
+              >
+                <Ionicons
+                  name={audioLoadFailed ? "volume-mute" : "volume-high"}
+                  size={isShortScreen ? 34 : 38}
+                  color={audioLoadFailed ? brandColors.neutral[600] : brandColors.victoriaBlue}
+                />
+              </TouchableOpacity>
+
+              <Text
+                className="text-neutral-500 text-center mt-2"
+                style={{ fontSize: isShortScreen ? 12 : 13 }}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
+              >
+                {audioLoadFailed ? "Sound is quiet. You can still choose." : "Tap to listen again"}
+              </Text>
+            </View>
+
+            <View
+              style={{
+                flex: isWideLayout ? 1 : undefined,
+                width: isWideLayout ? undefined : "100%",
+                marginTop: isWideLayout ? 0 : isShortScreen ? 10 : 14,
+              }}
             >
-              {audioLoadFailed ? "Sound is quiet. You can still choose." : "Tap to listen again"}
-            </Text>
-          </View>
+              {options.map((option) => {
+                const selected = selectedOptionId === option.id;
+                const correctSelection = answerState === "correct" && selected;
+                const wrongSelection = answerState === "incorrect" && selected;
+                const optionTitle = getOptionTitle(option);
+                const optionSubtitle = getOptionSubtitle(option);
 
-          <View className="mt-5">
-            {options.map((option) => {
-              const selected = selectedOptionId === option.id;
-              const correctSelection = answerState === "correct" && selected;
-              const wrongSelection = answerState === "incorrect" && selected;
-              const optionTitle = getOptionTitle(option);
-              const optionSubtitle = getOptionSubtitle(option);
-
-              return (
-                <TouchableOpacity
-                  key={option.id}
-                  className="rounded-2xl border-2 px-4 py-3 mb-3 flex-row items-center"
-                  style={{
-                    backgroundColor: correctSelection
-                      ? "#DCFCE7"
-                      : wrongSelection
-                        ? brandColors.orange[50]
-                        : selected
-                          ? brandColors.gold[50]
-                          : brandColors.neutral[50],
-                    borderColor: correctSelection
-                      ? brandColors.success
-                      : wrongSelection
-                        ? brandColors.shanaOrange
-                        : selected
-                          ? brandColors.equatorialGold
-                          : brandColors.neutral[200],
-                    opacity: canAnswer ? 1 : 0.64,
-                  }}
-                  onPress={() => selectOption(option.id)}
-                  disabled={!canAnswer || answerState === "correct" || isCompleting}
-                  activeOpacity={0.76}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Choose ${optionTitle}`}
-                  accessibilityState={{
-                    disabled: !canAnswer || answerState === "correct" || isCompleting,
-                    selected,
-                  }}
-                >
-                  {hasOptionImage(option) ? (
-                    <CachedImage
-                      source={resolveImageSource(
-                        option.imageAsset ?? option.imageKey,
-                        stageImageKey,
-                      )}
-                      fallbackSource={resolveImageSource(stageImageKey)}
-                      style={{
-                        width: optionImageSize,
-                        height: optionImageSize,
-                        borderRadius: 14,
-                        marginRight: 12,
-                      }}
-                      resizeMode="cover"
-                      accessibilityLabel={`${optionTitle} choice`}
-                    />
-                  ) : (
-                    <View
-                      className="w-12 h-12 rounded-full items-center justify-center mr-3"
-                      style={{
-                        backgroundColor: selected
-                          ? brandColors.equatorialGold
-                          : brandColors.blue[50],
-                      }}
-                    >
-                      <Ionicons
-                        name={correctSelection ? "checkmark" : "text"}
-                        size={23}
-                        color={selected ? brandColors.white : brandColors.victoriaBlue}
+                return (
+                  <TouchableOpacity
+                    key={option.id}
+                    className="rounded-2xl border-2 px-3 mb-2 flex-row items-center"
+                    style={{
+                      paddingVertical: isShortScreen ? 7 : 9,
+                      backgroundColor: correctSelection
+                        ? "#DCFCE7"
+                        : wrongSelection
+                          ? brandColors.orange[50]
+                          : selected
+                            ? brandColors.gold[50]
+                            : brandColors.neutral[50],
+                      borderColor: correctSelection
+                        ? brandColors.success
+                        : wrongSelection
+                          ? brandColors.shanaOrange
+                          : selected
+                            ? brandColors.equatorialGold
+                            : brandColors.neutral[200],
+                      opacity: canAnswer ? 1 : 0.64,
+                    }}
+                    onPress={() => selectOption(option.id)}
+                    disabled={!canAnswer || answerState === "correct" || isCompleting}
+                    activeOpacity={0.76}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Choose ${optionTitle}`}
+                    accessibilityState={{
+                      disabled: !canAnswer || answerState === "correct" || isCompleting,
+                      selected,
+                    }}
+                  >
+                    {hasOptionImage(option) ? (
+                      <CachedImage
+                        source={resolveImageSource(
+                          option.imageAsset ?? option.imageKey,
+                          stageImageKey,
+                        )}
+                        fallbackSource={resolveImageSource(stageImageKey)}
+                        style={{
+                          width: optionImageSize,
+                          height: optionImageSize,
+                          borderRadius: 14,
+                          marginRight: 12,
+                        }}
+                        resizeMode="cover"
+                        accessibilityLabel={`${optionTitle} choice`}
                       />
-                    </View>
-                  )}
+                    ) : (
+                      <View
+                        className="rounded-full items-center justify-center mr-3"
+                        style={{
+                          width: isShortScreen ? 40 : 44,
+                          height: isShortScreen ? 40 : 44,
+                          backgroundColor: selected
+                            ? brandColors.equatorialGold
+                            : brandColors.blue[50],
+                        }}
+                      >
+                        <Ionicons
+                          name={correctSelection ? "checkmark" : "text"}
+                          size={isShortScreen ? 20 : 22}
+                          color={selected ? brandColors.white : brandColors.victoriaBlue}
+                        />
+                      </View>
+                    )}
 
-                  <View className="flex-1">
-                    <Text
-                      variant="bold"
-                      className="text-primary-700 text-xl"
-                      numberOfLines={1}
-                      adjustsFontSizeToFit
-                      minimumFontScale={0.78}
-                    >
-                      {optionTitle}
-                    </Text>
-                    {optionSubtitle ? (
+                    <View className="flex-1">
                       <Text
-                        className="text-neutral-600 text-sm mt-0.5"
+                        variant="bold"
+                        className="text-primary-700"
+                        style={{ fontSize: isShortScreen ? 17 : 19 }}
                         numberOfLines={1}
                         adjustsFontSizeToFit
-                        minimumFontScale={0.85}
+                        minimumFontScale={0.78}
                       >
-                        {optionSubtitle}
+                        {optionTitle}
                       </Text>
-                    ) : null}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+                      {optionSubtitle ? (
+                        <Text
+                          className="text-neutral-600 mt-0.5"
+                          style={{ fontSize: isShortScreen ? 12 : 13 }}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.85}
+                        >
+                          {optionSubtitle}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
 
-          <View className="min-h-[34px] items-center justify-center mt-1">
-            <Text
-              variant="bold"
-              className="text-lg text-center"
-              style={{
-                color:
-                  answerState === "correct"
-                    ? brandColors.success
-                    : answerState === "incorrect"
-                      ? brandColors.shanaOrange
-                      : brandColors.neutral[600],
-              }}
-              numberOfLines={2}
-              adjustsFontSizeToFit
-              minimumFontScale={0.78}
-            >
-              {!canAnswer
-                ? "This card needs choices."
-                : answerState === "correct"
-                  ? "Yes, that's it!"
-                  : answerState === "incorrect"
-                    ? "Try again. Listen one more time."
-                    : attempts > 0
-                      ? "Choose again"
-                      : "Pick the word you hear"}
-            </Text>
+              <View className="items-center justify-center" style={{ minHeight: isShortScreen ? 26 : 30 }}>
+                <Text
+                  variant="bold"
+                  className="text-center"
+                  style={{
+                    fontSize: isShortScreen ? 15 : 17,
+                    color:
+                      answerState === "correct"
+                        ? brandColors.success
+                        : answerState === "incorrect"
+                          ? brandColors.shanaOrange
+                          : brandColors.neutral[600],
+                  }}
+                  numberOfLines={2}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.78}
+                >
+                  {!canAnswer
+                    ? "This card needs choices."
+                    : answerState === "correct"
+                      ? "Yes, that's it!"
+                      : answerState === "incorrect"
+                        ? "Try again. Listen one more time."
+                        : attempts > 0
+                          ? "Choose again"
+                          : "Pick the word you hear"}
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
       </View>
 
-      <View className="items-end pt-4">
+      <View className="items-end" style={{ paddingTop: isShortScreen ? 8 : 12 }}>
         <TouchableOpacity
           className="rounded-full px-5 py-3 flex-row items-center"
           style={{

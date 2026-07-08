@@ -4,7 +4,6 @@ import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ImageBackground,
-  ScrollView,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -301,8 +300,8 @@ export default function LearningLessonSessionScreen() {
       <StatusBar style="light" translucent backgroundColor="transparent" />
       <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
         <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
-          <View className="flex-1 px-6 pt-6 pb-5">
-            <View className="flex-row items-center justify-between mb-4">
+          <View className="flex-1 px-6 pt-4 pb-4">
+            <View className="flex-row items-center justify-between mb-2">
               <TouchableOpacity
                 className="w-12 h-12 rounded-full bg-white items-center justify-center border-2 border-accent-500"
                 onPress={goBackToStagePath}
@@ -329,18 +328,14 @@ export default function LearningLessonSessionScreen() {
               </View>
             </View>
 
-            <View className="h-2 bg-white/30 rounded-full overflow-hidden mb-4">
+            <View className="h-2 bg-white/30 rounded-full overflow-hidden mb-2">
               <View
                 className="h-full bg-accent-500 rounded-full"
                 style={{ width: `${((currentIndex + 1) / items.length) * 100}%` }}
               />
             </View>
 
-            <ScrollView
-              className="flex-1"
-              contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}
-              showsVerticalScrollIndicator={false}
-            >
+            <View className="flex-1">
               <CurrentMechanicRenderer
                 key={currentItem.id}
                 item={currentItem}
@@ -348,7 +343,7 @@ export default function LearningLessonSessionScreen() {
                 stageImageKey={stage.imageKey}
                 onComplete={handleItemComplete}
               />
-            </ScrollView>
+            </View>
           </View>
         </SafeAreaView>
       </ImageBackground>

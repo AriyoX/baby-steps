@@ -47,6 +47,8 @@ Learning now uses two child-facing steps:
 
 Top-level cards no longer start the first lesson directly. Locked or planned work is represented in the stage/path overview through Locked or Coming soon lesson cards.
 
+The stage/path overview uses a horizontally scrollable lesson-card rail, following the stage-card rhythm used by the existing Counting and Luganda Learning games. Lesson cards show the stage/lesson number, lesson title, mechanic label, short description, item count, and Start / Coming soon / Locked state.
+
 ## Lesson Architecture
 
 Lessons are mechanic-driven. The lesson session route loads the selected stage and exact lesson by `stageId` and `lessonId`, reads that lesson's ordered items, and renders the current item through the mechanic registry:
@@ -63,6 +65,8 @@ The route keeps only generic session state:
 - navigation back to the stage/path overview
 
 Progress persistence is intentionally not implemented yet. Item results are kept in memory only for the current lesson session.
+
+Individual lesson mechanics should fit within one screen during normal child use. `tap_to_learn` and `listen_and_choose` should keep the primary content, replay/listen control, answer choices, feedback, and Next / Finish action visible without normal vertical scrolling. A future mechanic should follow the same layout rule and only use vertical scroll as a last-resort safety fallback for unusually small screens.
 
 ## Content Contract
 
@@ -116,6 +120,25 @@ The card shows one item at a time with:
 It resolves audio through the same local bundled/default audio path used by tap-to-learn. Current Listen Practice content uses placeholder/default bundled audio; real native-speaker recordings are required before production. It does not use device TTS and does not fetch internet audio.
 
 When the child eventually chooses correctly and advances, the renderer emits an in-memory `ItemResult` with `mechanic: "listen_and_choose"`, `correct: true`, and `attempts` equal to answer attempts. Audio replays are not counted as answer attempts.
+
+## Audio Readiness
+
+Learning audio is resolved through `lib/audioAssets.ts`.
+
+`audioKey` is the logical future DB/CDN content key, for example `luganda.first_words.greetings.gyebale_ko`. `audioAsset` is the current local bundled fallback key, for example `placeholder_learning_cue` or `webale`.
+
+Placeholder audio is only for MVP mechanic testing. The current placeholder cue resolves to an existing bundled spoken file so playback is audible offline, but it must not be treated as reviewed production pronunciation. Real native-speaker recordings are required before production.
+
+To add a local reviewed recording safely:
+
+- Add the audio file under `assets/audio` or a future structured `assets/audio/learning/...` path.
+- Add one entry to `LEARNING_AUDIO_ASSETS` in `lib/audioAssets.ts`, using the logical `audioKey` when available.
+- Keep `audioKey` in content as the stable logical reference and use `audioAsset` only for bundled fallback compatibility.
+- Run the audio resolver and mechanic tests before shipping.
+
+Audio key naming should use lowercase dot-separated content scope, such as `luganda.first_words.greetings.webale`, with underscores only inside a term when needed for readability.
+
+Before a recording is marked production-ready, review it for native-speaker pronunciation, child-safety/content suitability, volume normalization, short file duration, and offline playback.
 
 ## Planned Mechanics
 

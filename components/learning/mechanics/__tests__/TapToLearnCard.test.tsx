@@ -148,6 +148,7 @@ describe("TapToLearnCard", () => {
 
     expect(JSON.stringify(tree.toJSON())).toContain("Webale");
     expect(JSON.stringify(tree.toJSON())).toContain("Thank you");
+    expect(mockResolveLearningAudioSource).toHaveBeenCalledWith("webale", "webale");
   });
 
   it("calls onComplete once when Next is pressed", async () => {
@@ -168,6 +169,46 @@ describe("TapToLearnCard", () => {
       }),
     );
     expect(onComplete.mock.calls[0][0]).not.toHaveProperty("correct");
+  });
+
+  it("still renders and completes when audio cannot be loaded", () => {
+    mockCreateAppSound.mockReturnValue(new Promise(() => undefined));
+    mockResolveLearningAudioSource.mockReturnValue({
+      source: "placeholder-sound",
+      isPlaceholder: true,
+    });
+    const onComplete = jest.fn();
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    act(() => {
+      tree = renderer.create(
+        <TapToLearnCard
+          item={item}
+          isLastItem={false}
+          stageImageKey="learning-beginner.jpg"
+          onComplete={onComplete}
+        />,
+      );
+    });
+
+    if (!tree) {
+      throw new Error("TapToLearnCard did not mount");
+    }
+
+    const mountedTree = tree;
+
+    expect(JSON.stringify(mountedTree.toJSON())).toContain("Webale");
+
+    act(() => {
+      findButtonByText(mountedTree.root, "Next").props.onPress();
+    });
+
+    expect(onComplete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        itemId: "thank-you",
+        mechanic: "tap_to_learn",
+      }),
+    );
   });
 
   it("includes replay attempts when Finish is pressed", async () => {

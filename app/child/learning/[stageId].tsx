@@ -3,8 +3,8 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useMemo } from "react";
 import {
+  FlatList,
   ImageBackground,
-  ScrollView,
   TouchableOpacity,
   View,
   useWindowDimensions,
@@ -97,6 +97,8 @@ type LessonPathCardProps = {
   lesson: LearningHubLesson;
   itemCount: number;
   width: number;
+  height: number;
+  gap: number;
   onPress: (lesson: LearningHubLesson) => void;
 };
 
@@ -105,6 +107,8 @@ const LessonPathCard = ({
   lesson,
   itemCount,
   width,
+  height,
+  gap,
   onPress,
 }: LessonPathCardProps) => {
   const lessonStatus = getLessonStatus(lesson, stage);
@@ -113,10 +117,11 @@ const LessonPathCard = ({
 
   return (
     <TouchableOpacity
-      className="bg-white rounded-2xl border-2 mb-4 overflow-hidden shadow-sm"
+      className="bg-white rounded-2xl border-2 overflow-hidden shadow-sm"
       style={{
         width,
-        minHeight: 172,
+        height,
+        marginRight: gap,
         borderColor: status.disabled ? brandColors.neutral[200] : brandColors.equatorialGold,
         opacity: status.label === "Locked" ? 0.72 : 1,
       }}
@@ -141,7 +146,7 @@ const LessonPathCard = ({
               </View>
               <View className="flex-1">
                 <Text variant="bold" className="text-primary-700 text-xs uppercase" numberOfLines={1}>
-                  Stage {lesson.order}
+                  Stage {stage.stageNumber}.{lesson.order}
                 </Text>
                 <Text
                   variant="bold"
@@ -245,8 +250,11 @@ export default function LearningStagePathScreen() {
   );
 
   const landscapeWidth = Math.max(width, height);
+  const landscapeHeight = Math.min(width, height);
   const cardGap = 16;
-  const lessonCardWidth = Math.min(314, Math.max(248, (landscapeWidth - 80 - cardGap * 2) / 3));
+  const lessonCardWidth = Math.min(250, Math.max(220, landscapeWidth * 0.3));
+  const lessonCardHeight = Math.max(178, Math.min(214, landscapeHeight * 0.52));
+  const lessonListEndPadding = Math.max(16, landscapeWidth - lessonCardWidth - 48);
 
   const goBackToLearning = () => {
     if (router.canGoBack()) {
@@ -334,24 +342,33 @@ export default function LearningStagePathScreen() {
               </View>
             </View>
 
-            <ScrollView
+            <FlatList
               className="flex-1"
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 12 }}
-            >
-              <View className="flex-row flex-wrap justify-between">
-                {lessons.map((lesson) => (
+              data={lessons}
+              horizontal
+              keyExtractor={(lesson) => lesson.id}
+              showsHorizontalScrollIndicator={false}
+              snapToInterval={lessonCardWidth + cardGap}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              contentContainerStyle={{
+                alignItems: "center",
+                paddingTop: 6,
+                paddingBottom: 10,
+                paddingRight: lessonListEndPadding,
+              }}
+              renderItem={({ item: lesson }) => (
                   <LessonPathCard
-                    key={lesson.id}
                     stage={stage}
                     lesson={lesson}
                     itemCount={getLessonItemCount(languageCode, stage.id, lesson.id)}
                     width={lessonCardWidth}
+                    height={lessonCardHeight}
+                    gap={cardGap}
                     onPress={startLesson}
                   />
-                ))}
-              </View>
-            </ScrollView>
+              )}
+            />
           </View>
         </SafeAreaView>
       </ImageBackground>

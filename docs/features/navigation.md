@@ -44,7 +44,7 @@ Child mode gives the active child a landscape learning area with tabs for games,
 
 ## Data And Content Used
 
-Navigation cards are loaded through the content repository where available, with local fallback content for MVP readiness. The Learning hub currently shows planned stage placeholders instead of routing children into the older standalone games. It still reads content metadata for preview imagery and future planning, and keeps review practice locked until progress-based recommendations are implemented.
+Navigation cards are loaded through the content repository where available, with local fallback content for MVP readiness. The Learning hub uses `content/learningHubContent.json` through `content/learningHubRepository.ts` for its official MVP stage placeholders instead of routing children into older standalone games. Practice Mix remains locked until future lesson progress can unlock review practice.
 
 ## State Management And Logic Notes
 

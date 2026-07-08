@@ -92,6 +92,12 @@ export default function TabLayout() {
           }}
         />
         <Stack.Screen
+          name="learning"
+          options={{
+            orientation: CHILD_ROUTE_ORIENTATION,
+          }}
+        />
+        <Stack.Screen
           name="parent-gate"
           options={{
             headerShown: false,

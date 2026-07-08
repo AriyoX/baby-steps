@@ -11,6 +11,7 @@ For the practical process of adding DB-backed content or planning a new activity
 | Content type | Current location |
 | --- | --- |
 | Child menu cards | `content_items` through `content/contentRepository.ts`, with explicit Luganda legacy local fallback |
+| Learning hub stages and placeholder lessons | `content/learningHubContent.json` through `content/learningHubRepository.ts` |
 | Word game levels | `content_items` through `content/contentRepository.ts`, with same-language local samples |
 | Learning lesson stages/levels/words | `content_items` through `content/contentRepository.ts`, with same-language local samples |
 | Counting stages and labels | `content_items` through `content/contentRepository.ts`, with same-language local samples |
@@ -51,7 +52,9 @@ Game content is mixed:
 
 ## How Lessons Are Structured
 
-`content/games/lugandawords.ts` defines stages, levels, words, images, translations, lock state, and helper functions. `LearningGameComponent` consumes that content and manages the lesson/quiz flow.
+The Learning tab hub is separate from the older lesson game. Hub stage and placeholder lesson metadata lives in `content/learningHubContent.json`, and `content/learningHubRepository.ts` provides language fallback plus child-friendly mechanic labels.
+
+`content/games/lugandawords.ts` defines the older standalone Luganda learning game stages, levels, words, images, translations, lock state, and helper functions. `LearningGameComponent` consumes that content and manages the lesson/quiz flow.
 
 ## How To Add Or Update Content Safely
 

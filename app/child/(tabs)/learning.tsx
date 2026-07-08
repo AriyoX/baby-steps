@@ -1,7 +1,9 @@
+// TODO: Extract shared child tab shell/card rail from AfricanThemeGameInterface so Learning, Games, Stories, Coloring, and future Museum can share the same layout while still using different data/actions.
+
 import { Ionicons } from "@expo/vector-icons"
 import { StatusBar } from "expo-status-bar"
 import { useRouter } from "expo-router"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   Animated,
   Dimensions,
@@ -21,11 +23,12 @@ import { useAudio } from "@/context/AudioContext"
 import { useChild } from "@/context/ChildContext"
 import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages"
 import {
-  loadContentBundle,
-  resolveImageSource,
-  type ContentBundle,
-} from "@/content/contentRepository"
-import { preloadContentBundleImages } from "@/content/imagePreloader"
+  getLearningHubStages,
+  getMechanicLabel,
+  stageHasMechanicContent,
+  type LearningHubStage,
+} from "@/content/learningHubRepository"
+import { resolveImageSource } from "@/content/assets"
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation"
 import { audioManager } from "@/lib/audioManager"
 
@@ -34,12 +37,11 @@ type LearningHubCard = {
   stageLabel: string
   title: string
   description: string
-  detailTitle: string
-  detailMessage: string
   imageSource: ImageSourcePropType
   fallbackImage: ImageSourcePropType
   icon: keyof typeof Ionicons.glyphMap
   accentColor: string
+  stage: LearningHubStage
 }
 
 type LearningStageCardProps = {
@@ -50,77 +52,62 @@ type LearningStageCardProps = {
 
 const CHILD_TAB_BAR_CLEARANCE = 86
 
-const buildLearningStageCards = (bundle?: ContentBundle): LearningHubCard[] => {
-  const learningStages = bundle?.learningGame.stages ?? []
-  const storyImage = bundle?.stories[0]?.pages[0]?.image
-
-  return [
-    {
-      id: "first-words",
-      stageLabel: "Stage 1",
-      title: "First Words",
-      description: "Greetings, names, and kind everyday words.",
-      detailTitle: "First Words is being prepared",
-      detailMessage: "Picture words, listening practice, and a tiny quiz will open here soon.",
-      imageSource: learningStages[0]?.image
-        ? (learningStages[0].image as ImageSourcePropType)
-        : resolveImageSource("learning-beginner.jpg"),
-      fallbackImage: resolveImageSource("learning-beginner.jpg"),
-      icon: "chatbubble-ellipses-outline",
-      accentColor: brandColors.shanaOrange,
-    },
-    {
-      id: "family-home",
-      stageLabel: "Stage 2",
-      title: "Family & Home",
-      description: "People, rooms, and familiar places.",
-      detailTitle: "Family & Home is next",
-      detailMessage: "A guided path for family names, home objects, and simple sentences is coming next.",
-      imageSource: learningStages[1]?.image
-        ? (learningStages[1].image as ImageSourcePropType)
-        : resolveImageSource("african-focus.png"),
-      fallbackImage: resolveImageSource("african-focus.png"),
-      icon: "home-outline",
-      accentColor: brandColors.victoriaBlue,
-    },
-    {
-      id: "everyday-things",
-      stageLabel: "Stage 3",
-      title: "Everyday Things",
-      description: "Foods, numbers, colors, and nearby things.",
-      detailTitle: "Everyday Things is almost ready",
-      detailMessage: "Objects, numbers, and listening prompts are being prepared.",
-      imageSource: resolveImageSource("numbers.png"),
-      fallbackImage: resolveImageSource("numbers.png"),
-      icon: "shapes-outline",
-      accentColor: brandColors.equatorialGold,
-    },
-    {
-      id: "culture-stories",
-      stageLabel: "Stage 4",
-      title: "Culture & Stories",
-      description: "Short tales and cultural moments.",
-      detailTitle: "Culture & Stories is being shaped",
-      detailMessage: "Story lessons with focused words and questions are coming here.",
-      imageSource: resolveImageSource(storyImage ?? "culture.jpg"),
-      fallbackImage: resolveImageSource("culture.jpg"),
-      icon: "book-outline",
-      accentColor: brandColors.success,
-    },
-    {
-      id: "practice-mix",
-      stageLabel: "Practice",
-      title: "Practice Mix",
-      description: "Review words after a few lessons.",
-      detailTitle: "Practice will unlock later",
-      detailMessage: "Practice will unlock after you finish some lessons.",
-      imageSource: resolveImageSource("african-patterns.png"),
-      fallbackImage: resolveImageSource("learning-beginner.jpg"),
-      icon: "sparkles-outline",
-      accentColor: brandColors.neutral[600],
-    },
-  ]
+type StagePresentation = {
+  icon: keyof typeof Ionicons.glyphMap
+  accentColor: string
+  fallbackImageKey: string
 }
+
+const STAGE_PRESENTATION: Record<string, StagePresentation> = {
+  "first-words": {
+    icon: "chatbubble-ellipses-outline",
+    accentColor: brandColors.shanaOrange,
+    fallbackImageKey: "learning-beginner.jpg",
+  },
+  "family-home": {
+    icon: "home-outline",
+    accentColor: brandColors.victoriaBlue,
+    fallbackImageKey: "african-focus.png",
+  },
+  "everyday-things": {
+    icon: "shapes-outline",
+    accentColor: brandColors.equatorialGold,
+    fallbackImageKey: "numbers.png",
+  },
+  "culture-stories": {
+    icon: "book-outline",
+    accentColor: brandColors.success,
+    fallbackImageKey: "culture.jpg",
+  },
+  "practice-mix": {
+    icon: "sparkles-outline",
+    accentColor: brandColors.neutral[600],
+    fallbackImageKey: "learning-beginner.jpg",
+  },
+}
+
+const DEFAULT_STAGE_PRESENTATION: StagePresentation = {
+  icon: "school-outline",
+  accentColor: brandColors.victoriaBlue,
+  fallbackImageKey: "learning-beginner.jpg",
+}
+
+const buildLearningStageCards = (languageCode?: string | null): LearningHubCard[] =>
+  getLearningHubStages(languageCode).map((stage) => {
+    const presentation = STAGE_PRESENTATION[stage.id] ?? DEFAULT_STAGE_PRESENTATION
+
+    return {
+      id: stage.id,
+      stageLabel: stage.isPractice ? "Practice" : `Stage ${stage.stageNumber}`,
+      title: stage.title,
+      description: stage.description,
+      imageSource: resolveImageSource(stage.imageKey, presentation.fallbackImageKey),
+      fallbackImage: resolveImageSource(presentation.fallbackImageKey),
+      icon: presentation.icon,
+      accentColor: presentation.accentColor,
+      stage,
+    }
+  })
 
 const LearningStageCard = ({
   card,
@@ -162,10 +149,12 @@ export default function LearningHubScreen() {
     toggleBackgroundMusicMuted,
     toggleAppSoundsMuted,
   } = useAudio()
-  const [cards, setCards] = useState<LearningHubCard[]>(() => buildLearningStageCards())
-  const [loadError, setLoadError] = useState<string | null>(null)
   const [selectedCard, setSelectedCard] = useState<LearningHubCard | null>(null)
   const languageCode = activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE
+  const cards = useMemo(() => buildLearningStageCards(languageCode), [languageCode])
+  const selectedStageCanStart = selectedCard
+    ? stageHasMechanicContent(languageCode, selectedCard.id, "tap_to_learn")
+    : false
   const { height } = Dimensions.get("window")
   const cardHeight = Math.max(166, Math.min(210, height * 0.48))
   const pulseAnim = useRef(new Animated.Value(1)).current
@@ -217,29 +206,6 @@ export default function LearningHubScreen() {
     }
   }, [bounceAnim, pulseAnim])
 
-  const loadHubContent = useCallback(async () => {
-    setLoadError(null)
-
-    try {
-      const result = await loadContentBundle(languageCode)
-      const bundle = result.bundle
-
-      setCards(buildLearningStageCards(bundle))
-
-      if (bundle) {
-        void preloadContentBundleImages(bundle)
-      }
-    } catch (error) {
-      console.error("Error loading learning hub preview content:", error)
-      setCards(buildLearningStageCards())
-      setLoadError("Using the preview path while lessons load.")
-    }
-  }, [languageCode])
-
-  useEffect(() => {
-    void loadHubContent()
-  }, [loadHubContent])
-
   const handleParentalPress = () => {
     audioManager.speakAppText("For parents only", {
       language: "en",
@@ -255,6 +221,19 @@ export default function LearningHubScreen() {
 
   const closeStageNotice = () => {
     setSelectedCard(null)
+  }
+
+  const handleStartLesson = () => {
+    if (!selectedCard || !selectedStageCanStart) {
+      return
+    }
+
+    const stageId = selectedCard.id
+    setSelectedCard(null)
+    router.push({
+      pathname: "/child/learning/[stageId]",
+      params: { stageId },
+    } as any)
   }
 
   return (
@@ -368,19 +347,6 @@ export default function LearningHubScreen() {
                 ))}
               </ScrollView>
 
-              {loadError ? (
-                <TouchableOpacity
-                  className="absolute bottom-24 left-4 bg-white rounded-3xl px-4 py-2 flex-row items-center border-2 border-accent-500"
-                  onPress={loadHubContent}
-                  accessibilityRole="button"
-                  accessibilityLabel="Try loading learning content again"
-                >
-                  <Ionicons name="refresh" size={15} color={brandColors.shanaOrange} />
-                  <Text variant="bold" className="text-primary-700 text-xs ml-1">
-                    Try again
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
           </View>
           </View>
         </SafeAreaView>
@@ -421,22 +387,72 @@ export default function LearningHubScreen() {
                   </TouchableOpacity>
                 </View>
 
-                <Text variant="bold" className="text-primary-700 text-lg mb-2">
-                  {selectedCard.detailTitle}
+                <Text className="text-neutral-600 text-sm leading-5 mb-4">
+                  {selectedCard.description}
                 </Text>
+
+                <View className="mb-4">
+                  <Text variant="bold" className="text-primary-700 text-sm mb-2">
+                    Learning goals
+                  </Text>
+                  {selectedCard.stage.learningGoals.map((goal) => (
+                    <View key={goal} className="flex-row items-start mb-1.5">
+                      <Ionicons name="checkmark-circle" size={16} color={selectedCard.accentColor} />
+                      <Text className="text-neutral-700 text-xs leading-4 ml-2 flex-1">
+                        {goal}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+
+                <View className="mb-4">
+                  <Text variant="bold" className="text-primary-700 text-sm mb-2">
+                    Planned practice
+                  </Text>
+                  <View className="flex-row flex-wrap">
+                    {selectedCard.stage.mechanics.map((mechanic) => (
+                      <View
+                        key={mechanic}
+                        className="rounded-full bg-neutral-100 px-3 py-1.5 mr-2 mb-2"
+                      >
+                        <Text className="text-primary-700 text-xs" numberOfLines={1}>
+                          {getMechanicLabel(mechanic)}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+
                 <Text className="text-neutral-600 text-sm leading-5 mb-5">
-                  {selectedCard.detailMessage}
+                  {selectedCard.stage.placeholderMessage}
                 </Text>
 
                 <TouchableOpacity
                   className="rounded-full py-3 items-center"
-                  style={{ backgroundColor: selectedCard.accentColor }}
-                  onPress={closeStageNotice}
+                  style={{
+                    backgroundColor: !selectedStageCanStart
+                      ? brandColors.neutral[400]
+                      : selectedCard.accentColor,
+                    opacity: selectedStageCanStart ? 1 : 0.72,
+                  }}
+                  onPress={handleStartLesson}
+                  disabled={!selectedStageCanStart}
                   accessibilityRole="button"
-                  accessibilityLabel="Close"
+                  accessibilityLabel={
+                    selectedCard.stage.isLocked
+                      ? "Locked for now"
+                      : selectedStageCanStart
+                        ? `Start ${selectedCard.title}`
+                        : "Start soon"
+                  }
+                  accessibilityState={{ disabled: !selectedStageCanStart }}
                 >
                   <Text variant="bold" className="text-white text-base">
-                    Got it
+                    {selectedCard.stage.isLocked
+                      ? "Locked for now"
+                      : selectedStageCanStart
+                        ? `Start ${selectedCard.title}`
+                        : "Start soon"}
                   </Text>
                 </TouchableOpacity>
               </>

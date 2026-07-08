@@ -9,6 +9,7 @@ These docs describe the current Baby Steps feature set as implemented in the cod
 | Child profiles and add-child flow | Implemented prototype | [child-profiles.md](child-profiles.md) |
 | Parent dashboard and settings | Partially implemented | [parent-dashboard.md](parent-dashboard.md) |
 | Child mode and navigation | Implemented prototype | [navigation.md](navigation.md) |
+| Learning hub | MVP content-backed placeholder | [learning-hub.md](learning-hub.md) |
 | Games | Implemented prototype | [games.md](games.md) |
 | Luganda lessons | Implemented prototype | [luganda-lessons.md](luganda-lessons.md) |
 | Stories | Implemented prototype | [stories.md](stories.md) |

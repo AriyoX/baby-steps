@@ -27,7 +27,7 @@
             "Tap pictures to learn meaning",
             "Choose the correct word"
           ],
-          "placeholderMessage": "First Words has a tap-to-learn lesson ready. Listening practice and a tiny quiz will come later.",
+          "placeholderMessage": "First Words has tap-to-learn and listening practice ready. A tiny word quiz will come later.",
           "lessons": [
             {
               "id": "greetings-1",
@@ -94,19 +94,80 @@
             {
               "id": "listen-greetings-1",
               "title": "Listen Practice",
-              "description": "Listen for a word, then choose the matching picture.",
+              "description": "Listen for a word, then choose the matching word.",
               "mechanic": "listen_and_choose",
               "order": 2,
-              "isStartable": false,
-              "readiness": "placeholder",
+              "isStartable": true,
+              "readiness": "draft",
+              "metadata": {
+                "todo": "Replace placeholder/default audio with reviewed native-speaker recordings before production."
+              },
               "items": [
+                {
+                  "id": "listen-gyebale-ko",
+                  "mechanic": "listen_and_choose",
+                  "order": 1,
+                  "promptText": "Tap the word you hear",
+                  "audioKey": "luganda.first_words.greetings.gyebale_ko",
+                  "audioAsset": "placeholder_learning_cue",
+                  "correctOptionId": "gyebale-ko",
+                  "options": [
+                    {
+                      "id": "webale",
+                      "order": 2,
+                      "localText": "Webale",
+                      "englishText": "Thank you"
+                    },
+                    {
+                      "id": "gyebale-ko",
+                      "order": 1,
+                      "localText": "Gyebale ko",
+                      "englishText": "Hello / well done"
+                    },
+                    {
+                      "id": "amazzi",
+                      "order": 3,
+                      "localText": "Amazzi",
+                      "englishText": "Water"
+                    }
+                  ],
+                  "readiness": "placeholder",
+                  "metadata": {
+                    "todo": "Use a native-speaker recording before production."
+                  }
+                },
                 {
                   "id": "listen-webale",
                   "mechanic": "listen_and_choose",
-                  "order": 1,
-                  "word": "Webale",
-                  "translation": "Thank you",
-                  "imageKey": "learning-beginner.jpg"
+                  "order": 2,
+                  "promptText": "Tap the word you hear",
+                  "audioKey": "luganda.first_words.greetings.webale",
+                  "audioAsset": "placeholder_learning_cue",
+                  "correctOptionId": "webale",
+                  "options": [
+                    {
+                      "id": "gyebale-ko",
+                      "order": 1,
+                      "localText": "Gyebale ko",
+                      "englishText": "Hello / well done"
+                    },
+                    {
+                      "id": "webale",
+                      "order": 2,
+                      "localText": "Webale",
+                      "englishText": "Thank you"
+                    },
+                    {
+                      "id": "bulungi",
+                      "order": 3,
+                      "localText": "Bulungi",
+                      "englishText": "Good / fine"
+                    }
+                  ],
+                  "readiness": "placeholder",
+                  "metadata": {
+                    "todo": "Use a native-speaker recording before production."
+                  }
                 }
               ]
             },

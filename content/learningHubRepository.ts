@@ -41,6 +41,7 @@ type RawLearningHubLessonItem = Partial<
     | "phoneticText"
     | "exampleSentence"
     | "prompt"
+    | "promptText"
     | "type",
     unknown
   >
@@ -129,6 +130,11 @@ const MECHANIC_LABELS: Record<MechanicType, string> = {
   practice_mix: "Practice mix",
 };
 
+const IMPLEMENTED_MECHANICS = new Set<MechanicType>([
+  "tap_to_learn",
+  "listen_and_choose",
+]);
+
 const UNSTARTABLE_MECHANIC_FALLBACK: MechanicType = "practice_mix";
 
 const isMechanicType = (mechanic: unknown): mechanic is MechanicType =>
@@ -151,6 +157,14 @@ const asOptionalString = (value: unknown): string | undefined => {
 const asPositiveNumber = (value: unknown, fallback: number): number => {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return fallback;
+  }
+
+  return Math.max(1, value);
+};
+
+const asOptionalPositiveNumber = (value: unknown): number | undefined => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined;
   }
 
   return Math.max(1, value);
@@ -261,19 +275,51 @@ const asObjectArray = (value: unknown): Array<Record<string, unknown>> =>
 
 const normalizeListenAndChooseOptions = (
   value: unknown,
-): ListenAndChooseItem["options"] | undefined => {
-  const options = asObjectArray(value).map((option, index) => ({
-    id: asString(option.id, `option-${index + 1}`),
-    localText: asOptionalString(option.localText) ?? asOptionalString(option.word),
-    englishText:
-      asOptionalString(option.englishText) ?? asOptionalString(option.translation),
-    imageKey: asOptionalString(option.imageKey),
-    imageAsset: asOptionalString(option.imageAsset),
-    audioKey: asOptionalString(option.audioKey),
-    audioAsset: asOptionalString(option.audioAsset),
-  }));
+): ListenAndChooseItem["options"] => {
+  const seenOptionIds = new Set<string>();
+  const options = asObjectArray(value).reduce<
+    Array<ListenAndChooseItem["options"][number] & { sourceIndex: number }>
+  >((currentOptions, option, index) => {
+    const id = asOptionalString(option.id);
 
-  return options.length > 0 ? options : undefined;
+    if (!id || seenOptionIds.has(id)) {
+      return currentOptions;
+    }
+
+    const localText =
+      asOptionalString(option.localText) ?? asOptionalString(option.word);
+    const englishText =
+      asOptionalString(option.englishText) ?? asOptionalString(option.translation);
+    const imageKey = asOptionalString(option.imageKey);
+    const imageAsset = asOptionalString(option.imageAsset);
+
+    if (!localText && !englishText && !imageKey && !imageAsset) {
+      return currentOptions;
+    }
+
+    seenOptionIds.add(id);
+    currentOptions.push({
+      id,
+      order: asOptionalPositiveNumber(option.order),
+      localText,
+      englishText,
+      imageKey,
+      imageAsset,
+      sourceIndex: index,
+    });
+
+    return currentOptions;
+  }, []);
+
+  return options
+    .sort(
+      (a, b) =>
+        (a.order ?? Number.MAX_SAFE_INTEGER) -
+          (b.order ?? Number.MAX_SAFE_INTEGER) ||
+        a.sourceIndex - b.sourceIndex ||
+        a.id.localeCompare(b.id),
+    )
+    .map(({ sourceIndex, ...option }) => option);
 };
 
 const normalizeChooseCorrectWordOptions = (
@@ -347,16 +393,21 @@ const normalizeLessonItem = (
     word: localText === "Word" ? undefined : localText,
     translation: englishText === "Meaning" ? undefined : englishText,
   };
-  const prompt = asOptionalString(item.prompt) ?? asOptionalString(item.type);
+  const prompt =
+    asOptionalString(item.promptText) ??
+    asOptionalString(item.prompt) ??
+    asOptionalString(item.type);
 
   if (mechanic === "listen_and_choose") {
     return {
       ...base,
-      ...legacyText,
+      localText: legacyText.localText,
+      englishText: legacyText.englishText,
       mechanic,
       prompt,
+      promptText: prompt,
       options: normalizeListenAndChooseOptions(item.options),
-      correctOptionId: asOptionalString(item.correctOptionId),
+      correctOptionId: asOptionalString(item.correctOptionId) ?? "",
     } satisfies ListenAndChooseItem;
   }
 
@@ -389,6 +440,46 @@ const normalizeLessonItem = (
   } satisfies UnsupportedLessonItem;
 };
 
+const hasAnswerOptionContent = (
+  option: ListenAndChooseItem["options"][number],
+): boolean =>
+  Boolean(option.localText || option.englishText || option.imageKey || option.imageAsset);
+
+const isValidListenAndChooseItem = (
+  item: LearningLessonItem,
+): item is ListenAndChooseItem =>
+  item.mechanic === "listen_and_choose" &&
+  item.options.length >= 2 &&
+  item.options.length <= 4 &&
+  item.options.every(hasAnswerOptionContent) &&
+  Boolean(item.correctOptionId) &&
+  item.options.some((option) => option.id === item.correctOptionId);
+
+const isValidTapToLearnItem = (item: LearningLessonItem): item is TapToLearnItem =>
+  item.mechanic === "tap_to_learn" &&
+  Boolean(item.localText.trim()) &&
+  Boolean(item.englishText.trim());
+
+const isValidLessonItem = (item: LearningLessonItem): boolean => {
+  if (item.mechanic === "tap_to_learn") {
+    return isValidTapToLearnItem(item);
+  }
+
+  if (item.mechanic === "listen_and_choose") {
+    return isValidListenAndChooseItem(item);
+  }
+
+  return true;
+};
+
+const shouldKeepNormalizedLessonItem = (item: LearningLessonItem): boolean =>
+  !IMPLEMENTED_MECHANICS.has(item.mechanic) || isValidLessonItem(item);
+
+const hasValidLessonItems = (lesson: LearningHubLesson): boolean =>
+  lesson.items.some(
+    (item) => item.mechanic === lesson.mechanic && isValidLessonItem(item),
+  );
+
 const normalizeLesson = (
   lesson: RawLearningHubLesson,
   fallbackId: string,
@@ -397,15 +488,16 @@ const normalizeLesson = (
   const mechanic = normalizeMechanic(lesson.mechanic);
   const isLocked = asBoolean(lesson.isLocked, asBoolean(lesson.locked));
   const rawItems = Array.isArray(lesson.items) ? lesson.items : [];
-  const items = sortByOrder(
-    rawItems.map((item, index) =>
-      normalizeLessonItem(
-        item,
-        `${asString(lesson.id, fallbackId)}-item-${index + 1}`,
-        mechanic,
-        index + 1,
-      ),
+  const normalizedItems = rawItems.map((item, index) =>
+    normalizeLessonItem(
+      item,
+      `${asString(lesson.id, fallbackId)}-item-${index + 1}`,
+      mechanic,
+      index + 1,
     ),
+  );
+  const items = sortByOrder(
+    normalizedItems.filter(shouldKeepNormalizedLessonItem),
   );
   const isStartable =
     typeof lesson.isStartable === "boolean" ? lesson.isStartable : undefined;
@@ -520,6 +612,10 @@ export const getLessonStatus = (
 
   if (!isMechanicImplemented(lesson.mechanic) || lesson.isStartable === false) {
     return "coming_soon";
+  }
+
+  if (!hasValidLessonItems(lesson)) {
+    return "empty";
   }
 
   return "startable";
@@ -685,7 +781,7 @@ export const stageHasMechanicContent = (
 };
 
 export const isMechanicImplemented = (mechanic: MechanicType | string): boolean =>
-  mechanic === "tap_to_learn";
+  isMechanicType(mechanic) && IMPLEMENTED_MECHANICS.has(mechanic);
 
 export const getMechanicLabel = (mechanic: MechanicType | string): string =>
   MECHANIC_LABELS[mechanic as MechanicType] ?? toFallbackLabel(mechanic);

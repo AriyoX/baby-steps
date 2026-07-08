@@ -22,6 +22,7 @@ import {
   stageHasMechanicContent,
 } from "../learningHubRepository";
 import { DEFAULT_LEARNING_LANGUAGE_CODE } from "../languages";
+import type { ListenAndChooseItem } from "../learningHubTypes";
 
 const REQUIRED_STAGE_IDS = [
   "first-words",
@@ -121,6 +122,7 @@ describe("learning hub repository", () => {
         title: "Listen Practice",
         mechanic: "listen_and_choose",
         order: 2,
+        status: "startable",
       }),
     );
     expect(getLessonById("lg", "first-words", "missing-lesson")).toBeUndefined();
@@ -202,19 +204,97 @@ describe("learning hub repository", () => {
     );
   });
 
+  it("normalizes listen-and-choose items with stable ordered options", () => {
+    const items = getLessonItemsForLesson("lg", "first-words", "listen-greetings-1");
+    const listenItems = items.filter(
+      (item): item is ListenAndChooseItem => item.mechanic === "listen_and_choose",
+    );
+
+    expect(listenItems.map((item) => item.id)).toEqual([
+      "listen-gyebale-ko",
+      "listen-webale",
+    ]);
+    expect(listenItems[0]).toEqual(
+      expect.objectContaining({
+        id: "listen-gyebale-ko",
+        mechanic: "listen_and_choose",
+        promptText: "Tap the word you hear",
+        audioKey: "luganda.first_words.greetings.gyebale_ko",
+        audioAsset: "placeholder_learning_cue",
+        correctOptionId: "gyebale-ko",
+        readiness: "placeholder",
+      }),
+    );
+    expect(listenItems[0].options.map((option) => option.id)).toEqual([
+      "gyebale-ko",
+      "webale",
+      "amazzi",
+    ]);
+    expect(listenItems[0].options.map((option) => option.order)).toEqual([1, 2, 3]);
+    expect(listenItems[0].options).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "gyebale-ko",
+          localText: "Gyebale ko",
+          englishText: "Hello / well done",
+        }),
+      ]),
+    );
+  });
+
   it("returns only startable implemented lessons for a stage", () => {
     const firstWordsStage = getLearningStageById("lg", "first-words");
     const lessons = getLessonsForStage("lg", "first-words");
 
     expect(getStartableLessonsForStage("lg", "first-words").map((lesson) => lesson.id)).toEqual([
       "greetings-1",
+      "listen-greetings-1",
     ]);
     expect(isLessonStartable(firstWordsStage, lessons[0])).toBe(true);
-    expect(isLessonStartable(firstWordsStage, lessons[1])).toBe(false);
+    expect(isLessonStartable(firstWordsStage, lessons[1])).toBe(true);
     expect(isLessonStartable(firstWordsStage, lessons[2])).toBe(false);
     expect(getLessonStatus(lessons[0], firstWordsStage)).toBe("startable");
-    expect(getLessonStatus(lessons[1], firstWordsStage)).toBe("coming_soon");
+    expect(getLessonStatus(lessons[1], firstWordsStage)).toBe("startable");
     expect(getLessonStatus(lessons[2], firstWordsStage)).toBe("coming_soon");
+  });
+
+  it("keeps malformed listen-and-choose lessons from becoming startable", () => {
+    const firstWordsStage = getLearningStageById("lg", "first-words");
+    const listenLesson = getLessonById("lg", "first-words", "listen-greetings-1");
+    const validItem = listenLesson?.items.find(
+      (item): item is ListenAndChooseItem => item.mechanic === "listen_and_choose",
+    );
+
+    if (!listenLesson || !validItem) {
+      throw new Error("Expected a normalized listen-and-choose lesson");
+    }
+
+    const missingCorrectIdLesson = {
+      ...listenLesson,
+      id: "missing-correct-option",
+      items: [{ ...validItem, correctOptionId: "" }],
+    };
+    const invalidCorrectIdLesson = {
+      ...listenLesson,
+      id: "invalid-correct-option",
+      items: [{ ...validItem, correctOptionId: "missing-option" }],
+    };
+    const malformedOptionsLesson = {
+      ...listenLesson,
+      id: "malformed-options",
+      items: [
+        {
+          ...validItem,
+          correctOptionId: "webale",
+          options: [{ id: "webale", localText: "Webale" }],
+        },
+      ],
+    };
+
+    expect(() => getLessonStatus(missingCorrectIdLesson, firstWordsStage)).not.toThrow();
+    expect(getLessonStatus(missingCorrectIdLesson, firstWordsStage)).toBe("empty");
+    expect(getLessonStatus(invalidCorrectIdLesson, firstWordsStage)).toBe("empty");
+    expect(getLessonStatus(malformedOptionsLesson, firstWordsStage)).toBe("empty");
   });
 
   it("marks empty lessons as not startable", () => {
@@ -314,11 +394,13 @@ describe("learning hub repository", () => {
     expect(getMechanicLabel("practice_mix")).toBe("Practice mix");
   });
 
-  it("does not treat unimplemented mechanics as startable", () => {
+  it("keeps implemented and planned mechanic startability separate", () => {
     expect(isMechanicImplemented("tap_to_learn")).toBe(true);
+    expect(isMechanicImplemented("listen_and_choose")).toBe(true);
+    expect(isMechanicImplemented("choose_correct_word")).toBe(false);
     expect(isMechanicImplemented("mini_quiz")).toBe(false);
     expect(stageHasMechanicContent("lg", "first-words", "listen_and_choose")).toBe(
-      false,
+      true,
     );
     expect(stageHasMechanicContent("lg", "first-words", "choose_correct_word")).toBe(false);
   });

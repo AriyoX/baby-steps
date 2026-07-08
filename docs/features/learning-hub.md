@@ -2,7 +2,7 @@
 
 ## Current Status
 
-MVP JSON-backed Learning hub with a DB-ready local content contract, a two-step learning-area path, and the first mechanic-driven lesson renderer.
+MVP JSON-backed Learning hub with a DB-ready local content contract, a two-step learning-area path, and mechanic-driven lesson renderers for tap-to-learn plus listen-and-choose practice.
 
 ## Purpose
 
@@ -53,6 +53,7 @@ Lessons are mechanic-driven. The lesson session route loads the selected stage a
 
 - `components/learning/mechanics/mechanicRegistry.tsx`
 - `components/learning/mechanics/TapToLearnCard.tsx`
+- `components/learning/mechanics/ListenAndChooseCard.tsx`
 
 The route keeps only generic session state:
 
@@ -61,7 +62,7 @@ The route keeps only generic session state:
 - generic completion state
 - navigation back to the stage/path overview
 
-Progress persistence is intentionally not implemented yet.
+Progress persistence is intentionally not implemented yet. Item results are kept in memory only for the current lesson session.
 
 ## Content Contract
 
@@ -76,7 +77,7 @@ The public content types live in `content/learningHubTypes.ts`:
 - `ContentReadiness`
 - `LessonStatus`
 
-Lesson items use a discriminated union by mechanic. `tap_to_learn` is normalized to stable `localText` and `englishText` fields while keeping `word` and `translation` aliases for the current renderer. Planned mechanics have typed placeholder payloads so content can be added safely before renderers exist.
+Lesson items use a discriminated union by mechanic. `tap_to_learn` is normalized to stable `localText` and `englishText` fields while keeping `word` and `translation` aliases for the current renderer. `listen_and_choose` uses stable option IDs, `correctOptionId`, logical `audioKey`, and local `audioAsset` fallback fields so correctness does not depend on array order. Planned mechanics have typed placeholder payloads so content can be added safely before renderers exist.
 
 `LessonStatus` values:
 
@@ -88,9 +89,9 @@ Lesson items use a discriminated union by mechanic. `tap_to_learn` is normalized
 
 Only `startable` lessons launch the generic session.
 
-## Implemented Mechanic
+## Implemented Mechanics
 
-`tap_to_learn` is the first implemented mechanic.
+`tap_to_learn` is implemented.
 
 The card shows one item at a time with:
 
@@ -102,13 +103,26 @@ The card shows one item at a time with:
 
 The card body replays audio only and never advances the lesson. Missing or broken audio falls back safely and does not block completion. The implementation does not use device TTS and does not fetch internet audio.
 
+`listen_and_choose` is implemented as the first correctness-based Learning Hub mechanic.
+
+The card shows one item at a time with:
+
+- a child-friendly listen-and-choose instruction
+- a large replay/listen button
+- 2-4 answer options
+- gentle feedback for wrong answers
+- a separate `Next` / `Finish` action after the correct answer
+
+It resolves audio through the same local bundled/default audio path used by tap-to-learn. Current Listen Practice content uses placeholder/default bundled audio; real native-speaker recordings are required before production. It does not use device TTS and does not fetch internet audio.
+
+When the child eventually chooses correctly and advances, the renderer emits an in-memory `ItemResult` with `mechanic: "listen_and_choose"`, `correct: true`, and `attempts` equal to answer attempts. Audio replays are not counted as answer attempts.
+
 ## Planned Mechanics
 
-The content model and labels include planned mechanics, but only `tap_to_learn` is startable today:
+The content model and labels include planned mechanics, but they are not startable until a renderer and valid content exist:
 
 - `cultural_card`
 - `choose_correct_word`
-- `listen_and_choose`
 - `match_word_picture`
 - `mini_quiz`
 - `story_bite`
@@ -126,11 +140,11 @@ Current MVP stages:
 - Culture & Stories
 - Practice Mix
 
-First Words and Family & Home currently have startable `tap_to_learn` lessons. Their other path cards use planned mechanics and remain Coming soon. Everyday Things and Culture & Stories remain planned placeholders. Practice Mix is marked as practice content and remains locked until future progress-aware lesson completion exists.
+First Words currently has startable `tap_to_learn` and `listen_and_choose` lessons. Its `choose_correct_word` path card remains Coming soon. Family & Home currently has a startable `tap_to_learn` lesson; its other path cards use planned mechanics and remain Coming soon. Everyday Things and Culture & Stories remain planned placeholders. Practice Mix is marked as practice content and remains locked until future progress-aware lesson completion exists.
 
 ## Future DB Mapping
 
-No migrations have been added yet. A future Supabase-backed pass can map the local contract toward tables such as:
+No migrations have been added yet. Content remains local JSON but DB-ready. A future Supabase-backed pass can map the local contract toward tables such as:
 
 - `learning_languages`
 - `learning_stages`
@@ -147,7 +161,7 @@ No migrations have been added yet. A future Supabase-backed pass can map the loc
 Intentionally deferred:
 
 - progress persistence
-- activity logging
+- activities and activity logging
 - achievements
 - parent dashboard summaries
 - Practice Mix runtime recommendations
@@ -155,7 +169,7 @@ Intentionally deferred:
 - Supabase sync
 - database migrations
 
-Museum remains archived and hidden for possible future redesign.
+Museum remains archived and hidden for possible future redesign. No Museum routes or WebView surfaces are re-enabled by Learning Hub work.
 
 ## TODO: DB Migration Planning
 

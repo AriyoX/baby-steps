@@ -119,21 +119,19 @@ export interface TapToLearnItem extends LessonItemBase {
 
 export interface ListenAndChooseOption {
   id: string;
+  order?: number;
   localText?: string;
   englishText?: string;
   imageKey?: string;
   imageAsset?: string;
-  audioKey?: string;
-  audioAsset?: string;
 }
 
 export interface ListenAndChooseItem extends LessonItemBase {
   mechanic: "listen_and_choose";
+  promptText?: string;
   prompt?: string;
-  options?: ListenAndChooseOption[];
-  correctOptionId?: string;
-  word?: string;
-  translation?: string;
+  correctOptionId: string;
+  options: ListenAndChooseOption[];
 }
 
 export interface ChooseCorrectWordOption {

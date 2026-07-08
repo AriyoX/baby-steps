@@ -4,10 +4,12 @@ import { Text } from "@/components/StyledText";
 import type {
   ItemResult,
   LearningLessonItem,
+  ListenAndChooseItem,
   MechanicType,
   TapToLearnItem,
 } from "@/content/learningHubTypes";
 import { getMechanicLabel } from "@/content/learningHubRepository";
+import { ListenAndChooseCard } from "./ListenAndChooseCard";
 import { TapToLearnCard } from "./TapToLearnCard";
 
 export type MechanicRendererProps = {
@@ -44,10 +46,38 @@ const TapToLearnRenderer = ({
   );
 };
 
+const ListenAndChooseRenderer = ({
+  item,
+  isLastItem,
+  stageImageKey,
+  onComplete,
+}: MechanicRendererProps) => {
+  if (item.mechanic !== "listen_and_choose") {
+    return (
+      <UnsupportedMechanicNotice
+        item={item}
+        isLastItem={isLastItem}
+        stageImageKey={stageImageKey}
+        onComplete={onComplete}
+      />
+    );
+  }
+
+  return (
+    <ListenAndChooseCard
+      item={item as ListenAndChooseItem}
+      isLastItem={isLastItem}
+      stageImageKey={stageImageKey}
+      onComplete={onComplete}
+    />
+  );
+};
+
 export const MECHANIC_RENDERERS: Partial<
   Record<MechanicType, ComponentType<MechanicRendererProps>>
 > = {
   tap_to_learn: TapToLearnRenderer,
+  listen_and_choose: ListenAndChooseRenderer,
 };
 
 export const UnsupportedMechanicNotice = ({ item }: MechanicRendererProps) => (

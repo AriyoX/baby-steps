@@ -22,7 +22,7 @@ import {
   stageHasMechanicContent,
 } from "../learningHubRepository";
 import { DEFAULT_LEARNING_LANGUAGE_CODE } from "../languages";
-import type { ListenAndChooseItem } from "../learningHubTypes";
+import type { ChooseCorrectWordItem, ListenAndChooseItem } from "../learningHubTypes";
 
 const REQUIRED_STAGE_IDS = [
   "first-words",
@@ -242,6 +242,42 @@ describe("learning hub repository", () => {
     );
   });
 
+  it("normalizes choose-correct-word items with stable option ids", () => {
+    const items = getLessonItemsForLesson("lg", "first-words", "first-words-word-check");
+    const chooseItems = items.filter(
+      (item): item is ChooseCorrectWordItem => item.mechanic === "choose_correct_word",
+    );
+
+    expect(chooseItems.map((item) => item.id)).toEqual([
+      "choose-thank-you",
+      "choose-water",
+    ]);
+    expect(chooseItems[0]).toEqual(
+      expect.objectContaining({
+        id: "choose-thank-you",
+        mechanic: "choose_correct_word",
+        promptText: "Which word means Thank you?",
+        questionText: "Thank you",
+        correctOptionId: "webale",
+        readiness: "placeholder",
+      }),
+    );
+    expect(chooseItems[0].options.map((option) => option.id)).toEqual([
+      "webale",
+      "amazzi",
+      "maama",
+    ]);
+    expect(chooseItems[0].options).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "webale",
+          localText: "Webale",
+          englishText: "Thank you",
+        }),
+      ]),
+    );
+  });
+
   it("returns only startable implemented lessons for a stage", () => {
     const firstWordsStage = getLearningStageById("lg", "first-words");
     const lessons = getLessonsForStage("lg", "first-words");
@@ -249,13 +285,14 @@ describe("learning hub repository", () => {
     expect(getStartableLessonsForStage("lg", "first-words").map((lesson) => lesson.id)).toEqual([
       "greetings-1",
       "listen-greetings-1",
+      "first-words-word-check",
     ]);
     expect(isLessonStartable(firstWordsStage, lessons[0])).toBe(true);
     expect(isLessonStartable(firstWordsStage, lessons[1])).toBe(true);
-    expect(isLessonStartable(firstWordsStage, lessons[2])).toBe(false);
+    expect(isLessonStartable(firstWordsStage, lessons[2])).toBe(true);
     expect(getLessonStatus(lessons[0], firstWordsStage)).toBe("startable");
     expect(getLessonStatus(lessons[1], firstWordsStage)).toBe("startable");
-    expect(getLessonStatus(lessons[2], firstWordsStage)).toBe("coming_soon");
+    expect(getLessonStatus(lessons[2], firstWordsStage)).toBe("startable");
   });
 
   it("keeps malformed listen-and-choose lessons from becoming startable", () => {
@@ -295,6 +332,59 @@ describe("learning hub repository", () => {
     expect(getLessonStatus(missingCorrectIdLesson, firstWordsStage)).toBe("empty");
     expect(getLessonStatus(invalidCorrectIdLesson, firstWordsStage)).toBe("empty");
     expect(getLessonStatus(malformedOptionsLesson, firstWordsStage)).toBe("empty");
+  });
+
+  it("keeps malformed choose-correct-word lessons from becoming startable", () => {
+    const firstWordsStage = getLearningStageById("lg", "first-words");
+    const chooseLesson = getLessonById("lg", "first-words", "first-words-word-check");
+    const validItem = chooseLesson?.items.find(
+      (item): item is ChooseCorrectWordItem => item.mechanic === "choose_correct_word",
+    );
+
+    if (!chooseLesson || !validItem) {
+      throw new Error("Expected a normalized choose-correct-word lesson");
+    }
+
+    const missingCorrectIdLesson = {
+      ...chooseLesson,
+      id: "missing-correct-word-option",
+      items: [{ ...validItem, correctOptionId: "" }],
+    };
+    const invalidCorrectIdLesson = {
+      ...chooseLesson,
+      id: "invalid-correct-word-option",
+      items: [{ ...validItem, correctOptionId: "missing-option" }],
+    };
+    const malformedOptionsLesson = {
+      ...chooseLesson,
+      id: "malformed-word-options",
+      items: [
+        {
+          ...validItem,
+          correctOptionId: "webale",
+          options: [{ id: "webale", localText: "Webale" }],
+        },
+      ],
+    };
+    const duplicateOptionIdsLesson = {
+      ...chooseLesson,
+      id: "duplicate-word-options",
+      items: [
+        {
+          ...validItem,
+          options: [
+            { id: "webale", localText: "Webale" },
+            { id: "webale", localText: "Webale" },
+          ],
+        },
+      ],
+    };
+
+    expect(() => getLessonStatus(missingCorrectIdLesson, firstWordsStage)).not.toThrow();
+    expect(getLessonStatus(missingCorrectIdLesson, firstWordsStage)).toBe("empty");
+    expect(getLessonStatus(invalidCorrectIdLesson, firstWordsStage)).toBe("empty");
+    expect(getLessonStatus(malformedOptionsLesson, firstWordsStage)).toBe("empty");
+    expect(getLessonStatus(duplicateOptionIdsLesson, firstWordsStage)).toBe("empty");
   });
 
   it("marks empty lessons as not startable", () => {
@@ -397,11 +487,22 @@ describe("learning hub repository", () => {
   it("keeps implemented and planned mechanic startability separate", () => {
     expect(isMechanicImplemented("tap_to_learn")).toBe(true);
     expect(isMechanicImplemented("listen_and_choose")).toBe(true);
-    expect(isMechanicImplemented("choose_correct_word")).toBe(false);
+    expect(isMechanicImplemented("choose_correct_word")).toBe(true);
+    expect(isMechanicImplemented("match_word_picture")).toBe(false);
     expect(isMechanicImplemented("mini_quiz")).toBe(false);
     expect(stageHasMechanicContent("lg", "first-words", "listen_and_choose")).toBe(
       true,
     );
-    expect(stageHasMechanicContent("lg", "first-words", "choose_correct_word")).toBe(false);
+    expect(stageHasMechanicContent("lg", "first-words", "choose_correct_word")).toBe(true);
+    expect(stageHasMechanicContent("lg", "family-home", "match_word_picture")).toBe(
+      false,
+    );
+    expect(stageHasMechanicContent("lg", "everyday-things", "mini_quiz")).toBe(false);
+    expect(getLessonStatus(getLessonById("lg", "family-home", "home-things-1"))).toBe(
+      "coming_soon",
+    );
+    expect(getLessonStatus(getLessonById("lg", "everyday-things", "daily-review-1"))).toBe(
+      "coming_soon",
+    );
   });
 });

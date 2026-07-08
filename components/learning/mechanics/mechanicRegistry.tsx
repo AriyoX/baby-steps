@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import { View } from "react-native";
 import { Text } from "@/components/StyledText";
 import type {
+  ChooseCorrectWordItem,
   ItemResult,
   LearningLessonItem,
   ListenAndChooseItem,
@@ -9,6 +10,7 @@ import type {
   TapToLearnItem,
 } from "@/content/learningHubTypes";
 import { getMechanicLabel } from "@/content/learningHubRepository";
+import { ChooseCorrectWordCard } from "./ChooseCorrectWordCard";
 import { ListenAndChooseCard } from "./ListenAndChooseCard";
 import { TapToLearnCard } from "./TapToLearnCard";
 
@@ -73,11 +75,39 @@ const ListenAndChooseRenderer = ({
   );
 };
 
+const ChooseCorrectWordRenderer = ({
+  item,
+  isLastItem,
+  stageImageKey,
+  onComplete,
+}: MechanicRendererProps) => {
+  if (item.mechanic !== "choose_correct_word") {
+    return (
+      <UnsupportedMechanicNotice
+        item={item}
+        isLastItem={isLastItem}
+        stageImageKey={stageImageKey}
+        onComplete={onComplete}
+      />
+    );
+  }
+
+  return (
+    <ChooseCorrectWordCard
+      item={item as ChooseCorrectWordItem}
+      isLastItem={isLastItem}
+      stageImageKey={stageImageKey}
+      onComplete={onComplete}
+    />
+  );
+};
+
 export const MECHANIC_RENDERERS: Partial<
   Record<MechanicType, ComponentType<MechanicRendererProps>>
 > = {
   tap_to_learn: TapToLearnRenderer,
   listen_and_choose: ListenAndChooseRenderer,
+  choose_correct_word: ChooseCorrectWordRenderer,
 };
 
 export const UnsupportedMechanicNotice = ({ item }: MechanicRendererProps) => (

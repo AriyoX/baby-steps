@@ -27,7 +27,7 @@
             "Tap pictures to learn meaning",
             "Choose the correct word"
           ],
-          "placeholderMessage": "First Words has tap-to-learn and listening practice ready. A tiny word quiz will come later.",
+          "placeholderMessage": "First Words has tap-to-learn, listening practice, and a tiny word check ready.",
           "lessons": [
             {
               "id": "greetings-1",
@@ -174,19 +174,69 @@
             {
               "id": "first-words-word-check",
               "title": "Word Check",
-              "description": "Pick the Luganda word that matches a familiar picture.",
+              "description": "Pick the Luganda word that matches the meaning.",
               "mechanic": "choose_correct_word",
               "order": 3,
-              "isStartable": false,
+              "isStartable": true,
               "readiness": "placeholder",
               "items": [
                 {
-                  "id": "bulungi",
+                  "id": "choose-thank-you",
                   "mechanic": "choose_correct_word",
                   "order": 1,
-                  "word": "Bulungi",
-                  "translation": "Good / fine",
-                  "imageKey": "learning-beginner.jpg"
+                  "promptText": "Which word means Thank you?",
+                  "questionText": "Thank you",
+                  "correctOptionId": "webale",
+                  "options": [
+                    {
+                      "id": "webale",
+                      "localText": "Webale",
+                      "englishText": "Thank you"
+                    },
+                    {
+                      "id": "amazzi",
+                      "localText": "Amazzi",
+                      "englishText": "Water"
+                    },
+                    {
+                      "id": "maama",
+                      "localText": "Maama",
+                      "englishText": "Mother"
+                    }
+                  ],
+                  "readiness": "placeholder",
+                  "metadata": {
+                    "todo": "Review distractor set with curriculum/native-speaker support before production."
+                  }
+                },
+                {
+                  "id": "choose-water",
+                  "mechanic": "choose_correct_word",
+                  "order": 2,
+                  "promptText": "Which word means Water?",
+                  "questionText": "Water",
+                  "correctOptionId": "amazzi",
+                  "options": [
+                    {
+                      "id": "maama",
+                      "localText": "Maama",
+                      "englishText": "Mother"
+                    },
+                    {
+                      "id": "webale",
+                      "localText": "Webale",
+                      "englishText": "Thank you"
+                    },
+                    {
+                      "id": "amazzi",
+                      "localText": "Amazzi",
+                      "englishText": "Water"
+                    }
+                  ],
+                  "readiness": "placeholder",
+                  "metadata": {
+                    "todo": "Review distractor set with curriculum/native-speaker support before production."
+                  }
                 }
               ]
             }

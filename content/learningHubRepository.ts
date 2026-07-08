@@ -42,6 +42,7 @@ type RawLearningHubLessonItem = Partial<
     | "exampleSentence"
     | "prompt"
     | "promptText"
+    | "questionText"
     | "type",
     unknown
   >
@@ -133,6 +134,7 @@ const MECHANIC_LABELS: Record<MechanicType, string> = {
 const IMPLEMENTED_MECHANICS = new Set<MechanicType>([
   "tap_to_learn",
   "listen_and_choose",
+  "choose_correct_word",
 ]);
 
 const UNSTARTABLE_MECHANIC_FALLBACK: MechanicType = "practice_mix";
@@ -324,30 +326,50 @@ const normalizeListenAndChooseOptions = (
 
 const normalizeChooseCorrectWordOptions = (
   value: unknown,
-): ChooseCorrectWordItem["options"] | undefined => {
+): ChooseCorrectWordItem["options"] => {
+  const seenOptionIds = new Set<string>();
   const options = asObjectArray(value).reduce<
-    NonNullable<ChooseCorrectWordItem["options"]>
+    Array<ChooseCorrectWordItem["options"][number] & {
+      order?: number;
+      sourceIndex: number;
+    }>
   >((currentOptions, option, index) => {
+    const id = asOptionalString(option.id);
     const localText =
       asOptionalString(option.localText) ?? asOptionalString(option.word);
 
-    if (!localText) {
+    if (!id || !localText || seenOptionIds.has(id)) {
       return currentOptions;
     }
 
     const englishText =
       asOptionalString(option.englishText) ?? asOptionalString(option.translation);
+    const imageKey = asOptionalString(option.imageKey);
+    const imageAsset = asOptionalString(option.imageAsset);
 
+    seenOptionIds.add(id);
     currentOptions.push({
-      id: asString(option.id, `option-${index + 1}`),
+      id,
       localText,
       ...(englishText ? { englishText } : {}),
+      ...(imageKey ? { imageKey } : {}),
+      ...(imageAsset ? { imageAsset } : {}),
+      order: asOptionalPositiveNumber(option.order),
+      sourceIndex: index,
     });
 
     return currentOptions;
   }, []);
 
-  return options.length > 0 ? options : undefined;
+  return options
+    .sort(
+      (a, b) =>
+        (a.order ?? Number.MAX_SAFE_INTEGER) -
+          (b.order ?? Number.MAX_SAFE_INTEGER) ||
+        a.sourceIndex - b.sourceIndex ||
+        a.id.localeCompare(b.id),
+    )
+    .map(({ order: _order, sourceIndex: _sourceIndex, ...option }) => option);
 };
 
 const normalizeLessonItem = (
@@ -412,13 +434,21 @@ const normalizeLessonItem = (
   }
 
   if (mechanic === "choose_correct_word") {
+    const promptText =
+      prompt ??
+      (legacyText.englishText
+        ? `Which word means ${legacyText.englishText}?`
+        : "Choose the correct word");
+
     return {
       ...base,
-      ...legacyText,
+      localText: legacyText.localText,
+      englishText: legacyText.englishText,
       mechanic,
-      prompt,
+      promptText,
+      questionText: asOptionalString(item.questionText) ?? legacyText.englishText,
       options: normalizeChooseCorrectWordOptions(item.options),
-      correctOptionId: asOptionalString(item.correctOptionId),
+      correctOptionId: asOptionalString(item.correctOptionId) ?? "",
     } satisfies ChooseCorrectWordItem;
   }
 
@@ -455,6 +485,29 @@ const isValidListenAndChooseItem = (
   Boolean(item.correctOptionId) &&
   item.options.some((option) => option.id === item.correctOptionId);
 
+const isValidChooseCorrectWordItem = (
+  item: LearningLessonItem,
+): item is ChooseCorrectWordItem => {
+  if (item.mechanic !== "choose_correct_word") {
+    return false;
+  }
+
+  const optionIds = item.options.map((option) => option.id);
+  const uniqueOptionIds = new Set(optionIds);
+
+  return (
+    Boolean(item.promptText.trim()) &&
+    item.options.length >= 2 &&
+    item.options.length <= 4 &&
+    uniqueOptionIds.size === item.options.length &&
+    item.options.every(
+      (option) => Boolean(option.id.trim()) && Boolean(option.localText.trim()),
+    ) &&
+    Boolean(item.correctOptionId.trim()) &&
+    item.options.some((option) => option.id === item.correctOptionId)
+  );
+};
+
 const isValidTapToLearnItem = (item: LearningLessonItem): item is TapToLearnItem =>
   item.mechanic === "tap_to_learn" &&
   Boolean(item.localText.trim()) &&
@@ -467,6 +520,10 @@ const isValidLessonItem = (item: LearningLessonItem): boolean => {
 
   if (item.mechanic === "listen_and_choose") {
     return isValidListenAndChooseItem(item);
+  }
+
+  if (item.mechanic === "choose_correct_word") {
+    return isValidChooseCorrectWordItem(item);
   }
 
   return true;
@@ -602,16 +659,16 @@ export const getLessonStatus = (
     return "locked";
   }
 
-  if (lesson.items.length === 0) {
-    return "empty";
-  }
-
   if (!isMechanicType(lesson.mechanic)) {
     return "unsupported";
   }
 
   if (!isMechanicImplemented(lesson.mechanic) || lesson.isStartable === false) {
     return "coming_soon";
+  }
+
+  if (lesson.items.length === 0) {
+    return "empty";
   }
 
   if (!hasValidLessonItems(lesson)) {

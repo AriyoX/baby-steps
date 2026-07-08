@@ -110,9 +110,10 @@ describe("Learning stage path screen", () => {
     expect(text).toContain("Word Check");
     expect(text).toContain("Tap to learn");
     expect(text).toContain("Listen and choose");
+    expect(text).toContain("Pick the word");
   });
 
-  it("starts startable cards and keeps coming-soon cards disabled", async () => {
+  it("starts all startable First Words cards", async () => {
     let tree: renderer.ReactTestRenderer | undefined;
 
     await act(async () => {
@@ -124,10 +125,10 @@ describe("Learning stage path screen", () => {
     }
 
     const greetingsCard = findButtonByAccessibilityLabel(tree.root, "Greetings. Start");
-    const comingSoonCard = findButtonByAccessibilityLabel(tree.root, "Word Check. Coming soon");
+    const wordCheckCard = findButtonByAccessibilityLabel(tree.root, "Word Check. Start");
 
     expect(textContent(greetingsCard)).toContain("Start");
-    expect(comingSoonCard.props.disabled).toBe(true);
+    expect(textContent(wordCheckCard)).toContain("Start");
 
     await act(async () => {
       greetingsCard.props.onPress();
@@ -137,5 +138,26 @@ describe("Learning stage path screen", () => {
       pathname: "/child/learning/[stageId]/lesson/[lessonId]",
       params: { stageId: "first-words", lessonId: "greetings-1" },
     });
+  });
+
+  it("keeps planned cards disabled", async () => {
+    mockUseLocalSearchParams.mockReturnValue({ stageId: "family-home" });
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = renderer.create(<LearningStagePathScreen />);
+    });
+
+    if (!tree) {
+      throw new Error("LearningStagePathScreen did not render");
+    }
+
+    const comingSoonCard = findButtonByAccessibilityLabel(
+      tree.root,
+      "Things at Home. Coming soon",
+    );
+
+    expect(textContent(comingSoonCard)).toContain("Coming soon");
+    expect(comingSoonCard.props.disabled).toBe(true);
   });
 });

@@ -138,15 +138,16 @@ export interface ChooseCorrectWordOption {
   id: string;
   localText: string;
   englishText?: string;
+  imageKey?: string;
+  imageAsset?: string;
 }
 
 export interface ChooseCorrectWordItem extends LessonItemBase {
   mechanic: "choose_correct_word";
-  prompt?: string;
-  options?: ChooseCorrectWordOption[];
-  correctOptionId?: string;
-  word?: string;
-  translation?: string;
+  promptText: string;
+  questionText?: string;
+  correctOptionId: string;
+  options: ChooseCorrectWordOption[];
 }
 
 export interface CulturalCardItem extends LessonItemBase {

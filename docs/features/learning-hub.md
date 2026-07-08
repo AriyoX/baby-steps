@@ -2,7 +2,7 @@
 
 ## Current Status
 
-MVP JSON-backed Learning hub with a DB-ready local content contract, a two-step learning-area path, and mechanic-driven lesson renderers for tap-to-learn plus listen-and-choose practice.
+MVP JSON-backed Learning hub with a DB-ready local content contract, a two-step learning-area path, and mechanic-driven lesson renderers for tap-to-learn, listen-and-choose practice, and choose-correct-word practice.
 
 ## Purpose
 
@@ -56,6 +56,7 @@ Lessons are mechanic-driven. The lesson session route loads the selected stage a
 - `components/learning/mechanics/mechanicRegistry.tsx`
 - `components/learning/mechanics/TapToLearnCard.tsx`
 - `components/learning/mechanics/ListenAndChooseCard.tsx`
+- `components/learning/mechanics/ChooseCorrectWordCard.tsx`
 
 The route keeps only generic session state:
 
@@ -81,7 +82,7 @@ The public content types live in `content/learningHubTypes.ts`:
 - `ContentReadiness`
 - `LessonStatus`
 
-Lesson items use a discriminated union by mechanic. `tap_to_learn` is normalized to stable `localText` and `englishText` fields while keeping `word` and `translation` aliases for the current renderer. `listen_and_choose` uses stable option IDs, `correctOptionId`, logical `audioKey`, and local `audioAsset` fallback fields so correctness does not depend on array order. Planned mechanics have typed placeholder payloads so content can be added safely before renderers exist.
+Lesson items use a discriminated union by mechanic. `tap_to_learn` is normalized to stable `localText` and `englishText` fields while keeping `word` and `translation` aliases for the current renderer. `listen_and_choose` uses stable option IDs, `correctOptionId`, logical `audioKey`, and local `audioAsset` fallback fields so correctness does not depend on array order. `choose_correct_word` uses `promptText`, optional `questionText`, stable option IDs, and `correctOptionId`; no audio is required for this mechanic. Planned mechanics have typed placeholder payloads so content can be added safely before renderers exist.
 
 `LessonStatus` values:
 
@@ -121,6 +122,18 @@ It resolves audio through the same local bundled/default audio path used by tap-
 
 When the child eventually chooses correctly and advances, the renderer emits an in-memory `ItemResult` with `mechanic: "listen_and_choose"`, `correct: true`, and `attempts` equal to answer attempts. Audio replays are not counted as answer attempts.
 
+`choose_correct_word` is implemented as a correctness-based Learning Hub mechanic.
+
+The card shows one item at a time with:
+
+- a child-friendly choose-the-word instruction
+- a prompt and optional question/meaning cue
+- 2-4 answer options with stable option IDs
+- gentle feedback for wrong answers
+- a separate `Next` / `Finish` action after the correct answer
+
+Correctness is determined only by matching the tapped option ID to `correctOptionId`; it does not depend on option array position. When the child eventually chooses correctly and advances, the renderer emits an in-memory `ItemResult` with `mechanic: "choose_correct_word"`, `correct: true`, and `attempts` equal to answer taps. These results are not persisted yet.
+
 ## Audio Readiness
 
 Learning audio is resolved through `lib/audioAssets.ts`.
@@ -145,7 +158,6 @@ Before a recording is marked production-ready, review it for native-speaker pron
 The content model and labels include planned mechanics, but they are not startable until a renderer and valid content exist:
 
 - `cultural_card`
-- `choose_correct_word`
 - `match_word_picture`
 - `mini_quiz`
 - `story_bite`
@@ -163,7 +175,7 @@ Current MVP stages:
 - Culture & Stories
 - Practice Mix
 
-First Words currently has startable `tap_to_learn` and `listen_and_choose` lessons. Its `choose_correct_word` path card remains Coming soon. Family & Home currently has a startable `tap_to_learn` lesson; its other path cards use planned mechanics and remain Coming soon. Everyday Things and Culture & Stories remain planned placeholders. Practice Mix is marked as practice content and remains locked until future progress-aware lesson completion exists.
+First Words currently has startable `tap_to_learn`, `listen_and_choose`, and `choose_correct_word` lessons. Family & Home currently has a startable `tap_to_learn` lesson; its other path cards use planned or not-yet-valid mechanics and remain Coming soon. Everyday Things and Culture & Stories remain planned placeholders. Practice Mix is marked as practice content and remains locked until future progress-aware lesson completion exists.
 
 ## Future DB Mapping
 

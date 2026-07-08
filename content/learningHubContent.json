@@ -1,22 +1,27 @@
 {
-  "version": 1,
+  "version": "1.1",
   "defaultLanguage": "lg",
   "languages": {
     "lg": {
+      "languageCode": "lg",
+      "displayName": "Luganda",
+      "localName": "Oluganda",
       "pathTitle": "Luganda Learning Path",
       "stages": [
         {
           "id": "first-words",
+          "order": 1,
           "stageNumber": 1,
           "title": "First Words",
           "description": "Start with greetings and kind everyday words.",
           "imageKey": "learning-beginner.jpg",
           "status": "preview",
+          "readiness": "draft",
           "estimatedMinutes": 3,
           "lessonCount": 3,
           "isPractice": false,
           "isLocked": false,
-          "mechanics": ["tap_to_learn", "listen_and_choose", "mini_quiz"],
+          "mechanics": ["tap_to_learn", "listen_and_choose", "choose_correct_word"],
           "learningGoals": [
             "Hear simple Luganda words",
             "Tap pictures to learn meaning",
@@ -27,79 +32,99 @@
             {
               "id": "greetings-1",
               "title": "Greetings",
+              "description": "Tap each card to hear useful everyday words.",
               "mechanic": "tap_to_learn",
+              "order": 1,
+              "isStartable": true,
+              "readiness": "draft",
               "items": [
                 {
-                  "id": "hello",
-                  "localText": "Oli otya",
-                  "englishText": "How are you?",
-                  "type": "word",
-                  "imageKey": "learning-beginner.jpg",
-                  "audioAsset": "oli-otya"
-                },
-                {
                   "id": "well-done",
+                  "mechanic": "tap_to_learn",
+                  "order": 1,
+                  "word": "Gyebale ko",
                   "localText": "Gyebale ko",
+                  "translation": "Hello / well done",
                   "englishText": "Hello / well done",
-                  "type": "word",
+                  "readiness": "draft",
                   "imageKey": "learning-beginner.jpg"
                 },
                 {
                   "id": "thank-you",
-                  "localText": "Webale",
-                  "englishText": "Thank you",
-                  "type": "word",
+                  "mechanic": "tap_to_learn",
+                  "order": 2,
+                  "word": "Webale",
+                  "translation": "Thank you",
                   "imageKey": "learning-beginner.jpg",
+                  "audioKey": "webale",
+                  "readiness": "draft",
                   "audioAsset": "webale"
                 },
                 {
                   "id": "mother",
-                  "localText": "Maama",
-                  "englishText": "Mother",
-                  "type": "word",
+                  "mechanic": "tap_to_learn",
+                  "order": 3,
+                  "word": "Maama",
+                  "translation": "Mother",
+                  "readiness": "draft",
                   "imageKey": "african-focus.png"
                 },
                 {
                   "id": "father",
-                  "localText": "Taata",
-                  "englishText": "Father",
-                  "type": "word",
+                  "mechanic": "tap_to_learn",
+                  "order": 4,
+                  "word": "Taata",
+                  "translation": "Father",
+                  "readiness": "draft",
                   "imageKey": "african-focus.png"
                 },
                 {
                   "id": "water",
-                  "localText": "Amazzi",
-                  "englishText": "Water",
-                  "type": "word",
+                  "mechanic": "tap_to_learn",
+                  "order": 5,
+                  "word": "Amazzi",
+                  "translation": "Water",
                   "imageKey": "learning-beginner.jpg",
+                  "audioKey": "amazzi",
+                  "readiness": "draft",
                   "audioAsset": "amazzi"
                 }
               ]
             },
             {
               "id": "listen-greetings-1",
-              "title": "Listen for the greeting",
+              "title": "Listen Practice",
+              "description": "Listen for a word, then choose the matching picture.",
               "mechanic": "listen_and_choose",
+              "order": 2,
+              "isStartable": false,
+              "readiness": "placeholder",
               "items": [
                 {
-                  "id": "listen-oli-otya",
-                  "localText": "Oli otya",
-                  "englishText": "How are you?",
-                  "type": "word",
+                  "id": "listen-webale",
+                  "mechanic": "listen_and_choose",
+                  "order": 1,
+                  "word": "Webale",
+                  "translation": "Thank you",
                   "imageKey": "learning-beginner.jpg"
                 }
               ]
             },
             {
-              "id": "first-words-check",
-              "title": "First Words Check",
-              "mechanic": "mini_quiz",
+              "id": "first-words-word-check",
+              "title": "Word Check",
+              "description": "Pick the Luganda word that matches a familiar picture.",
+              "mechanic": "choose_correct_word",
+              "order": 3,
+              "isStartable": false,
+              "readiness": "placeholder",
               "items": [
                 {
                   "id": "bulungi",
-                  "localText": "Bulungi",
-                  "englishText": "Good / fine",
-                  "type": "word",
+                  "mechanic": "choose_correct_word",
+                  "order": 1,
+                  "word": "Bulungi",
+                  "translation": "Good / fine",
                   "imageKey": "learning-beginner.jpg"
                 }
               ]
@@ -108,11 +133,13 @@
         },
         {
           "id": "family-home",
+          "order": 2,
           "stageNumber": 2,
           "title": "Family & Home",
           "description": "Meet family names and familiar things at home.",
           "imageKey": "african-focus.png",
           "status": "preview",
+          "readiness": "draft",
           "estimatedMinutes": 4,
           "lessonCount": 3,
           "isPractice": false,
@@ -128,28 +155,39 @@
             {
               "id": "family-names-1",
               "title": "Family Names",
+              "description": "Tap family cards and hear each name.",
               "mechanic": "tap_to_learn",
+              "order": 1,
+              "isStartable": true,
+              "readiness": "draft",
               "items": [
                 {
                   "id": "mother",
-                  "localText": "Maama",
-                  "englishText": "Mother",
-                  "type": "word",
+                  "mechanic": "tap_to_learn",
+                  "order": 1,
+                  "word": "Maama",
+                  "translation": "Mother",
+                  "readiness": "draft",
                   "imageKey": "african-focus.png"
                 },
                 {
                   "id": "father",
-                  "localText": "Taata",
-                  "englishText": "Father",
-                  "type": "word",
+                  "mechanic": "tap_to_learn",
+                  "order": 2,
+                  "word": "Taata",
+                  "translation": "Father",
+                  "readiness": "draft",
                   "imageKey": "african-focus.png"
                 },
                 {
                   "id": "child",
-                  "localText": "Omwana",
-                  "englishText": "Child",
-                  "type": "word",
+                  "mechanic": "tap_to_learn",
+                  "order": 3,
+                  "word": "Omwana",
+                  "translation": "Child",
                   "imageKey": "child.png",
+                  "audioKey": "omwana",
+                  "readiness": "draft",
                   "audioAsset": "omwana"
                 }
               ]
@@ -157,20 +195,26 @@
             {
               "id": "home-things-1",
               "title": "Things at Home",
+              "description": "Match home words to their pictures.",
               "mechanic": "match_word_picture",
+              "order": 2,
+              "isStartable": false,
+              "readiness": "placeholder",
               "items": [
                 {
                   "id": "house",
-                  "localText": "Ennyumba",
-                  "englishText": "House",
-                  "type": "word",
+                  "mechanic": "match_word_picture",
+                  "order": 1,
+                  "word": "Ennyumba",
+                  "translation": "House",
                   "imageKey": "african-focus.png"
                 },
                 {
                   "id": "water",
-                  "localText": "Amazzi",
-                  "englishText": "Water",
-                  "type": "word",
+                  "mechanic": "match_word_picture",
+                  "order": 2,
+                  "word": "Amazzi",
+                  "translation": "Water",
                   "imageKey": "learning-beginner.jpg",
                   "audioAsset": "amazzi"
                 }
@@ -179,13 +223,18 @@
             {
               "id": "family-pick-word",
               "title": "Pick the Family Word",
+              "description": "Choose the family word that fits the picture.",
               "mechanic": "choose_correct_word",
+              "order": 3,
+              "isStartable": false,
+              "readiness": "placeholder",
               "items": [
                 {
                   "id": "book",
-                  "localText": "Ekitabo",
-                  "englishText": "Book",
-                  "type": "word",
+                  "mechanic": "choose_correct_word",
+                  "order": 1,
+                  "word": "Ekitabo",
+                  "translation": "Book",
                   "imageKey": "african-focus.png"
                 }
               ]
@@ -194,11 +243,13 @@
         },
         {
           "id": "everyday-things",
+          "order": 3,
           "stageNumber": 3,
           "title": "Everyday Things",
           "description": "Practice foods, animals, objects, and daily sights.",
           "imageKey": "numbers.png",
           "status": "preview",
+          "readiness": "placeholder",
           "estimatedMinutes": 4,
           "lessonCount": 3,
           "isPractice": false,
@@ -214,20 +265,26 @@
             {
               "id": "food-objects-1",
               "title": "Food and Things",
+              "description": "Choose everyday words for food and objects.",
               "mechanic": "choose_correct_word",
+              "order": 1,
+              "isStartable": false,
+              "readiness": "placeholder",
               "items": [
                 {
                   "id": "food",
-                  "localText": "Emmere",
-                  "englishText": "Food",
-                  "type": "word",
+                  "mechanic": "choose_correct_word",
+                  "order": 1,
+                  "word": "Emmere",
+                  "translation": "Food",
                   "imageKey": "matooke.png"
                 },
                 {
                   "id": "banana",
-                  "localText": "Akatooke",
-                  "englishText": "Banana",
-                  "type": "word",
+                  "mechanic": "choose_correct_word",
+                  "order": 2,
+                  "word": "Akatooke",
+                  "translation": "Banana",
                   "imageKey": "banana.png"
                 }
               ]
@@ -235,20 +292,26 @@
             {
               "id": "animals-objects-1",
               "title": "Animals and Objects",
+              "description": "Match animal and object words to pictures.",
               "mechanic": "match_word_picture",
+              "order": 2,
+              "isStartable": false,
+              "readiness": "placeholder",
               "items": [
                 {
                   "id": "goat",
-                  "localText": "Embuzi",
-                  "englishText": "Goat",
-                  "type": "word",
+                  "mechanic": "match_word_picture",
+                  "order": 1,
+                  "word": "Embuzi",
+                  "translation": "Goat",
                   "imageKey": "goat.png"
                 },
                 {
                   "id": "drum",
-                  "localText": "Engoma",
-                  "englishText": "Drum",
-                  "type": "word",
+                  "mechanic": "match_word_picture",
+                  "order": 2,
+                  "word": "Engoma",
+                  "translation": "Drum",
                   "imageKey": "drum.png"
                 }
               ]
@@ -256,13 +319,18 @@
             {
               "id": "daily-review-1",
               "title": "Daily Word Review",
+              "description": "Try a short review after the daily-word lessons are ready.",
               "mechanic": "mini_quiz",
+              "order": 3,
+              "isStartable": false,
+              "readiness": "placeholder",
               "items": [
                 {
                   "id": "water-review",
-                  "localText": "Amazzi",
-                  "englishText": "Water",
-                  "type": "word",
+                  "mechanic": "mini_quiz",
+                  "order": 1,
+                  "word": "Amazzi",
+                  "translation": "Water",
                   "imageKey": "learning-beginner.jpg"
                 }
               ]
@@ -271,11 +339,13 @@
         },
         {
           "id": "culture-stories",
+          "order": 4,
           "stageNumber": 4,
           "title": "Culture & Stories",
           "description": "Explore short story moments and cultural cards.",
           "imageKey": "culture.jpg",
           "status": "preview",
+          "readiness": "placeholder",
           "estimatedMinutes": 5,
           "lessonCount": 3,
           "isPractice": false,
@@ -291,13 +361,18 @@
             {
               "id": "story-bite-kintu",
               "title": "A Story Bite",
+              "description": "Hear a tiny story moment and notice one word.",
               "mechanic": "story_bite",
+              "order": 1,
+              "isStartable": false,
+              "readiness": "placeholder",
               "items": [
                 {
                   "id": "kintu",
-                  "localText": "Kintu",
-                  "englishText": "A remembered story name",
-                  "type": "story",
+                  "mechanic": "story_bite",
+                  "order": 1,
+                  "word": "Kintu",
+                  "translation": "A remembered story name",
                   "imageKey": "kintu.jpg"
                 }
               ]
@@ -305,13 +380,18 @@
             {
               "id": "culture-card-drum",
               "title": "Culture Card",
+              "description": "Open a small culture card with one familiar object.",
               "mechanic": "cultural_card",
+              "order": 2,
+              "isStartable": false,
+              "readiness": "placeholder",
               "items": [
                 {
                   "id": "drum-card",
-                  "localText": "Engoma",
-                  "englishText": "Drum",
-                  "type": "culture",
+                  "mechanic": "cultural_card",
+                  "order": 1,
+                  "word": "Engoma",
+                  "translation": "Drum",
                   "imageKey": "drum.png"
                 }
               ]
@@ -319,13 +399,18 @@
             {
               "id": "story-check-1",
               "title": "Story Check",
+              "description": "Answer a gentle question after a story bite.",
               "mechanic": "mini_quiz",
+              "order": 3,
+              "isStartable": false,
+              "readiness": "placeholder",
               "items": [
                 {
                   "id": "story-question",
-                  "localText": "Laba ekifaananyi",
-                  "englishText": "Look at the picture",
-                  "type": "prompt",
+                  "mechanic": "mini_quiz",
+                  "order": 1,
+                  "word": "Laba ekifaananyi",
+                  "translation": "Look at the picture",
                   "imageKey": "culture.jpg"
                 }
               ]
@@ -334,16 +419,18 @@
         },
         {
           "id": "practice-mix",
+          "order": 5,
           "stageNumber": 5,
           "title": "Practice Mix",
           "description": "Review words after a few lessons are complete.",
           "imageKey": "african-patterns.png",
           "status": "locked",
+          "readiness": "placeholder",
           "estimatedMinutes": 5,
-          "lessonCount": 3,
+          "lessonCount": 1,
           "isPractice": true,
           "isLocked": true,
-          "mechanics": ["practice_mix", "weak_word_practice", "spaced_recap"],
+          "mechanics": ["practice_mix"],
           "learningGoals": [
             "Review words from finished stages",
             "Practice words that need another try",
@@ -354,41 +441,18 @@
             {
               "id": "review-first-words",
               "title": "First Words Review",
+              "description": "Review words after enough lessons are complete.",
               "mechanic": "practice_mix",
+              "order": 1,
+              "isStartable": false,
+              "readiness": "placeholder",
               "items": [
                 {
                   "id": "first-words-review",
-                  "localText": "Oli otya",
-                  "englishText": "How are you?",
-                  "type": "review",
-                  "imageKey": "learning-beginner.jpg"
-                }
-              ]
-            },
-            {
-              "id": "weak-word-practice",
-              "title": "Try Again Words",
-              "mechanic": "weak_word_practice",
-              "items": [
-                {
-                  "id": "weak-word-placeholder",
-                  "localText": "Webale",
-                  "englishText": "Thank you",
-                  "type": "review",
-                  "imageKey": "learning-beginner.jpg"
-                }
-              ]
-            },
-            {
-              "id": "spaced-recap",
-              "title": "Come Back Later",
-              "mechanic": "spaced_recap",
-              "items": [
-                {
-                  "id": "recap-placeholder",
-                  "localText": "Amazzi",
-                  "englishText": "Water",
-                  "type": "review",
+                  "mechanic": "practice_mix",
+                  "order": 1,
+                  "word": "Webale",
+                  "translation": "Thank you",
                   "imageKey": "learning-beginner.jpg"
                 }
               ]

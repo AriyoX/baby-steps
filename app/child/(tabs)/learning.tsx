@@ -3,13 +3,12 @@
 import { Ionicons } from "@expo/vector-icons"
 import { StatusBar } from "expo-status-bar"
 import { useRouter } from "expo-router"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import {
   Animated,
   Dimensions,
   Easing,
   ImageBackground,
-  Modal,
   ScrollView,
   TouchableOpacity,
   View,
@@ -24,8 +23,6 @@ import { useChild } from "@/context/ChildContext"
 import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages"
 import {
   getLearningHubStages,
-  getMechanicLabel,
-  stageHasMechanicContent,
   type LearningHubStage,
 } from "@/content/learningHubRepository"
 import { resolveImageSource } from "@/content/assets"
@@ -149,12 +146,9 @@ export default function LearningHubScreen() {
     toggleBackgroundMusicMuted,
     toggleAppSoundsMuted,
   } = useAudio()
-  const [selectedCard, setSelectedCard] = useState<LearningHubCard | null>(null)
+  // TODO: Keep this tied to the child/profile language setting as more Learning bundles are added.
   const languageCode = activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE
   const cards = useMemo(() => buildLearningStageCards(languageCode), [languageCode])
-  const selectedStageCanStart = selectedCard
-    ? stageHasMechanicContent(languageCode, selectedCard.id, "tap_to_learn")
-    : false
   const { height } = Dimensions.get("window")
   const cardHeight = Math.max(166, Math.min(210, height * 0.48))
   const pulseAnim = useRef(new Animated.Value(1)).current
@@ -216,23 +210,9 @@ export default function LearningHubScreen() {
   }
 
   const handleCardPress = (card: LearningHubCard) => {
-    setSelectedCard(card)
-  }
-
-  const closeStageNotice = () => {
-    setSelectedCard(null)
-  }
-
-  const handleStartLesson = () => {
-    if (!selectedCard || !selectedStageCanStart) {
-      return
-    }
-
-    const stageId = selectedCard.id
-    setSelectedCard(null)
     router.push({
       pathname: "/child/learning/[stageId]",
-      params: { stageId },
+      params: { stageId: card.id },
     } as any)
   }
 
@@ -352,114 +332,6 @@ export default function LearningHubScreen() {
         </SafeAreaView>
       </ImageBackground>
 
-      <Modal
-        visible={selectedCard !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={closeStageNotice}
-      >
-        <View className="flex-1 bg-black/50 items-center justify-center px-6">
-          <View className="bg-white rounded-2xl border-2 border-accent-500 p-5 w-full max-w-md">
-            {selectedCard ? (
-              <>
-                <View className="flex-row items-center mb-4">
-                  <View
-                    className="w-12 h-12 rounded-full items-center justify-center mr-3"
-                    style={{ backgroundColor: `${selectedCard.accentColor}22` }}
-                  >
-                    <Ionicons name={selectedCard.icon} size={24} color={selectedCard.accentColor} />
-                  </View>
-                  <View className="flex-1">
-                    <Text variant="bold" className="text-primary-700 text-xs uppercase">
-                      {selectedCard.stageLabel}
-                    </Text>
-                    <Text variant="bold" className="text-primary-700 text-xl" numberOfLines={1}>
-                      {selectedCard.title}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    className="w-9 h-9 rounded-full bg-neutral-100 items-center justify-center"
-                    onPress={closeStageNotice}
-                    accessibilityRole="button"
-                    accessibilityLabel="Close lesson notice"
-                  >
-                    <Ionicons name="close" size={19} color={brandColors.charcoalBlack} />
-                  </TouchableOpacity>
-                </View>
-
-                <Text className="text-neutral-600 text-sm leading-5 mb-4">
-                  {selectedCard.description}
-                </Text>
-
-                <View className="mb-4">
-                  <Text variant="bold" className="text-primary-700 text-sm mb-2">
-                    Learning goals
-                  </Text>
-                  {selectedCard.stage.learningGoals.map((goal) => (
-                    <View key={goal} className="flex-row items-start mb-1.5">
-                      <Ionicons name="checkmark-circle" size={16} color={selectedCard.accentColor} />
-                      <Text className="text-neutral-700 text-xs leading-4 ml-2 flex-1">
-                        {goal}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-
-                <View className="mb-4">
-                  <Text variant="bold" className="text-primary-700 text-sm mb-2">
-                    Planned practice
-                  </Text>
-                  <View className="flex-row flex-wrap">
-                    {selectedCard.stage.mechanics.map((mechanic) => (
-                      <View
-                        key={mechanic}
-                        className="rounded-full bg-neutral-100 px-3 py-1.5 mr-2 mb-2"
-                      >
-                        <Text className="text-primary-700 text-xs" numberOfLines={1}>
-                          {getMechanicLabel(mechanic)}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-
-                <Text className="text-neutral-600 text-sm leading-5 mb-5">
-                  {selectedCard.stage.placeholderMessage}
-                </Text>
-
-                <TouchableOpacity
-                  className="rounded-full py-3 items-center"
-                  style={{
-                    backgroundColor: !selectedStageCanStart
-                      ? brandColors.neutral[400]
-                      : selectedCard.accentColor,
-                    opacity: selectedStageCanStart ? 1 : 0.72,
-                  }}
-                  onPress={handleStartLesson}
-                  disabled={!selectedStageCanStart}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    selectedCard.stage.isLocked
-                      ? "Locked for now"
-                      : selectedStageCanStart
-                        ? `Start ${selectedCard.title}`
-                        : "Start soon"
-                  }
-                  accessibilityState={{ disabled: !selectedStageCanStart }}
-                >
-                  <Text variant="bold" className="text-white text-base">
-                    {selectedCard.stage.isLocked
-                      ? "Locked for now"
-                      : selectedStageCanStart
-                        ? `Start ${selectedCard.title}`
-                        : "Start soon"}
-                  </Text>
-                </TouchableOpacity>
-              </>
-            ) : null}
-          </View>
-        </View>
-      </Modal>
     </>
   )
 }

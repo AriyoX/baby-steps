@@ -2,21 +2,15 @@
 
 ## Current Status
 
-MVP content-backed hub with the first local lesson renderer.
+MVP JSON-backed Learning hub with a DB-ready local content contract, a two-step learning-area path, and the first mechanic-driven lesson renderer.
 
 ## Purpose
 
-The Learning tab is the child-facing hub for the upcoming structured lesson path. It replaces the visible Museum tab in child navigation, but it does not route stage cards into the older standalone Luganda learning, counting, stories, or games.
+The Learning tab is the child-facing hub for the structured lesson path. Top-level Learning cards open a stage/path overview for that learning area, then individual path cards launch specific mechanic-driven lessons.
 
-## Current MVP Stages
+It replaces the visible Museum tab in child navigation, but Museum remains archived/hidden and must not be deleted or re-enabled during Learning work.
 
-- First Words
-- Family & Home
-- Everyday Things
-- Culture & Stories
-- Practice Mix
-
-Practice Mix is marked as practice content and remains locked until future progress-aware lesson completion exists.
+The Learning hub does not route stage cards into the older standalone Luganda learning, counting, stories, or games.
 
 ## Content Source
 
@@ -24,56 +18,148 @@ Learning hub content is local JSON-backed for now:
 
 - `content/learningHubContent.json`
 - `content/learningHubRepository.ts`
+- `content/learningHubTypes.ts`
 
-The JSON models stage data, placeholder lessons, lesson items, learning goals, status, lock state, estimated minutes, and planned mechanics. This shape is intended to mimic future DB-backed content while keeping the current app offline-safe and small.
+The JSON models a versioned content bundle with languages, stages, lessons, lesson items, mechanics, order, lock state, readiness, and startable state. This shape is intended to stay close to future DB-backed content while keeping the current MVP offline-safe.
 
-If a selected child language has no Learning hub path yet, the repository falls back to the default Luganda hub content.
+`content/learningHubRepository.ts` is the content adapter. UI and renderer components should consume normalized repository objects instead of raw JSON. The adapter handles:
 
-## Implemented Mechanics
+- default language fallback
+- stage, lesson, and item ordering
+- mechanic-specific item normalization
+- legacy `word` / `translation` compatibility
+- logical `audioKey` / `imageKey` asset references
+- local `audioAsset` / `imageAsset` fallbacks
+- lesson status rules
+- implemented mechanic checks
 
-`tap_to_learn` is the first implemented lesson mechanic. The lesson screen loads a stage from `learningHubRepository`, finds the first tap-to-learn lesson, and shows one local JSON item at a time with a large tappable card.
+The current default language is Luganda (`lg`). If a selected child language has no Learning hub path yet, the repository falls back to the default Luganda hub content. The model is ready for future language bundles such as Runyankole / Runyankore and other Ugandan languages.
 
-The card body is a replay/listen surface only. Tapping it reveals the meaning and replays the item's bundled `audioAsset` when that key resolves through `lib/audioAssets.ts`. If the item has no valid bundled audio key, or a declared sound cannot be loaded, the lesson falls back to a short local placeholder cue (`assets/sounds/touch-1.mp3`) or visual feedback. The card body does not advance the lesson; only the separate `Next` / `Finish` action moves forward.
+TODO: Replace placeholder vocabulary/audio with reviewed curriculum content and native-speaker recordings before production.
 
-TODO: Replace placeholder learning cues with reviewed native-speaker recorded Luganda/Runyankole audio before production.
+## Navigation Model
 
-Progress saving is intentionally future work. The current renderer does not write local progress, sync progress, or call Supabase.
+Learning now uses two child-facing steps:
 
-## Placeholder Mechanics
+- `app/child/(tabs)/learning.tsx` shows top-level Learning cards such as First Words and Family & Home.
+- `app/child/learning/[stageId].tsx` shows the stage/path overview for one Learning area.
+- `app/child/learning/[stageId]/lesson/[lessonId].tsx` runs the generic mechanic-driven lesson session.
 
-The hub still defines the remaining mechanics as data/config only:
+Top-level cards no longer start the first lesson directly. Locked or planned work is represented in the stage/path overview through Locked or Coming soon lesson cards.
 
+## Lesson Architecture
+
+Lessons are mechanic-driven. The lesson session route loads the selected stage and exact lesson by `stageId` and `lessonId`, reads that lesson's ordered items, and renders the current item through the mechanic registry:
+
+- `components/learning/mechanics/mechanicRegistry.tsx`
+- `components/learning/mechanics/TapToLearnCard.tsx`
+
+The route keeps only generic session state:
+
+- current item index
+- in-memory `ItemResult[]`
+- generic completion state
+- navigation back to the stage/path overview
+
+Progress persistence is intentionally not implemented yet.
+
+## Content Contract
+
+The public content types live in `content/learningHubTypes.ts`:
+
+- `LearningContentBundle`
+- `LearningLanguageContent`
+- `LearningStage`
+- `LearningLesson`
+- `LearningLessonItem`
+- `MechanicType`
+- `ContentReadiness`
+- `LessonStatus`
+
+Lesson items use a discriminated union by mechanic. `tap_to_learn` is normalized to stable `localText` and `englishText` fields while keeping `word` and `translation` aliases for the current renderer. Planned mechanics have typed placeholder payloads so content can be added safely before renderers exist.
+
+`LessonStatus` values:
+
+- `startable`
+- `coming_soon`
+- `locked`
+- `unsupported`
+- `empty`
+
+Only `startable` lessons launch the generic session.
+
+## Implemented Mechanic
+
+`tap_to_learn` is the first implemented mechanic.
+
+The card shows one item at a time with:
+
+- local-language word
+- English translation
+- bundled image or fallback visual
+- bundled/default local audio
+- a separate `Next` / `Finish` action
+
+The card body replays audio only and never advances the lesson. Missing or broken audio falls back safely and does not block completion. The implementation does not use device TTS and does not fetch internet audio.
+
+## Planned Mechanics
+
+The content model and labels include planned mechanics, but only `tap_to_learn` is startable today:
+
+- `cultural_card`
+- `choose_correct_word`
 - `listen_and_choose`
 - `match_word_picture`
-- `choose_correct_word`
 - `mini_quiz`
 - `story_bite`
-- `cultural_card`
 - `practice_mix`
 
-The repository maps these keys to child-facing labels for the stage modal. Future renderers can be added behind the same local JSON shape before replacing or augmenting it with DB-backed content.
+Unimplemented mechanics are not treated as startable. Unsupported mechanics should show a safe coming-soon state instead of crashing.
 
-## Screen Behavior
+## Stage Behavior
 
-`app/child/(tabs)/learning.tsx` consumes the repository and keeps the existing horizontal card layout. Each card shows the stage title, description, and image. Tapping a card opens a friendly stage notice with:
+Current MVP stages:
 
-- stage title and description
-- learning goals
-- planned practice mechanics
-- the stage-specific placeholder message
+- First Words
+- Family & Home
+- Everyday Things
+- Culture & Stories
+- Practice Mix
 
-If a stage has unlocked `tap_to_learn` content with items, the action button starts the lesson route:
+First Words and Family & Home currently have startable `tap_to_learn` lessons. Their other path cards use planned mechanics and remain Coming soon. Everyday Things and Culture & Stories remain planned placeholders. Practice Mix is marked as practice content and remains locked until future progress-aware lesson completion exists.
 
-- `app/child/learning/[stageId].tsx`
+## Future DB Mapping
 
-Stages without startable tap-to-learn content still show `Start soon` or `Locked for now`.
+No migrations have been added yet. A future Supabase-backed pass can map the local contract toward tables such as:
 
-## Future Work
+- `learning_languages`
+- `learning_stages`
+- `learning_lessons`
+- `learning_lesson_items`
+- `learning_assets`
+- `child_lesson_progress`
+- `child_item_results`
 
-- Connect completed lessons to local-first progress records.
-- Sync lesson progress to Supabase once the lesson session model is clear.
-- Replace or augment the local JSON with reviewed `content_items` payloads.
-- Build the next lesson mechanic renderer.
-- Add AI recommendations only after real lesson completion and weak-word data exist.
+`audioKey` and `imageKey` should become logical content asset references. `audioAsset` and `imageAsset` remain local bundled fallback references for now.
+
+## Future Passes
+
+Intentionally deferred:
+
+- progress persistence
+- activity logging
+- achievements
+- parent dashboard summaries
+- Practice Mix runtime recommendations
+- AI recommendations
+- Supabase sync
+- database migrations
 
 Museum remains archived and hidden for possible future redesign.
+
+## TODO: DB Migration Planning
+
+- Decide canonical language codes for Luganda, Runyankole / Runyankore, and future Ugandan languages.
+- Define reviewed asset records for `audioKey` and `imageKey`.
+- Map readiness and lesson status rules into server-side content validation.
+- Add migrations only after the local contract and first two mechanics are stable.

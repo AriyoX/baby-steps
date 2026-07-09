@@ -236,10 +236,12 @@ const AfricanThemeGameInterface: React.FC = () => {
                 />
               </Animated.View>
               <View className="pl-3">
-                <Text variant="bold" className="text-white text-lg mt-2">
+                <Text variant="bold" className="text-white text-lg mt-2" numberOfLines={1}>
                   {activeChild?.name || "Learner"}
                 </Text>
-                <Text className="text-white/80 text-sm">{activeChild ? `Age ${activeChild.age}` : "Age 9+"}</Text>
+                <Text className="text-white/80 text-sm" numberOfLines={1}>
+                  {activeChild ? `Age ${activeChild.age}` : "Age 9+"}
+                </Text>
               </View>
             </View>
 
@@ -248,7 +250,7 @@ const AfricanThemeGameInterface: React.FC = () => {
               {/* Header */}
               <View className="flex-row justify-between items-center mb-5 ml-[45%]">
                 <View className="flex-row items-center">
-                  <TranslatedText variant="bold" className="text-white text-3xl mr-2.5 pt-3">
+                  <TranslatedText variant="bold" className="text-white text-3xl mr-2.5 pt-3" numberOfLines={1}>
                     {screenTitle}
                   </TranslatedText>
                 </View>
@@ -312,7 +314,10 @@ const AfricanThemeGameInterface: React.FC = () => {
                   <TranslatedText className="text-white text-base">journey</TranslatedText>
 
                   {/* Optional Adinkra symbol */}
-                  <View className="mt-2.5">
+                  <View className="mt-2.5 w-12 h-12 rounded-full bg-white/20 items-center justify-center">
+                    <Ionicons name="sparkles" size={28} color="#ffffff" />
+                  </View>
+                  <View className="hidden">
                     <Text className="text-white text-3xl">✨</Text>
                   </View>
                 </View>

@@ -750,24 +750,46 @@ const BugandaPuzzleGame: React.FC = () => {
   };
 
   return (
-    <View className="flex-1 bg-indigo-50">
+    <View className="flex-1 bg-blue-50">
       <StatusBar style="dark" />
       {renderAchievementUnlockedModalPZ()}
 
-      <TouchableOpacity
-        className="w-12 h-12 rounded-full bg-white items-center justify-center shadow-md border-2 border-primary-200 mx-6 mt-6"
-        onPress={() => {
-          router.back();
-        }}
-        activeOpacity={0.7}
-      >
-        <Ionicons name="arrow-back" size={22} color="#7b5af0" />
-      </TouchableOpacity>
+      <View className="flex-row items-center justify-between px-5 pt-4 pb-1">
+        <TouchableOpacity
+          className="w-11 h-11 rounded-full bg-white items-center justify-center shadow-md border-2 border-primary-200"
+          onPress={() => {
+            router.back();
+          }}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Back to Games"
+        >
+          <Ionicons name="arrow-back" size={22} color="#7b5af0" />
+        </TouchableOpacity>
 
-      <View className="flex-1 flex-row p-2.5">
-        <View className="flex-0.8 justify-center items-center px-2.5 ml-auto">
+        <View className="flex-1 mx-3 bg-white px-4 py-2 rounded-2xl border-2 border-blue-100 shadow-sm">
+          <Text variant="bold" className="text-primary-700 text-center text-base" numberOfLines={1}>
+            Logic Puzzle
+          </Text>
+          <Text className="text-primary-500 text-xs text-center" numberOfLines={1}>
+            Slide tiles into the correct picture
+          </Text>
+        </View>
+
+        <View className="bg-white rounded-full px-3 py-1.5 border-2 border-primary-200 shadow-sm min-w-[84px] items-center">
+          <Text className="text-xs text-primary-500" numberOfLines={1}>
+            Moves
+          </Text>
+          <Text variant="bold" className="text-primary-700" numberOfLines={1}>
+            {moves}
+          </Text>
+        </View>
+      </View>
+
+      <View className="flex-1 flex-row px-4 pb-3 pt-1">
+        <View className="justify-center items-center px-2 ml-auto" style={{ flex: 0.9 }}>
           <View
-            className="bg-purple-100 rounded-lg overflow-hidden relative border-2 border-purple-400"
+            className="bg-white rounded-3xl overflow-hidden relative border-4 border-primary-100 shadow-lg"
             style={{
               width: PUZZLE_CONTAINER_SIZE,
               height: PUZZLE_CONTAINER_SIZE,
@@ -775,15 +797,15 @@ const BugandaPuzzleGame: React.FC = () => {
           >
             {showPreview && (
               <Animated.View
-                className="absolute w-full h-full justify-center items-center bg-purple-50 z-10"
+                className="absolute w-full h-full justify-center items-center bg-primary-50 z-10 px-5"
                 style={{ opacity: previewAnim }}
               >
                 <Image
                   source={puzzleImages[currentPuzzle].source}
-                  className="w-4/5 h-4/5"
+                  className="w-4/5 h-4/5 rounded-2xl"
                   resizeMode="contain"
                 />
-                <Text variant="bold" className="text-lg text-purple-700 mt-2.5">
+                <Text variant="bold" className="text-lg text-primary-700 mt-2.5 text-center" numberOfLines={2}>
                   Memorize the image
                 </Text>
               </Animated.View>
@@ -792,7 +814,7 @@ const BugandaPuzzleGame: React.FC = () => {
             {renderPuzzleTiles()}
 
             <Animated.View
-              className="absolute w-full h-full justify-center items-center bg-purple-400/90 z-20"
+              className="absolute w-full h-full justify-center items-center bg-primary-500/90 z-20 px-5"
               style={{
                 opacity: successAnim,
                 transform: [
@@ -808,12 +830,13 @@ const BugandaPuzzleGame: React.FC = () => {
             >
               <Image
                 source={puzzleImages[currentPuzzle].source}
-                className="w-[70%] h-[60%] rounded-lg border-3 border-white"
+                className="w-[70%] h-[60%] rounded-2xl border-3 border-white"
                 resizeMode="contain"
               />
               <Text
                 variant="bold"
-                className="text-2xl text-white mt-5 shadow-sm"
+                className="text-2xl text-white mt-5 shadow-sm text-center"
+                numberOfLines={1}
               >
                 Well done!
               </Text>
@@ -821,31 +844,34 @@ const BugandaPuzzleGame: React.FC = () => {
           </View>
         </View>
 
-        <View className="flex-1.2 justify-center px-5">
-          <View className="w-full items-center mb-5">
-            <Text variant="bold" className="text-2xl text-indigo-800 mb-2.5">
+        <View className="justify-center px-4" style={{ flex: 1.1 }}>
+          <View className="bg-white rounded-3xl border-2 border-blue-100 shadow-sm p-4">
+            <Text variant="bold" className="text-xl text-indigo-800 mb-2 text-center" numberOfLines={2}>
               {puzzleImages[currentPuzzle].name}
             </Text>
             {gameStarted && (
-              <Text className="text-xl text-indigo-500">Moves: {moves}</Text>
+              <View className="self-center bg-blue-50 rounded-full px-4 py-1.5 border border-blue-100 mb-3">
+                <Text className="text-indigo-500" numberOfLines={1}>
+                  Moves: {moves}
+                </Text>
+              </View>
             )}
-          </View>
-
-          <View className="w-full items-center my-5">
-            <Text className="text-lg text-center text-slate-600 mb-6">
+            <Text className="text-base text-center text-slate-600 mb-4" numberOfLines={4}>
               {puzzleImages[currentPuzzle].description}
             </Text>
 
             {gameStarted && !showPreview && (
               <TouchableOpacity
-                className="bg-purple-700 py-3 px-6 rounded-full shadow-md"
+                className="bg-primary-600 py-2.5 px-5 rounded-full shadow-md flex-row items-center justify-center self-center min-w-[156px]"
                 onPress={handleReset} // Use handleReset instead of initializePuzzle directly
                 accessible={true}
                 accessibilityLabel="Reset Puzzle"
                 accessibilityHint="Starts a new shuffled puzzle"
                 accessibilityRole="button"
+                activeOpacity={0.78}
               >
-                <Text variant="bold" className="text-lg text-white">
+                <Ionicons name="refresh" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+                <Text variant="bold" className="text-lg text-white" numberOfLines={1}>
                   Reset Puzzle
                 </Text>
               </TouchableOpacity>

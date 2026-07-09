@@ -150,7 +150,7 @@ export default function LearningHubScreen() {
   const languageCode = activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE
   const cards = useMemo(() => buildLearningStageCards(languageCode), [languageCode])
   const { height } = Dimensions.get("window")
-  const cardHeight = Math.max(166, Math.min(210, height * 0.48))
+  const cardHeight = Math.max(156, Math.min(194, height * 0.44))
   const pulseAnim = useRef(new Animated.Value(1)).current
   const bounceAnim = useRef(new Animated.Value(0)).current
 
@@ -222,7 +222,7 @@ export default function LearningHubScreen() {
       <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
         <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
           <View className="flex-1 flex-row" style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
-            <View className="flex-row items-center gap-2.5 absolute pt-8 left-5">
+            <View className="flex-row items-center gap-2.5 absolute pt-6 left-5">
               <Animated.View
                 style={{
                   transform: [{ scale: pulseAnim }, { translateY: bounceAnim }],
@@ -230,7 +230,7 @@ export default function LearningHubScreen() {
               >
                 <CachedImage
                   source={require("@/assets/images/african-avatar.jpg")}
-                  className="w-[70px] h-[70px] rounded-full border-3 border-accent-500"
+                  className="w-16 h-16 rounded-full border-3 border-accent-500"
                   resizeMode="cover"
                   accessibilityLabel={`${activeChild?.name || "Learner"} profile picture`}
                 />
@@ -245,10 +245,10 @@ export default function LearningHubScreen() {
               </View>
             </View>
 
-            <View className="flex-1 px-4 pt-8" style={{ paddingBottom: CHILD_TAB_BAR_CLEARANCE }}>
-              <View className="flex-row justify-between items-center mb-5 ml-[45%]">
+            <View className="flex-1 px-4 pt-6" style={{ paddingBottom: CHILD_TAB_BAR_CLEARANCE }}>
+              <View className="flex-row justify-between items-center mb-3 ml-[45%]">
                 <View className="flex-row items-center">
-                  <Text variant="bold" className="text-white text-3xl mr-2.5 pt-3" numberOfLines={1}>
+                  <Text variant="bold" className="text-white text-2xl mr-2.5 pt-2" numberOfLines={1}>
                     Learning
                   </Text>
                 </View>
@@ -303,9 +303,9 @@ export default function LearningHubScreen() {
                 showsHorizontalScrollIndicator={false}
                 className="flex-1"
                 style={{ marginTop: 3 }}
-                contentContainerStyle={{ alignItems: "center", paddingTop: 12, paddingBottom: 16 }}
+                contentContainerStyle={{ alignItems: "center", paddingTop: 6, paddingBottom: 8 }}
               >
-                <View className="bg-white/15 rounded-2xl p-4 mr-2.5 w-[200px]" style={{ height: cardHeight }}>
+                <View className="bg-white/15 rounded-2xl p-3 mr-2.5 w-[200px]" style={{ height: cardHeight }}>
                   <Text variant="bold" className="text-white text-2xl">
                     Start
                   </Text>

@@ -313,7 +313,7 @@ export default function LearningStagePathScreen() {
   const landscapeHeight = Math.min(width, height);
   const cardGap = 16;
   const lessonCardWidth = Math.min(250, Math.max(220, landscapeWidth * 0.3));
-  const lessonCardHeight = Math.max(178, Math.min(214, landscapeHeight * 0.52));
+  const lessonCardHeight = Math.max(166, Math.min(198, landscapeHeight * 0.48));
   const lessonListEndPadding = Math.max(16, landscapeWidth - lessonCardWidth - 48);
 
   const goBackToLearning = () => {
@@ -352,10 +352,10 @@ export default function LearningStagePathScreen() {
       <StatusBar style="light" translucent backgroundColor="transparent" />
       <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
         <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
-          <View className="flex-1 px-6 pt-6 pb-5">
-            <View className="flex-row items-center justify-between mb-4">
+          <View className="flex-1 px-6 pt-4 pb-4">
+            <View className="flex-row items-center justify-between mb-3">
               <TouchableOpacity
-                className="w-12 h-12 rounded-full bg-white items-center justify-center border-2 border-accent-500"
+                className="w-11 h-11 rounded-full bg-white items-center justify-center border-2 border-accent-500"
                 onPress={goBackToLearning}
                 accessibilityRole="button"
                 accessibilityLabel="Back to Learning"
@@ -364,7 +364,7 @@ export default function LearningStagePathScreen() {
               </TouchableOpacity>
 
               <View className="flex-1 px-4">
-                <Text variant="bold" className="text-white text-3xl text-center" numberOfLines={1}>
+                <Text variant="bold" className="text-white text-2xl text-center" numberOfLines={1}>
                   {stage.title}
                 </Text>
                 <Text className="text-white/85 text-sm text-center" numberOfLines={2}>
@@ -379,7 +379,7 @@ export default function LearningStagePathScreen() {
               </View>
             </View>
 
-            <View className="bg-white/15 rounded-2xl px-4 py-3 mb-4">
+            <View className="bg-white/15 rounded-2xl px-4 py-2.5 mb-3">
               <View className="flex-row items-center justify-between">
                 <View className="flex-1 pr-4">
                   <Text variant="bold" className="text-white text-lg" numberOfLines={1}>
@@ -413,8 +413,8 @@ export default function LearningStagePathScreen() {
               decelerationRate="fast"
               contentContainerStyle={{
                 alignItems: "center",
-                paddingTop: 6,
-                paddingBottom: 10,
+                paddingTop: 4,
+                paddingBottom: 6,
                 paddingRight: lessonListEndPadding,
               }}
               renderItem={({ item: lesson }) => (

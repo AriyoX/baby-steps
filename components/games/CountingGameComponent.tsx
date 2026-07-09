@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react"
 import {
   View,
   Image,
+  ImageBackground,
   TouchableOpacity,
   Animated,
   ActivityIndicator,
@@ -19,6 +20,7 @@ import { useRouter } from "expo-router"
 import { Ionicons } from "@expo/vector-icons" // Already imported
 import { LinearGradient } from "expo-linear-gradient"
 import { useChild } from "@/context/ChildContext"
+import { brandColors } from "@/constants/Brand"
 import { ComingSoonState } from "@/components/child/ComingSoonState"
 import { CachedImage } from "@/components/common/CachedImage"
 import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages"
@@ -50,6 +52,8 @@ const DEFAULT_COUNTING_ITEM: CountingGameItem = {
   name: "items",
   image: "coin.png",
 }
+
+const GAME_SCREEN_OVERLAY = "rgba(2, 116, 187, 0.88)"
 
 const getCountingCanvasHeight = (screenHeight: number): number =>
   Math.min(224, Math.max(180, screenHeight * 0.48))
@@ -86,9 +90,9 @@ const LugandaCountingGame: React.FC = () => {
   const landscapeWidth = Math.max(windowWidth, windowHeight)
   const landscapeHeight = Math.min(windowWidth, windowHeight)
   const stageCardGap = 16
-  const stageCardWidth = Math.min(250, Math.max(220, landscapeWidth * 0.3))
-  const stageCardHeight = Math.max(166, Math.min(210, landscapeHeight * 0.48))
-  const stageCardImageHeight = Math.round(stageCardHeight * 0.56)
+  const stageCardWidth = Math.min(270, Math.max(230, landscapeWidth * 0.32))
+  const stageCardHeight = Math.max(190, Math.min(232, landscapeHeight * 0.56))
+  const stageCardImageHeight = Math.round(stageCardHeight * 0.54)
   const stageCardBodyHeight = stageCardHeight - stageCardImageHeight
   const stageListEndPadding = Math.max(16, landscapeWidth - stageCardWidth - 32)
   const countingCanvasHeight = getCountingCanvasHeight(landscapeHeight)
@@ -927,140 +931,192 @@ const LugandaCountingGame: React.FC = () => {
   // RENDER: Stage Selection Screen
   const renderStageSelectionScreen = () => {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50">
-        <StatusBar style="dark" />
+      <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
+        <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: GAME_SCREEN_OVERLAY }}>
+          <StatusBar style="light" translucent backgroundColor="transparent" />
 
-        {/* Header with back button and title */}
-        <View className="flex-row justify-between items-center px-4 pt-6 pb-2">
-          <TouchableOpacity
-            className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-100"
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={20} color="#818cf8" />
-          </TouchableOpacity>
+          <View className="flex-1 px-6 pt-6 pb-5">
+            <View className="flex-row items-center justify-between mb-4">
+              <TouchableOpacity
+                className="w-12 h-12 rounded-full bg-white justify-center items-center border-2 border-accent-500"
+                onPress={() => router.back()}
+                accessibilityRole="button"
+                accessibilityLabel="Back to Games"
+              >
+                <Ionicons name="arrow-back" size={22} color={brandColors.victoriaBlue} />
+              </TouchableOpacity>
 
-          <Text variant="bold" className="text-xl text-indigo-800">
-            {countingContent?.title ?? "Counting Game"}
-          </Text>
+              <View className="flex-1 px-4">
+                <Text variant="bold" className="text-white text-3xl text-center" numberOfLines={1}>
+                  {countingContent?.title ?? "Counting Game"}
+                </Text>
+                <Text className="text-white/85 text-sm text-center" numberOfLines={2}>
+                  Pick a number stage and count the items you see.
+                </Text>
+              </View>
 
-          <View className="flex-row items-center bg-white px-3 py-1.5 rounded-full shadow-sm border border-amber-200">
-            <Image source={require("@/assets/images/coin.png")} className="w-5 h-5 mr-1" resizeMode="contain" />
-            <Text variant="bold" className="text-amber-500">
-              {progress.totalScore}
-            </Text>
-          </View>
-        </View>
-
-        <Animated.View className="flex-1 pt-2" style={{ opacity: fadeAnim }}>
-          {/* Stage Navigation Header */}
-          <View className="flex-row justify-between items-center px-4 mb-2">
-            <Text variant="bold" className="text-lg text-indigo-800">
-              Select a Stage
-            </Text>
-            <View className="flex-row items-center">
-              <Text className="text-xs text-slate-500 mr-2">Swipe to explore</Text>
-              <Ionicons name="arrow-forward" size={14} color="#6366f1" />
+              <View className="flex-row items-center bg-white rounded-full px-4 py-2 border-2 border-accent-500">
+                <Image source={require("@/assets/images/coin.png")} className="w-5 h-5 mr-1.5" resizeMode="contain" />
+                <Text variant="bold" className="text-amber-500 text-base" numberOfLines={1}>
+                  {progress.totalScore}
+                </Text>
+              </View>
             </View>
-          </View>
 
-          {/* Stage Cards with Snap Scrolling */}
-          <FlatList
-            data={countingStages}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            snapToInterval={stageCardWidth + stageCardGap}
-            snapToAlignment="start"
-            decelerationRate="fast"
-            contentContainerStyle={{
-              paddingVertical: 12,
-              paddingLeft: 16,
-              paddingRight: stageListEndPadding,
-            }}
-            renderItem={({ item: stage }) => {
-              const isUnlocked = isStageUnlocked(progress, stage.id)
+            <View className="bg-white/15 rounded-2xl px-4 py-3 mb-4">
+              <View className="flex-row items-center justify-between">
+                <View className="flex-1 pr-4">
+                  <Text variant="bold" className="text-white text-lg" numberOfLines={1}>
+                    Choose a stage
+                  </Text>
+                  <Text className="text-white/85 text-sm" numberOfLines={2}>
+                    Swipe through counting practice sets and continue from saved progress.
+                  </Text>
+                </View>
+                <View className="flex-row items-center">
+                  <Ionicons name="calculator-outline" size={22} color="#ffffff" />
+                  <Text variant="bold" className="text-white text-sm ml-2" numberOfLines={1}>
+                    {countingStages.length} stages
+                  </Text>
+                </View>
+              </View>
+            </View>
 
-              const isCompleted = progress.completedStages.includes(stage.id)
+            <Animated.View
+              className="flex-1"
+              style={{
+                opacity: fadeAnim,
+                transform: [
+                  {
+                    translateY: fadeAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [18, 0],
+                    }),
+                  },
+                ],
+              }}
+            >
+              <FlatList
+                data={countingStages}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                snapToInterval={stageCardWidth + stageCardGap}
+                snapToAlignment="start"
+                decelerationRate="fast"
+                contentContainerStyle={{
+                  alignItems: "center",
+                  paddingTop: 6,
+                  paddingBottom: 10,
+                  paddingRight: stageListEndPadding,
+                }}
+                renderItem={({ item: stage }) => {
+                  const isUnlocked = isStageUnlocked(progress, stage.id)
+                  const isCompleted = progress.completedStages.includes(stage.id)
 
-              let stageIconName: keyof typeof Ionicons.glyphMap = "list-outline" // Default icon
-              if (stage.usesCurrency) {
-                stageIconName = "cash-outline"
-              } else if (stage.useBunches) {
-                stageIconName = "apps-outline"
-              }
+                  let stageIconName: keyof typeof Ionicons.glyphMap = "list-outline"
+                  if (stage.usesCurrency) {
+                    stageIconName = "cash-outline"
+                  } else if (stage.useBunches) {
+                    stageIconName = "apps-outline"
+                  }
 
-              return (
-                <TouchableOpacity
-                  key={stage.id}
-                  style={{
-                    width: stageCardWidth,
-                    marginRight: stageCardGap,
-                    height: stageCardHeight,
-                  }}
-                  className={`bg-white rounded-2xl overflow-hidden shadow-md border-2 border-accent-500 ${
-                    !isUnlocked ? "opacity-70" : ""
-                  }`}
-                  onPress={() => selectStage(stage.id)}
-                  disabled={!isUnlocked}
-                  activeOpacity={isUnlocked ? 0.75 : 1}
-                >
-                  <View>
-                    <CachedImage
-                      source={getCountingStageImage(stage)}
-                      fallbackSource={resolveImageSource("numbers.png")}
-                      className="w-full"
-                      style={{ height: stageCardImageHeight }}
-                      resizeMode="cover"
-                      accessibilityLabel={`${stage.title} picture`}
-                    />
-                    <View className="absolute top-2 left-2 bg-white/90 px-2 py-1 rounded-full">
-                      <Text variant="bold" className="text-[11px] text-primary-700">
-                        Stage {stage.id}
-                      </Text>
-                    </View>
-                    <View className="absolute top-2 right-2 bg-white/90 w-8 h-8 rounded-full items-center justify-center">
-                      <Ionicons
-                        name={!isUnlocked ? "lock-closed" : isCompleted ? "checkmark-circle" : stageIconName}
-                        size={18}
-                        color={!isUnlocked ? "#64748b" : isCompleted ? "#10b981" : "#0274BB"}
-                      />
-                    </View>
-                  </View>
+                  const statusIcon: keyof typeof Ionicons.glyphMap = !isUnlocked
+                    ? "lock-closed"
+                    : isCompleted
+                      ? "checkmark-circle"
+                      : stageIconName
+                  const statusLabel = !isUnlocked
+                    ? "Locked"
+                    : isCompleted
+                      ? "Done"
+                      : progress.lastPlayedLevel[stage.id]
+                        ? `Lvl ${progress.lastPlayedLevel[stage.id]}`
+                        : "Start"
+                  const statusColor = !isUnlocked
+                    ? brandColors.neutral[600]
+                    : isCompleted
+                      ? brandColors.success
+                      : brandColors.victoriaBlue
 
-                  <View className="bg-white px-3 py-2 justify-between" style={{ height: stageCardBodyHeight }}>
-                    <View>
-                      <Text variant="bold" className="text-base text-primary-700 mb-0.5" numberOfLines={1}>
-                        {stage.title}
-                      </Text>
-                      <Text className="text-xs text-neutral-600 leading-4" numberOfLines={2}>
-                        {stage.description}
-                      </Text>
-                    </View>
-
-                    <View className="flex-row items-center justify-between">
-                      <View className="flex-row items-center">
-                        <Ionicons name="layers-outline" size={13} color="#0274BB" />
-                        <Text variant="medium" className="text-[11px] text-primary-700 ml-1">
-                          {stage.levels} levels
-                        </Text>
+                  return (
+                    <TouchableOpacity
+                      key={stage.id}
+                      style={{
+                        width: stageCardWidth,
+                        marginRight: stageCardGap,
+                        height: stageCardHeight,
+                        borderColor: !isUnlocked ? brandColors.neutral[200] : brandColors.equatorialGold,
+                        opacity: !isUnlocked ? 0.74 : 1,
+                      }}
+                      className="bg-white rounded-2xl overflow-hidden shadow-md border-2"
+                      onPress={() => selectStage(stage.id)}
+                      disabled={!isUnlocked}
+                      activeOpacity={isUnlocked ? 0.75 : 1}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${stage.title}. ${stage.description}. ${statusLabel}.`}
+                      accessibilityState={{ disabled: !isUnlocked }}
+                    >
+                      <View>
+                        <CachedImage
+                          source={getCountingStageImage(stage)}
+                          fallbackSource={resolveImageSource("numbers.png")}
+                          className="w-full"
+                          style={{ height: stageCardImageHeight }}
+                          resizeMode="cover"
+                          accessibilityLabel={`${stage.title} picture`}
+                        />
+                        {!isUnlocked ? <View className="absolute top-0 bottom-0 left-0 right-0 bg-black/20" /> : null}
+                        <View className="absolute top-2 left-2 bg-white/95 px-2.5 py-1 rounded-full">
+                          <Text variant="bold" className="text-[11px] text-primary-700" numberOfLines={1}>
+                            Stage {stage.id}
+                          </Text>
+                        </View>
+                        <View className="absolute top-2 right-2 bg-white/95 w-9 h-9 rounded-full items-center justify-center">
+                          <Ionicons name={statusIcon} size={20} color={statusColor} />
+                        </View>
                       </View>
-                      <Text variant="medium" className="text-[11px] text-neutral-600">
-                        {isCompleted
-                          ? "Done"
-                          : progress.lastPlayedLevel[stage.id] && isUnlocked
-                            ? `Lvl ${progress.lastPlayedLevel[stage.id]}`
-                            : `${stage.numbersRange.min}-${stage.numbersRange.max}`}
-                      </Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              )
-            }}
-            ListFooterComponent={() => (
-              <View style={{ width: 1 }} />
-            )}
-          />
-        </Animated.View>
-      </SafeAreaView>
+
+                      <View className="bg-white px-3.5 py-3 justify-between" style={{ height: stageCardBodyHeight }}>
+                        <View>
+                          <Text
+                            variant="bold"
+                            className="text-lg text-primary-700 leading-5 mb-1"
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.86}
+                          >
+                            {stage.title}
+                          </Text>
+                          <Text className="text-xs text-neutral-600 leading-4" numberOfLines={2}>
+                            {stage.description}
+                          </Text>
+                        </View>
+
+                        <View className="flex-row items-center justify-between mt-2">
+                          <View className="flex-row items-center flex-1 pr-2">
+                            <Ionicons name="layers-outline" size={14} color={brandColors.victoriaBlue} />
+                            <Text variant="medium" className="text-[11px] text-primary-700 ml-1" numberOfLines={1}>
+                              {stage.levels} levels
+                            </Text>
+                          </View>
+                          <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: !isUnlocked ? brandColors.neutral[100] : brandColors.blue[50] }}>
+                            <Text variant="bold" className="text-[11px]" style={{ color: statusColor }} numberOfLines={1}>
+                              {statusLabel}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  )
+                }}
+                ListFooterComponent={() => (
+                  <View style={{ width: 1 }} />
+                )}
+              />
+            </Animated.View>
+          </View>
+        </SafeAreaView>
+      </ImageBackground>
     )
   }
 
@@ -1107,31 +1163,30 @@ const LugandaCountingGame: React.FC = () => {
 
   // Render the game screen
   return (
-    <SafeAreaView className="flex-1 bg-indigo-50 pt-3">
+    <SafeAreaView className="flex-1 bg-blue-50 pt-3">
       <StatusBar style="dark" />
 
-      {/* Decorative elements */}
-      <View className="absolute top-5 right-5">
-        <View className="w-12 h-12 rounded-full bg-indigo-500 opacity-10" />
-      </View>
-
-      <View className="absolute bottom-10 left-16">
-        <View className="w-16 h-16 rounded-full bg-emerald-500 opacity-10" />
-      </View>
-
       {/* Header with back button and game info */}
-      <View className="flex-row justify-between items-center px-4 pt-3 pb-2">
+      <View className="flex-row justify-between items-center px-4 pt-2 pb-2">
         <TouchableOpacity
           className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-100"
           onPress={() => setGameState("stageSelect")}
+          accessibilityRole="button"
+          accessibilityLabel="Back to counting stages"
         >
           <Ionicons name="arrow-back" size={20} color="#818cf8" />
         </TouchableOpacity>
 
-        <View className="flex-row items-center  px-4 py-2 rounded-xl">
-          <View className="flex-row items-center bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+        <View className="flex-1 px-4">
+          <Text variant="bold" className="text-indigo-800 text-center text-lg" numberOfLines={1}>
+            {countingContent.title}
+          </Text>
+        </View>
+
+        <View className="flex-row items-center px-4 py-2 rounded-xl">
+          <View className="flex-row items-center bg-amber-50 px-3 py-1 rounded-full border border-amber-200 min-w-[72px] justify-center">
             <Image source={require("@/assets/images/coin.png")} className="w-5 h-5 mr-1" resizeMode="contain" />
-            <Text variant="bold" className="text-amber-500">
+            <Text variant="bold" className="text-amber-500" numberOfLines={1}>
               {score}
             </Text>
           </View>
@@ -1139,53 +1194,77 @@ const LugandaCountingGame: React.FC = () => {
       </View>
 
       {/* Main content area */}
-      <View className="flex-1 flex-row w-full px-4 py-2">
+      <Animated.View
+        className="flex-1 flex-row w-full px-4 pb-4 pt-1"
+        style={{
+          opacity: fadeAnim,
+          columnGap: 12,
+          transform: [
+            {
+              translateY: fadeAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [12, 0],
+              }),
+            },
+          ],
+        }}
+      >
         {/* Left section - Stage indicator */}
-        <View className="w-1/6 items-center pt-4">
-          <View className="bg-white rounded-xl shadow-sm p-3 w-full">
-            <Text className="text-center text-sm text-indigo-400">STAGE</Text>
-            <View className="items-center justify-center my-2">
-              <View
-                className="w-16 h-16 rounded-full items-center justify-center shadow-md"
-                style={{
-                  backgroundColor: "#818cf8",
-                }}
+        <View className="items-center justify-center" style={{ flex: 0.9 }}>
+          <View className="bg-white rounded-2xl shadow-sm p-3 w-full border border-blue-100 min-h-[210px] justify-between">
+            <View>
+              <Text className="text-center text-xs text-indigo-400 uppercase" numberOfLines={1}>
+                Stage {currentStage}
+              </Text>
+              <Text
+                variant="bold"
+                className="text-center text-primary-700 text-sm mt-1"
+                numberOfLines={2}
+                adjustsFontSizeToFit
+                minimumFontScale={0.78}
               >
-                <Text variant="bold" className="text-2xl text-white">
+                {activeStage.title}
+              </Text>
+            </View>
+
+            <View className="items-center justify-center my-2">
+              <View className="w-16 h-16 rounded-full items-center justify-center shadow-md bg-indigo-400">
+                <Text variant="bold" className="text-2xl text-white" numberOfLines={1}>
                   {currentStage}
                 </Text>
               </View>
             </View>
 
-            <View className="bg-indigo-100 rounded-full h-2 w-full mt-1 mb-2">
-              <View
-                className="bg-indigo-500 rounded-full h-2"
-                style={{
-                  width: `${(currentLevel / activeStage.levels) * 100}%`,
-                }}
-              />
-            </View>
+            <View>
+              <View className="bg-indigo-100 rounded-full h-2 w-full mt-1 mb-2">
+                <View
+                  className="bg-indigo-500 rounded-full h-2"
+                  style={{
+                    width: `${(currentLevel / activeStage.levels) * 100}%`,
+                  }}
+                />
+              </View>
 
-            <Text className="text-center text-xs text-indigo-500">
-              Level {currentLevel}/{activeStage.levels}
-            </Text>
+              <Text className="text-center text-xs text-indigo-500" numberOfLines={1}>
+                Level {currentLevel}/{activeStage.levels}
+              </Text>
+            </View>
           </View>
         </View>
 
         {/* Center section - Items to count */}
-        <View className="w-3/5 items-center justify-center px-4">
-          {/* Question prompt */}
-          <View className="items-center mb-1 bg-white px-6 py-2 rounded-xl shadow-sm">
-            <Text variant="bold" className="text-lg text-slate-800 text-center">
+        <View className="items-center justify-center" style={{ flex: 2.4 }}>
+          <View className="w-full items-center mb-2 bg-white px-5 py-2.5 rounded-2xl shadow-sm border border-blue-100">
+            <Text variant="bold" className="text-lg text-slate-800 text-center" numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.86}>
               {getQuestionText()}
             </Text>
-            <Text className="text-sm text-indigo-600 text-center mt-1">
+            <Text className="text-sm text-indigo-600 text-center mt-1" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
               {activeStage.description}
             </Text>
           </View>
 
           {/* Items container */}
-          <View className="w-full relative bg-white rounded-xl p-4 shadow-sm" style={{ height: countingCanvasHeight }}>
+          <View className="w-full relative bg-white rounded-2xl p-4 shadow-sm border border-blue-100" style={{ height: countingCanvasHeight }}>
             {/* Grid for visual guidance */}
             <View className="absolute inset-0 w-full h-full rounded-xl overflow-hidden">
               {Array.from({ length: 10 }).map((_, i) => (
@@ -1217,37 +1296,40 @@ const LugandaCountingGame: React.FC = () => {
           </View>
 
           {/* Number label */}
-          <View className="flex-row items-center justify-center bg-blue-50 mt-3 px-4 py-2 rounded-lg border border-blue-100">
-            <Text className="text-blue-600 text-center">
+          <View className="flex-row items-center justify-center bg-blue-50 mt-3 px-4 py-2 rounded-full border border-blue-100">
+            <Text className="text-blue-600 text-center" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
               {getNumberLabel(targetNumber)} = {targetNumber}
             </Text>
           </View>
         </View>
 
         {/* Right section - Number options */}
-        <View className="w-1/4 items-center justify-center">
-          <View className="bg-white rounded-xl shadow-sm p-4 w-full">
-            <Text className="text-center text-sm text-indigo-400 mb-3">BALANGA EMEKA?</Text>
+        <View className="items-center justify-center" style={{ flex: 1 }}>
+          <View className="bg-white rounded-2xl shadow-sm p-3 w-full border border-blue-100 min-h-[210px] justify-center">
+            <Text className="text-center text-sm text-indigo-400 mb-3" numberOfLines={1}>
+              BALANGA EMEKA?
+            </Text>
 
-            <View className="items-center justify-around py-2 space-y-3">
+            <View className="items-center justify-center py-1">
               {numberOptions.length > 0 ? (
                 numberOptions.map((number) => (
                   <TouchableOpacity
                     key={number}
-                    className={`w-20 h-20 rounded-full justify-center items-center shadow mb-2 ${
+                    className={`w-16 h-16 rounded-full justify-center items-center shadow mb-2 border-2 ${
                       selectedCount === number && isCorrect
-                        ? "bg-emerald-500 border-2 border-emerald-200"
+                        ? "bg-emerald-500 border-emerald-200"
                         : selectedCount === number && !isCorrect
-                          ? "bg-red-500 border-2 border-red-200"
-                          : "bg-indigo-500"
+                          ? "bg-red-500 border-red-200"
+                          : "bg-indigo-500 border-indigo-300"
                     }`}
                     onPress={() => handleNumberPress(number)}
                     disabled={showFeedback && isCorrect}
+                    activeOpacity={0.78}
                   >
-                    <Text variant="bold" className="text-xl text-white">
+                    <Text variant="bold" className="text-lg text-white" numberOfLines={1}>
                       {number}
                     </Text>
-                    <Text className="text-xs text-white opacity-90">
+                    <Text className="text-xs text-white opacity-90" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}>
                       {getNumberLabel(number).split(" ")[0]}
                     </Text>
                   </TouchableOpacity>
@@ -1258,7 +1340,7 @@ const LugandaCountingGame: React.FC = () => {
             </View>
           </View>
         </View>
-      </View>
+      </Animated.View>
 
       {/* Feedback animation */}
       {showFeedback && (
@@ -1284,7 +1366,14 @@ const LugandaCountingGame: React.FC = () => {
           }}
         >
           <View className="items-center">
-            <Text className="text-4xl mb-2 pt-3">{isCorrect ? "🎉" : "😕"}</Text>
+            <View className={`w-12 h-12 rounded-full items-center justify-center mb-2 ${isCorrect ? "bg-emerald-50" : "bg-red-50"}`}>
+              <Ionicons
+                name={isCorrect ? "sparkles" : "refresh-circle"}
+                size={28}
+                color={isCorrect ? brandColors.success : brandColors.danger}
+              />
+            </View>
+            <Text className="hidden">{isCorrect ? "🎉" : "😕"}</Text>
             <Text
               variant="bold"
               className={`text-xl text-center mb-1 ${isCorrect ? "text-emerald-600" : "text-red-600"}`}
@@ -1301,7 +1390,7 @@ const LugandaCountingGame: React.FC = () => {
         <View className="absolute inset-0 bg-black/50 items-center justify-center pt-12">
           <View className="bg-white rounded-2xl p-6 w-3/5 max-w-md items-center shadow-xl">
             <View className="absolute -top-10 bg-indigo-500 w-20 h-20 rounded-full items-center justify-center border-4 border-white">
-              <Text className="text-4xl">🏆</Text>
+              <Ionicons name="trophy" size={38} color="#ffffff" />
             </View>
 
             <Text variant="bold" className="text-2xl text-indigo-800 mt-6 mb-3 text-center">

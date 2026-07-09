@@ -2,9 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   TouchableOpacity,
-  ScrollView,
   Dimensions,
-  StyleSheet,
   Animated,
   ActivityIndicator,
 } from "react-native";
@@ -15,24 +13,19 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Text } from "@/components/StyledText";
 import { useChild } from "@/context/ChildContext";  
 import { saveActivity } from "@/lib/utils";
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { 
   loadGameState, 
   saveGameState, 
   clearGameState, 
-  CardGameState, 
-  DEFAULT_GAME_STATE 
-} from './utils/progressManagerCardGame';
-import { useAchievements } from "./achievements/useAchievements";
-import { AchievementDefinition } from "./achievements/achievementTypes";
-import { 
   loadOverallStats, 
   updateTotalPairsMatched, 
   incrementGamesPlayed,
+  CardGameState,
   CardGameOverallStats, // Import the type too
   DEFAULT_OVERALL_STATS // Import the default stats constant
-  // ... other existing imports from progressManagerCardGame
 } from './utils/progressManagerCardGame';
+import { useAchievements } from "./achievements/useAchievements";
+import { AchievementDefinition } from "./achievements/achievementTypes";
 import { audioManager } from "@/lib/audioManager";
 
 // Define card interface
@@ -830,14 +823,19 @@ const BugandaMatchingGame: React.FC = () => {
 
   // Determine number of columns based on device orientation
   const numColumns = isLandscape ? 8 : 4;
+  const rowCount = Math.ceil(cards.length / numColumns) || 1;
+  const cardGap = isLandscape ? 3 : 4;
+  const boardVerticalAllowance = Math.max(136, screenHeight - (isLandscape ? 112 : 168));
+  const maxCardHeight = boardVerticalAllowance / rowCount - cardGap * 2;
+  const maxCardWidthFromHeight = maxCardHeight / 1.08;
 
   // Calculate card size to fit the screen width perfectly
-  const cardWidth = (screenWidth - 32) / numColumns - 6; // 32 for outer padding, 6 for margin between cards
+  const cardWidth = Math.min(
+    (screenWidth - 32) / numColumns - cardGap * 2,
+    maxCardWidthFromHeight,
+  );
   // Adjust card height to be shorter (originally 1.4x width)
-  const cardHeight = cardWidth * 1.25; // Reduced aspect ratio to show more rows
-
-  // Calculate how much vertical space we need for 3 rows plus header
-  const neededHeight = cardHeight * 3 + 32; // 3 rows + gaps + padding
+  const cardHeight = cardWidth * 1.08;
 
   // Get gradient colors for a card based on its index
   const getCardGradient = (index: number): readonly [string, string] => {
@@ -846,38 +844,31 @@ const BugandaMatchingGame: React.FC = () => {
   };
 
   return (
-    <View className="flex-1 flex-col bg-primary-50">
+    <View className="flex-1 flex-col bg-blue-50">
       <StatusBar style="dark" />
       {renderAchievementUnlockedModalCM()}
 
-      {/* Decorative Background Elements */}
-      <View className="absolute top-5 left-5">
-        <View className="w-10 h-10 rounded-full bg-yellow-200 opacity-60" />
-      </View>
-      <View className="absolute bottom-5 right-5">
-        <View className="w-12 h-12 rounded-full bg-purple-200 opacity-50" />
-      </View>
-      <View className="absolute top-1/3 right-10">
-        <View className="w-8 h-8 rounded-full bg-blue-200 opacity-40" />
-      </View>
-
       {/* Top navigation bar with all elements aligned horizontally */}
-      <View className="flex-row justify-between items-center px-4 pt-8 pb-2">
+      <View className="flex-row justify-between items-center px-5 pt-4 pb-1">
         {/* Back button */}
         <TouchableOpacity
-          className="w-10 h-10 rounded-full bg-white items-center justify-center shadow-md border-2 border-primary-200"
+          className="w-11 h-11 rounded-full bg-white items-center justify-center shadow-md border-2 border-primary-200"
           onPress={() => router.back()}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Back to Games"
         >
           <Ionicons name="arrow-back" size={20} color="#7b5af0" />
         </TouchableOpacity>
 
         {/* Game title in the middle */}
-        <View className="flex-1 mx-2 bg-white/95 px-4 py-2.5 rounded-2xl shadow-md border-2 border-secondary-100">
+        <View className="flex-1 mx-3 bg-white px-4 py-2 rounded-2xl shadow-md border-2 border-blue-100">
           <Text
             className=" text-primary-700 text-center"
             variant="bold"
             numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.84}
           >
             Buganda Cultural Cards
           </Text>
@@ -886,18 +877,18 @@ const BugandaMatchingGame: React.FC = () => {
         {/* Right side container for stats, reset and new game buttons */}
         <View className="flex-row items-center space-x-2">
           {/* Moves counter */}
-          <View className="bg-white px-2 py-1 rounded-xl shadow-md border-2 border-primary-200">
+          <View className="bg-white px-2.5 py-1.5 rounded-xl shadow-md border-2 border-primary-200 min-w-[74px]">
             <View className="flex-row items-center">
-              <Text className="text-xs text-primary-500 mr-1">Moves:</Text>
-              <Text className="text-sm text-primary-700">{moves}</Text>
+              <Ionicons name="swap-horizontal" size={13} color="#7b5af0" />
+              <Text className="text-sm text-primary-700 ml-1" numberOfLines={1}>{moves}</Text>
             </View>
           </View>
 
           {/* Matches counter */}
-          <View className="bg-white px-2 py-1 rounded-xl shadow-md border-2 border-primary-200">
+          <View className="bg-white px-2.5 py-1.5 rounded-xl shadow-md border-2 border-primary-200 min-w-[82px]">
             <View className="flex-row items-center">
-              <Text className="text-xs text-primary-500 mr-1">Matches:</Text>
-              <Text className="text-sm text-primary-700">
+              <Ionicons name="checkmark-circle" size={13} color="#22c55e" />
+              <Text className="text-sm text-primary-700 ml-1" numberOfLines={1}>
                 {matchedCount}/{PAIRS_PER_GAME}
               </Text>
             </View>
@@ -905,154 +896,161 @@ const BugandaMatchingGame: React.FC = () => {
 
           {/* Reset button */}
           <TouchableOpacity
-            className="bg-primary-300 py-1.5 px-3 rounded-full shadow-md border-2 border-primary-200"
+            className="bg-white w-11 h-11 rounded-full shadow-md border-2 border-primary-200 items-center justify-center"
             onPress={resetGame}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Reset matching game"
           >
-            <Text className="text-primary-700 text-xs">Reset</Text>
+            <Ionicons name="refresh" size={18} color="#7b5af0" />
           </TouchableOpacity>
 
           {/* New Game button */}
           <TouchableOpacity
-            className="bg-secondary-300 py-1.5 px-3 rounded-full shadow-md border-2 border-secondary-200"
+            className="bg-white w-11 h-11 rounded-full shadow-md border-2 border-secondary-200 items-center justify-center"
             onPress={initGame}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Start a new matching game"
           >
-            <Text className="text-primary-700 text-xs">New</Text>
+            <Ionicons name="add-circle" size={19} color="#7b5af0" />
           </TouchableOpacity>
         </View>
       </View>
 
       {/* Game board with improved visuals - reduced padding */}
-      <View className="flex-1 p-2">
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{
-            paddingHorizontal: 6,
-            paddingVertical: 8,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <View className="flex-row flex-wrap justify-center">
-            {cards.map((card, index) => (
-              <TouchableOpacity
-                key={card.id}
-                style={{
-                  width: cardWidth,
-                  height: cardHeight,
-                  margin: 3, // Reduced from 4 to 3
-                }}
-                className={`
-                  rounded-xl overflow-hidden justify-center items-center 
+      <Animated.View
+        className="flex-1 px-3 pb-3 pt-1"
+        style={{ transform: [{ scale: bounceAnim }] }}
+      >
+        <View className="flex-1 flex-row flex-wrap justify-center items-center">
+          {cards.map((card, index) => (
+            <TouchableOpacity
+              key={card.id}
+              style={{
+                width: cardWidth,
+                height: cardHeight,
+                margin: cardGap,
+              }}
+              className={`
+                  rounded-2xl overflow-hidden justify-center items-center
                   shadow-md border-2
                   ${card.matched ? "border-green-400" : "border-white"}
                 `}
-                onPress={() => handleCardPress(card)}
-                activeOpacity={0.85}
-              >
-                {card.flipped || card.matched ? (
-                  // Front of card (flipped)
-                  <LinearGradient
-                    colors={["#ffffff", "#f8f8ff"]}
-                    className="flex-1 w-full justify-center items-center p-1"
-                  >
-                    <View
-                      style={{
-                        width: cardWidth * 0.6,
-                        height: cardWidth * 0.6,
-                      }}
-                      className={`
+              onPress={() => handleCardPress(card)}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={card.flipped || card.matched ? `${card.value} card` : "Hidden card"}
+              accessibilityState={{ selected: card.flipped || card.matched }}
+            >
+              {card.flipped || card.matched ? (
+                // Front of card (flipped)
+                <LinearGradient
+                  colors={["#ffffff", "#f8f8ff"]}
+                  className="flex-1 w-full justify-center items-center p-1"
+                >
+                  <View
+                    style={{
+                      width: cardWidth * 0.6,
+                      height: cardWidth * 0.6,
+                    }}
+                    className={`
                       rounded-full mb-1 justify-center items-center
                       ${card.matched ? "bg-green-100" : "bg-blue-100"}
                     `}
-                    >
-                      <Text
-                        variant="bold"
-                        style={{ fontSize: cardWidth * 0.35 }}
-                      >
-                        {card.imageSymbol}
-                      </Text>
-                    </View>
-                    <Text
-                      className="text-center text-primary-700  px-1"
-                      numberOfLines={1}
-                      style={{ fontSize: Math.max(10, cardWidth * 0.15) }}
-                      variant="bold"
-                    >
-                      {card.value}
-                    </Text>
-                  </LinearGradient>
-                ) : (
-                  // Back of card (unflipped) with gradient
-                  <LinearGradient
-                    colors={getCardGradient(index)}
-                    className="flex-1 w-full justify-center items-center"
                   >
-                    {/* Fun question mark design */}
-                    <View
-                      style={{
-                        width: cardWidth * 0.5,
-                        height: cardWidth * 0.5,
-                      }}
-                      className="bg-white/30 rounded-full justify-center items-center"
+                    <Text
+                      variant="bold"
+                      style={{ fontSize: cardWidth * 0.35 }}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.7}
                     >
-                      <Text
-                        className=" text-primary-700"
-                        style={{ fontSize: cardWidth * 0.3 }}
-                      >
-                        ?
-                      </Text>
-                    </View>
-                    <View className="absolute bottom-2 right-2">
-                      <View className="w-3 h-3 rounded-full bg-white/20" />
-                    </View>
-                    <View className="absolute top-2 left-2">
-                      <View className="w-2 h-2 rounded-full bg-white/20" />
-                    </View>
-                  </LinearGradient>
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-      </View>
+                      {card.imageSymbol}
+                    </Text>
+                  </View>
+                  <Text
+                    className="text-center text-primary-700 px-1"
+                    numberOfLines={1}
+                    style={{ fontSize: Math.max(10, cardWidth * 0.15) }}
+                    variant="bold"
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.72}
+                  >
+                    {card.value}
+                  </Text>
+                </LinearGradient>
+              ) : (
+                // Back of card (unflipped) with gradient
+                <LinearGradient
+                  colors={getCardGradient(index)}
+                  className="flex-1 w-full justify-center items-center"
+                >
+                  {/* Fun question mark design */}
+                  <View
+                    style={{
+                      width: cardWidth * 0.5,
+                      height: cardWidth * 0.5,
+                    }}
+                    className="bg-white/30 rounded-full justify-center items-center"
+                  >
+                    <Text
+                      className=" text-primary-700"
+                      style={{ fontSize: cardWidth * 0.3 }}
+                    >
+                      ?
+                    </Text>
+                  </View>
+                  <View className="absolute bottom-2 right-2">
+                    <View className="w-3 h-3 rounded-full bg-white/20" />
+                  </View>
+                  <View className="absolute top-2 left-2">
+                    <View className="w-2 h-2 rounded-full bg-white/20" />
+                  </View>
+                </LinearGradient>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      </Animated.View>
 
       {/* Info modal when match is found - with fun styling */}
       {infoModal.show && (
-        <View className="absolute inset-0 bg-black/50 justify-center items-center">
+        <View className="absolute inset-0 bg-black/50 justify-center items-center px-5">
           <View
-            className="w-4/5 rounded-3xl p-6 items-center shadow-xl border-4 border-primary-200 bg-white"
+            className="w-4/5 max-w-xl rounded-3xl p-6 items-center shadow-xl border-4 border-primary-200 bg-white"
           >
             {/* Symbol display at top */}
             <View className="absolute -top-8 bg-yellow-100 w-16 h-16 rounded-full border-4 border-white justify-center items-center">
-              <Text className="text-4xl">{infoModal.symbol}</Text>
+              <Text className="text-4xl" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                {infoModal.symbol}
+              </Text>
             </View>
 
-            {/* Decorative elements */}
-            <View className="absolute top-3 right-3">
-              <Text className="text-xl">✨</Text>
-            </View>
-            <View className="absolute bottom-3 left-3">
-              <Text className="text-xl">🎉</Text>
-            </View>
-
-            <Text variant="bold" className="text-2xl  text-primary-700 mb-2 mt-4">
+            <Text
+              variant="bold"
+              className="text-2xl text-primary-700 mb-2 mt-4 text-center"
+              numberOfLines={2}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+            >
               {infoModal.value}
             </Text>
 
             <View className="bg-primary-50 w-full rounded-xl p-4 mb-5">
-              <Text className="text-lg text-primary-700 text-center">
+              <Text className="text-lg text-primary-700 text-center" numberOfLines={5}>
                 {infoModal.info}
               </Text>
             </View>
 
             <TouchableOpacity
-              className="bg-primary-500 py-3 px-7 rounded-full shadow-md border-2 border-primary-400"
+              className="bg-primary-500 py-3 px-7 rounded-full shadow-md border-2 border-primary-400 min-w-[140px] items-center"
               onPress={closeInfoModal}
+              activeOpacity={0.78}
+              accessibilityRole="button"
+              accessibilityLabel="Continue matching game"
             >
-              <Text variant="bold" className="text-white text-lg ">Continue</Text>
+              <Text variant="bold" className="text-white text-lg" numberOfLines={1}>Continue</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1060,44 +1058,33 @@ const BugandaMatchingGame: React.FC = () => {
 
       {/* Game over modal with celebration styling */}
       {gameOver && (
-        <View className="absolute inset-0 bg-black/50 justify-center items-center">
+        <View className="absolute inset-0 bg-black/50 justify-center items-center px-5">
           <View
-            className="w-4/5 rounded-3xl p-6 items-center shadow-xl border-4 border-primary-200 bg-white"
+            className="w-4/5 max-w-xl rounded-3xl p-6 items-center shadow-xl border-4 border-primary-200 bg-white"
           >
             {/* Trophy at top */}
             <View className="absolute -top-8 bg-yellow-300 w-20 h-20 rounded-full border-4 border-white justify-center items-center">
-              <Text className="text-5xl">🏆</Text>
+              <Ionicons name="trophy" size={42} color="#ffffff" />
             </View>
 
-            {/* Confetti and stars decorations */}
-            <View className="absolute top-4 left-5">
-              <Text className="text-2xl">🎊</Text>
-            </View>
-            <View className="absolute top-4 right-5">
-              <Text className="text-2xl">✨</Text>
-            </View>
-            <View className="absolute bottom-12 left-8">
-              <Text className="text-2xl">🎉</Text>
-            </View>
-            <View className="absolute bottom-12 right-8">
-              <Text className="text-2xl">⭐</Text>
-            </View>
-
-            <Text variant="bold" className="text-3xl  text-primary-600 mb-2 mt-6">
+            <Text variant="bold" className="text-3xl text-primary-600 mb-2 mt-6 text-center" numberOfLines={1}>
               Congratulations!
             </Text>
 
             <View className="bg-primary-50 w-full rounded-xl p-4 mb-5">
-              <Text className="text-xl text-primary-700 text-center font-medium">
+              <Text className="text-xl text-primary-700 text-center font-medium" numberOfLines={3}>
                 {`You've completed the game in ${moves} moves!`}
               </Text>
             </View>
 
             <TouchableOpacity
-              className="bg-primary-500 py-4 px-8 rounded-full shadow-md border-2 border-primary-400"
+              className="bg-primary-500 py-4 px-8 rounded-full shadow-md border-2 border-primary-400 min-w-[164px] items-center"
               onPress={initGame}
+              activeOpacity={0.78}
+              accessibilityRole="button"
+              accessibilityLabel="Play matching game again"
             >
-              <Text variant="bold" className="text-white text-xl ">Play Again</Text>
+              <Text variant="bold" className="text-white text-xl" numberOfLines={1}>Play Again</Text>
             </TouchableOpacity>
           </View>
         </View>

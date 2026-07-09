@@ -14,6 +14,7 @@ import type {
   ChooseCorrectWordOption,
   ItemResult,
 } from "@/content/learningHubTypes";
+import { MechanicScreenFrame } from "./MechanicScreenFrame";
 
 type ChooseCorrectWordCardProps = {
   item: ChooseCorrectWordItem;
@@ -51,7 +52,9 @@ export function ChooseCorrectWordCard({
   const canComplete = answerState === "correct";
   const isShortScreen = height < 430;
   const isWideLayout = width >= 680;
-  const cardWidth = Math.min(680, Math.max(300, width - 48));
+  const horizontalInset = width < 380 ? 32 : 48;
+  const cardWidth = Math.min(680, Math.max(240, width - horizontalInset));
+  const optionGap = isShortScreen ? 8 : 10;
   const optionImageSize = Math.min(
     isShortScreen ? 48 : 58,
     Math.max(42, height * 0.1),
@@ -100,8 +103,39 @@ export function ChooseCorrectWordCard({
   };
 
   return (
-    <View className="flex-1 justify-center" style={{ paddingVertical: isShortScreen ? 2 : 8 }}>
-      <View className="items-center">
+    <MechanicScreenFrame
+      isShortScreen={isShortScreen}
+      footer={
+        <TouchableOpacity
+          className="rounded-full px-5 py-3 flex-row items-center justify-center"
+          style={{
+            backgroundColor: isLastItem ? brandColors.success : brandColors.shanaOrange,
+            maxWidth: "100%",
+            opacity: canComplete && !isCompleting ? 1 : 0.55,
+          }}
+          onPress={completeItem}
+          disabled={!canComplete || isCompleting}
+          accessibilityRole="button"
+          accessibilityLabel={isLastItem ? "Finish" : "Next"}
+          accessibilityState={{ disabled: !canComplete || isCompleting }}
+        >
+          <Text
+            variant="bold"
+            className="text-white text-base mr-1"
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.82}
+          >
+            {isLastItem ? "Finish" : "Next"}
+          </Text>
+          <Ionicons
+            name={isLastItem ? "checkmark" : "chevron-forward"}
+            size={18}
+            color="#ffffff"
+          />
+        </TouchableOpacity>
+      }
+    >
         <View
           className="bg-white rounded-2xl border-2 border-accent-500"
           style={{ width: cardWidth, padding: isShortScreen ? 14 : 18 }}
@@ -127,7 +161,7 @@ export function ChooseCorrectWordCard({
                   fontSize: isShortScreen ? 22 : 26,
                   lineHeight: isShortScreen ? 27 : 31,
                 }}
-                numberOfLines={1}
+                numberOfLines={2}
                 adjustsFontSizeToFit
                 minimumFontScale={0.78}
               >
@@ -136,8 +170,8 @@ export function ChooseCorrectWordCard({
               <Text
                 variant="medium"
                 className="text-neutral-600 text-center mt-1"
-                style={{ fontSize: isShortScreen ? 15 : 17 }}
-                numberOfLines={2}
+                style={{ flexShrink: 1, fontSize: isShortScreen ? 15 : 17 }}
+                numberOfLines={3}
                 adjustsFontSizeToFit
                 minimumFontScale={0.82}
               >
@@ -157,8 +191,8 @@ export function ChooseCorrectWordCard({
                   <Text
                     variant="bold"
                     className="text-primary-700 text-center"
-                    style={{ fontSize: isShortScreen ? 21 : 25 }}
-                    numberOfLines={2}
+                    style={{ flexShrink: 1, fontSize: isShortScreen ? 21 : 25 }}
+                    numberOfLines={3}
                     adjustsFontSizeToFit
                     minimumFontScale={0.78}
                   >
@@ -194,8 +228,9 @@ export function ChooseCorrectWordCard({
                 return (
                   <TouchableOpacity
                     key={option.id}
-                    className="rounded-2xl border-2 px-3 mb-2 flex-row items-center"
+                    className="rounded-2xl border-2 px-3 flex-row items-center"
                     style={{
+                      marginBottom: optionGap,
                       paddingVertical: isShortScreen ? 7 : 9,
                       backgroundColor: correctSelection
                         ? "#DCFCE7"
@@ -264,12 +299,16 @@ export function ChooseCorrectWordCard({
                       </View>
                     )}
 
-                    <View className="flex-1">
+                    <View className="flex-1" style={{ minWidth: 0 }}>
                       <Text
                         variant="bold"
                         className="text-primary-700"
-                        style={{ fontSize: isShortScreen ? 17 : 19 }}
-                        numberOfLines={1}
+                        style={{
+                          flexShrink: 1,
+                          fontSize: isShortScreen ? 17 : 19,
+                          lineHeight: isShortScreen ? 21 : 23,
+                        }}
+                        numberOfLines={2}
                         adjustsFontSizeToFit
                         minimumFontScale={0.78}
                       >
@@ -278,8 +317,12 @@ export function ChooseCorrectWordCard({
                       {optionSubtitle ? (
                         <Text
                           className="text-neutral-600 mt-0.5"
-                          style={{ fontSize: isShortScreen ? 12 : 13 }}
-                          numberOfLines={1}
+                          style={{
+                            flexShrink: 1,
+                            fontSize: isShortScreen ? 12 : 13,
+                            lineHeight: isShortScreen ? 15 : 16,
+                          }}
+                          numberOfLines={2}
                           adjustsFontSizeToFit
                           minimumFontScale={0.85}
                         >
@@ -291,7 +334,14 @@ export function ChooseCorrectWordCard({
                 );
               })}
 
-              <View className="items-center justify-center" style={{ minHeight: isShortScreen ? 26 : 30 }}>
+              <View
+                className="items-center justify-center"
+                style={{
+                  marginTop: 2,
+                  minHeight: isShortScreen ? 30 : 36,
+                  paddingHorizontal: 4,
+                }}
+              >
                 <Text
                   variant="bold"
                   className="text-center"
@@ -322,31 +372,6 @@ export function ChooseCorrectWordCard({
             </View>
           </View>
         </View>
-      </View>
-
-      <View className="items-end" style={{ paddingTop: isShortScreen ? 8 : 12 }}>
-        <TouchableOpacity
-          className="rounded-full px-5 py-3 flex-row items-center"
-          style={{
-            backgroundColor: isLastItem ? brandColors.success : brandColors.shanaOrange,
-            opacity: canComplete && !isCompleting ? 1 : 0.55,
-          }}
-          onPress={completeItem}
-          disabled={!canComplete || isCompleting}
-          accessibilityRole="button"
-          accessibilityLabel={isLastItem ? "Finish" : "Next"}
-          accessibilityState={{ disabled: !canComplete || isCompleting }}
-        >
-          <Text variant="bold" className="text-white text-base mr-1">
-            {isLastItem ? "Finish" : "Next"}
-          </Text>
-          <Ionicons
-            name={isLastItem ? "checkmark" : "chevron-forward"}
-            size={18}
-            color="#ffffff"
-          />
-        </TouchableOpacity>
-      </View>
-    </View>
+    </MechanicScreenFrame>
   );
 }

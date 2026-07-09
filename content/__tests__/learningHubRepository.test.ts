@@ -119,8 +119,9 @@ describe("learning hub repository", () => {
       "listen-greetings-1",
       "first-words-word-check",
       "first-words-picture-match",
+      "first-words-quick-review",
     ]);
-    expect(lessons.map((lesson) => lesson.order)).toEqual([1, 2, 3, 4]);
+    expect(lessons.map((lesson) => lesson.order)).toEqual([1, 2, 3, 4, 5]);
   });
 
   it("finds a specific lesson by lessonId", () => {
@@ -329,6 +330,41 @@ describe("learning hub repository", () => {
     );
   });
 
+  it("normalizes the First Words quick-review mini quiz", () => {
+    const items = getLessonItemsForLesson(
+      "lg",
+      "first-words",
+      "first-words-quick-review",
+    );
+    const quizItems = items.filter(
+      (item): item is MiniQuizItem => item.mechanic === "mini_quiz",
+    );
+
+    expect(quizItems.map((item) => item.id)).toEqual([
+      "first-words-review-questions",
+    ]);
+    expect(quizItems[0]).toEqual(
+      expect.objectContaining({
+        id: "first-words-review-questions",
+        mechanic: "mini_quiz",
+        title: "First Words Review",
+        instructions: "Choose the best answer.",
+        readiness: "placeholder",
+      }),
+    );
+    expect(quizItems[0].questions.map((question) => question.id)).toEqual([
+      "thank-you-word",
+      "water-word",
+    ]);
+    expect(quizItems[0].questions[0]).toEqual(
+      expect.objectContaining({
+        promptText: "Which word means Thank you?",
+        correctOptionId: "webale",
+        explanationText: "Webale means Thank you.",
+      }),
+    );
+  });
+
   it("normalizes mini-quiz items with stable question and option ids", () => {
     const items = getLessonItemsForLesson("lg", "family-home", "family-mini-quiz");
     const quizItems = items.filter(
@@ -348,6 +384,7 @@ describe("learning hub repository", () => {
     expect(quizItems[0].questions.map((question) => question.id)).toEqual([
       "mother-word",
       "father-word",
+      "child-word",
     ]);
     expect(quizItems[0].questions[0]).toEqual(
       expect.objectContaining({
@@ -445,15 +482,34 @@ describe("learning hub repository", () => {
       "listen-greetings-1",
       "first-words-word-check",
       "first-words-picture-match",
+      "first-words-quick-review",
     ]);
     expect(isLessonStartable(firstWordsStage, lessons[0])).toBe(true);
     expect(isLessonStartable(firstWordsStage, lessons[1])).toBe(true);
     expect(isLessonStartable(firstWordsStage, lessons[2])).toBe(true);
     expect(isLessonStartable(firstWordsStage, lessons[3])).toBe(true);
+    expect(isLessonStartable(firstWordsStage, lessons[4])).toBe(true);
     expect(getLessonStatus(lessons[0], firstWordsStage)).toBe("startable");
     expect(getLessonStatus(lessons[1], firstWordsStage)).toBe("startable");
     expect(getLessonStatus(lessons[2], firstWordsStage)).toBe("startable");
     expect(getLessonStatus(lessons[3], firstWordsStage)).toBe("startable");
+    expect(getLessonStatus(lessons[4], firstWordsStage)).toBe("startable");
+  });
+
+  it("returns startable polished lessons for Family & Home and Everyday Things", () => {
+    expect(getStartableLessonsForStage("lg", "family-home").map((lesson) => lesson.id)).toEqual([
+      "family-names-1",
+      "home-things-1",
+      "family-pick-word",
+      "family-mini-quiz",
+      "home-greeting-card",
+      "thank-you-at-home-story",
+    ]);
+    expect(getStartableLessonsForStage("lg", "everyday-things").map((lesson) => lesson.id)).toEqual([
+      "food-objects-1",
+      "animals-objects-1",
+      "daily-review-1",
+    ]);
   });
 
   it("keeps malformed listen-and-choose lessons from becoming startable", () => {
@@ -847,15 +903,28 @@ describe("learning hub repository", () => {
     );
     expect(stageHasMechanicContent("lg", "first-words", "choose_correct_word")).toBe(true);
     expect(stageHasMechanicContent("lg", "first-words", "match_word_picture")).toBe(true);
+    expect(stageHasMechanicContent("lg", "first-words", "mini_quiz")).toBe(true);
     expect(stageHasMechanicContent("lg", "family-home", "match_word_picture")).toBe(
-      false,
+      true,
     );
+    expect(stageHasMechanicContent("lg", "family-home", "choose_correct_word")).toBe(true);
     expect(stageHasMechanicContent("lg", "family-home", "mini_quiz")).toBe(true);
     expect(stageHasMechanicContent("lg", "family-home", "cultural_card")).toBe(
       true,
     );
     expect(stageHasMechanicContent("lg", "family-home", "story_bite")).toBe(true);
-    expect(stageHasMechanicContent("lg", "everyday-things", "mini_quiz")).toBe(false);
+    expect(stageHasMechanicContent("lg", "everyday-things", "choose_correct_word")).toBe(true);
+    expect(stageHasMechanicContent("lg", "everyday-things", "match_word_picture")).toBe(true);
+    expect(stageHasMechanicContent("lg", "everyday-things", "mini_quiz")).toBe(true);
+    expect(getLessonStatus(getLessonById("lg", "first-words", "first-words-quick-review"))).toBe(
+      "startable",
+    );
+    expect(getLessonStatus(getLessonById("lg", "family-home", "home-things-1"))).toBe(
+      "startable",
+    );
+    expect(getLessonStatus(getLessonById("lg", "family-home", "family-pick-word"))).toBe(
+      "startable",
+    );
     expect(getLessonStatus(getLessonById("lg", "family-home", "family-mini-quiz"))).toBe(
       "startable",
     );
@@ -865,11 +934,14 @@ describe("learning hub repository", () => {
     expect(getLessonStatus(getLessonById("lg", "family-home", "thank-you-at-home-story"))).toBe(
       "startable",
     );
-    expect(getLessonStatus(getLessonById("lg", "family-home", "home-things-1"))).toBe(
-      "coming_soon",
+    expect(getLessonStatus(getLessonById("lg", "everyday-things", "food-objects-1"))).toBe(
+      "startable",
+    );
+    expect(getLessonStatus(getLessonById("lg", "everyday-things", "animals-objects-1"))).toBe(
+      "startable",
     );
     expect(getLessonStatus(getLessonById("lg", "everyday-things", "daily-review-1"))).toBe(
-      "coming_soon",
+      "startable",
     );
     expect(getLessonStatus(getLessonById("lg", "culture-stories", "story-bite-kintu"))).toBe(
       "coming_soon",

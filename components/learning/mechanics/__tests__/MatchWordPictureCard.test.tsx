@@ -223,9 +223,9 @@ describe("MatchWordPictureCard", () => {
     );
   });
 
-  it("does not depend on vertical scrolling", () => {
+  it("keeps its main content in one bounded scroll area", () => {
     const tree = renderCard();
 
-    expect(tree.root.findAllByType(ScrollView)).toHaveLength(0);
+    expect(tree.root.findAllByType(ScrollView)).toHaveLength(1);
   });
 });

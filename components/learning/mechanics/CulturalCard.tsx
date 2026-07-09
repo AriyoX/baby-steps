@@ -6,6 +6,7 @@ import { CachedImage } from "@/components/common/CachedImage";
 import { brandColors } from "@/constants/Brand";
 import { resolveImageSource } from "@/content/assets";
 import type { CulturalCardItem, ItemResult } from "@/content/learningHubTypes";
+import { MechanicScreenFrame } from "./MechanicScreenFrame";
 
 type CulturalCardProps = {
   item: CulturalCardItem;
@@ -28,7 +29,8 @@ export function CulturalCard({
   const completionCalledRef = useRef(false);
   const isShortScreen = height < 430;
   const isWideLayout = width >= 680;
-  const cardWidth = Math.min(700, Math.max(300, width - 48));
+  const horizontalInset = width < 380 ? 32 : 48;
+  const cardWidth = Math.min(700, Math.max(240, width - horizontalInset));
   const visualSize = Math.min(isShortScreen ? 100 : 132, Math.max(82, height * 0.24));
   const actionLabel = isLastItem ? "Finish" : "Continue";
 
@@ -53,8 +55,39 @@ export function CulturalCard({
   };
 
   return (
-    <View className="flex-1 justify-center" style={{ paddingVertical: isShortScreen ? 2 : 8 }}>
-      <View className="items-center">
+    <MechanicScreenFrame
+      isShortScreen={isShortScreen}
+      footer={
+        <TouchableOpacity
+          className="rounded-full px-5 py-3 flex-row items-center justify-center"
+          style={{
+            backgroundColor: isLastItem ? brandColors.success : brandColors.shanaOrange,
+            maxWidth: "100%",
+            opacity: isCompleting ? 0.72 : 1,
+          }}
+          onPress={completeItem}
+          disabled={isCompleting}
+          accessibilityRole="button"
+          accessibilityLabel={actionLabel}
+          accessibilityState={{ disabled: isCompleting }}
+        >
+          <Text
+            variant="bold"
+            className="text-white text-base mr-1"
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.82}
+          >
+            {actionLabel}
+          </Text>
+          <Ionicons
+            name={isLastItem ? "checkmark" : "chevron-forward"}
+            size={18}
+            color="#ffffff"
+          />
+        </TouchableOpacity>
+      }
+    >
         <View
           className="bg-white rounded-2xl border-2 border-accent-500"
           style={{ width: cardWidth, padding: isShortScreen ? 14 : 18 }}
@@ -114,6 +147,7 @@ export function CulturalCard({
                   className="bg-accent-50 rounded-2xl border-2 border-accent-100 items-center"
                   style={{
                     marginTop: isShortScreen ? 8 : 12,
+                    maxWidth: "100%",
                     paddingHorizontal: 14,
                     paddingVertical: isShortScreen ? 8 : 10,
                     minWidth: 150,
@@ -123,7 +157,7 @@ export function CulturalCard({
                     <Text
                       className="text-neutral-500 text-center"
                       style={{ fontSize: isShortScreen ? 11 : 12 }}
-                      numberOfLines={1}
+                      numberOfLines={2}
                       adjustsFontSizeToFit
                       minimumFontScale={0.85}
                     >
@@ -133,8 +167,8 @@ export function CulturalCard({
                   <Text
                     variant="bold"
                     className="text-primary-700 text-center"
-                    style={{ fontSize: isShortScreen ? 20 : 24 }}
-                    numberOfLines={2}
+                    style={{ flexShrink: 1, fontSize: isShortScreen ? 20 : 24 }}
+                    numberOfLines={3}
                     adjustsFontSizeToFit
                     minimumFontScale={0.74}
                   >
@@ -159,7 +193,7 @@ export function CulturalCard({
                   fontSize: isShortScreen ? 23 : 29,
                   lineHeight: isShortScreen ? 28 : 34,
                 }}
-                numberOfLines={2}
+                numberOfLines={3}
                 adjustsFontSizeToFit
                 minimumFontScale={0.76}
               >
@@ -171,10 +205,8 @@ export function CulturalCard({
                 style={{
                   fontSize: isShortScreen ? 15 : 17,
                   lineHeight: isShortScreen ? 20 : 23,
+                  flexShrink: 1,
                 }}
-                numberOfLines={isShortScreen ? 3 : 4}
-                adjustsFontSizeToFit
-                minimumFontScale={0.82}
               >
                 {item.bodyText}
               </Text>
@@ -198,10 +230,11 @@ export function CulturalCard({
                   </Text>
                   <Text
                     className="text-neutral-700 text-center mt-1"
-                    style={{ fontSize: isShortScreen ? 13 : 14 }}
-                    numberOfLines={2}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.86}
+                    style={{
+                      flexShrink: 1,
+                      fontSize: isShortScreen ? 13 : 14,
+                      lineHeight: isShortScreen ? 17 : 18,
+                    }}
                   >
                     {item.funFact}
                   </Text>
@@ -212,10 +245,11 @@ export function CulturalCard({
                 <Text
                   variant="medium"
                   className="text-neutral-600 text-center mt-2"
-                  style={{ fontSize: isShortScreen ? 13 : 15 }}
-                  numberOfLines={2}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.84}
+                  style={{
+                    flexShrink: 1,
+                    fontSize: isShortScreen ? 13 : 15,
+                    lineHeight: isShortScreen ? 17 : 19,
+                  }}
                 >
                   {item.reflectionPrompt}
                 </Text>
@@ -223,31 +257,6 @@ export function CulturalCard({
             </View>
           </View>
         </View>
-      </View>
-
-      <View className="items-end" style={{ paddingTop: isShortScreen ? 8 : 12 }}>
-        <TouchableOpacity
-          className="rounded-full px-5 py-3 flex-row items-center"
-          style={{
-            backgroundColor: isLastItem ? brandColors.success : brandColors.shanaOrange,
-            opacity: isCompleting ? 0.72 : 1,
-          }}
-          onPress={completeItem}
-          disabled={isCompleting}
-          accessibilityRole="button"
-          accessibilityLabel={actionLabel}
-          accessibilityState={{ disabled: isCompleting }}
-        >
-          <Text variant="bold" className="text-white text-base mr-1">
-            {actionLabel}
-          </Text>
-          <Ionicons
-            name={isLastItem ? "checkmark" : "chevron-forward"}
-            size={18}
-            color="#ffffff"
-          />
-        </TouchableOpacity>
-      </View>
-    </View>
+    </MechanicScreenFrame>
   );
 }

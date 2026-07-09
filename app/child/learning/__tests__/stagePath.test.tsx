@@ -127,10 +127,12 @@ describe("Learning stage path screen", () => {
     expect(text).toContain("Listen Practice");
     expect(text).toContain("Word Check");
     expect(text).toContain("Picture Match");
+    expect(text).toContain("First Words Quiz");
     expect(text).toContain("Tap to learn");
     expect(text).toContain("Listen and choose");
     expect(text).toContain("Pick the word");
     expect(text).toContain("Match pictures");
+    expect(text).toContain("Quick quiz");
   });
 
   it("starts all startable First Words cards", async () => {
@@ -150,10 +152,15 @@ describe("Learning stage path screen", () => {
       tree.root,
       "Picture Match. Start",
     );
+    const quickReviewCard = findButtonByAccessibilityLabel(
+      tree.root,
+      "First Words Quiz. Start",
+    );
 
     expect(textContent(greetingsCard)).toContain("Start");
     expect(textContent(wordCheckCard)).toContain("Start");
     expect(textContent(pictureMatchCard)).toContain("Start");
+    expect(textContent(quickReviewCard)).toContain("Start");
 
     await act(async () => {
       greetingsCard.props.onPress();
@@ -174,8 +181,8 @@ describe("Learning stage path screen", () => {
     });
   });
 
-  it("keeps planned cards disabled", async () => {
-    mockUseLocalSearchParams.mockReturnValue({ stageId: "family-home" });
+  it("keeps planned Culture & Stories cards disabled", async () => {
+    mockUseLocalSearchParams.mockReturnValue({ stageId: "culture-stories" });
     let tree: renderer.ReactTestRenderer | undefined;
 
     await act(async () => {
@@ -188,7 +195,7 @@ describe("Learning stage path screen", () => {
 
     const comingSoonCard = findButtonByAccessibilityLabel(
       tree.root,
-      "Things at Home. Coming soon",
+      "A Story Bite. Coming soon",
     );
 
     expect(textContent(comingSoonCard)).toContain("Coming soon");

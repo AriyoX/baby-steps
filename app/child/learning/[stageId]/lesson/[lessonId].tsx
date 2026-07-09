@@ -4,8 +4,10 @@ import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ImageBackground,
+  ScrollView,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/StyledText";
@@ -59,7 +61,18 @@ const LessonState = ({
 }: LessonStateProps) => (
   <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
     <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
-      <View className="flex-1 items-center justify-center px-8">
+      <ScrollView
+        alwaysBounceVertical={false}
+        contentContainerStyle={{
+          alignItems: "center",
+          flexGrow: 1,
+          justifyContent: "center",
+          paddingHorizontal: 32,
+          paddingVertical: 24,
+        }}
+        showsVerticalScrollIndicator={false}
+        style={{ flex: 1 }}
+      >
         <View className="bg-white rounded-2xl border-2 border-accent-500 p-6 w-full max-w-md items-center">
           <View className="w-16 h-16 rounded-full bg-primary-50 items-center justify-center mb-4">
             <Ionicons name={icon} size={32} color={brandColors.victoriaBlue} />
@@ -81,7 +94,7 @@ const LessonState = ({
             </Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   </ImageBackground>
 );
@@ -110,6 +123,7 @@ const ProgressDots = ({
 export default function LearningLessonSessionScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { height, width } = useWindowDimensions();
   const { activeChild } = useChild();
   const stageId = getRouteParam(params.stageId);
   const lessonId = getRouteParam(params.lessonId);
@@ -143,6 +157,9 @@ export default function LearningLessonSessionScreen() {
   );
   const currentItem = items[currentIndex];
   const isLastItem = currentIndex === items.length - 1;
+  const isCompactLessonScreen = height < 430;
+  const lessonHorizontalPadding = width < 380 ? 16 : 24;
+  const headerButtonSize = isCompactLessonScreen ? 44 : 48;
   const CurrentMechanicRenderer = currentItem
     ? getMechanicRenderer(currentItem.mechanic)
     : null;
@@ -351,7 +368,18 @@ export default function LearningLessonSessionScreen() {
         <StatusBar style="light" translucent backgroundColor="transparent" />
         <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
           <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
-            <View className="flex-1 items-center justify-center px-8">
+            <ScrollView
+              alwaysBounceVertical={false}
+              contentContainerStyle={{
+                alignItems: "center",
+                flexGrow: 1,
+                justifyContent: "center",
+                paddingHorizontal: 32,
+                paddingVertical: 24,
+              }}
+              showsVerticalScrollIndicator={false}
+              style={{ flex: 1 }}
+            >
               <View className="bg-white rounded-2xl border-2 border-accent-500 p-6 w-full max-w-md items-center">
                 <View className="w-20 h-20 rounded-full bg-green-100 items-center justify-center mb-4">
                   <Ionicons name="checkmark-circle" size={44} color={brandColors.success} />
@@ -373,7 +401,7 @@ export default function LearningLessonSessionScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </ScrollView>
           </SafeAreaView>
         </ImageBackground>
       </>
@@ -386,10 +414,22 @@ export default function LearningLessonSessionScreen() {
       <StatusBar style="light" translucent backgroundColor="transparent" />
       <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
         <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
-          <View className="flex-1 px-6 pt-4 pb-4">
+          <View
+            className="flex-1"
+            style={{
+              paddingBottom: isCompactLessonScreen ? 10 : 16,
+              paddingHorizontal: lessonHorizontalPadding,
+              paddingTop: isCompactLessonScreen ? 10 : 16,
+            }}
+          >
             <View className="flex-row items-center justify-between mb-2">
               <TouchableOpacity
                 className="w-12 h-12 rounded-full bg-white items-center justify-center border-2 border-accent-500"
+                style={{
+                  flexShrink: 0,
+                  height: headerButtonSize,
+                  width: headerButtonSize,
+                }}
                 onPress={goBackToStagePath}
                 accessibilityRole="button"
                 accessibilityLabel="Back to Lessons"
@@ -397,18 +437,44 @@ export default function LearningLessonSessionScreen() {
                 <Ionicons name="arrow-back" size={22} color={brandColors.victoriaBlue} />
               </TouchableOpacity>
 
-              <View className="flex-1 px-4">
-                <Text variant="bold" className="text-white text-2xl text-center" numberOfLines={1}>
+              <View
+                className="flex-1"
+                style={{
+                  minWidth: 0,
+                  paddingHorizontal: width < 380 ? 8 : 16,
+                }}
+              >
+                <Text
+                  variant="bold"
+                  className="text-white text-2xl text-center"
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.72}
+                >
                   {lesson.title}
                 </Text>
-                <Text className="text-white/80 text-sm text-center" numberOfLines={1}>
+                <Text
+                  className="text-white/80 text-sm text-center"
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.78}
+                >
                   {stage.title}
                 </Text>
                 <ProgressDots currentIndex={currentIndex} total={items.length} />
               </View>
 
-              <View className="bg-white rounded-full px-4 py-2 border-2 border-accent-500">
-                <Text variant="bold" className="text-primary-700 text-sm">
+              <View
+                className="bg-white rounded-full px-4 py-2 border-2 border-accent-500"
+                style={{ flexShrink: 0, maxWidth: width < 380 ? 82 : 104 }}
+              >
+                <Text
+                  variant="bold"
+                  className="text-primary-700 text-sm text-center"
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.76}
+                >
                   {currentIndex + 1} of {items.length}
                 </Text>
               </View>

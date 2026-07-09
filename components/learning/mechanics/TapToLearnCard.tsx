@@ -16,6 +16,7 @@ import {
   LEARNING_PLACEHOLDER_SOUND,
   resolveLearningAudioSource,
 } from "@/lib/audioAssets";
+import { MechanicScreenFrame } from "./MechanicScreenFrame";
 
 type TapToLearnCardProps = {
   item: TapToLearnItem;
@@ -49,16 +50,18 @@ export function TapToLearnCard({
   const visualSource = resolveImageSource(item.imageAsset ?? item.imageKey, stageImageKey);
   const fallbackVisualSource = resolveImageSource(stageImageKey);
   const isShortScreen = height < 430;
-  const lessonImageSize = Math.min(
+  const horizontalInset = width < 380 ? 32 : 48;
+  const availableLessonCardWidth = Math.max(240, width - horizontalInset);
+  const lessonCardWidth = Math.min(540, availableLessonCardWidth);
+  const maxLessonImageSize = Math.min(
     isShortScreen ? 126 : 156,
-    Math.max(88, height * 0.3),
+    lessonCardWidth - 56,
   );
-  const availableLessonCardWidth = Math.max(240, width - 48);
-  const lessonCardWidth = Math.min(
-    540,
-    Math.max(300, width * 0.48),
-    availableLessonCardWidth,
+  const lessonImageSize = Math.max(
+    84,
+    Math.min(maxLessonImageSize, height * 0.28),
   );
+  const translationMinWidth = Math.min(220, lessonCardWidth - 56);
 
   const releaseReplayLockSoon = useCallback(() => {
     if (audioReplayCooldownRef.current) {
@@ -202,8 +205,39 @@ export function TapToLearnCard({
   };
 
   return (
-    <View className="flex-1 justify-center" style={{ paddingVertical: isShortScreen ? 2 : 8 }}>
-      <View className="items-center">
+    <MechanicScreenFrame
+      isShortScreen={isShortScreen}
+      footer={
+        <TouchableOpacity
+          className="rounded-full px-5 py-3 flex-row items-center justify-center"
+          style={{
+            backgroundColor: isLastItem ? brandColors.success : brandColors.shanaOrange,
+            maxWidth: "100%",
+            opacity: isCompleting ? 0.72 : 1,
+          }}
+          onPress={completeItem}
+          disabled={isCompleting}
+          accessibilityRole="button"
+          accessibilityLabel={isLastItem ? "Finish" : "Next"}
+          accessibilityState={{ disabled: isCompleting }}
+        >
+          <Text
+            variant="bold"
+            className="text-white text-base mr-1"
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.82}
+          >
+            {isLastItem ? "Finish" : "Next"}
+          </Text>
+          <Ionicons
+            name={isLastItem ? "checkmark" : "chevron-forward"}
+            size={18}
+            color="#ffffff"
+          />
+        </TouchableOpacity>
+      }
+    >
         <TouchableOpacity
           className="bg-white rounded-2xl border-2 border-accent-500 items-center"
           style={{ width: lessonCardWidth, padding: isShortScreen ? 14 : 18 }}
@@ -227,24 +261,27 @@ export function TapToLearnCard({
               style={{
                 fontSize: isShortScreen ? 30 : 36,
                 lineHeight: isShortScreen ? 36 : 42,
+                flexShrink: 1,
               }}
-              numberOfLines={1}
+              numberOfLines={2}
               adjustsFontSizeToFit
               minimumFontScale={0.7}
             >
               {localText}
             </Text>
             <View
-              className="bg-neutral-100 rounded-2xl px-5 min-w-[220px] items-center"
+              className="bg-neutral-100 rounded-2xl px-5 items-center"
               style={{
                 marginTop: isShortScreen ? 8 : 12,
+                maxWidth: "100%",
+                minWidth: translationMinWidth,
                 paddingVertical: isShortScreen ? 8 : 10,
               }}
             >
               <Text
                 variant="bold"
                 className="text-success text-center"
-                style={{ fontSize: isShortScreen ? 20 : 23 }}
+                style={{ flexShrink: 1, fontSize: isShortScreen ? 20 : 23 }}
                 numberOfLines={2}
                 adjustsFontSizeToFit
                 minimumFontScale={0.78}
@@ -254,31 +291,6 @@ export function TapToLearnCard({
             </View>
           </View>
         </TouchableOpacity>
-      </View>
-
-      <View className="items-end" style={{ paddingTop: isShortScreen ? 8 : 12 }}>
-        <TouchableOpacity
-          className="rounded-full px-5 py-3 flex-row items-center"
-          style={{
-            backgroundColor: isLastItem ? brandColors.success : brandColors.shanaOrange,
-            opacity: isCompleting ? 0.72 : 1,
-          }}
-          onPress={completeItem}
-          disabled={isCompleting}
-          accessibilityRole="button"
-          accessibilityLabel={isLastItem ? "Finish" : "Next"}
-          accessibilityState={{ disabled: isCompleting }}
-        >
-          <Text variant="bold" className="text-white text-base mr-1">
-            {isLastItem ? "Finish" : "Next"}
-          </Text>
-          <Ionicons
-            name={isLastItem ? "checkmark" : "chevron-forward"}
-            size={18}
-            color="#ffffff"
-          />
-        </TouchableOpacity>
-      </View>
-    </View>
+    </MechanicScreenFrame>
   );
 }

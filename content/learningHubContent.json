@@ -17,18 +17,19 @@
           "imageKey": "learning-beginner.jpg",
           "status": "preview",
           "readiness": "draft",
-          "estimatedMinutes": 3,
-          "lessonCount": 4,
+          "estimatedMinutes": 4,
+          "lessonCount": 5,
           "isPractice": false,
           "isLocked": false,
-          "mechanics": ["tap_to_learn", "listen_and_choose", "choose_correct_word", "match_word_picture"],
+          "mechanics": ["tap_to_learn", "listen_and_choose", "choose_correct_word", "match_word_picture", "mini_quiz"],
           "learningGoals": [
             "Hear simple Luganda words",
             "Tap pictures to learn meaning",
             "Choose the correct word",
-            "Match words to pictures"
+            "Match words to pictures",
+            "Review first words in a quick quiz"
           ],
-          "placeholderMessage": "First Words has tap-to-learn, listening practice, a tiny word check, and picture matching ready.",
+          "placeholderMessage": "First Words has tap-to-learn, listening practice, word checks, picture matching, and a tiny review ready.",
           "lessons": [
             {
               "id": "greetings-1",
@@ -319,6 +320,81 @@
                   }
                 }
               ]
+            },
+            {
+              "id": "first-words-quick-review",
+              "title": "First Words Quiz",
+              "description": "Answer a tiny review of greetings and helpful words.",
+              "mechanic": "mini_quiz",
+              "order": 5,
+              "isStartable": true,
+              "readiness": "placeholder",
+              "metadata": {
+                "todo": "Draft placeholder quiz; review with curriculum/native-speaker support before production."
+              },
+              "items": [
+                {
+                  "id": "first-words-review-questions",
+                  "mechanic": "mini_quiz",
+                  "order": 1,
+                  "title": "First Words Review",
+                  "instructions": "Choose the best answer.",
+                  "questions": [
+                    {
+                      "id": "thank-you-word",
+                      "promptText": "Which word means Thank you?",
+                      "promptEnglishText": "Thank you",
+                      "correctOptionId": "webale",
+                      "options": [
+                        {
+                          "id": "webale",
+                          "text": "Webale",
+                          "englishText": "Thank you"
+                        },
+                        {
+                          "id": "amazzi",
+                          "text": "Amazzi",
+                          "englishText": "Water"
+                        },
+                        {
+                          "id": "gyebale-ko",
+                          "text": "Gyebale ko",
+                          "englishText": "Hello / well done"
+                        }
+                      ],
+                      "explanationText": "Webale means Thank you."
+                    },
+                    {
+                      "id": "water-word",
+                      "promptText": "Which word means Water?",
+                      "promptEnglishText": "Water",
+                      "correctOptionId": "amazzi",
+                      "options": [
+                        {
+                          "id": "gyebale-ko",
+                          "text": "Gyebale ko",
+                          "englishText": "Hello / well done"
+                        },
+                        {
+                          "id": "webale",
+                          "text": "Webale",
+                          "englishText": "Thank you"
+                        },
+                        {
+                          "id": "amazzi",
+                          "text": "Amazzi",
+                          "englishText": "Water"
+                        }
+                      ],
+                      "explanationText": "Amazzi means Water."
+                    }
+                  ],
+                  "readiness": "placeholder",
+                  "metadata": {
+                    "todo": "Keep as draft placeholder until reviewed production quiz copy is ready."
+                  }
+                }
+              ]
             }
           ]
         },
@@ -331,7 +407,7 @@
           "imageKey": "african-focus.png",
           "status": "preview",
           "readiness": "draft",
-          "estimatedMinutes": 4,
+          "estimatedMinutes": 6,
           "lessonCount": 6,
           "isPractice": false,
           "isLocked": false,
@@ -344,7 +420,7 @@
             "Notice one kind home greeting",
             "Read a tiny story about helping at home"
           ],
-          "placeholderMessage": "Family & Home can start with tap-to-learn cards, a tiny draft quiz, a small culture card, and a tiny story bite. Picture matching and word choices will come later.",
+          "placeholderMessage": "Family & Home has family cards, home picture matching, word choices, a tiny quiz, a culture card, and a tiny story bite ready to try.",
           "lessons": [
             {
               "id": "family-names-1",
@@ -392,44 +468,153 @@
               "description": "Match home words to their pictures.",
               "mechanic": "match_word_picture",
               "order": 2,
-              "isStartable": false,
+              "isStartable": true,
               "readiness": "placeholder",
               "items": [
                 {
-                  "id": "house",
+                  "id": "match-home-house",
                   "mechanic": "match_word_picture",
                   "order": 1,
-                  "word": "Ennyumba",
-                  "translation": "House",
-                  "imageKey": "african-focus.png"
+                  "promptText": "Tap the picture that matches",
+                  "targetText": "Ennyumba",
+                  "targetEnglishText": "House",
+                  "correctOptionId": "house",
+                  "options": [
+                    {
+                      "id": "house",
+                      "order": 1,
+                      "localText": "Ennyumba",
+                      "englishText": "House",
+                      "emoji": "\uD83C\uDFE0"
+                    },
+                    {
+                      "id": "water",
+                      "order": 2,
+                      "localText": "Amazzi",
+                      "englishText": "Water",
+                      "imageKey": "rain.jpg",
+                      "emoji": "\uD83D\uDCA7"
+                    },
+                    {
+                      "id": "child",
+                      "order": 3,
+                      "localText": "Omwana",
+                      "englishText": "Child",
+                      "imageKey": "child.png",
+                      "emoji": "\uD83D\uDC64"
+                    }
+                  ],
+                  "readiness": "placeholder",
+                  "metadata": {
+                    "todo": "Emoji fallback and image choices need curriculum/art review before production."
+                  }
                 },
                 {
-                  "id": "water",
+                  "id": "match-home-water",
                   "mechanic": "match_word_picture",
                   "order": 2,
-                  "word": "Amazzi",
-                  "translation": "Water",
-                  "imageKey": "learning-beginner.jpg",
-                  "audioAsset": "amazzi"
+                  "promptText": "Tap the picture that matches",
+                  "targetText": "Amazzi",
+                  "targetEnglishText": "Water",
+                  "correctOptionId": "water",
+                  "options": [
+                    {
+                      "id": "house",
+                      "order": 1,
+                      "localText": "Ennyumba",
+                      "englishText": "House",
+                      "emoji": "\uD83C\uDFE0"
+                    },
+                    {
+                      "id": "water",
+                      "order": 2,
+                      "localText": "Amazzi",
+                      "englishText": "Water",
+                      "imageKey": "rain.jpg",
+                      "emoji": "\uD83D\uDCA7"
+                    },
+                    {
+                      "id": "child",
+                      "order": 3,
+                      "localText": "Omwana",
+                      "englishText": "Child",
+                      "imageKey": "child.png",
+                      "emoji": "\uD83D\uDC64"
+                    }
+                  ],
+                  "readiness": "placeholder",
+                  "metadata": {
+                    "todo": "Emoji fallback and image choices need curriculum/art review before production."
+                  }
                 }
               ]
             },
             {
               "id": "family-pick-word",
               "title": "Pick the Family Word",
-              "description": "Choose the family word that fits the picture.",
+              "description": "Choose the family word that fits the meaning.",
               "mechanic": "choose_correct_word",
               "order": 3,
-              "isStartable": false,
+              "isStartable": true,
               "readiness": "placeholder",
               "items": [
                 {
-                  "id": "book",
+                  "id": "choose-family-mother",
                   "mechanic": "choose_correct_word",
                   "order": 1,
-                  "word": "Ekitabo",
-                  "translation": "Book",
-                  "imageKey": "african-focus.png"
+                  "promptText": "Which word means Mother?",
+                  "questionText": "Mother",
+                  "correctOptionId": "maama",
+                  "options": [
+                    {
+                      "id": "maama",
+                      "localText": "Maama",
+                      "englishText": "Mother"
+                    },
+                    {
+                      "id": "taata",
+                      "localText": "Taata",
+                      "englishText": "Father"
+                    },
+                    {
+                      "id": "omwana",
+                      "localText": "Omwana",
+                      "englishText": "Child"
+                    }
+                  ],
+                  "readiness": "placeholder",
+                  "metadata": {
+                    "todo": "Review distractor set with curriculum/native-speaker support before production."
+                  }
+                },
+                {
+                  "id": "choose-family-child",
+                  "mechanic": "choose_correct_word",
+                  "order": 2,
+                  "promptText": "Which word means Child?",
+                  "questionText": "Child",
+                  "correctOptionId": "omwana",
+                  "options": [
+                    {
+                      "id": "maama",
+                      "localText": "Maama",
+                      "englishText": "Mother"
+                    },
+                    {
+                      "id": "taata",
+                      "localText": "Taata",
+                      "englishText": "Father"
+                    },
+                    {
+                      "id": "omwana",
+                      "localText": "Omwana",
+                      "englishText": "Child"
+                    }
+                  ],
+                  "readiness": "placeholder",
+                  "metadata": {
+                    "todo": "Review distractor set with curriculum/native-speaker support before production."
+                  }
                 }
               ]
             },
@@ -499,6 +684,30 @@
                         }
                       ],
                       "explanationText": "Taata means Father."
+                    },
+                    {
+                      "id": "child-word",
+                      "promptText": "Which word means Child?",
+                      "promptEnglishText": "Child",
+                      "correctOptionId": "omwana",
+                      "options": [
+                        {
+                          "id": "maama",
+                          "text": "Maama",
+                          "englishText": "Mother"
+                        },
+                        {
+                          "id": "taata",
+                          "text": "Taata",
+                          "englishText": "Father"
+                        },
+                        {
+                          "id": "omwana",
+                          "text": "Omwana",
+                          "englishText": "Child"
+                        }
+                      ],
+                      "explanationText": "Omwana means Child."
                     }
                   ],
                   "readiness": "placeholder",
@@ -594,7 +803,7 @@
           "imageKey": "numbers.png",
           "status": "preview",
           "readiness": "placeholder",
-          "estimatedMinutes": 4,
+          "estimatedMinutes": 5,
           "lessonCount": 3,
           "isPractice": false,
           "isLocked": false,
@@ -604,7 +813,7 @@
             "Connect pictures to Luganda words",
             "Try a quick review"
           ],
-          "placeholderMessage": "Everyday Things lessons are being collected. Food, animal, and object practice will live here.",
+          "placeholderMessage": "Everyday Things has short food, animal, object, and review lessons ready to try.",
           "lessons": [
             {
               "id": "food-objects-1",
@@ -612,24 +821,103 @@
               "description": "Choose everyday words for food and objects.",
               "mechanic": "choose_correct_word",
               "order": 1,
-              "isStartable": false,
+              "isStartable": true,
               "readiness": "placeholder",
               "items": [
                 {
-                  "id": "food",
+                  "id": "choose-food-word",
                   "mechanic": "choose_correct_word",
                   "order": 1,
-                  "word": "Emmere",
-                  "translation": "Food",
-                  "imageKey": "matooke.png"
+                  "promptText": "Which word means Food?",
+                  "questionText": "Food",
+                  "correctOptionId": "emmere",
+                  "options": [
+                    {
+                      "id": "emmere",
+                      "localText": "Emmere",
+                      "englishText": "Food",
+                      "imageKey": "matooke.png"
+                    },
+                    {
+                      "id": "amazzi",
+                      "localText": "Amazzi",
+                      "englishText": "Water",
+                      "imageKey": "rain.jpg"
+                    },
+                    {
+                      "id": "engoma",
+                      "localText": "Engoma",
+                      "englishText": "Drum",
+                      "imageKey": "drum.png"
+                    }
+                  ],
+                  "readiness": "placeholder",
+                  "metadata": {
+                    "todo": "Review everyday-word distractors and image fit before production."
+                  }
                 },
                 {
-                  "id": "banana",
+                  "id": "choose-banana-word",
                   "mechanic": "choose_correct_word",
                   "order": 2,
-                  "word": "Akatooke",
-                  "translation": "Banana",
-                  "imageKey": "banana.png"
+                  "promptText": "Which word means Banana?",
+                  "questionText": "Banana",
+                  "correctOptionId": "akatooke",
+                  "options": [
+                    {
+                      "id": "akatooke",
+                      "localText": "Akatooke",
+                      "englishText": "Banana",
+                      "imageKey": "banana.png"
+                    },
+                    {
+                      "id": "embuzi",
+                      "localText": "Embuzi",
+                      "englishText": "Goat",
+                      "imageKey": "goat.png"
+                    },
+                    {
+                      "id": "amazzi",
+                      "localText": "Amazzi",
+                      "englishText": "Water",
+                      "imageKey": "rain.jpg"
+                    }
+                  ],
+                  "readiness": "placeholder",
+                  "metadata": {
+                    "todo": "Confirm Luganda banana wording and distractor set before production."
+                  }
+                },
+                {
+                  "id": "choose-drum-word",
+                  "mechanic": "choose_correct_word",
+                  "order": 3,
+                  "promptText": "Which word means Drum?",
+                  "questionText": "Drum",
+                  "correctOptionId": "engoma",
+                  "options": [
+                    {
+                      "id": "engoma",
+                      "localText": "Engoma",
+                      "englishText": "Drum",
+                      "imageKey": "drum.png"
+                    },
+                    {
+                      "id": "emmere",
+                      "localText": "Emmere",
+                      "englishText": "Food",
+                      "imageKey": "matooke.png"
+                    },
+                    {
+                      "id": "ente",
+                      "localText": "Ente",
+                      "englishText": "Cow"
+                    }
+                  ],
+                  "readiness": "placeholder",
+                  "metadata": {
+                    "todo": "Review everyday-word distractors and image fit before production."
+                  }
                 }
               ]
             },
@@ -639,24 +927,122 @@
               "description": "Match animal and object words to pictures.",
               "mechanic": "match_word_picture",
               "order": 2,
-              "isStartable": false,
+              "isStartable": true,
               "readiness": "placeholder",
               "items": [
                 {
-                  "id": "goat",
+                  "id": "match-goat-picture",
                   "mechanic": "match_word_picture",
                   "order": 1,
-                  "word": "Embuzi",
-                  "translation": "Goat",
-                  "imageKey": "goat.png"
+                  "promptText": "Tap the picture that matches",
+                  "targetText": "Embuzi",
+                  "targetEnglishText": "Goat",
+                  "correctOptionId": "goat",
+                  "options": [
+                    {
+                      "id": "goat",
+                      "order": 1,
+                      "localText": "Embuzi",
+                      "englishText": "Goat",
+                      "imageKey": "goat.png",
+                      "emoji": "\uD83D\uDC10"
+                    },
+                    {
+                      "id": "cow",
+                      "order": 2,
+                      "localText": "Ente",
+                      "englishText": "Cow",
+                      "emoji": "\uD83D\uDC04"
+                    },
+                    {
+                      "id": "drum",
+                      "order": 3,
+                      "localText": "Engoma",
+                      "englishText": "Drum",
+                      "imageKey": "drum.png",
+                      "emoji": "\uD83E\uDD41"
+                    }
+                  ],
+                  "readiness": "placeholder",
+                  "metadata": {
+                    "todo": "Confirm image choices and vocabulary with curriculum/native-speaker support before production."
+                  }
                 },
                 {
-                  "id": "drum",
+                  "id": "match-cow-picture",
                   "mechanic": "match_word_picture",
                   "order": 2,
-                  "word": "Engoma",
-                  "translation": "Drum",
-                  "imageKey": "drum.png"
+                  "promptText": "Tap the picture that matches",
+                  "targetText": "Ente",
+                  "targetEnglishText": "Cow",
+                  "correctOptionId": "cow",
+                  "options": [
+                    {
+                      "id": "goat",
+                      "order": 1,
+                      "localText": "Embuzi",
+                      "englishText": "Goat",
+                      "imageKey": "goat.png",
+                      "emoji": "\uD83D\uDC10"
+                    },
+                    {
+                      "id": "cow",
+                      "order": 2,
+                      "localText": "Ente",
+                      "englishText": "Cow",
+                      "emoji": "\uD83D\uDC04"
+                    },
+                    {
+                      "id": "drum",
+                      "order": 3,
+                      "localText": "Engoma",
+                      "englishText": "Drum",
+                      "imageKey": "drum.png",
+                      "emoji": "\uD83E\uDD41"
+                    }
+                  ],
+                  "readiness": "placeholder",
+                  "metadata": {
+                    "todo": "Confirm image choices and vocabulary with curriculum/native-speaker support before production."
+                  }
+                },
+                {
+                  "id": "match-drum-picture",
+                  "mechanic": "match_word_picture",
+                  "order": 3,
+                  "promptText": "Tap the picture that matches",
+                  "targetText": "Engoma",
+                  "targetEnglishText": "Drum",
+                  "correctOptionId": "drum",
+                  "options": [
+                    {
+                      "id": "goat",
+                      "order": 1,
+                      "localText": "Embuzi",
+                      "englishText": "Goat",
+                      "imageKey": "goat.png",
+                      "emoji": "\uD83D\uDC10"
+                    },
+                    {
+                      "id": "cow",
+                      "order": 2,
+                      "localText": "Ente",
+                      "englishText": "Cow",
+                      "emoji": "\uD83D\uDC04"
+                    },
+                    {
+                      "id": "drum",
+                      "order": 3,
+                      "localText": "Engoma",
+                      "englishText": "Drum",
+                      "imageKey": "drum.png",
+                      "emoji": "\uD83E\uDD41"
+                    }
+                  ],
+                  "readiness": "placeholder",
+                  "metadata": {
+                    "todo": "Confirm image choices and vocabulary with curriculum/native-speaker support before production."
+                  }
                 }
               ]
             },
@@ -666,16 +1052,93 @@
               "description": "Try a short review after the daily-word lessons are ready.",
               "mechanic": "mini_quiz",
               "order": 3,
-              "isStartable": false,
+              "isStartable": true,
               "readiness": "placeholder",
               "items": [
                 {
-                  "id": "water-review",
+                  "id": "daily-words-review",
                   "mechanic": "mini_quiz",
                   "order": 1,
-                  "word": "Amazzi",
-                  "translation": "Water",
-                  "imageKey": "learning-beginner.jpg"
+                  "title": "Daily Words Review",
+                  "instructions": "Choose the best answer.",
+                  "questions": [
+                    {
+                      "id": "water-word",
+                      "promptText": "Which word means Water?",
+                      "promptEnglishText": "Water",
+                      "correctOptionId": "amazzi",
+                      "options": [
+                        {
+                          "id": "amazzi",
+                          "text": "Amazzi",
+                          "englishText": "Water"
+                        },
+                        {
+                          "id": "engoma",
+                          "text": "Engoma",
+                          "englishText": "Drum"
+                        },
+                        {
+                          "id": "embuzi",
+                          "text": "Embuzi",
+                          "englishText": "Goat"
+                        }
+                      ],
+                      "explanationText": "Amazzi means Water."
+                    },
+                    {
+                      "id": "goat-word",
+                      "promptText": "Which word means Goat?",
+                      "promptEnglishText": "Goat",
+                      "correctOptionId": "embuzi",
+                      "options": [
+                        {
+                          "id": "ente",
+                          "text": "Ente",
+                          "englishText": "Cow"
+                        },
+                        {
+                          "id": "embuzi",
+                          "text": "Embuzi",
+                          "englishText": "Goat"
+                        },
+                        {
+                          "id": "emmere",
+                          "text": "Emmere",
+                          "englishText": "Food"
+                        }
+                      ],
+                      "explanationText": "Embuzi means Goat."
+                    },
+                    {
+                      "id": "drum-word",
+                      "promptText": "Which word means Drum?",
+                      "promptEnglishText": "Drum",
+                      "correctOptionId": "engoma",
+                      "options": [
+                        {
+                          "id": "akatooke",
+                          "text": "Akatooke",
+                          "englishText": "Banana"
+                        },
+                        {
+                          "id": "engoma",
+                          "text": "Engoma",
+                          "englishText": "Drum"
+                        },
+                        {
+                          "id": "amazzi",
+                          "text": "Amazzi",
+                          "englishText": "Water"
+                        }
+                      ],
+                      "explanationText": "Engoma means Drum."
+                    }
+                  ],
+                  "readiness": "placeholder",
+                  "metadata": {
+                    "todo": "Draft placeholder review; confirm vocabulary, distractors, and reading level before production."
+                  }
                 }
               ]
             }

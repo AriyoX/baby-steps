@@ -15,6 +15,7 @@ import {
   isValidLearningAudioAsset,
   resolveLearningAudioSource,
 } from "@/lib/audioAssets";
+import { MechanicScreenFrame } from "./MechanicScreenFrame";
 
 type StoryBiteCardProps = {
   item: StoryBiteItem;
@@ -57,7 +58,8 @@ export function StoryBiteCard({
   );
   const isShortScreen = height < 430;
   const isWideLayout = width >= 680;
-  const cardWidth = Math.min(720, Math.max(300, width - 48));
+  const horizontalInset = width < 380 ? 32 : 48;
+  const cardWidth = Math.min(720, Math.max(240, width - horizontalInset));
   const visualSize = Math.min(isShortScreen ? 104 : 136, Math.max(84, height * 0.24));
 
   useEffect(() => {
@@ -140,8 +142,35 @@ export function StoryBiteCard({
   const actionColor = isFinalPage ? brandColors.success : brandColors.shanaOrange;
 
   return (
-    <View className="flex-1 justify-center" style={{ paddingVertical: isShortScreen ? 2 : 8 }}>
-      <View className="items-center">
+    <MechanicScreenFrame
+      isShortScreen={isShortScreen}
+      footer={
+        <TouchableOpacity
+          className="rounded-full px-5 py-3 flex-row items-center justify-center"
+          style={{
+            backgroundColor: actionColor,
+            maxWidth: "100%",
+            opacity: isCompleting ? 0.72 : 1,
+          }}
+          onPress={isFinalPage ? completeStory : goToNextPage}
+          disabled={isCompleting}
+          accessibilityRole="button"
+          accessibilityLabel={actionLabel}
+          accessibilityState={{ disabled: isCompleting }}
+        >
+          <Text
+            variant="bold"
+            className="text-white text-base mr-1"
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.82}
+          >
+            {actionLabel}
+          </Text>
+          <Ionicons name={actionIcon} size={18} color="#ffffff" />
+        </TouchableOpacity>
+      }
+    >
         <View
           className="bg-white rounded-2xl border-2 border-accent-500"
           style={{ width: cardWidth, padding: isShortScreen ? 14 : 18 }}
@@ -167,7 +196,7 @@ export function StoryBiteCard({
                   fontSize: isShortScreen ? 22 : 26,
                   lineHeight: isShortScreen ? 27 : 31,
                 }}
-                numberOfLines={1}
+                numberOfLines={2}
                 adjustsFontSizeToFit
                 minimumFontScale={0.78}
               >
@@ -268,7 +297,7 @@ export function StoryBiteCard({
                   fontSize: isShortScreen ? 24 : 30,
                   lineHeight: isShortScreen ? 29 : 36,
                 }}
-                numberOfLines={2}
+                numberOfLines={3}
                 adjustsFontSizeToFit
                 minimumFontScale={0.76}
               >
@@ -279,8 +308,10 @@ export function StoryBiteCard({
                 <Text
                   variant="medium"
                   className="text-neutral-500 text-center mt-1"
-                  style={{ fontSize: isShortScreen ? 13 : 15 }}
-                  numberOfLines={1}
+                  style={{ flexShrink: 1, fontSize: isShortScreen ? 13 : 15 }}
+                  numberOfLines={2}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.84}
                 >
                   {currentPage.localTitle}
                 </Text>
@@ -291,10 +322,8 @@ export function StoryBiteCard({
                 style={{
                   fontSize: isShortScreen ? 16 : 18,
                   lineHeight: isShortScreen ? 21 : 24,
+                  flexShrink: 1,
                 }}
-                numberOfLines={isShortScreen ? 4 : 5}
-                adjustsFontSizeToFit
-                minimumFontScale={0.8}
               >
                 {currentPage?.bodyText ?? "This story page is being prepared."}
               </Text>
@@ -311,8 +340,12 @@ export function StoryBiteCard({
                   <Text
                     variant="bold"
                     className="text-primary-700 text-center"
-                    style={{ fontSize: isShortScreen ? 15 : 17 }}
-                    numberOfLines={2}
+                    style={{
+                      flexShrink: 1,
+                      fontSize: isShortScreen ? 15 : 17,
+                      lineHeight: isShortScreen ? 19 : 21,
+                    }}
+                    numberOfLines={3}
                     adjustsFontSizeToFit
                     minimumFontScale={0.82}
                   >
@@ -325,10 +358,11 @@ export function StoryBiteCard({
                 <Text
                   variant="medium"
                   className="text-neutral-600 text-center mt-2"
-                  style={{ fontSize: isShortScreen ? 13 : 15 }}
-                  numberOfLines={2}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.84}
+                  style={{
+                    flexShrink: 1,
+                    fontSize: isShortScreen ? 13 : 15,
+                    lineHeight: isShortScreen ? 17 : 19,
+                  }}
                 >
                   {item.reflectionPrompt}
                 </Text>
@@ -336,27 +370,6 @@ export function StoryBiteCard({
             </View>
           </View>
         </View>
-      </View>
-
-      <View className="items-end" style={{ paddingTop: isShortScreen ? 8 : 12 }}>
-        <TouchableOpacity
-          className="rounded-full px-5 py-3 flex-row items-center"
-          style={{
-            backgroundColor: actionColor,
-            opacity: isCompleting ? 0.72 : 1,
-          }}
-          onPress={isFinalPage ? completeStory : goToNextPage}
-          disabled={isCompleting}
-          accessibilityRole="button"
-          accessibilityLabel={actionLabel}
-          accessibilityState={{ disabled: isCompleting }}
-        >
-          <Text variant="bold" className="text-white text-base mr-1">
-            {actionLabel}
-          </Text>
-          <Ionicons name={actionIcon} size={18} color="#ffffff" />
-        </TouchableOpacity>
-      </View>
-    </View>
+    </MechanicScreenFrame>
   );
 }

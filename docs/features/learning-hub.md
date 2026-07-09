@@ -174,7 +174,7 @@ The card shows one quiz question at a time with:
 
 Wrong answer taps do not advance the quiz. Correctness is determined only by matching the tapped option ID to that question's `correctOptionId`; it does not depend on option array position. The renderer emits one in-memory `ItemResult` only after every required quiz question has been answered correctly, with `mechanic: "mini_quiz"`, `correct: true`, and `attempts` equal to total answer taps across the whole quiz item. It does not log activity per quiz question.
 
-Current mini-quiz content is a small Family & Home placeholder draft. It uses text only, no new images or audio, and must remain marked placeholder until reviewed production quiz copy is ready.
+Current mini-quiz content includes small First Words, Family & Home, and Everyday Things placeholder drafts. It uses text only, no new images or audio, and must remain marked placeholder until reviewed production quiz copy is ready.
 
 `cultural_card` is implemented as a short, non-graded culture/language card.
 
@@ -286,7 +286,7 @@ Current MVP stages:
 - Culture & Stories
 - Practice Mix
 
-First Words currently has startable `tap_to_learn`, `listen_and_choose`, `choose_correct_word`, and `match_word_picture` lessons. Family & Home currently has startable `tap_to_learn`, placeholder `mini_quiz`, placeholder `cultural_card`, and placeholder `story_bite` lessons; its other path cards use not-yet-valid mechanics and remain Coming soon. Everyday Things and Culture & Stories remain planned placeholders. Practice Mix is marked as practice content and remains locked until a future pass has enough reviewed completion history and runtime review logic.
+First Words currently has startable `tap_to_learn`, `listen_and_choose`, `choose_correct_word`, `match_word_picture`, and placeholder `mini_quiz` lessons. Family & Home currently has startable `tap_to_learn`, placeholder `match_word_picture`, placeholder `choose_correct_word`, placeholder `mini_quiz`, placeholder `cultural_card`, and placeholder `story_bite` lessons. Everyday Things currently has short placeholder `choose_correct_word`, `match_word_picture`, and `mini_quiz` lessons for familiar food, animal, water, and object words using existing bundled images or emoji fallbacks. Culture & Stories remains planned placeholder content. Practice Mix is marked as practice content and remains locked until a future pass has enough reviewed completion history and runtime review logic.
 
 ## Future DB Mapping
 
@@ -297,7 +297,7 @@ No migrations have been added for Learning Hub progress. Content remains local J
 - Aggregate Learning summary can map to `child_activity_progress` with `activity_type = "language"`.
 - Append-only activity feed entries map to `activities` with `activity_type = "language"` and `language_code = "lg"` or another DB language code.
 
-`audioKey` and `imageKey` should become logical content asset references. `audioAsset` and `imageAsset` remain local bundled fallback references for now. Current match-word-picture content uses emoji fallback visuals and remains local JSON, but its option shape is DB-ready for future image records or CDN references. Current mini-quiz content is also local JSON, with nested question/option payloads that can map cleanly into future `content_items.payload` JSON. Current cultural-card content is local JSON with simple text fields and optional visual fields that can map cleanly into future `content_items.payload` JSON. Current story-bite content is local JSON with ordered page payloads that can map cleanly into future `content_items.payload` JSON.
+`audioKey` and `imageKey` should become logical content asset references. `audioAsset` and `imageAsset` remain local bundled fallback references for now. Current match-word-picture content uses existing bundled images where clearly suitable, keeps emoji fallback visuals for placeholder options, and remains local JSON, but its option shape is DB-ready for future image records or CDN references. Current mini-quiz content is also local JSON, with nested question/option payloads that can map cleanly into future `content_items.payload` JSON. Current cultural-card content is local JSON with simple text fields and optional visual fields that can map cleanly into future `content_items.payload` JSON. Current story-bite content is local JSON with ordered page payloads that can map cleanly into future `content_items.payload` JSON.
 
 ## Future Passes
 

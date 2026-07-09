@@ -603,6 +603,20 @@ export const markStageCompleted = async (
     completed_at: data.completed_at ?? nowIso(),
   });
 
+export const markLevelCompleted = async (
+  childId: string,
+  languageCode: string,
+  activityType: string,
+  stageId: string | number,
+  levelId: string | number,
+  data: StageProgressInput = {},
+): Promise<ChildStageProgress> =>
+  updateStageProgress(childId, languageCode, activityType, stageId, levelId, {
+    ...data,
+    status: data.status ?? "completed",
+    completed_at: data.completed_at ?? nowIso(),
+  });
+
 export const getPendingProgressSyncCount = async (
   childId?: string,
 ): Promise<number> => {

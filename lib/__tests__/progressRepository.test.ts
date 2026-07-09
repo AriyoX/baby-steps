@@ -17,7 +17,9 @@ import {
   clearProgressRepositoryStorage,
   getActivityProgress,
   getPendingProgressSyncCount,
+  getStageProgress,
   hydrateProgressFromRemote,
+  markLevelCompleted,
   shouldHydrateProgress,
   syncProgressNow,
   updateActivityProgress,
@@ -78,6 +80,58 @@ describe("progress repository local-first behavior", () => {
     expect(local?.dirty).toBe(true);
     expect(await getPendingProgressSyncCount(childId)).toBe(1);
     expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it("marks a stage-level completion with a concrete level id", async () => {
+    await markLevelCompleted(
+      childId,
+      languageCode,
+      "language",
+      "first-words",
+      "first-words-picture-match",
+      {
+        score: 100,
+        attempts: 2,
+        completed_at: "2026-07-09T00:00:00.000Z",
+        progress_payload: {
+          source: "learning_hub",
+          lessonId: "first-words-picture-match",
+        },
+      },
+    );
+
+    const local = await getStageProgress(
+      childId,
+      languageCode,
+      "language",
+      "first-words",
+      "first-words-picture-match",
+    );
+
+    expect(local).toEqual(
+      expect.objectContaining({
+        child_id: childId,
+        language_code: languageCode,
+        activity_type: "language",
+        stage_id: "first-words",
+        level_id: "first-words-picture-match",
+        status: "completed",
+        score: 100,
+        attempts: 2,
+        completed_at: "2026-07-09T00:00:00.000Z",
+        dirty: true,
+      }),
+    );
+    expect(local?.progress_payload).toEqual(
+      expect.objectContaining({
+        source: "learning_hub",
+        lessonId: "first-words-picture-match",
+      }),
+    );
+    expect(await getPendingProgressSyncCount(childId)).toBe(1);
+    expect(supabase.from).not.toHaveBeenCalled();
+
+    await syncProgressNow(childId);
   });
 
   it("does not lose dirty local progress when there is no Supabase session", async () => {

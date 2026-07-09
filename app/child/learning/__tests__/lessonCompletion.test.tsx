@@ -9,6 +9,7 @@ const mockRouterCanGoBack = jest.fn();
 const mockUseLocalSearchParams = jest.fn();
 const mockSaveLearningLessonCompletion = jest.fn();
 const mockGetLearningLessonCompletion = jest.fn();
+const mockCheckAndGrantNewAchievements = jest.fn();
 const mockMechanicRenderer = ({
   item,
   onComplete,
@@ -88,6 +89,11 @@ jest.mock("@/lib/learningProgressRepository", () => ({
     mockSaveLearningLessonCompletion(...args),
 }));
 
+jest.mock("@/components/games/achievements/achievementManager", () => ({
+  checkAndGrantNewAchievements: (...args: unknown[]) =>
+    mockCheckAndGrantNewAchievements(...args),
+}));
+
 jest.mock("@/components/learning/mechanics/mechanicRegistry", () => ({
   getMechanicRenderer: () => mockMechanicRenderer,
 }));
@@ -129,6 +135,23 @@ beforeEach(() => {
 });
 
 describe("Learning lesson completion persistence", () => {
+  it("does not save or log activity before the final lesson item", async () => {
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = renderer.create(<LearningLessonSessionScreen />);
+    });
+
+    if (!tree) {
+      throw new Error("LearningLessonSessionScreen did not render");
+    }
+
+    await completeRenderedItem(tree, "well-done");
+
+    expect(mockSaveLearningLessonCompletion).not.toHaveBeenCalled();
+    expect(JSON.stringify(tree.toJSON())).not.toContain("Great learning!");
+  });
+
   it("saves a child/language-scoped completion payload after the final item", async () => {
     let tree: renderer.ReactTestRenderer | undefined;
 
@@ -155,10 +178,22 @@ describe("Learning lesson completion persistence", () => {
         status: "completed",
         attempts: 1,
         progressPayload: expect.objectContaining({
+          source: "learning_hub",
           lessonId: "greetings-1",
+          stageTitle: "First Words",
+          lessonTitle: "Greetings",
+          stageNumber: 1,
+          lessonOrder: 1,
+          stageLessonIds: [
+            "greetings-1",
+            "listen-greetings-1",
+            "first-words-word-check",
+            "first-words-picture-match",
+          ],
           mechanicTypes: ["tap_to_learn"],
           totalItems: 5,
           correctItems: 5,
+          completedAt: expect.any(Number),
           contentVersion: "1.1",
           itemResults: expect.arrayContaining([
             expect.objectContaining({
@@ -207,10 +242,22 @@ describe("Learning lesson completion persistence", () => {
         status: "completed",
         attempts: 1,
         progressPayload: expect.objectContaining({
+          source: "learning_hub",
           lessonId: "first-words-picture-match",
+          stageTitle: "First Words",
+          lessonTitle: "Picture Match",
+          stageNumber: 1,
+          lessonOrder: 4,
+          stageLessonIds: [
+            "greetings-1",
+            "listen-greetings-1",
+            "first-words-word-check",
+            "first-words-picture-match",
+          ],
           mechanicTypes: ["match_word_picture"],
           totalItems: 2,
           correctItems: 2,
+          completedAt: expect.any(Number),
           contentVersion: "1.1",
           itemResults: expect.arrayContaining([
             expect.objectContaining({
@@ -257,5 +304,24 @@ describe("Learning lesson completion persistence", () => {
     );
 
     warnSpy.mockRestore();
+  });
+
+  it("does not create achievements for Learning Hub lesson completion", async () => {
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = renderer.create(<LearningLessonSessionScreen />);
+    });
+
+    if (!tree) {
+      throw new Error("LearningLessonSessionScreen did not render");
+    }
+
+    for (const itemId of ["well-done", "thank-you", "mother", "father", "water"]) {
+      await completeRenderedItem(tree, itemId);
+    }
+
+    expect(mockSaveLearningLessonCompletion).toHaveBeenCalledTimes(1);
+    expect(mockCheckAndGrantNewAchievements).not.toHaveBeenCalled();
   });
 });

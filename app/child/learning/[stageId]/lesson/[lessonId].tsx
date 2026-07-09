@@ -198,9 +198,10 @@ export default function LearningLessonSessionScreen() {
       const mechanicTypes = [
         ...new Set(items.map((item) => item.mechanic)),
       ];
+      const stageStartableLessonIds = stage.lessons
+        .filter((stageLesson) => getLessonStatus(stageLesson, stage) === "startable")
+        .map((stageLesson) => stageLesson.id);
 
-      // TODO: Sync this local completion to child_stage_progress when Learning
-      // Hub progress sync is intentionally enabled in a future Supabase pass.
       await saveLearningLessonCompletion({
         localId: buildLearningCompletionLocalId(
           childId,
@@ -218,11 +219,18 @@ export default function LearningLessonSessionScreen() {
         attempts,
         completedAt,
         progressPayload: {
+          source: "learning_hub",
           lessonId: lesson.id,
+          stageTitle: stage.title,
+          lessonTitle: lesson.title,
+          stageNumber: stage.stageNumber,
+          lessonOrder: lesson.order,
+          stageLessonIds: stageStartableLessonIds,
           mechanicTypes,
           itemResults,
           totalItems,
           correctItems,
+          completedAt,
           contentVersion: getLearningContentBundle().version,
         },
         readiness: "local_only",

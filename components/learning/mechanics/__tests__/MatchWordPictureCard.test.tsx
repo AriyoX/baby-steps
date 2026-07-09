@@ -99,13 +99,14 @@ const findButtonByAccessibilityLabel = (
 const renderCard = (
   onComplete = jest.fn(),
   isLastItem = false,
+  cardItem: MatchWordPictureItem = item,
 ): renderer.ReactTestRenderer => {
   let tree: renderer.ReactTestRenderer | undefined;
 
   act(() => {
     tree = renderer.create(
       <MatchWordPictureCard
-        item={item}
+        item={cardItem}
         isLastItem={isLastItem}
         stageImageKey="learning-beginner.jpg"
         onComplete={onComplete}
@@ -132,6 +133,31 @@ describe("MatchWordPictureCard", () => {
     expect(json).toContain("Mother");
     expect(json).toContain("💧");
     expect(json).toContain("👩");
+  });
+
+  it("renders image-backed options while keeping emoji fallback options", () => {
+    const imageBackedItem: MatchWordPictureItem = {
+      ...item,
+      options: item.options.map((option) =>
+        option.id === "water" ? { ...option, imageKey: "rain.jpg" } : option,
+      ),
+    };
+    const tree = renderCard(jest.fn(), false, imageBackedItem);
+    const waterPicture = tree.root
+      .findAll(
+        (node) =>
+          node.props.accessibilityLabel === "Water picture" &&
+          Boolean(node.props.source),
+      )[0];
+    const motherFallback = tree.root
+      .findAll(
+        (node) =>
+          node.props.accessibilityLabel === "Mother picture" &&
+          !node.props.source,
+      )[0];
+
+    expect(waterPicture?.props.source).toBeTruthy();
+    expect(motherFallback).toBeTruthy();
   });
 
   it("does not complete when the wrong option is selected", () => {

@@ -283,7 +283,7 @@ describe("learning hub repository", () => {
     );
   });
 
-  it("normalizes match-word-picture items with stable option ids and emoji fallbacks", () => {
+  it("normalizes match-word-picture items with stable option ids and visual fallbacks", () => {
     const items = getLessonItemsForLesson(
       "lg",
       "first-words",
@@ -319,6 +319,7 @@ describe("learning hub repository", () => {
           id: "water",
           localText: "Amazzi",
           englishText: "Water",
+          imageKey: "rain.jpg",
           emoji: "💧",
         }),
       ]),

@@ -23,11 +23,18 @@ export interface LearningLessonCompletion {
 
   // Future progress_payload jsonb.
   progressPayload: {
+    source?: "learning_hub";
     lessonId: string;
+    stageTitle?: string;
+    lessonTitle?: string;
+    stageNumber?: number;
+    lessonOrder?: number;
+    stageLessonIds?: string[];
     mechanicTypes: string[];
     itemResults: ItemResult[];
     totalItems: number;
     correctItems: number;
+    completedAt?: number;
     contentVersion?: string;
   };
 

@@ -2,7 +2,7 @@
 
 ## Current Status
 
-MVP JSON-backed Learning hub with a DB-ready local content contract, a two-step learning-area path, mechanic-driven lesson renderers for tap-to-learn, listen-and-choose practice, choose-correct-word practice, match-word-picture practice, and local-only lesson completion tracking.
+MVP JSON-backed Learning hub with a DB-ready local content contract, a two-step learning-area path, mechanic-driven lesson renderers for tap-to-learn, listen-and-choose practice, choose-correct-word practice, match-word-picture practice, and local-first lesson completion tracking.
 
 ## Purpose
 
@@ -70,7 +70,9 @@ The route keeps only generic session state:
 - generic completion state
 - navigation back to the stage/path overview
 
-When the final lesson item completes, the route saves one local lesson-completion record through `lib/learningProgressRepository.ts`. It does not save on every tap, does not log audio replays, and does not block the completion screen if local storage fails.
+When the final lesson item completes, the route saves one lesson-completion record through `lib/learningProgressRepository.ts`. It does not save on every tap, does not log audio replays, and does not block the completion screen if local storage or shared progress logging fails.
+
+The same full-lesson completion also writes a parent-feed activity through the existing `saveActivity(...)` path used by games and stories. Learning does not write a feed row for each tap or answer.
 
 Individual lesson mechanics should fit within one screen during normal child use. `tap_to_learn` and `listen_and_choose` should keep the primary content, replay/listen control, answer choices, feedback, and Next / Finish action visible without normal vertical scrolling. A future mechanic should follow the same layout rule and only use vertical scroll as a last-resort safety fallback for unusually small screens.
 
@@ -154,14 +156,25 @@ The card shows one item at a time with:
 
 Correctness is determined only by matching the tapped option ID to `correctOptionId`; it does not depend on option array position. When the child eventually chooses correctly and advances, the renderer emits an in-memory `ItemResult` with `mechanic: "match_word_picture"`, `correct: true`, and `attempts` equal to answer taps. No audio is required for this mechanic.
 
-## Local Progress
+Current MVP picture-match content uses bundled local `imageKey` references where a suitable reviewed asset is already available, with emoji fallbacks left in place. Remaining placeholder options should stay marked as placeholder until reviewed production artwork is added.
 
-Learning Hub lesson completion is local-only for now:
+## Local-First Progress
+
+Learning Hub lesson completion is local-first:
 
 - `lib/learningProgressTypes.ts`
 - `lib/learningProgressRepository.ts`
+- `lib/progressRepository.ts`
 
-The local completion shape is intentionally aligned with the existing schema. Each `LearningLessonCompletion` maps cleanly to a future `child_stage_progress` row:
+The Learning-specific local summary remains the source for immediate Review / Completed UI in the stage path. After that local save succeeds, the repository records the completion through the existing app progress pattern used by games and stories:
+
+- `saveActivity(...)` writes an append-only `activities` feed entry for each completed lesson.
+- If the current completion finishes all startable lessons in that Learning area, `saveActivity(...)` also writes one stage-complete feed entry.
+- `updateActivityProgress(...)` queues a `child_activity_progress` aggregate for `activity_type = "language"`.
+- `markLevelCompleted(...)` queues a `child_stage_progress` lesson row with the Learning area in `stage_id` and lesson ID in `level_id`.
+- `syncProgressNow(childId)` attempts an immediate Supabase sync when a session is available.
+
+Each `LearningLessonCompletion` maps cleanly to a `child_stage_progress` row:
 
 - `childId` -> `child_stage_progress.child_id`
 - `languageCode` -> `child_stage_progress.language_code`
@@ -171,13 +184,19 @@ The local completion shape is intentionally aligned with the existing schema. Ea
 - `status`, `score`, `stars`, `attempts`, `completedAt`
 - `progressPayload` -> `child_stage_progress.progress_payload`
 
-`progressPayload` stores the lesson ID again for clarity, mechanic types, item-level `ItemResult[]`, total item count, correct item count, and the local content version when available.
+`progressPayload` stores `source: "learning_hub"`, the lesson ID again for clarity, stage/lesson titles, mechanic types, summarized item-level `ItemResult[]`, total item count, correct item count, completion time, and the local content version when available.
 
-`LearningProgressSummary` is shaped like a future `child_activity_progress` aggregate for `activity_type = "language"`: status, attempts, last stage ID, completed stage count, completed lesson IDs, and a local lookup by lesson ID. In this local pass, `completedStageCount` counts completed lesson rows because lesson completion is represented with `stageId` plus `levelId`.
+`LearningProgressSummary` is shaped like a `child_activity_progress` aggregate for `activity_type = "language"`: status, attempts, last stage ID, completed stage count, completed lesson IDs, and a local lookup by lesson ID. In this pass, `completedStageCount` counts completed lesson rows because lesson completion is represented with `stageId` plus `levelId`.
 
 The storage key includes child ID and DB language code so children and languages do not share progress. If an active child ID is unexpectedly unavailable, the local-only fallback ID is `local-demo-child`; that value must not be synced as a real DB UUID in a later pass without explicit mapping.
 
-There is no Supabase sync, no migration, and no remote progress hydration for this Learning Hub completion layer. Match-word-picture completion uses the same local-only lesson completion path after the final item.
+Offline and failure behavior follows the existing app patterns. Dirty `child_activity_progress` and `child_stage_progress` rows are stored locally and queued for later sync. The append-only `activities` feed write follows the same immediate Supabase insert pattern used by games and stories, so a failed or offline feed insert is not queued. If an activity feed write, progress write, or sync attempt fails, the child still reaches the completion screen and the local Learning summary remains saved.
+
+No migration was needed for this pass. The existing progress tables already support `activity_type = "language"`, text `stage_id` / `level_id`, attempts, score, completion time, and JSON `progress_payload`.
+
+Append-only `activities` feed rows use `activity_type = "language"`, `activity_name` values such as `Completed "Greetings" Lesson` or `Completed "First Words" Stage`, DB language code, percent score when available, and numeric `stage` / `level` values when the local content provides `stageNumber` and lesson `order`. Stage and lesson string IDs are included in `details` because the existing `activities.stage` and `activities.level` columns are numeric.
+
+The queued Supabase progress rows are intended for cross-session progress restoration and future history/dashboard readiness. Parent dashboard summaries beyond the existing activity feed are still not implemented for Learning Hub.
 
 ## Audio Readiness
 
@@ -223,12 +242,12 @@ First Words currently has startable `tap_to_learn`, `listen_and_choose`, `choose
 
 ## Future DB Mapping
 
-No migrations have been added for Learning Hub progress. Content remains local JSON but DB-ready. A future Supabase-backed pass can use the existing schema:
+No migrations have been added for Learning Hub progress. Content remains local JSON but DB-ready. The current completion logging uses the existing child progress schema:
 
 - Learning content can map through `content_items` using content types such as `learning_stage`, `learning_lesson`, or `learning_bundle`, with stable IDs in `slug`, ordered rows through `sort_order`, and stage/lesson/item data in `payload jsonb`.
 - Lesson completion can map to `child_stage_progress`, with the top-level Learning area in `stage_id`, lesson ID in `level_id`, and item-level details in `progress_payload`.
 - Aggregate Learning summary can map to `child_activity_progress` with `activity_type = "language"`.
-- Future activity feed entries can map to `activities` with `activity_type = "language"` and `language_code = "lg"` or another DB language code.
+- Append-only activity feed entries map to `activities` with `activity_type = "language"` and `language_code = "lg"` or another DB language code.
 
 `audioKey` and `imageKey` should become logical content asset references. `audioAsset` and `imageAsset` remain local bundled fallback references for now. Current match-word-picture content uses emoji fallback visuals and remains local JSON, but its option shape is DB-ready for future image records or CDN references.
 
@@ -236,8 +255,6 @@ No migrations have been added for Learning Hub progress. Content remains local J
 
 Intentionally deferred:
 
-- Supabase progress sync
-- activity feed logging through `activities`
 - achievements
 - parent dashboard summaries
 - Practice Mix runtime recommendations

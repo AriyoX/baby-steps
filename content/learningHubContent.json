@@ -263,6 +263,7 @@
                       "id": "water",
                       "localText": "Amazzi",
                       "englishText": "Water",
+                      "imageKey": "rain.jpg",
                       "emoji": "💧"
                     },
                     {
@@ -296,6 +297,7 @@
                       "id": "water",
                       "localText": "Amazzi",
                       "englishText": "Water",
+                      "imageKey": "rain.jpg",
                       "emoji": "💧"
                     },
                     {

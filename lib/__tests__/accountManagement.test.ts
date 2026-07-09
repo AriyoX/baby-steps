@@ -57,6 +57,7 @@ describe("account management deletion helpers", () => {
       "learning_stats_child-1",
       "cache:activities:recent:child-1:lg",
       "cache:child_achievements:child-1",
+      "@BabySteps:LearningProgress:v1:summary:child-1:lg:language",
       "@BabySteps:Progress:v1:activity:child-1:lg:words",
       "cache:achievements:definitions",
       "@BabySteps:ContentBundle:v1:lg",
@@ -73,6 +74,7 @@ describe("account management deletion helpers", () => {
       "learning_stats_child-1",
       "cache:activities:recent:child-1:lg",
       "cache:child_achievements:child-1",
+      "@BabySteps:LearningProgress:v1:summary:child-1:lg:language",
       "@BabySteps:Progress:v1:activity:child-1:lg:words",
     ]);
   });

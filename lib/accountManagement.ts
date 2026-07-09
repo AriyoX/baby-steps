@@ -6,6 +6,7 @@ import {
   getSignUpErrorMessage as getFriendlySignUpErrorMessage,
   isExistingAccountSignUpError as isFriendlyExistingAccountSignUpError,
 } from "@/lib/authMessages";
+import { clearLearningProgressForChild } from "@/lib/learningProgressRepository";
 import { clearProgressRepositoryStorageForChild } from "@/lib/progressRepository";
 import { supabase } from "@/lib/supabase";
 import { clearRecentActivitiesCache } from "@/lib/utils";
@@ -332,6 +333,7 @@ const getChildStoragePrefixes = (childId: string): string[] => {
     `learning_user_stats_${childId}_`,
     `cache:activities:recent:${encoded}`,
     `cache:child_achievements:${encoded}`,
+    `@BabySteps:LearningProgress:v1:summary:${encoded}:`,
     `@BabySteps:Progress:v1:activity:${encoded}:`,
     `@BabySteps:Progress:v1:stage:${encoded}:`,
     `progress:lastHydratedAt:${encoded}:`,
@@ -366,6 +368,7 @@ export const clearChildLocalData = async (childId: string): Promise<string[]> =>
     clearChildData(childId),
     clearRecentActivitiesCache(childId),
     clearAchievementCaches(childId),
+    clearLearningProgressForChild(childId),
     clearProgressRepositoryStorageForChild(childId),
   ]);
 

@@ -196,6 +196,8 @@ No migration was needed for this pass. The existing progress tables already supp
 
 Append-only `activities` feed rows use `activity_type = "language"`, `activity_name` values such as `Completed "Greetings" Lesson` or `Completed "First Words" Stage`, DB language code, percent score when available, and numeric `stage` / `level` values when the local content provides `stageNumber` and lesson `order`. Stage and lesson string IDs are included in `details` because the existing `activities.stage` and `activities.level` columns are numeric.
 
+Learning Hub activity rows are compatible with the existing parent/recent activity feed. The parent-facing formatter labels `activity_type = "language"` rows as Learning, shows the activity name, time, and score, and hides Learning Hub raw `details` metadata from the UI.
+
 The queued Supabase progress rows are intended for cross-session progress restoration and future history/dashboard readiness. Parent dashboard summaries beyond the existing activity feed are still not implemented for Learning Hub.
 
 ## Audio Readiness

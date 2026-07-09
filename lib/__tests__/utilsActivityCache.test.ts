@@ -14,6 +14,7 @@ import {
   clearRecentActivitiesCache,
   getChildActivities,
   getActivityStats,
+  getFormattedActivities,
   getRecentActivitiesCacheKey,
   saveActivity,
   type Activity,
@@ -164,5 +165,93 @@ describe("recent activity Supabase read cache", () => {
     expect(stats?.recentActivities).toHaveLength(1);
 
     jest.useRealTimers();
+  });
+
+  it("keeps Learning activity rows displayable in parent activity feeds", async () => {
+    (supabase.from as jest.Mock).mockReturnValueOnce(createChildrenLookupQuery());
+
+    const formatted = await getFormattedActivities([
+      {
+        ...activity("learning-1"),
+        activity_type: "language",
+        activity_name: 'Completed "Greetings" Lesson',
+        score: "100%",
+        details: "source=learning_hub; stageId=first-words; lessonId=greetings-1",
+      },
+    ]);
+
+    expect(formatted).toEqual([
+      expect.objectContaining({
+        childId: "child-1",
+        childName: "Amina",
+        category: "language",
+        categoryLabel: "Learning",
+        activity: 'Completed "Greetings" Lesson',
+        icon: "graduation-cap",
+        score: "100%",
+        details: undefined,
+      }),
+    ]);
+  });
+
+  it("keeps game and story activity rows parent-friendly", async () => {
+    (supabase.from as jest.Mock).mockReturnValueOnce(createChildrenLookupQuery());
+
+    const formatted = await getFormattedActivities([
+      {
+        ...activity("story-1"),
+        activity_type: "stories",
+        activity_name: 'Read "The Tale of Kintu"',
+        details: "Amina finished a story.",
+      },
+      {
+        ...activity("counting-1"),
+        activity_type: "counting",
+        activity_name: "Counting Stage 1",
+        score: "80%",
+        details: "Amina counted carefully.",
+      },
+    ]);
+
+    expect(formatted).toEqual([
+      expect.objectContaining({
+        category: "stories",
+        categoryLabel: "Stories",
+        activity: 'Read "The Tale of Kintu"',
+        details: "Amina finished a story.",
+      }),
+      expect.objectContaining({
+        category: "counting",
+        categoryLabel: "Counting",
+        activity: "Counting Stage 1",
+        score: "80%",
+        details: "Amina counted carefully.",
+      }),
+    ]);
+  });
+
+  it("formats unknown activity rows without crashing", async () => {
+    (supabase.from as jest.Mock).mockReturnValueOnce(createChildrenLookupQuery());
+
+    const formatted = await getFormattedActivities([
+      {
+        ...activity("unknown-1"),
+        activity_type: "mystery_game",
+        activity_name: "Mystery activity",
+        completed_at: "not-a-date",
+      },
+    ]);
+
+    expect(formatted).toEqual([
+      expect.objectContaining({
+        category: "mystery_game",
+        categoryLabel: "Mystery Game",
+        activity: "Mystery activity",
+        icon: "star",
+        score: "Completed",
+        time: "Recently",
+        date: "Unknown Date",
+      }),
+    ]);
   });
 });

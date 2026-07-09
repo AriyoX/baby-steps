@@ -195,7 +195,9 @@ describe("learning progress repository", () => {
         activity_name: 'Completed "Greetings" Lesson',
         score: "100%",
         completed_at: "1970-01-01T00:00:01.000Z",
-        details: expect.stringContaining("stageId=first-words; lessonId=greetings-1"),
+        details: expect.stringMatching(
+          /source=learning_hub; stageId=first-words; lessonId=greetings-1/,
+        ),
         stage: 1,
         level: 1,
         language_code: "lg",
@@ -307,6 +309,41 @@ describe("learning progress repository", () => {
     expect(warnSpy).toHaveBeenCalledWith(
       "Could not save Learning activity feed entry:",
       expect.any(Error),
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it("keeps local completion when activity feed logging returns false", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    mockSaveActivity.mockResolvedValueOnce(false);
+
+    await expect(saveLearningLessonCompletion(createCompletion())).resolves.toEqual(
+      expect.objectContaining({
+        childId,
+        languageCode,
+        activityType: "language",
+        stageId: "first-words",
+        levelId: "greetings-1",
+      }),
+    );
+
+    await expect(
+      isLearningLessonCompleted(childId, languageCode, "first-words", "greetings-1"),
+    ).resolves.toBe(true);
+    expect(mockUpdateActivityProgress).toHaveBeenCalled();
+    expect(mockMarkLevelCompleted).toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(
+      "Could not save Learning activity feed entry:",
+      expect.objectContaining({
+        childId,
+        activityType: "language",
+        activityName: 'Completed "Greetings" Lesson',
+        score: "100%",
+        stage: 1,
+        level: 1,
+        languageCode: "lg",
+      }),
     );
 
     warnSpy.mockRestore();

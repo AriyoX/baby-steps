@@ -7,10 +7,20 @@ import {
 import { supabase } from "./supabase";
 
 // Activity type definitions
+export type ActivityType =
+  | 'counting'
+  | 'language'
+  | 'cultural'
+  | 'stories'
+  | 'museum'
+  | 'other'
+  | 'words'
+  | 'puzzle';
+
 export interface GameActivity {
   id?: string;
   child_id: string;
-  activity_type: 'counting' | 'language' | 'cultural' | 'stories' | 'museum' | 'other' | 'words' | 'puzzle';
+  activity_type: ActivityType | string;
   activity_name: string;
   score?: number | string;
   duration?: number;
@@ -24,7 +34,7 @@ export interface GameActivity {
 export interface Activity {
   id?: string;
   child_id: string;
-  activity_type: 'stories' | 'counting' | 'museum' | 'other' | 'cultural' | 'words' | 'puzzle' | 'language';
+  activity_type: ActivityType | string;
   activity_name: string;
   score?: string;
   duration?: number;
@@ -33,6 +43,21 @@ export interface Activity {
   stage?: number;
   level?: number;
   language_code?: string;
+}
+
+export interface FormattedActivity {
+  id: string;
+  icon: string;
+  color: string;
+  childId: string;
+  childName: string;
+  category: string;
+  categoryLabel: string;
+  activity: string;
+  time: string;
+  date: string;
+  score: string;
+  details?: string;
 }
 
 export const RECENT_ACTIVITIES_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -234,12 +259,17 @@ const refreshRecentActivitiesInBackground = (
 export const saveActivity = async (activity: Activity): Promise<boolean> => {
   try {
     // Get child's name first
-    const { data: childData } = await supabase
+    const { data: childData, error: childError } = await supabase
       .from('children')
       .select('name')
       .eq('id', activity.child_id)
       .is('deleted_at', null)
       .single();
+
+    if (childError) {
+      console.error('Error finding child for activity:', childError);
+      return false;
+    }
 
     if (!childData) {
       console.error('Child not found');
@@ -319,10 +349,101 @@ export const resetOnboardingStatus = async (): Promise<void> => {
   await resetOnboardingForDev();
 };
 
+const titleizeActivityType = (activityType?: string | null): string => {
+  const parts = activityType
+    ?.split(/[_\s-]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (!parts?.length) {
+    return 'Activity';
+  }
+
+  return parts
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+};
+
+const getActivityDisplay = (
+  activityType?: string | null,
+): { icon: string; color: string; label: string } => {
+  switch (activityType) {
+    case 'stories':
+      return { icon: 'book', color: brandColors.victoriaBlue, label: 'Stories' };
+    case 'counting':
+      return { icon: 'calculator', color: brandColors.success, label: 'Counting' };
+    case 'museum':
+      return { icon: 'university', color: brandColors.shanaOrange, label: 'Museum' };
+    case 'language':
+      return { icon: 'graduation-cap', color: brandColors.victoriaBlue, label: 'Learning' };
+    case 'other':
+      return { icon: 'award', color: brandColors.equatorialGold, label: 'Other' };
+    default:
+      return {
+        icon: 'star',
+        color: brandColors.shanaOrange,
+        label: titleizeActivityType(activityType),
+      };
+  }
+};
+
+const isLearningHubActivity = (activity: Activity): boolean =>
+  activity.activity_type === 'language' &&
+  (
+    activity.details?.includes('source=learning_hub') ||
+    /^Completed ".+" (Lesson|Stage)$/.test(activity.activity_name)
+  );
+
+const getParentSafeActivityDetails = (activity: Activity): string | undefined => {
+  if (!activity.details) {
+    return undefined;
+  }
+
+  if (isLearningHubActivity(activity)) {
+    return undefined;
+  }
+
+  return activity.details;
+};
+
+const formatActivityDateParts = (
+  completedAt: string,
+): { time: string; date: string } => {
+  const date = new Date(completedAt);
+
+  if (Number.isNaN(date.getTime())) {
+    return { time: 'Recently', date: 'Unknown Date' };
+  }
+
+  const now = new Date();
+  const diffTime = Math.abs(now.getTime() - date.getTime());
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  let timeDisplay;
+  if (diffDays === 0) {
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    timeDisplay = `${hours}:${minutes.toString().padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`;
+  } else if (diffDays === 1) {
+    timeDisplay = 'Yesterday';
+  } else if (diffDays <= 7) {
+    timeDisplay = `${diffDays} days ago`;
+  } else {
+    timeDisplay = date.toLocaleDateString();
+  }
+
+  return {
+    time: timeDisplay,
+    date: date.toLocaleDateString(),
+  };
+};
+
 /**
  * Get formatted recent activities for parent dashboard
  */
-export const getFormattedActivities = async (activities: Activity[]) => {
+export const getFormattedActivities = async (
+  activities: Activity[],
+): Promise<FormattedActivity[]> => {
   if (activities.length === 0) {
     return [];
   }
@@ -344,66 +465,23 @@ export const getFormattedActivities = async (activities: Activity[]) => {
   }, {} as Record<string, string>);
 
   return activities.map(activity => {
-    let icon = 'star'; // default
-    let color: string = brandColors.shanaOrange;
-
-    // Determine icon and color based on activity type
-    switch (activity.activity_type) {
-      case 'stories':
-        icon = 'book';
-        color = brandColors.victoriaBlue;
-        break;
-      case 'counting':
-        icon = 'calculator';
-        color = brandColors.success;
-        break;
-      case 'museum':
-        icon = 'university';
-        color = brandColors.shanaOrange;
-        break;
-      case 'language':
-        icon = 'graduation-cap';
-        color = brandColors.victoriaBlue;
-        break;
-      case 'other':
-        icon = 'award';
-        color = brandColors.equatorialGold;
-        break;
-    }
-
-    // Format relative time
-    const date = new Date(activity.completed_at);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    
-    let timeDisplay;
-    if (diffDays === 0) {
-      const hours = date.getHours();
-      const minutes = date.getMinutes();
-      timeDisplay = `${hours}:${minutes.toString().padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`;
-    } else if (diffDays === 1) {
-      timeDisplay = 'Yesterday';
-    } else if (diffDays <= 7) {
-      timeDisplay = `${diffDays} days ago`;
-    } else {
-      timeDisplay = date.toLocaleDateString();
-    }
-
+    const display = getActivityDisplay(activity.activity_type);
+    const dateParts = formatActivityDateParts(activity.completed_at);
     const childName = childNames[activity.child_id] || 'Unknown Child';
 
     return {
-      id: Math.random().toString(),
-      icon,
-      color,
+      id: activity.id || `${activity.child_id}:${activity.completed_at}:${activity.activity_name}`,
+      icon: display.icon,
+      color: display.color,
       childId: activity.child_id,
       childName,
       category: activity.activity_type,
+      categoryLabel: display.label,
       activity: activity.activity_name,
-      time: timeDisplay,
-      date: date.toLocaleDateString(),
+      time: dateParts.time,
+      date: dateParts.date,
       score: activity.score || 'Completed',
-      details: activity.details
+      details: getParentSafeActivityDetails(activity),
     };
   });
 };

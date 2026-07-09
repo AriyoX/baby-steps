@@ -288,6 +288,32 @@ const buildLearningStageActivity = (
   return activity;
 };
 
+const getLearningActivityLogContext = (activity: Activity) =>
+  compactRecord({
+    childId: activity.child_id,
+    activityType: activity.activity_type,
+    activityName: activity.activity_name,
+    score: activity.score,
+    stage: activity.stage,
+    level: activity.level,
+    languageCode: activity.language_code,
+  });
+
+const saveLearningActivityEntry = async (activity: Activity): Promise<void> => {
+  try {
+    const saved = await saveActivity(activity);
+
+    if (!saved) {
+      console.warn(
+        "Could not save Learning activity feed entry:",
+        getLearningActivityLogContext(activity),
+      );
+    }
+  } catch (error) {
+    console.warn("Could not save Learning activity feed entry:", error);
+  }
+};
+
 const saveLearningActivityEntries = async (
   previousSummary: LearningProgressSummary,
   updatedSummary: LearningProgressSummary,
@@ -297,14 +323,10 @@ const saveLearningActivityEntries = async (
     return;
   }
 
-  try {
-    await saveActivity(buildLearningLessonActivity(completion));
+  await saveLearningActivityEntry(buildLearningLessonActivity(completion));
 
-    if (getStageJustCompleted(previousSummary, updatedSummary, completion)) {
-      await saveActivity(buildLearningStageActivity(completion));
-    }
-  } catch (error) {
-    console.warn("Could not save Learning activity feed entry:", error);
+  if (getStageJustCompleted(previousSummary, updatedSummary, completion)) {
+    await saveLearningActivityEntry(buildLearningStageActivity(completion));
   }
 };
 

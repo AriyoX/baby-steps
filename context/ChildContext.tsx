@@ -18,7 +18,7 @@ interface ChildContextType {
 
 export const ChildContext = createContext<ChildContextType | undefined>(undefined);
 
-const PROGRESS_ACTIVITY_TYPES = ['learning', 'counting', 'words', 'stories', 'coloring'];
+const PROGRESS_ACTIVITY_TYPES = ['language', 'learning', 'counting', 'words', 'stories', 'coloring'];
 
 export const ChildProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeChild, setActiveChildState] = useState<ChildProfile | null>(null);

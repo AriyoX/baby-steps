@@ -313,7 +313,9 @@ const ParentDashboard = () => {
                             {activity.childName} {activity.activity}
                           </Text>
                           <View className="flex-row justify-between">
-                            <Text className="text-gray-500 text-xs">{activity.time}</Text>
+                            <Text className="text-gray-500 text-xs">
+                              {activity.categoryLabel ? `${activity.time} - ${activity.categoryLabel}` : activity.time}
+                            </Text>
                             <Text className="text-primary-700 text-xs font-medium">{activity.score}</Text>
                           </View>
                         </View>

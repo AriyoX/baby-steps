@@ -11,7 +11,7 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import { supabase } from "@/lib/supabase";
-import { getChildActivities, getFormattedActivities } from "@/lib/utils"; // Ensure these utils exist
+import { getChildActivities, getFormattedActivities, type FormattedActivity } from "@/lib/utils"; // Ensure these utils exist
 
 // Child interface
 interface Child {
@@ -27,21 +27,8 @@ const capitalizeFirstLetter = (string: string) => {
 
 export default function ActivitiesScreen() {
   const router = useRouter();
-  interface Activity {
-    id: string;
-    icon: string;
-    color: string;
-    childId: string;
-    childName: string;
-    category: 'stories' | 'counting' | 'museum' | 'other' | 'cultural' | 'words' | 'puzzle' | 'language';
-    activity: string;
-    time: string; // Expected format like "HH:MM", "HH:MM AM/PM", or "HH:MM:SS"
-    date: string; // Expected format parseable by `new Date()`, e.g., "Month Day, Year" or "YYYY-MM-DD"
-    score: string;
-    details: string | undefined;
-  }
 
-  const [activities, setActivities] = useState<Activity[]>([]);
+  const [activities, setActivities] = useState<FormattedActivity[]>([]);
   const [children, setChildren] = useState<Child[]>([]);
   const [selectedChild, setSelectedChild] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -140,7 +127,8 @@ export default function ActivitiesScreen() {
       const query = searchQuery.toLowerCase();
       if (!activity.activity.toLowerCase().includes(query) &&
           !activity.childName.toLowerCase().includes(query) &&
-          !(activity.category?.toLowerCase().includes(query))) { // Handle potentially undefined category
+          !(activity.category?.toLowerCase().includes(query)) &&
+          !(activity.categoryLabel?.toLowerCase().includes(query))) { // Handle potentially undefined category
         return false;
       }
     }
@@ -176,7 +164,7 @@ export default function ActivitiesScreen() {
     return 0;
   });
 
-  const groupedActivities = sortedFilteredActivities.reduce<Record<string, Activity[]>>((groups, activity) => {
+  const groupedActivities = sortedFilteredActivities.reduce<Record<string, FormattedActivity[]>>((groups, activity) => {
     const dateKey = activity.date || 'Unknown Date'; // Use a fallback for undefined/empty dates
     if (!groups[dateKey]) {
       groups[dateKey] = [];
@@ -186,7 +174,17 @@ export default function ActivitiesScreen() {
   }, {});
 
   const categories = Array.from(
-    new Set(activities.map(activity => activity.category).filter((category): category is Activity['category'] => !!category))
+    activities
+      .reduce((map, activity) => {
+        if (activity.category && !map.has(activity.category)) {
+          map.set(
+            activity.category,
+            activity.categoryLabel || capitalizeFirstLetter(activity.category),
+          );
+        }
+        return map;
+      }, new Map<string, string>())
+      .entries(),
   );
 
   return (
@@ -271,7 +269,7 @@ export default function ActivitiesScreen() {
                 All Categories
               </Text>
             </TouchableOpacity>
-            {categories.map((category) => ( // Key should be stable, category name itself is fine if unique
+            {categories.map(([category, categoryLabel]) => ( // Key should be stable, category name itself is fine if unique
               <TouchableOpacity
                 key={category} 
                 className={`px-3 py-1 rounded-full mr-2 ${
@@ -284,7 +282,7 @@ export default function ActivitiesScreen() {
                     filterCategory === category ? "text-white" : "text-gray-800"
                   }
                 >
-                  {capitalizeFirstLetter(category)}
+                  {categoryLabel}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -369,7 +367,7 @@ export default function ActivitiesScreen() {
                             <View className="flex-row items-center">
                               {activity.category && ( // Conditionally render category if it exists
                                 <Text className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                                  {capitalizeFirstLetter(activity.category)}
+                                  {activity.categoryLabel || capitalizeFirstLetter(activity.category)}
                                 </Text>
                               )}
                             </View>

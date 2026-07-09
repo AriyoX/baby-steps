@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ImageBackground,
   TouchableOpacity,
@@ -12,8 +12,12 @@ import { Text } from "@/components/StyledText";
 import { getMechanicRenderer } from "@/components/learning/mechanics/mechanicRegistry";
 import { brandColors } from "@/constants/Brand";
 import { useChild } from "@/context/ChildContext";
-import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages";
 import {
+  DEFAULT_LEARNING_LANGUAGE_CODE,
+  getDbLanguageCodeForLearningLanguage,
+} from "@/content/languages";
+import {
+  getLearningContentBundle,
   getLearningStageById,
   getLessonById,
   getLessonItemsForLesson,
@@ -22,6 +26,13 @@ import {
 } from "@/content/learningHubRepository";
 import type { ItemResult } from "@/content/learningHubTypes";
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation";
+import {
+  LEARNING_ACTIVITY_TYPE,
+  buildLearningCompletionLocalId,
+  getLearningLessonCompletion,
+  getLearningProgressChildId,
+  saveLearningLessonCompletion,
+} from "@/lib/learningProgressRepository";
 
 const getRouteParam = (value: unknown): string => {
   if (Array.isArray(value)) {
@@ -102,11 +113,15 @@ export default function LearningLessonSessionScreen() {
   const { activeChild } = useChild();
   const stageId = getRouteParam(params.stageId);
   const lessonId = getRouteParam(params.lessonId);
-  // TODO: Keep this tied to the child/profile language setting as more Learning bundles are added.
-  const languageCode = activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE;
+  const childId = getLearningProgressChildId(activeChild?.id);
+  const languageCode = getDbLanguageCodeForLearningLanguage(
+    activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE,
+  );
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [results, setResults] = useState<ItemResult[]>([]);
+  const resultsRef = useRef<ItemResult[]>([]);
+  const saveCompletionInFlightRef = useRef(false);
 
   useChildLandscapeOrientation("child learning lesson");
 
@@ -136,6 +151,8 @@ export default function LearningLessonSessionScreen() {
     setCurrentIndex(0);
     setIsComplete(false);
     setResults([]);
+    resultsRef.current = [];
+    saveCompletionInFlightRef.current = false;
   }, [lesson?.id, stageId]);
 
   const goBackToLearning = () => {
@@ -159,22 +176,83 @@ export default function LearningLessonSessionScreen() {
     } as any);
   };
 
+  const saveLessonCompletion = useCallback(
+    async (itemResults: ItemResult[]) => {
+      if (!stage || !lesson || saveCompletionInFlightRef.current) {
+        return;
+      }
+
+      saveCompletionInFlightRef.current = true;
+      const completedAt = Date.now();
+      const totalItems = items.length;
+      const correctItems = itemResults.filter(
+        (itemResult) => itemResult.correct !== false,
+      ).length;
+      const existingCompletion = await getLearningLessonCompletion(
+        childId,
+        languageCode,
+        stage.id,
+        lesson.id,
+      );
+      const attempts = (existingCompletion?.attempts ?? 0) + 1;
+      const mechanicTypes = [
+        ...new Set(items.map((item) => item.mechanic)),
+      ];
+
+      // TODO: Sync this local completion to child_stage_progress when Learning
+      // Hub progress sync is intentionally enabled in a future Supabase pass.
+      await saveLearningLessonCompletion({
+        localId: buildLearningCompletionLocalId(
+          childId,
+          languageCode,
+          stage.id,
+          lesson.id,
+        ),
+        childId,
+        languageCode,
+        activityType: LEARNING_ACTIVITY_TYPE,
+        stageId: stage.id,
+        levelId: lesson.id,
+        status: "completed",
+        score: totalItems > 0 ? Math.round((correctItems / totalItems) * 100) : 0,
+        attempts,
+        completedAt,
+        progressPayload: {
+          lessonId: lesson.id,
+          mechanicTypes,
+          itemResults,
+          totalItems,
+          correctItems,
+          contentVersion: getLearningContentBundle().version,
+        },
+        readiness: "local_only",
+      });
+    },
+    [childId, items, languageCode, lesson, stage],
+  );
+
   const handleItemComplete = useCallback(
     (result: ItemResult) => {
-      // TODO: Persist lesson progress once the Learning hub gets a local-first progress pass.
-      setResults((currentResults) => [
-        ...currentResults.filter((itemResult) => itemResult.itemId !== result.itemId),
+      const nextResults = [
+        ...resultsRef.current.filter((itemResult) => itemResult.itemId !== result.itemId),
         result,
-      ]);
+      ];
+
+      resultsRef.current = nextResults;
+      setResults(nextResults);
 
       if (currentIndex >= items.length - 1) {
         setIsComplete(true);
+        void saveLessonCompletion(nextResults).catch((error) => {
+          saveCompletionInFlightRef.current = false;
+          console.warn("Could not save local Learning lesson completion:", error);
+        });
         return;
       }
 
       setCurrentIndex((index) => Math.min(index + 1, items.length - 1));
     },
-    [currentIndex, items.length],
+    [currentIndex, items.length, saveLessonCompletion],
   );
 
   if (!stage) {

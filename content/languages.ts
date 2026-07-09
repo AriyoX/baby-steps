@@ -2,6 +2,13 @@ import type { LearningLanguage, SupportedLearningLanguageCode } from "./types";
 
 export const DEFAULT_LEARNING_LANGUAGE_CODE: SupportedLearningLanguageCode = "lg";
 
+const LEARNING_LANGUAGE_CODE_ALIASES: Record<string, SupportedLearningLanguageCode> = {
+  luganda: "lg",
+  oluganda: "lg",
+  runyankole: "nyn",
+  runyankore: "nyn",
+};
+
 export const LEARNING_LANGUAGES: readonly LearningLanguage[] = [
   {
     code: "lg",
@@ -36,8 +43,30 @@ export const normalizeLearningLanguageCode = (
   languageCode?: string | null,
 ): string | undefined => {
   const normalized = languageCode?.trim().toLowerCase();
-  return normalized || undefined;
+  if (!normalized) {
+    return undefined;
+  }
+
+  return LEARNING_LANGUAGE_CODE_ALIASES[normalized] ?? normalized;
 };
+
+// Temporary bridge while bundled Learning Hub content and DB rows converge on
+// canonical language codes from public.languages.code.
+export const getDbLanguageCodeForLearningLanguage = (
+  languageCode?: string | null,
+): SupportedLearningLanguageCode => {
+  const normalized = normalizeLearningLanguageCode(languageCode);
+
+  if (isSupportedLearningLanguageCode(normalized)) {
+    return normalized;
+  }
+
+  return DEFAULT_LEARNING_LANGUAGE_CODE;
+};
+
+export const getLearningLanguageFromDbCode = (
+  dbCode?: string | null,
+): SupportedLearningLanguageCode => getDbLanguageCodeForLearningLanguage(dbCode);
 
 export const getLearningLanguage = (
   languageCode?: string | null,

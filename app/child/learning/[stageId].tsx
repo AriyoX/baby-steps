@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   FlatList,
   ImageBackground,
@@ -13,7 +13,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/StyledText";
 import { brandColors } from "@/constants/Brand";
 import { useChild } from "@/context/ChildContext";
-import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages";
+import {
+  DEFAULT_LEARNING_LANGUAGE_CODE,
+  getDbLanguageCodeForLearningLanguage,
+} from "@/content/languages";
 import {
   getLearningStageById,
   getLessonStatus,
@@ -25,6 +28,10 @@ import {
 } from "@/content/learningHubRepository";
 import type { LessonStatus } from "@/content/learningHubTypes";
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation";
+import {
+  getCompletedLearningLessonIds,
+  getLearningProgressChildId,
+} from "@/lib/learningProgressRepository";
 
 const getRouteStageId = (value: unknown): string => {
   if (Array.isArray(value)) {
@@ -35,14 +42,17 @@ const getRouteStageId = (value: unknown): string => {
 };
 
 type LessonCardStatus = {
-  label: "Start" | "Coming soon" | "Locked" | "Unsupported" | "Needs cards";
+  label: "Start" | "Review" | "Coming soon" | "Locked" | "Unsupported" | "Needs cards";
   icon: keyof typeof Ionicons.glyphMap;
   color: string;
   backgroundColor: string;
   disabled: boolean;
 };
 
-const getLessonCardStatus = (status: LessonStatus): LessonCardStatus => {
+const getLessonCardStatus = (
+  status: LessonStatus,
+  isCompleted = false,
+): LessonCardStatus => {
   if (status === "locked") {
     return {
       label: "Locked",
@@ -83,6 +93,16 @@ const getLessonCardStatus = (status: LessonStatus): LessonCardStatus => {
     };
   }
 
+  if (isCompleted) {
+    return {
+      label: "Review",
+      icon: "checkmark-circle",
+      color: brandColors.success,
+      backgroundColor: "#DCFCE7",
+      disabled: false,
+    };
+  }
+
   return {
     label: "Start",
     icon: "play-circle",
@@ -96,6 +116,7 @@ type LessonPathCardProps = {
   stage: LearningHubStage;
   lesson: LearningHubLesson;
   itemCount: number;
+  isCompleted: boolean;
   width: number;
   height: number;
   gap: number;
@@ -106,13 +127,14 @@ const LessonPathCard = ({
   stage,
   lesson,
   itemCount,
+  isCompleted,
   width,
   height,
   gap,
   onPress,
 }: LessonPathCardProps) => {
   const lessonStatus = getLessonStatus(lesson, stage);
-  const status = getLessonCardStatus(lessonStatus);
+  const status = getLessonCardStatus(lessonStatus, isCompleted);
   const mechanicLabel = getMechanicLabel(lesson.mechanic);
 
   return (
@@ -174,6 +196,14 @@ const LessonPathCard = ({
           <Text className="text-neutral-600 text-sm leading-5" numberOfLines={2}>
             {lesson.description}
           </Text>
+          {isCompleted && !status.disabled ? (
+            <View className="flex-row items-center mt-2">
+              <Ionicons name="checkmark-done" size={14} color={brandColors.success} />
+              <Text variant="bold" className="text-success text-xs ml-1" numberOfLines={1}>
+                Completed
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         <View className="flex-row items-center justify-between mt-4">
@@ -235,8 +265,11 @@ export default function LearningStagePathScreen() {
   const { activeChild } = useChild();
   const { width, height } = useWindowDimensions();
   const stageId = getRouteStageId(params.stageId);
-  // TODO: Keep this tied to the child/profile language setting as more Learning bundles are added.
-  const languageCode = activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE;
+  const childId = getLearningProgressChildId(activeChild?.id);
+  const languageCode = getDbLanguageCodeForLearningLanguage(
+    activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE,
+  );
+  const [completedLessonIds, setCompletedLessonIds] = useState<string[]>([]);
 
   useChildLandscapeOrientation("child learning stage path");
 
@@ -247,6 +280,33 @@ export default function LearningStagePathScreen() {
   const lessons = useMemo(
     () => getLessonsForStage(languageCode, stageId),
     [languageCode, stageId],
+  );
+  const completedLessonIdSet = useMemo(
+    () => new Set(completedLessonIds),
+    [completedLessonIds],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+
+      void getCompletedLearningLessonIds(childId, languageCode)
+        .then((lessonIds) => {
+          if (isActive) {
+            setCompletedLessonIds(lessonIds);
+          }
+        })
+        .catch((error) => {
+          console.warn("Could not load local Learning lesson progress:", error);
+          if (isActive) {
+            setCompletedLessonIds([]);
+          }
+        });
+
+      return () => {
+        isActive = false;
+      };
+    }, [childId, languageCode]),
   );
 
   const landscapeWidth = Math.max(width, height);
@@ -362,6 +422,7 @@ export default function LearningStagePathScreen() {
                     stage={stage}
                     lesson={lesson}
                     itemCount={getLessonItemCount(languageCode, stage.id, lesson.id)}
+                    isCompleted={completedLessonIdSet.has(lesson.id)}
                     width={lessonCardWidth}
                     height={lessonCardHeight}
                     gap={cardGap}

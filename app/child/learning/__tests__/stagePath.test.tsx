@@ -8,11 +8,13 @@ const mockRouterPush = jest.fn();
 const mockRouterReplace = jest.fn();
 const mockRouterCanGoBack = jest.fn();
 const mockUseLocalSearchParams = jest.fn();
+const mockGetCompletedLearningLessonIds = jest.fn();
 
 jest.mock("expo-router", () => ({
   Stack: {
     Screen: () => null,
   },
+  useFocusEffect: (callback: () => void | (() => void)) => callback(),
   useLocalSearchParams: () => mockUseLocalSearchParams(),
   useRouter: () => ({
     back: mockRouterBack,
@@ -40,9 +42,16 @@ jest.mock("@expo/vector-icons", () => ({
 jest.mock("@/context/ChildContext", () => ({
   useChild: () => ({
     activeChild: {
+      id: "child-1",
       selected_language_code: "lg",
     },
   }),
+}));
+
+jest.mock("@/lib/learningProgressRepository", () => ({
+  getCompletedLearningLessonIds: (...args: unknown[]) =>
+    mockGetCompletedLearningLessonIds(...args),
+  getLearningProgressChildId: (childId?: string | null) => childId || "local-demo-child",
 }));
 
 jest.mock("@/hooks/useChildLandscapeOrientation", () => ({
@@ -83,9 +92,18 @@ const findButtonByAccessibilityLabel = (
 };
 
 beforeEach(() => {
+  jest.useFakeTimers();
   jest.clearAllMocks();
   mockRouterCanGoBack.mockReturnValue(false);
   mockUseLocalSearchParams.mockReturnValue({ stageId: "first-words" });
+  mockGetCompletedLearningLessonIds.mockResolvedValue([]);
+});
+
+afterEach(() => {
+  act(() => {
+    jest.runOnlyPendingTimers();
+  });
+  jest.useRealTimers();
 });
 
 describe("Learning stage path screen", () => {
@@ -159,5 +177,56 @@ describe("Learning stage path screen", () => {
 
     expect(textContent(comingSoonCard)).toContain("Coming soon");
     expect(comingSoonCard.props.disabled).toBe(true);
+  });
+
+  it("shows locally completed startable lessons as reviewable", async () => {
+    mockGetCompletedLearningLessonIds.mockResolvedValue(["greetings-1"]);
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = renderer.create(<LearningStagePathScreen />);
+      await Promise.resolve();
+    });
+
+    if (!tree) {
+      throw new Error("LearningStagePathScreen did not render");
+    }
+
+    const greetingsCard = findButtonByAccessibilityLabel(tree.root, "Greetings. Review");
+
+    expect(textContent(greetingsCard)).toContain("Review");
+    expect(textContent(greetingsCard)).toContain("Completed");
+    expect(greetingsCard.props.disabled).toBe(false);
+
+    await act(async () => {
+      greetingsCard.props.onPress();
+    });
+
+    expect(mockRouterPush).toHaveBeenCalledWith({
+      pathname: "/child/learning/[stageId]/lesson/[lessonId]",
+      params: { stageId: "first-words", lessonId: "greetings-1" },
+    });
+  });
+
+  it("keeps Practice Mix locked", async () => {
+    mockUseLocalSearchParams.mockReturnValue({ stageId: "practice-mix" });
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = renderer.create(<LearningStagePathScreen />);
+      await Promise.resolve();
+    });
+
+    if (!tree) {
+      throw new Error("LearningStagePathScreen did not render");
+    }
+
+    const practiceCard = findButtonByAccessibilityLabel(
+      tree.root,
+      "First Words Review. Locked",
+    );
+
+    expect(textContent(practiceCard)).toContain("Locked");
+    expect(practiceCard.props.disabled).toBe(true);
   });
 });

@@ -2,7 +2,7 @@
 
 ## Current Status
 
-MVP JSON-backed Learning hub with a DB-ready local content contract, a two-step learning-area path, and mechanic-driven lesson renderers for tap-to-learn, listen-and-choose practice, and choose-correct-word practice.
+MVP JSON-backed Learning hub with a DB-ready local content contract, a two-step learning-area path, mechanic-driven lesson renderers for tap-to-learn, listen-and-choose practice, choose-correct-word practice, and local-only lesson completion tracking.
 
 ## Purpose
 
@@ -35,6 +35,8 @@ The JSON models a versioned content bundle with languages, stages, lessons, less
 
 The current default language is Luganda (`lg`). If a selected child language has no Learning hub path yet, the repository falls back to the default Luganda hub content. The model is ready for future language bundles such as Runyankole / Runyankore and other Ugandan languages.
 
+The current DB language code for Luganda is `lg`, matching `children.selected_language_code`. Temporary bridge helpers map legacy labels such as `luganda` / `oluganda` to `lg` and Runyankole / Runyankore labels to `nyn` so local progress uses DB-style language codes without breaking bundled content lookup.
+
 TODO: Replace placeholder vocabulary/audio with reviewed curriculum content and native-speaker recordings before production.
 
 ## Navigation Model
@@ -47,7 +49,9 @@ Learning now uses two child-facing steps:
 
 Top-level cards no longer start the first lesson directly. Locked or planned work is represented in the stage/path overview through Locked or Coming soon lesson cards.
 
-The stage/path overview uses a horizontally scrollable lesson-card rail, following the stage-card rhythm used by the existing Counting and Luganda Learning games. Lesson cards show the stage/lesson number, lesson title, mechanic label, short description, item count, and Start / Coming soon / Locked state.
+The stage/path overview uses a horizontally scrollable lesson-card rail, following the stage-card rhythm used by the existing Counting and Luganda Learning games. Lesson cards show the stage/lesson number, lesson title, mechanic label, short description, item count, and Start / Review / Coming soon / Locked state.
+
+When a lesson has been completed locally on the device, the path card can show a Completed marker and a Review action. Completed lessons remain openable for review. Completion state does not unlock new lessons yet, and locked/planned cards remain locked or Coming soon.
 
 ## Lesson Architecture
 
@@ -65,7 +69,7 @@ The route keeps only generic session state:
 - generic completion state
 - navigation back to the stage/path overview
 
-Progress persistence is intentionally not implemented yet. Item results are kept in memory only for the current lesson session.
+When the final lesson item completes, the route saves one local lesson-completion record through `lib/learningProgressRepository.ts`. It does not save on every tap, does not log audio replays, and does not block the completion screen if local storage fails.
 
 Individual lesson mechanics should fit within one screen during normal child use. `tap_to_learn` and `listen_and_choose` should keep the primary content, replay/listen control, answer choices, feedback, and Next / Finish action visible without normal vertical scrolling. A future mechanic should follow the same layout rule and only use vertical scroll as a last-resort safety fallback for unusually small screens.
 
@@ -132,7 +136,32 @@ The card shows one item at a time with:
 - gentle feedback for wrong answers
 - a separate `Next` / `Finish` action after the correct answer
 
-Correctness is determined only by matching the tapped option ID to `correctOptionId`; it does not depend on option array position. When the child eventually chooses correctly and advances, the renderer emits an in-memory `ItemResult` with `mechanic: "choose_correct_word"`, `correct: true`, and `attempts` equal to answer taps. These results are not persisted yet.
+Correctness is determined only by matching the tapped option ID to `correctOptionId`; it does not depend on option array position. When the child eventually chooses correctly and advances, the renderer emits an in-memory `ItemResult` with `mechanic: "choose_correct_word"`, `correct: true`, and `attempts` equal to answer taps.
+
+## Local Progress
+
+Learning Hub lesson completion is local-only for now:
+
+- `lib/learningProgressTypes.ts`
+- `lib/learningProgressRepository.ts`
+
+The local completion shape is intentionally aligned with the existing schema. Each `LearningLessonCompletion` maps cleanly to a future `child_stage_progress` row:
+
+- `childId` -> `child_stage_progress.child_id`
+- `languageCode` -> `child_stage_progress.language_code`
+- `activityType: "language"` -> `child_stage_progress.activity_type`
+- `stageId` -> top-level Learning area, such as `first-words`
+- `levelId` -> lesson ID, such as `greetings-1`
+- `status`, `score`, `stars`, `attempts`, `completedAt`
+- `progressPayload` -> `child_stage_progress.progress_payload`
+
+`progressPayload` stores the lesson ID again for clarity, mechanic types, item-level `ItemResult[]`, total item count, correct item count, and the local content version when available.
+
+`LearningProgressSummary` is shaped like a future `child_activity_progress` aggregate for `activity_type = "language"`: status, attempts, last stage ID, completed stage count, completed lesson IDs, and a local lookup by lesson ID. In this local pass, `completedStageCount` counts completed lesson rows because lesson completion is represented with `stageId` plus `levelId`.
+
+The storage key includes child ID and DB language code so children and languages do not share progress. If an active child ID is unexpectedly unavailable, the local-only fallback ID is `local-demo-child`; that value must not be synced as a real DB UUID in a later pass without explicit mapping.
+
+There is no Supabase sync, no migration, and no remote progress hydration for this Learning Hub completion layer.
 
 ## Audio Readiness
 
@@ -175,19 +204,16 @@ Current MVP stages:
 - Culture & Stories
 - Practice Mix
 
-First Words currently has startable `tap_to_learn`, `listen_and_choose`, and `choose_correct_word` lessons. Family & Home currently has a startable `tap_to_learn` lesson; its other path cards use planned or not-yet-valid mechanics and remain Coming soon. Everyday Things and Culture & Stories remain planned placeholders. Practice Mix is marked as practice content and remains locked until future progress-aware lesson completion exists.
+First Words currently has startable `tap_to_learn`, `listen_and_choose`, and `choose_correct_word` lessons. Family & Home currently has a startable `tap_to_learn` lesson; its other path cards use planned or not-yet-valid mechanics and remain Coming soon. Everyday Things and Culture & Stories remain planned placeholders. Practice Mix is marked as practice content and remains locked until a future pass has enough reviewed completion history and runtime review logic.
 
 ## Future DB Mapping
 
-No migrations have been added yet. Content remains local JSON but DB-ready. A future Supabase-backed pass can map the local contract toward tables such as:
+No migrations have been added for Learning Hub progress. Content remains local JSON but DB-ready. A future Supabase-backed pass can use the existing schema:
 
-- `learning_languages`
-- `learning_stages`
-- `learning_lessons`
-- `learning_lesson_items`
-- `learning_assets`
-- `child_lesson_progress`
-- `child_item_results`
+- Learning content can map through `content_items` using content types such as `learning_stage`, `learning_lesson`, or `learning_bundle`, with stable IDs in `slug`, ordered rows through `sort_order`, and stage/lesson/item data in `payload jsonb`.
+- Lesson completion can map to `child_stage_progress`, with the top-level Learning area in `stage_id`, lesson ID in `level_id`, and item-level details in `progress_payload`.
+- Aggregate Learning summary can map to `child_activity_progress` with `activity_type = "language"`.
+- Future activity feed entries can map to `activities` with `activity_type = "language"` and `language_code = "lg"` or another DB language code.
 
 `audioKey` and `imageKey` should become logical content asset references. `audioAsset` and `imageAsset` remain local bundled fallback references for now.
 
@@ -195,13 +221,12 @@ No migrations have been added yet. Content remains local JSON but DB-ready. A fu
 
 Intentionally deferred:
 
-- progress persistence
-- activities and activity logging
+- Supabase progress sync
+- activity feed logging through `activities`
 - achievements
 - parent dashboard summaries
 - Practice Mix runtime recommendations
 - AI recommendations
-- Supabase sync
 - database migrations
 
 Museum remains archived and hidden for possible future redesign. No Museum routes or WebView surfaces are re-enabled by Learning Hub work.
@@ -211,4 +236,4 @@ Museum remains archived and hidden for possible future redesign. No Museum route
 - Decide canonical language codes for Luganda, Runyankole / Runyankore, and future Ugandan languages.
 - Define reviewed asset records for `audioKey` and `imageKey`.
 - Map readiness and lesson status rules into server-side content validation.
-- Add migrations only after the local contract and first two mechanics are stable.
+- Add migrations only after the local contract and first three mechanics are stable.

@@ -10,6 +10,7 @@ import type {
   MatchWordPictureItem,
   MechanicType,
   MiniQuizItem,
+  StoryBiteItem,
   TapToLearnItem,
 } from "@/content/learningHubTypes";
 import { getMechanicLabel } from "@/content/learningHubRepository";
@@ -18,6 +19,7 @@ import { CulturalCard } from "./CulturalCard";
 import { ListenAndChooseCard } from "./ListenAndChooseCard";
 import { MatchWordPictureCard } from "./MatchWordPictureCard";
 import { MiniQuizCard } from "./MiniQuizCard";
+import { StoryBiteCard } from "./StoryBiteCard";
 import { TapToLearnCard } from "./TapToLearnCard";
 
 export type MechanicRendererProps = {
@@ -189,6 +191,33 @@ const CulturalCardRenderer = ({
   );
 };
 
+const StoryBiteRenderer = ({
+  item,
+  isLastItem,
+  stageImageKey,
+  onComplete,
+}: MechanicRendererProps) => {
+  if (item.mechanic !== "story_bite") {
+    return (
+      <UnsupportedMechanicNotice
+        item={item}
+        isLastItem={isLastItem}
+        stageImageKey={stageImageKey}
+        onComplete={onComplete}
+      />
+    );
+  }
+
+  return (
+    <StoryBiteCard
+      item={item as StoryBiteItem}
+      isLastItem={isLastItem}
+      stageImageKey={stageImageKey}
+      onComplete={onComplete}
+    />
+  );
+};
+
 export const MECHANIC_RENDERERS: Partial<
   Record<MechanicType, ComponentType<MechanicRendererProps>>
 > = {
@@ -198,6 +227,7 @@ export const MECHANIC_RENDERERS: Partial<
   match_word_picture: MatchWordPictureRenderer,
   mini_quiz: MiniQuizRenderer,
   cultural_card: CulturalCardRenderer,
+  story_bite: StoryBiteRenderer,
 };
 
 export const UnsupportedMechanicNotice = ({ item }: MechanicRendererProps) => (

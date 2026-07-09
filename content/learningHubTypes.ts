@@ -203,6 +203,27 @@ export interface CulturalCardItem extends LessonItemBase {
   funFact?: string;
 }
 
+export interface StoryBitePage {
+  id: string;
+  title?: string;
+  localTitle?: string;
+  bodyText: string;
+  localText?: string;
+  imageKey?: string;
+  imageAsset?: string;
+  emoji?: string;
+  audioKey?: string;
+  audioAsset?: string;
+}
+
+export interface StoryBiteItem extends LessonItemBase {
+  mechanic: "story_bite";
+  title: string;
+  instructions?: string;
+  pages: StoryBitePage[];
+  reflectionPrompt?: string;
+}
+
 export interface UnsupportedLessonItem extends LessonItemBase {
   mechanic: Exclude<
     MechanicType,
@@ -212,6 +233,7 @@ export interface UnsupportedLessonItem extends LessonItemBase {
     | "match_word_picture"
     | "mini_quiz"
     | "cultural_card"
+    | "story_bite"
   >;
   prompt?: string;
   word?: string;
@@ -225,4 +247,5 @@ export type LearningLessonItem =
   | MatchWordPictureItem
   | MiniQuizItem
   | CulturalCardItem
+  | StoryBiteItem
   | UnsupportedLessonItem;

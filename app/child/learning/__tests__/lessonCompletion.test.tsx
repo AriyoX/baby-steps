@@ -19,6 +19,7 @@ const MockMechanicRenderer = ({
 }) => {
   const [miniQuizQuestionAnswered, setMiniQuizQuestionAnswered] =
     React.useState(false);
+  const [storyPageRead, setStoryPageRead] = React.useState(false);
 
   if (item.mechanic === "mini_quiz") {
     return (
@@ -54,13 +55,48 @@ const MockMechanicRenderer = ({
     );
   }
 
+  if (item.mechanic === "story_bite") {
+    return (
+      <>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Read first story page"
+          onPress={() => setStoryPageRead(true)}
+        >
+          <Text>Read first story page</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Finish story bite"
+          accessibilityState={{ disabled: !storyPageRead }}
+          onPress={() => {
+            if (!storyPageRead) {
+              return;
+            }
+
+            onComplete({
+              itemId: item.id,
+              mechanic: item.mechanic,
+              completedAt: Date.now(),
+              attempts: 2,
+            });
+          }}
+        >
+          <Text>Finish story bite</Text>
+        </TouchableOpacity>
+      </>
+    );
+  }
+
   return (
     <TouchableOpacity
       accessibilityRole="button"
       accessibilityLabel={`Complete ${item.id}`}
       onPress={() => {
         const isCorrectnessMechanic =
-          item.mechanic !== "tap_to_learn" && item.mechanic !== "cultural_card";
+          item.mechanic !== "tap_to_learn" &&
+          item.mechanic !== "cultural_card" &&
+          item.mechanic !== "story_bite";
 
         onComplete({
           itemId: item.id,
@@ -257,6 +293,74 @@ describe("Learning lesson completion persistence", () => {
         }),
       }),
     );
+  });
+
+  it("does not save or log activity before a story bite item fully completes", async () => {
+    mockUseLocalSearchParams.mockReturnValue({
+      stageId: "family-home",
+      lessonId: "thank-you-at-home-story",
+    });
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = renderer.create(<LearningLessonSessionScreen />);
+    });
+
+    if (!tree) {
+      throw new Error("LearningLessonSessionScreen did not render");
+    }
+    const renderedTree = tree;
+
+    await act(async () => {
+      findButtonByAccessibilityLabel(
+        renderedTree.root,
+        "Read first story page",
+      ).props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(mockSaveLearningLessonCompletion).not.toHaveBeenCalled();
+    expect(JSON.stringify(renderedTree.toJSON())).not.toContain("Great learning!");
+
+    await act(async () => {
+      findButtonByAccessibilityLabel(
+        renderedTree.root,
+        "Finish story bite",
+      ).props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(mockSaveLearningLessonCompletion).toHaveBeenCalledTimes(1);
+    const savedCompletion = mockSaveLearningLessonCompletion.mock.calls[0][0];
+
+    expect(savedCompletion).toEqual(
+      expect.objectContaining({
+        childId: "child-1",
+        languageCode: "lg",
+        activityType: "language",
+        stageId: "family-home",
+        levelId: "thank-you-at-home-story",
+        status: "completed",
+        attempts: 1,
+        progressPayload: expect.objectContaining({
+          source: "learning_hub",
+          lessonId: "thank-you-at-home-story",
+          stageTitle: "Family & Home",
+          lessonTitle: "Thank You at Home",
+          mechanicTypes: ["story_bite"],
+          totalItems: 1,
+          correctItems: 1,
+          itemResults: [
+            expect.objectContaining({
+              itemId: "thank-you-at-home-pages",
+              mechanic: "story_bite",
+              attempts: 2,
+            }),
+          ],
+        }),
+      }),
+    );
+    expect(savedCompletion.progressPayload.itemResults[0]).not.toHaveProperty("correct");
   });
 
   it("saves a child/language-scoped completion payload after the final item", async () => {

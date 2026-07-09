@@ -2,7 +2,7 @@
 
 ## Current Status
 
-MVP JSON-backed Learning hub with a DB-ready local content contract, a two-step learning-area path, mechanic-driven lesson renderers for tap-to-learn, listen-and-choose practice, choose-correct-word practice, match-word-picture practice, mini-quiz review, cultural cards, and local-first lesson completion tracking.
+MVP JSON-backed Learning hub with a DB-ready local content contract, a two-step learning-area path, mechanic-driven lesson renderers for tap-to-learn, listen-and-choose practice, choose-correct-word practice, match-word-picture practice, mini-quiz review, cultural cards, story bites, and local-first lesson completion tracking.
 
 ## Purpose
 
@@ -64,6 +64,7 @@ Lessons are mechanic-driven. The lesson session route loads the selected stage a
 - `components/learning/mechanics/MatchWordPictureCard.tsx`
 - `components/learning/mechanics/MiniQuizCard.tsx`
 - `components/learning/mechanics/CulturalCard.tsx`
+- `components/learning/mechanics/StoryBiteCard.tsx`
 
 The route keeps only generic session state:
 
@@ -76,7 +77,7 @@ When the final lesson item completes, the route saves one lesson-completion reco
 
 The same full-lesson completion also writes a parent-feed activity through the existing `saveActivity(...)` path used by games and stories. Learning does not write a feed row for each tap or answer.
 
-Individual lesson mechanics should fit within one screen during normal child use. `tap_to_learn`, `listen_and_choose`, `choose_correct_word`, `match_word_picture`, `mini_quiz`, and `cultural_card` should keep the primary content, answer choices or card copy, feedback when applicable, and advance action visible without normal vertical scrolling. Future mechanics should follow the same layout rule and only use vertical scroll as a last-resort safety fallback for unusually small screens.
+Individual lesson mechanics should fit within one screen during normal child use. `tap_to_learn`, `listen_and_choose`, `choose_correct_word`, `match_word_picture`, `mini_quiz`, `cultural_card`, and `story_bite` should keep the primary content, answer choices or card copy, feedback when applicable, and advance action visible without normal vertical scrolling. Future mechanics should follow the same layout rule and only use vertical scroll as a last-resort safety fallback for unusually small screens.
 
 ## Content Contract
 
@@ -91,7 +92,7 @@ The public content types live in `content/learningHubTypes.ts`:
 - `ContentReadiness`
 - `LessonStatus`
 
-Lesson items use a discriminated union by mechanic. `tap_to_learn` is normalized to stable `localText` and `englishText` fields while keeping `word` and `translation` aliases for the current renderer. `listen_and_choose` uses stable option IDs, `correctOptionId`, logical `audioKey`, and local `audioAsset` fallback fields so correctness does not depend on array order. `choose_correct_word` uses `promptText`, optional `questionText`, stable option IDs, and `correctOptionId`; no audio is required for this mechanic. `match_word_picture` uses `promptText`, `targetText`, optional `targetEnglishText`, stable option IDs, `correctOptionId`, and option-level `imageKey`, `imageAsset`, or `emoji` fallback fields. `mini_quiz` uses an item-level `title`, optional `instructions`, and nested `questions[]` with stable question IDs, `promptText`, optional `promptEnglishText`, stable option IDs, `correctOptionId`, option `text`, optional option `englishText`, and optional `explanationText`. `cultural_card` uses `title`, optional `localTitle`, required `bodyText`, optional `localText`, optional `imageKey` / `imageAsset` / `emoji`, optional `funFact`, and optional `reflectionPrompt`; no answer key or correctness field is used. Planned mechanics have typed placeholder payloads so content can be added safely before renderers exist.
+Lesson items use a discriminated union by mechanic. `tap_to_learn` is normalized to stable `localText` and `englishText` fields while keeping `word` and `translation` aliases for the current renderer. `listen_and_choose` uses stable option IDs, `correctOptionId`, logical `audioKey`, and local `audioAsset` fallback fields so correctness does not depend on array order. `choose_correct_word` uses `promptText`, optional `questionText`, stable option IDs, and `correctOptionId`; no audio is required for this mechanic. `match_word_picture` uses `promptText`, `targetText`, optional `targetEnglishText`, stable option IDs, `correctOptionId`, and option-level `imageKey`, `imageAsset`, or `emoji` fallback fields. `mini_quiz` uses an item-level `title`, optional `instructions`, and nested `questions[]` with stable question IDs, `promptText`, optional `promptEnglishText`, stable option IDs, `correctOptionId`, option `text`, optional option `englishText`, and optional `explanationText`. `cultural_card` uses `title`, optional `localTitle`, required `bodyText`, optional `localText`, optional `imageKey` / `imageAsset` / `emoji`, optional `funFact`, and optional `reflectionPrompt`; no answer key or correctness field is used. `story_bite` uses an item-level `title`, optional `instructions`, ordered `pages[]`, and optional `reflectionPrompt`; each page has a stable `id`, required `bodyText`, optional `title`, optional `localTitle`, optional `localText`, optional `imageKey` / `imageAsset` / `emoji`, and optional `audioKey` / `audioAsset`. Planned mechanics have typed placeholder payloads so content can be added safely before renderers exist.
 
 `LessonStatus` values:
 
@@ -190,6 +191,22 @@ There is no right or wrong answer. Tapping the action emits one in-memory `ItemR
 
 Current cultural-card content is one Family & Home placeholder draft about a Luganda morning greeting. It uses no new images or audio and must remain marked placeholder until reviewed production culture/language copy is ready.
 
+`story_bite` is implemented as a short, non-graded story/excerpt mechanic inside the generic lesson session.
+
+The card shows one story page at a time with:
+
+- a story-bite label and page progress
+- optional page title and local title
+- required short body copy
+- optional local-language helper text
+- optional image or emoji, with a safe icon fallback
+- optional audio replay when the page references an existing local learning audio asset
+- `Next` between pages, then `I finished the story` on the final page
+
+There is no right or wrong answer. Tapping the final-page action emits one in-memory `ItemResult` with `mechanic: "story_bite"`, `attempts` equal to pages viewed, and no `correct` field. The generic lesson shell still saves progress and activity only after the final lesson item completes. Story pages do not log activity individually.
+
+Current story-bite content is one Family & Home placeholder draft, `Thank You at Home`, with two pages about helping at home and saying `Webale`. It uses only existing bundled image/audio assets and must remain marked placeholder until reviewed production story copy is ready.
+
 ## Local-First Progress
 
 Learning Hub lesson completion is local-first:
@@ -255,7 +272,6 @@ Before a recording is marked production-ready, review it for native-speaker pron
 
 The content model and labels still include planned mechanics, but they are not startable until a renderer and valid content exist:
 
-- `story_bite`
 - `practice_mix`
 
 Unimplemented mechanics are not treated as startable. Unsupported mechanics should show a safe coming-soon state instead of crashing.
@@ -270,7 +286,7 @@ Current MVP stages:
 - Culture & Stories
 - Practice Mix
 
-First Words currently has startable `tap_to_learn`, `listen_and_choose`, `choose_correct_word`, and `match_word_picture` lessons. Family & Home currently has startable `tap_to_learn`, placeholder `mini_quiz`, and placeholder `cultural_card` lessons; its other path cards use not-yet-valid mechanics and remain Coming soon. Everyday Things and Culture & Stories remain planned placeholders. Practice Mix is marked as practice content and remains locked until a future pass has enough reviewed completion history and runtime review logic.
+First Words currently has startable `tap_to_learn`, `listen_and_choose`, `choose_correct_word`, and `match_word_picture` lessons. Family & Home currently has startable `tap_to_learn`, placeholder `mini_quiz`, placeholder `cultural_card`, and placeholder `story_bite` lessons; its other path cards use not-yet-valid mechanics and remain Coming soon. Everyday Things and Culture & Stories remain planned placeholders. Practice Mix is marked as practice content and remains locked until a future pass has enough reviewed completion history and runtime review logic.
 
 ## Future DB Mapping
 
@@ -281,7 +297,7 @@ No migrations have been added for Learning Hub progress. Content remains local J
 - Aggregate Learning summary can map to `child_activity_progress` with `activity_type = "language"`.
 - Append-only activity feed entries map to `activities` with `activity_type = "language"` and `language_code = "lg"` or another DB language code.
 
-`audioKey` and `imageKey` should become logical content asset references. `audioAsset` and `imageAsset` remain local bundled fallback references for now. Current match-word-picture content uses emoji fallback visuals and remains local JSON, but its option shape is DB-ready for future image records or CDN references. Current mini-quiz content is also local JSON, with nested question/option payloads that can map cleanly into future `content_items.payload` JSON. Current cultural-card content is local JSON with simple text fields and optional visual fields that can map cleanly into future `content_items.payload` JSON.
+`audioKey` and `imageKey` should become logical content asset references. `audioAsset` and `imageAsset` remain local bundled fallback references for now. Current match-word-picture content uses emoji fallback visuals and remains local JSON, but its option shape is DB-ready for future image records or CDN references. Current mini-quiz content is also local JSON, with nested question/option payloads that can map cleanly into future `content_items.payload` JSON. Current cultural-card content is local JSON with simple text fields and optional visual fields that can map cleanly into future `content_items.payload` JSON. Current story-bite content is local JSON with ordered page payloads that can map cleanly into future `content_items.payload` JSON.
 
 ## Future Passes
 

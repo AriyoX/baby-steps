@@ -28,6 +28,7 @@ import type {
   ListenAndChooseItem,
   MatchWordPictureItem,
   MiniQuizItem,
+  StoryBiteItem,
 } from "../learningHubTypes";
 
 const REQUIRED_STAGE_IDS = [
@@ -395,6 +396,46 @@ describe("learning hub repository", () => {
     );
   });
 
+  it("normalizes story-bite items with ordered child-friendly pages", () => {
+    const items = getLessonItemsForLesson("lg", "family-home", "thank-you-at-home-story");
+    const storyItems = items.filter(
+      (item): item is StoryBiteItem => item.mechanic === "story_bite",
+    );
+
+    expect(storyItems.map((item) => item.id)).toEqual(["thank-you-at-home-pages"]);
+    expect(storyItems[0]).toEqual(
+      expect.objectContaining({
+        id: "thank-you-at-home-pages",
+        mechanic: "story_bite",
+        title: "Thank You at Home",
+        instructions: "Read each small page.",
+        reflectionPrompt: "Who can you thank at home today?",
+        readiness: "placeholder",
+      }),
+    );
+    expect(storyItems[0].pages.map((page) => page.id)).toEqual([
+      "helping-at-home",
+      "kind-words",
+    ]);
+    expect(storyItems[0].pages[0]).toEqual(
+      expect.objectContaining({
+        title: "Helping at Home",
+        localTitle: "Awaka",
+        bodyText: "Ari helps Maama place cups on the table before breakfast.",
+        localText: "Awaka means at home.",
+        imageKey: "child.png",
+      }),
+    );
+    expect(storyItems[0].pages[1]).toEqual(
+      expect.objectContaining({
+        title: "Kind Words",
+        bodyText: "Maama smiles and says Webale. Ari says Webale nyo.",
+        audioKey: "webale",
+        audioAsset: "webale",
+      }),
+    );
+  });
+
   it("returns only startable implemented lessons for a stage", () => {
     const firstWordsStage = getLearningStageById("lg", "first-words");
     const lessons = getLessonsForStage("lg", "first-words");
@@ -657,6 +698,45 @@ describe("learning hub repository", () => {
     expect(isLessonStartable(familyStage, missingBodyLesson)).toBe(false);
   });
 
+  it("keeps malformed story-bite lessons from becoming startable", () => {
+    const familyStage = getLearningStageById("lg", "family-home");
+    const storyLesson = getLessonById("lg", "family-home", "thank-you-at-home-story");
+    const validItem = storyLesson?.items.find(
+      (item): item is StoryBiteItem => item.mechanic === "story_bite",
+    );
+
+    if (!storyLesson || !validItem) {
+      throw new Error("Expected a normalized story-bite lesson");
+    }
+
+    const missingTitleLesson = {
+      ...storyLesson,
+      id: "missing-story-title",
+      items: [{ ...validItem, title: "" }],
+    };
+    const emptyPagesLesson = {
+      ...storyLesson,
+      id: "empty-story-pages",
+      items: [{ ...validItem, pages: [] }],
+    };
+    const blankPageBodyLesson = {
+      ...storyLesson,
+      id: "blank-story-page-body",
+      items: [
+        {
+          ...validItem,
+          pages: [{ ...validItem.pages[0], bodyText: "" }],
+        },
+      ],
+    };
+
+    expect(() => getLessonStatus(missingTitleLesson, familyStage)).not.toThrow();
+    expect(getLessonStatus(missingTitleLesson, familyStage)).toBe("empty");
+    expect(getLessonStatus(emptyPagesLesson, familyStage)).toBe("empty");
+    expect(getLessonStatus(blankPageBodyLesson, familyStage)).toBe("empty");
+    expect(isLessonStartable(familyStage, blankPageBodyLesson)).toBe(false);
+  });
+
   it("marks empty lessons as not startable", () => {
     const firstWordsStage = getLearningStageById("lg", "first-words");
     const lesson = getLessonById("lg", "first-words", "greetings-1");
@@ -750,7 +830,7 @@ describe("learning hub repository", () => {
     expect(getMechanicLabel("listen_and_choose")).toBe("Listen and choose");
     expect(getMechanicLabel("match_word_picture")).toBe("Match pictures");
     expect(getMechanicLabel("mini_quiz")).toBe("Quick quiz");
-    expect(getMechanicLabel("story_bite")).toBe("Story question");
+    expect(getMechanicLabel("story_bite")).toBe("Story bite");
     expect(getMechanicLabel("practice_mix")).toBe("Practice mix");
   });
 
@@ -761,7 +841,7 @@ describe("learning hub repository", () => {
     expect(isMechanicImplemented("match_word_picture")).toBe(true);
     expect(isMechanicImplemented("mini_quiz")).toBe(true);
     expect(isMechanicImplemented("cultural_card")).toBe(true);
-    expect(isMechanicImplemented("story_bite")).toBe(false);
+    expect(isMechanicImplemented("story_bite")).toBe(true);
     expect(stageHasMechanicContent("lg", "first-words", "listen_and_choose")).toBe(
       true,
     );
@@ -774,11 +854,15 @@ describe("learning hub repository", () => {
     expect(stageHasMechanicContent("lg", "family-home", "cultural_card")).toBe(
       true,
     );
+    expect(stageHasMechanicContent("lg", "family-home", "story_bite")).toBe(true);
     expect(stageHasMechanicContent("lg", "everyday-things", "mini_quiz")).toBe(false);
     expect(getLessonStatus(getLessonById("lg", "family-home", "family-mini-quiz"))).toBe(
       "startable",
     );
     expect(getLessonStatus(getLessonById("lg", "family-home", "home-greeting-card"))).toBe(
+      "startable",
+    );
+    expect(getLessonStatus(getLessonById("lg", "family-home", "thank-you-at-home-story"))).toBe(
       "startable",
     );
     expect(getLessonStatus(getLessonById("lg", "family-home", "home-things-1"))).toBe(

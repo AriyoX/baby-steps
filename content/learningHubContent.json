@@ -332,18 +332,19 @@
           "status": "preview",
           "readiness": "draft",
           "estimatedMinutes": 4,
-          "lessonCount": 5,
+          "lessonCount": 6,
           "isPractice": false,
           "isLocked": false,
-          "mechanics": ["tap_to_learn", "match_word_picture", "choose_correct_word", "mini_quiz", "cultural_card"],
+          "mechanics": ["tap_to_learn", "match_word_picture", "choose_correct_word", "mini_quiz", "cultural_card", "story_bite"],
           "learningGoals": [
             "Learn family words",
             "Match home words to pictures",
             "Pick the word that fits",
             "Try a tiny family-word quiz",
-            "Notice one kind home greeting"
+            "Notice one kind home greeting",
+            "Read a tiny story about helping at home"
           ],
-          "placeholderMessage": "Family & Home can start with tap-to-learn cards, a tiny draft quiz, and a small culture card. Picture matching and word choices will come later.",
+          "placeholderMessage": "Family & Home can start with tap-to-learn cards, a tiny draft quiz, a small culture card, and a tiny story bite. Picture matching and word choices will come later.",
           "lessons": [
             {
               "id": "family-names-1",
@@ -532,6 +533,52 @@
                   "readiness": "placeholder",
                   "metadata": {
                     "todo": "Placeholder copy; confirm wording and usage before production."
+                  }
+                }
+              ]
+            },
+            {
+              "id": "thank-you-at-home-story",
+              "title": "Thank You at Home",
+              "description": "Read a tiny story about helping and saying thank you.",
+              "mechanic": "story_bite",
+              "order": 6,
+              "isStartable": true,
+              "readiness": "placeholder",
+              "metadata": {
+                "todo": "Draft placeholder story bite; review with curriculum/native-speaker support before production."
+              },
+              "items": [
+                {
+                  "id": "thank-you-at-home-pages",
+                  "mechanic": "story_bite",
+                  "order": 1,
+                  "title": "Thank You at Home",
+                  "instructions": "Read each small page.",
+                  "pages": [
+                    {
+                      "id": "helping-at-home",
+                      "title": "Helping at Home",
+                      "localTitle": "Awaka",
+                      "bodyText": "Ari helps Maama place cups on the table before breakfast.",
+                      "localText": "Awaka means at home.",
+                      "imageKey": "child.png"
+                    },
+                    {
+                      "id": "kind-words",
+                      "title": "Kind Words",
+                      "localTitle": "Oluganda",
+                      "bodyText": "Maama smiles and says Webale. Ari says Webale nyo.",
+                      "localText": "Webale means thank you.",
+                      "imageKey": "african-focus.png",
+                      "audioKey": "webale",
+                      "audioAsset": "webale"
+                    }
+                  ],
+                  "reflectionPrompt": "Who can you thank at home today?",
+                  "readiness": "placeholder",
+                  "metadata": {
+                    "todo": "Placeholder story copy; confirm wording, cultural fit, and reading level before production."
                   }
                 }
               ]

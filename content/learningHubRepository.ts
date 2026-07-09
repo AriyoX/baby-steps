@@ -18,6 +18,7 @@ import type {
   MatchWordPictureItem,
   MechanicType,
   MiniQuizItem,
+  StoryBiteItem,
   TapToLearnItem,
   UnsupportedLessonItem,
 } from "./learningHubTypes";
@@ -59,6 +60,7 @@ type RawLearningHubLessonItem = Partial<
 > & {
   options?: unknown;
   questions?: unknown;
+  pages?: unknown;
   correctOptionId?: unknown;
   title?: unknown;
   culturalNote?: unknown;
@@ -138,7 +140,7 @@ const MECHANIC_LABELS: Record<MechanicType, string> = {
   listen_and_choose: "Listen and choose",
   match_word_picture: "Match pictures",
   mini_quiz: "Quick quiz",
-  story_bite: "Story question",
+  story_bite: "Story bite",
   practice_mix: "Practice mix",
 };
 
@@ -149,6 +151,7 @@ const IMPLEMENTED_MECHANICS = new Set<MechanicType>([
   "match_word_picture",
   "mini_quiz",
   "cultural_card",
+  "story_bite",
 ]);
 
 const UNSTARTABLE_MECHANIC_FALLBACK: MechanicType = "practice_mix";
@@ -522,6 +525,52 @@ const normalizeMiniQuizQuestions = (
   );
 };
 
+const normalizeStoryBitePages = (value: unknown): StoryBiteItem["pages"] => {
+  const seenPageIds = new Set<string>();
+
+  return asObjectArray(value).reduce<StoryBiteItem["pages"]>(
+    (currentPages, page, index) => {
+      const id = asOptionalString(page.id) ?? `page-${index + 1}`;
+
+      if (seenPageIds.has(id)) {
+        return currentPages;
+      }
+
+      const title = asOptionalString(page.title);
+      const localTitle = asOptionalString(page.localTitle);
+      const bodyText =
+        asOptionalString(page.bodyText) ??
+        asOptionalString(page.text) ??
+        asOptionalString(page.englishText) ??
+        "";
+      const localText =
+        asOptionalString(page.localText) ?? asOptionalString(page.word);
+      const imageKey = asOptionalString(page.imageKey);
+      const imageAsset = asOptionalString(page.imageAsset);
+      const emoji = asOptionalString(page.emoji);
+      const audioAsset = asOptionalString(page.audioAsset);
+      const audioKey = asOptionalString(page.audioKey) ?? audioAsset;
+
+      seenPageIds.add(id);
+      currentPages.push({
+        id,
+        ...(title ? { title } : {}),
+        ...(localTitle ? { localTitle } : {}),
+        bodyText,
+        ...(localText ? { localText } : {}),
+        ...(imageKey ? { imageKey } : {}),
+        ...(imageAsset ? { imageAsset } : {}),
+        ...(emoji ? { emoji } : {}),
+        ...(audioKey ? { audioKey } : {}),
+        ...(audioAsset ? { audioAsset } : {}),
+      });
+
+      return currentPages;
+    },
+    [],
+  );
+};
+
 const normalizeLessonItem = (
   item: RawLearningHubLessonItem,
   fallbackId: string,
@@ -668,6 +717,27 @@ const normalizeLessonItem = (
     } satisfies CulturalCardItem;
   }
 
+  if (mechanic === "story_bite") {
+    const title =
+      asOptionalString(item.title) ??
+      legacyText.englishText ??
+      legacyText.localText ??
+      "Story bite";
+    const instructions = asOptionalString(item.instructions);
+    const reflectionPrompt = asOptionalString(item.reflectionPrompt);
+
+    return {
+      ...base,
+      localText: legacyText.localText,
+      englishText: legacyText.englishText,
+      mechanic,
+      title,
+      ...(instructions ? { instructions } : {}),
+      pages: normalizeStoryBitePages(item.pages),
+      ...(reflectionPrompt ? { reflectionPrompt } : {}),
+    } satisfies StoryBiteItem;
+  }
+
   return {
     ...base,
     ...legacyText,
@@ -783,6 +853,27 @@ const isValidCulturalCardItem = (
   Boolean(item.title.trim()) &&
   Boolean(item.bodyText.trim());
 
+const isValidStoryBiteItem = (
+  item: LearningLessonItem,
+): item is StoryBiteItem => {
+  if (item.mechanic !== "story_bite") {
+    return false;
+  }
+
+  const pageIds = item.pages.map((page) => page.id);
+  const uniquePageIds = new Set(pageIds);
+
+  return (
+    Boolean(item.title.trim()) &&
+    item.pages.length >= 1 &&
+    item.pages.length <= 5 &&
+    uniquePageIds.size === item.pages.length &&
+    item.pages.every(
+      (page) => Boolean(page.id.trim()) && Boolean(page.bodyText.trim()),
+    )
+  );
+};
+
 const isValidTapToLearnItem = (item: LearningLessonItem): item is TapToLearnItem =>
   item.mechanic === "tap_to_learn" &&
   Boolean(item.localText.trim()) &&
@@ -811,6 +902,10 @@ const isValidLessonItem = (item: LearningLessonItem): boolean => {
 
   if (item.mechanic === "cultural_card") {
     return isValidCulturalCardItem(item);
+  }
+
+  if (item.mechanic === "story_bite") {
+    return isValidStoryBiteItem(item);
   }
 
   return true;

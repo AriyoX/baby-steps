@@ -332,16 +332,18 @@
           "status": "preview",
           "readiness": "draft",
           "estimatedMinutes": 4,
-          "lessonCount": 3,
+          "lessonCount": 5,
           "isPractice": false,
           "isLocked": false,
-          "mechanics": ["tap_to_learn", "match_word_picture", "choose_correct_word"],
+          "mechanics": ["tap_to_learn", "match_word_picture", "choose_correct_word", "mini_quiz", "cultural_card"],
           "learningGoals": [
             "Learn family words",
             "Match home words to pictures",
-            "Pick the word that fits"
+            "Pick the word that fits",
+            "Try a tiny family-word quiz",
+            "Notice one kind home greeting"
           ],
-          "placeholderMessage": "Family & Home can start with tap-to-learn cards. Picture matching and word choices will come later.",
+          "placeholderMessage": "Family & Home can start with tap-to-learn cards, a tiny draft quiz, and a small culture card. Picture matching and word choices will come later.",
           "lessons": [
             {
               "id": "family-names-1",
@@ -427,6 +429,110 @@
                   "word": "Ekitabo",
                   "translation": "Book",
                   "imageKey": "african-focus.png"
+                }
+              ]
+            },
+            {
+              "id": "family-mini-quiz",
+              "title": "Family Mini Quiz",
+              "description": "Answer a tiny family-word review.",
+              "mechanic": "mini_quiz",
+              "order": 4,
+              "isStartable": true,
+              "readiness": "placeholder",
+              "metadata": {
+                "todo": "Draft placeholder quiz; review with curriculum/native-speaker support before production."
+              },
+              "items": [
+                {
+                  "id": "family-words-review",
+                  "mechanic": "mini_quiz",
+                  "order": 1,
+                  "title": "Family Words Review",
+                  "instructions": "Choose the best answer.",
+                  "questions": [
+                    {
+                      "id": "mother-word",
+                      "promptText": "Which word means Mother?",
+                      "promptEnglishText": "Mother",
+                      "correctOptionId": "maama",
+                      "options": [
+                        {
+                          "id": "maama",
+                          "text": "Maama",
+                          "englishText": "Mother"
+                        },
+                        {
+                          "id": "taata",
+                          "text": "Taata",
+                          "englishText": "Father"
+                        },
+                        {
+                          "id": "omwana",
+                          "text": "Omwana",
+                          "englishText": "Child"
+                        }
+                      ],
+                      "explanationText": "Maama means Mother."
+                    },
+                    {
+                      "id": "father-word",
+                      "promptText": "Which word means Father?",
+                      "promptEnglishText": "Father",
+                      "correctOptionId": "taata",
+                      "options": [
+                        {
+                          "id": "maama",
+                          "text": "Maama",
+                          "englishText": "Mother"
+                        },
+                        {
+                          "id": "taata",
+                          "text": "Taata",
+                          "englishText": "Father"
+                        },
+                        {
+                          "id": "omwana",
+                          "text": "Omwana",
+                          "englishText": "Child"
+                        }
+                      ],
+                      "explanationText": "Taata means Father."
+                    }
+                  ],
+                  "readiness": "placeholder",
+                  "metadata": {
+                    "todo": "Keep as draft placeholder until reviewed production quiz copy is ready."
+                  }
+                }
+              ]
+            },
+            {
+              "id": "home-greeting-card",
+              "title": "Morning Greeting",
+              "description": "Learn one kind greeting used at home.",
+              "mechanic": "cultural_card",
+              "order": 5,
+              "isStartable": true,
+              "readiness": "placeholder",
+              "metadata": {
+                "todo": "Draft placeholder culture card; review with curriculum/native-speaker support before production."
+              },
+              "items": [
+                {
+                  "id": "morning-greeting-home",
+                  "mechanic": "cultural_card",
+                  "order": 1,
+                  "title": "Morning Greeting at Home",
+                  "localTitle": "Oluganda",
+                  "localText": "Wasuze otya?",
+                  "bodyText": "In many Ugandan homes, morning greetings are a caring way to begin the day. In Luganda, one person can ask Wasuze otya?",
+                  "funFact": "Wasuze otya? means How did you sleep?",
+                  "reflectionPrompt": "Who could you greet kindly this morning?",
+                  "readiness": "placeholder",
+                  "metadata": {
+                    "todo": "Placeholder copy; confirm wording and usage before production."
+                  }
                 }
               ]
             }

@@ -10,29 +10,71 @@ const mockUseLocalSearchParams = jest.fn();
 const mockSaveLearningLessonCompletion = jest.fn();
 const mockGetLearningLessonCompletion = jest.fn();
 const mockCheckAndGrantNewAchievements = jest.fn();
-const mockMechanicRenderer = ({
+const MockMechanicRenderer = ({
   item,
   onComplete,
 }: {
   item: { id: string; mechanic: string };
   onComplete: (result: unknown) => void;
-}) => (
-  <TouchableOpacity
-    accessibilityRole="button"
-    accessibilityLabel={`Complete ${item.id}`}
-    onPress={() =>
-      onComplete({
-        itemId: item.id,
-        mechanic: item.mechanic,
-        completedAt: Date.now(),
-        attempts: item.mechanic === "tap_to_learn" ? 0 : 1,
-        ...(item.mechanic === "tap_to_learn" ? {} : { correct: true }),
-      })
-    }
-  >
-    <Text>{item.id}</Text>
-  </TouchableOpacity>
-);
+}) => {
+  const [miniQuizQuestionAnswered, setMiniQuizQuestionAnswered] =
+    React.useState(false);
+
+  if (item.mechanic === "mini_quiz") {
+    return (
+      <>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Answer first mini quiz question"
+          onPress={() => setMiniQuizQuestionAnswered(true)}
+        >
+          <Text>Answer first mini quiz question</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Finish mini quiz"
+          accessibilityState={{ disabled: !miniQuizQuestionAnswered }}
+          onPress={() => {
+            if (!miniQuizQuestionAnswered) {
+              return;
+            }
+
+            onComplete({
+              itemId: item.id,
+              mechanic: item.mechanic,
+              completedAt: Date.now(),
+              attempts: 2,
+              correct: true,
+            });
+          }}
+        >
+          <Text>Finish mini quiz</Text>
+        </TouchableOpacity>
+      </>
+    );
+  }
+
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={`Complete ${item.id}`}
+      onPress={() => {
+        const isCorrectnessMechanic =
+          item.mechanic !== "tap_to_learn" && item.mechanic !== "cultural_card";
+
+        onComplete({
+          itemId: item.id,
+          mechanic: item.mechanic,
+          completedAt: Date.now(),
+          attempts: item.mechanic === "tap_to_learn" ? 0 : 1,
+          ...(isCorrectnessMechanic ? { correct: true } : {}),
+        });
+      }}
+    >
+      <Text>{item.id}</Text>
+    </TouchableOpacity>
+  );
+};
 
 jest.mock("expo-router", () => ({
   Stack: {
@@ -95,7 +137,7 @@ jest.mock("@/components/games/achievements/achievementManager", () => ({
 }));
 
 jest.mock("@/components/learning/mechanics/mechanicRegistry", () => ({
-  getMechanicRenderer: () => mockMechanicRenderer,
+  getMechanicRenderer: () => MockMechanicRenderer,
 }));
 
 const findButtonByAccessibilityLabel = (
@@ -150,6 +192,71 @@ describe("Learning lesson completion persistence", () => {
 
     expect(mockSaveLearningLessonCompletion).not.toHaveBeenCalled();
     expect(JSON.stringify(tree.toJSON())).not.toContain("Great learning!");
+  });
+
+  it("does not save or log activity before a mini quiz item fully completes", async () => {
+    mockUseLocalSearchParams.mockReturnValue({
+      stageId: "family-home",
+      lessonId: "family-mini-quiz",
+    });
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = renderer.create(<LearningLessonSessionScreen />);
+    });
+
+    if (!tree) {
+      throw new Error("LearningLessonSessionScreen did not render");
+    }
+    const renderedTree = tree;
+
+    await act(async () => {
+      findButtonByAccessibilityLabel(
+        renderedTree.root,
+        "Answer first mini quiz question",
+      ).props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(mockSaveLearningLessonCompletion).not.toHaveBeenCalled();
+    expect(JSON.stringify(renderedTree.toJSON())).not.toContain("Great learning!");
+
+    await act(async () => {
+      findButtonByAccessibilityLabel(
+        renderedTree.root,
+        "Finish mini quiz",
+      ).props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(mockSaveLearningLessonCompletion).toHaveBeenCalledTimes(1);
+    expect(mockSaveLearningLessonCompletion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        childId: "child-1",
+        languageCode: "lg",
+        activityType: "language",
+        stageId: "family-home",
+        levelId: "family-mini-quiz",
+        status: "completed",
+        attempts: 1,
+        progressPayload: expect.objectContaining({
+          lessonId: "family-mini-quiz",
+          stageTitle: "Family & Home",
+          lessonTitle: "Family Mini Quiz",
+          mechanicTypes: ["mini_quiz"],
+          totalItems: 1,
+          correctItems: 1,
+          itemResults: [
+            expect.objectContaining({
+              itemId: "family-words-review",
+              mechanic: "mini_quiz",
+              correct: true,
+              attempts: 2,
+            }),
+          ],
+        }),
+      }),
+    );
   });
 
   it("saves a child/language-scoped completion payload after the final item", async () => {
@@ -278,6 +385,58 @@ describe("Learning lesson completion persistence", () => {
       }),
     );
     expect(JSON.stringify(tree.toJSON())).toContain("Great learning!");
+  });
+
+  it("saves cultural-card completion without correctness after the card completes", async () => {
+    mockUseLocalSearchParams.mockReturnValue({
+      stageId: "family-home",
+      lessonId: "home-greeting-card",
+    });
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = renderer.create(<LearningLessonSessionScreen />);
+    });
+
+    if (!tree) {
+      throw new Error("LearningLessonSessionScreen did not render");
+    }
+
+    expect(mockSaveLearningLessonCompletion).not.toHaveBeenCalled();
+
+    await completeRenderedItem(tree, "morning-greeting-home");
+
+    expect(mockSaveLearningLessonCompletion).toHaveBeenCalledTimes(1);
+    const savedCompletion = mockSaveLearningLessonCompletion.mock.calls[0][0];
+
+    expect(savedCompletion).toEqual(
+      expect.objectContaining({
+        childId: "child-1",
+        languageCode: "lg",
+        activityType: "language",
+        stageId: "family-home",
+        levelId: "home-greeting-card",
+        status: "completed",
+        attempts: 1,
+        progressPayload: expect.objectContaining({
+          source: "learning_hub",
+          lessonId: "home-greeting-card",
+          stageTitle: "Family & Home",
+          lessonTitle: "Morning Greeting",
+          mechanicTypes: ["cultural_card"],
+          totalItems: 1,
+          correctItems: 1,
+          itemResults: [
+            expect.objectContaining({
+              itemId: "morning-greeting-home",
+              mechanic: "cultural_card",
+              attempts: 1,
+            }),
+          ],
+        }),
+      }),
+    );
+    expect(savedCompletion.progressPayload.itemResults[0]).not.toHaveProperty("correct");
   });
 
   it("keeps the completion screen visible when local storage fails", async () => {

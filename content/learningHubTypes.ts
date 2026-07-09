@@ -168,12 +168,39 @@ export interface MatchWordPictureItem extends LessonItemBase {
   options: MatchWordPictureOption[];
 }
 
+export interface MiniQuizOption {
+  id: string;
+  text: string;
+  englishText?: string;
+}
+
+export interface MiniQuizQuestion {
+  id: string;
+  promptText: string;
+  promptEnglishText?: string;
+  correctOptionId: string;
+  options: MiniQuizOption[];
+  explanationText?: string;
+}
+
+export interface MiniQuizItem extends LessonItemBase {
+  mechanic: "mini_quiz";
+  title: string;
+  instructions?: string;
+  questions: MiniQuizQuestion[];
+}
+
 export interface CulturalCardItem extends LessonItemBase {
   mechanic: "cultural_card";
-  title?: string;
-  culturalNote?: string;
-  word?: string;
-  translation?: string;
+  title: string;
+  localTitle?: string;
+  bodyText: string;
+  localText?: string;
+  imageKey?: string;
+  imageAsset?: string;
+  emoji?: string;
+  reflectionPrompt?: string;
+  funFact?: string;
 }
 
 export interface UnsupportedLessonItem extends LessonItemBase {
@@ -183,6 +210,7 @@ export interface UnsupportedLessonItem extends LessonItemBase {
     | "listen_and_choose"
     | "choose_correct_word"
     | "match_word_picture"
+    | "mini_quiz"
     | "cultural_card"
   >;
   prompt?: string;
@@ -195,5 +223,6 @@ export type LearningLessonItem =
   | ListenAndChooseItem
   | ChooseCorrectWordItem
   | MatchWordPictureItem
+  | MiniQuizItem
   | CulturalCardItem
   | UnsupportedLessonItem;

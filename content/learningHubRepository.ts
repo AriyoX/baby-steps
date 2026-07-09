@@ -17,6 +17,7 @@ import type {
   ListenAndChooseItem,
   MatchWordPictureItem,
   MechanicType,
+  MiniQuizItem,
   TapToLearnItem,
   UnsupportedLessonItem,
 } from "./learningHubTypes";
@@ -46,11 +47,18 @@ type RawLearningHubLessonItem = Partial<
     | "questionText"
     | "targetText"
     | "targetEnglishText"
+    | "instructions"
+    | "localTitle"
+    | "bodyText"
+    | "reflectionPrompt"
+    | "funFact"
+    | "emoji"
     | "type",
     unknown
   >
 > & {
   options?: unknown;
+  questions?: unknown;
   correctOptionId?: unknown;
   title?: unknown;
   culturalNote?: unknown;
@@ -139,6 +147,8 @@ const IMPLEMENTED_MECHANICS = new Set<MechanicType>([
   "listen_and_choose",
   "choose_correct_word",
   "match_word_picture",
+  "mini_quiz",
+  "cultural_card",
 ]);
 
 const UNSTARTABLE_MECHANIC_FALLBACK: MechanicType = "practice_mix";
@@ -430,6 +440,88 @@ const normalizeMatchWordPictureOptions = (
     .map(({ order: _order, sourceIndex: _sourceIndex, ...option }) => option);
 };
 
+const normalizeMiniQuizOptions = (
+  value: unknown,
+): MiniQuizItem["questions"][number]["options"] => {
+  const seenOptionIds = new Set<string>();
+  const options = asObjectArray(value).reduce<
+    Array<MiniQuizItem["questions"][number]["options"][number] & {
+      order?: number;
+      sourceIndex: number;
+    }>
+  >((currentOptions, option, index) => {
+    const id = asOptionalString(option.id);
+    const text =
+      asOptionalString(option.text) ??
+      asOptionalString(option.localText) ??
+      asOptionalString(option.word);
+
+    if (!id || !text || seenOptionIds.has(id)) {
+      return currentOptions;
+    }
+
+    const englishText =
+      asOptionalString(option.englishText) ?? asOptionalString(option.translation);
+
+    seenOptionIds.add(id);
+    currentOptions.push({
+      id,
+      text,
+      ...(englishText ? { englishText } : {}),
+      order: asOptionalPositiveNumber(option.order),
+      sourceIndex: index,
+    });
+
+    return currentOptions;
+  }, []);
+
+  return options
+    .sort(
+      (a, b) =>
+        (a.order ?? Number.MAX_SAFE_INTEGER) -
+          (b.order ?? Number.MAX_SAFE_INTEGER) ||
+        a.sourceIndex - b.sourceIndex ||
+        a.id.localeCompare(b.id),
+    )
+    .map(({ order: _order, sourceIndex: _sourceIndex, ...option }) => option);
+};
+
+const normalizeMiniQuizQuestions = (
+  value: unknown,
+): MiniQuizItem["questions"] => {
+  const seenQuestionIds = new Set<string>();
+
+  return asObjectArray(value).reduce<MiniQuizItem["questions"]>(
+    (currentQuestions, question) => {
+      const id = asOptionalString(question.id);
+
+      if (!id || seenQuestionIds.has(id)) {
+        return currentQuestions;
+      }
+
+      const promptText =
+        asOptionalString(question.promptText) ??
+        asOptionalString(question.prompt) ??
+        asOptionalString(question.questionText);
+      const promptEnglishText = asOptionalString(question.promptEnglishText);
+      const explanationText = asOptionalString(question.explanationText);
+
+      seenQuestionIds.add(id);
+      currentQuestions.push({
+        id,
+        promptText: promptText ?? "",
+        ...(promptEnglishText ? { promptEnglishText } : {}),
+        correctOptionId: asOptionalString(question.correctOptionId) ?? "",
+        options: normalizeMiniQuizOptions(question.options),
+        ...(explanationText ? { explanationText } : {}),
+      });
+
+      return currentQuestions;
+    },
+    [],
+  );
+};
+
 const normalizeLessonItem = (
   item: RawLearningHubLessonItem,
   fallbackId: string,
@@ -529,13 +621,50 @@ const normalizeLessonItem = (
     } satisfies MatchWordPictureItem;
   }
 
-  if (mechanic === "cultural_card") {
+  if (mechanic === "mini_quiz") {
     return {
       ...base,
-      ...legacyText,
+      localText: legacyText.localText,
+      englishText: legacyText.englishText,
       mechanic,
-      title: asOptionalString(item.title),
-      culturalNote: asOptionalString(item.culturalNote),
+      title:
+        asOptionalString(item.title) ??
+        (legacyText.englishText ? `${legacyText.englishText} quiz` : "Quick quiz"),
+      instructions: asOptionalString(item.instructions),
+      questions: normalizeMiniQuizQuestions(item.questions),
+    } satisfies MiniQuizItem;
+  }
+
+  if (mechanic === "cultural_card") {
+    const title =
+      asOptionalString(item.title) ??
+      asOptionalString(item.localTitle) ??
+      legacyText.englishText ??
+      legacyText.localText ??
+      "Culture card";
+    const localTitle = asOptionalString(item.localTitle);
+    const bodyText =
+      asOptionalString(item.bodyText) ??
+      asOptionalString(item.culturalNote) ??
+      legacyText.englishText ??
+      "";
+    const cardLocalText =
+      legacyText.localText ?? asOptionalString(item.localText);
+    const emoji = asOptionalString(item.emoji);
+    const reflectionPrompt = asOptionalString(item.reflectionPrompt);
+    const funFact = asOptionalString(item.funFact);
+
+    return {
+      ...base,
+      mechanic,
+      title,
+      ...(localTitle ? { localTitle } : {}),
+      bodyText,
+      ...(cardLocalText ? { localText: cardLocalText } : {}),
+      ...(legacyText.englishText ? { englishText: legacyText.englishText } : {}),
+      ...(emoji ? { emoji } : {}),
+      ...(reflectionPrompt ? { reflectionPrompt } : {}),
+      ...(funFact ? { funFact } : {}),
     } satisfies CulturalCardItem;
   }
 
@@ -618,6 +747,42 @@ const isValidMatchWordPictureItem = (
   );
 };
 
+const isValidMiniQuizQuestion = (
+  question: MiniQuizItem["questions"][number],
+): boolean => {
+  const optionIds = question.options.map((option) => option.id);
+  const uniqueOptionIds = new Set(optionIds);
+
+  return (
+    Boolean(question.id.trim()) &&
+    Boolean(question.promptText.trim()) &&
+    question.options.length >= 2 &&
+    question.options.length <= 4 &&
+    uniqueOptionIds.size === question.options.length &&
+    question.options.every(
+      (option) => Boolean(option.id.trim()) && Boolean(option.text.trim()),
+    ) &&
+    Boolean(question.correctOptionId.trim()) &&
+    question.options.some((option) => option.id === question.correctOptionId)
+  );
+};
+
+const isValidMiniQuizItem = (
+  item: LearningLessonItem,
+): item is MiniQuizItem =>
+  item.mechanic === "mini_quiz" &&
+  Boolean(item.title.trim()) &&
+  item.questions.length >= 1 &&
+  item.questions.length <= 5 &&
+  item.questions.every(isValidMiniQuizQuestion);
+
+const isValidCulturalCardItem = (
+  item: LearningLessonItem,
+): item is CulturalCardItem =>
+  item.mechanic === "cultural_card" &&
+  Boolean(item.title.trim()) &&
+  Boolean(item.bodyText.trim());
+
 const isValidTapToLearnItem = (item: LearningLessonItem): item is TapToLearnItem =>
   item.mechanic === "tap_to_learn" &&
   Boolean(item.localText.trim()) &&
@@ -638,6 +803,14 @@ const isValidLessonItem = (item: LearningLessonItem): boolean => {
 
   if (item.mechanic === "match_word_picture") {
     return isValidMatchWordPictureItem(item);
+  }
+
+  if (item.mechanic === "mini_quiz") {
+    return isValidMiniQuizItem(item);
+  }
+
+  if (item.mechanic === "cultural_card") {
+    return isValidCulturalCardItem(item);
   }
 
   return true;

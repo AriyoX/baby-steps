@@ -2,7 +2,7 @@
 
 ## Current Status
 
-MVP JSON-backed Learning hub with a DB-ready local content contract, a two-step learning-area path, mechanic-driven lesson renderers for tap-to-learn, listen-and-choose practice, choose-correct-word practice, match-word-picture practice, and local-first lesson completion tracking.
+MVP JSON-backed Learning hub with a DB-ready local content contract, a two-step learning-area path, mechanic-driven lesson renderers for tap-to-learn, listen-and-choose practice, choose-correct-word practice, match-word-picture practice, mini-quiz review, cultural cards, and local-first lesson completion tracking.
 
 ## Purpose
 
@@ -62,6 +62,8 @@ Lessons are mechanic-driven. The lesson session route loads the selected stage a
 - `components/learning/mechanics/ListenAndChooseCard.tsx`
 - `components/learning/mechanics/ChooseCorrectWordCard.tsx`
 - `components/learning/mechanics/MatchWordPictureCard.tsx`
+- `components/learning/mechanics/MiniQuizCard.tsx`
+- `components/learning/mechanics/CulturalCard.tsx`
 
 The route keeps only generic session state:
 
@@ -74,7 +76,7 @@ When the final lesson item completes, the route saves one lesson-completion reco
 
 The same full-lesson completion also writes a parent-feed activity through the existing `saveActivity(...)` path used by games and stories. Learning does not write a feed row for each tap or answer.
 
-Individual lesson mechanics should fit within one screen during normal child use. `tap_to_learn` and `listen_and_choose` should keep the primary content, replay/listen control, answer choices, feedback, and Next / Finish action visible without normal vertical scrolling. A future mechanic should follow the same layout rule and only use vertical scroll as a last-resort safety fallback for unusually small screens.
+Individual lesson mechanics should fit within one screen during normal child use. `tap_to_learn`, `listen_and_choose`, `choose_correct_word`, `match_word_picture`, `mini_quiz`, and `cultural_card` should keep the primary content, answer choices or card copy, feedback when applicable, and advance action visible without normal vertical scrolling. Future mechanics should follow the same layout rule and only use vertical scroll as a last-resort safety fallback for unusually small screens.
 
 ## Content Contract
 
@@ -89,7 +91,7 @@ The public content types live in `content/learningHubTypes.ts`:
 - `ContentReadiness`
 - `LessonStatus`
 
-Lesson items use a discriminated union by mechanic. `tap_to_learn` is normalized to stable `localText` and `englishText` fields while keeping `word` and `translation` aliases for the current renderer. `listen_and_choose` uses stable option IDs, `correctOptionId`, logical `audioKey`, and local `audioAsset` fallback fields so correctness does not depend on array order. `choose_correct_word` uses `promptText`, optional `questionText`, stable option IDs, and `correctOptionId`; no audio is required for this mechanic. `match_word_picture` uses `promptText`, `targetText`, optional `targetEnglishText`, stable option IDs, `correctOptionId`, and option-level `imageKey`, `imageAsset`, or `emoji` fallback fields. Planned mechanics have typed placeholder payloads so content can be added safely before renderers exist.
+Lesson items use a discriminated union by mechanic. `tap_to_learn` is normalized to stable `localText` and `englishText` fields while keeping `word` and `translation` aliases for the current renderer. `listen_and_choose` uses stable option IDs, `correctOptionId`, logical `audioKey`, and local `audioAsset` fallback fields so correctness does not depend on array order. `choose_correct_word` uses `promptText`, optional `questionText`, stable option IDs, and `correctOptionId`; no audio is required for this mechanic. `match_word_picture` uses `promptText`, `targetText`, optional `targetEnglishText`, stable option IDs, `correctOptionId`, and option-level `imageKey`, `imageAsset`, or `emoji` fallback fields. `mini_quiz` uses an item-level `title`, optional `instructions`, and nested `questions[]` with stable question IDs, `promptText`, optional `promptEnglishText`, stable option IDs, `correctOptionId`, option `text`, optional option `englishText`, and optional `explanationText`. `cultural_card` uses `title`, optional `localTitle`, required `bodyText`, optional `localText`, optional `imageKey` / `imageAsset` / `emoji`, optional `funFact`, and optional `reflectionPrompt`; no answer key or correctness field is used. Planned mechanics have typed placeholder payloads so content can be added safely before renderers exist.
 
 `LessonStatus` values:
 
@@ -158,6 +160,36 @@ Correctness is determined only by matching the tapped option ID to `correctOptio
 
 Current MVP picture-match content uses bundled local `imageKey` references where a suitable reviewed asset is already available, with emoji fallbacks left in place. Remaining placeholder options should stay marked as placeholder until reviewed production artwork is added.
 
+`mini_quiz` is implemented as a short multi-question review mechanic inside one generic lesson item.
+
+The card shows one quiz question at a time with:
+
+- a child-friendly quick-quiz instruction
+- current question progress
+- 2-4 answer options with stable option IDs
+- gentle retry feedback for wrong answers
+- positive feedback and optional explanation text for correct answers
+- a separate action to move to the next quiz question, then `Next` / `Finish` after the final question
+
+Wrong answer taps do not advance the quiz. Correctness is determined only by matching the tapped option ID to that question's `correctOptionId`; it does not depend on option array position. The renderer emits one in-memory `ItemResult` only after every required quiz question has been answered correctly, with `mechanic: "mini_quiz"`, `correct: true`, and `attempts` equal to total answer taps across the whole quiz item. It does not log activity per quiz question.
+
+Current mini-quiz content is a small Family & Home placeholder draft. It uses text only, no new images or audio, and must remain marked placeholder until reviewed production quiz copy is ready.
+
+`cultural_card` is implemented as a short, non-graded culture/language card.
+
+The card shows one concept at a time with:
+
+- a friendly title
+- a short explanation
+- optional local-language title and text
+- an optional image or emoji, with a safe icon fallback
+- optional fun fact and reflection prompt
+- a single `Continue` / `Finish` action
+
+There is no right or wrong answer. Tapping the action emits one in-memory `ItemResult` with `mechanic: "cultural_card"`, `attempts: 1`, and no `correct` field. The generic lesson shell still saves progress and activity only after the final lesson item completes.
+
+Current cultural-card content is one Family & Home placeholder draft about a Luganda morning greeting. It uses no new images or audio and must remain marked placeholder until reviewed production culture/language copy is ready.
+
 ## Local-First Progress
 
 Learning Hub lesson completion is local-first:
@@ -223,8 +255,6 @@ Before a recording is marked production-ready, review it for native-speaker pron
 
 The content model and labels still include planned mechanics, but they are not startable until a renderer and valid content exist:
 
-- `cultural_card`
-- `mini_quiz`
 - `story_bite`
 - `practice_mix`
 
@@ -240,7 +270,7 @@ Current MVP stages:
 - Culture & Stories
 - Practice Mix
 
-First Words currently has startable `tap_to_learn`, `listen_and_choose`, `choose_correct_word`, and `match_word_picture` lessons. Family & Home currently has a startable `tap_to_learn` lesson; its other path cards use planned or not-yet-valid mechanics and remain Coming soon. Everyday Things and Culture & Stories remain planned placeholders. Practice Mix is marked as practice content and remains locked until a future pass has enough reviewed completion history and runtime review logic.
+First Words currently has startable `tap_to_learn`, `listen_and_choose`, `choose_correct_word`, and `match_word_picture` lessons. Family & Home currently has startable `tap_to_learn`, placeholder `mini_quiz`, and placeholder `cultural_card` lessons; its other path cards use not-yet-valid mechanics and remain Coming soon. Everyday Things and Culture & Stories remain planned placeholders. Practice Mix is marked as practice content and remains locked until a future pass has enough reviewed completion history and runtime review logic.
 
 ## Future DB Mapping
 
@@ -251,7 +281,7 @@ No migrations have been added for Learning Hub progress. Content remains local J
 - Aggregate Learning summary can map to `child_activity_progress` with `activity_type = "language"`.
 - Append-only activity feed entries map to `activities` with `activity_type = "language"` and `language_code = "lg"` or another DB language code.
 
-`audioKey` and `imageKey` should become logical content asset references. `audioAsset` and `imageAsset` remain local bundled fallback references for now. Current match-word-picture content uses emoji fallback visuals and remains local JSON, but its option shape is DB-ready for future image records or CDN references.
+`audioKey` and `imageKey` should become logical content asset references. `audioAsset` and `imageAsset` remain local bundled fallback references for now. Current match-word-picture content uses emoji fallback visuals and remains local JSON, but its option shape is DB-ready for future image records or CDN references. Current mini-quiz content is also local JSON, with nested question/option payloads that can map cleanly into future `content_items.payload` JSON. Current cultural-card content is local JSON with simple text fields and optional visual fields that can map cleanly into future `content_items.payload` JSON.
 
 ## Future Passes
 

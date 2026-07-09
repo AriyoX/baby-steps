@@ -24,8 +24,10 @@ import {
 import { DEFAULT_LEARNING_LANGUAGE_CODE } from "../languages";
 import type {
   ChooseCorrectWordItem,
+  CulturalCardItem,
   ListenAndChooseItem,
   MatchWordPictureItem,
+  MiniQuizItem,
 } from "../learningHubTypes";
 
 const REQUIRED_STAGE_IDS = [
@@ -326,6 +328,73 @@ describe("learning hub repository", () => {
     );
   });
 
+  it("normalizes mini-quiz items with stable question and option ids", () => {
+    const items = getLessonItemsForLesson("lg", "family-home", "family-mini-quiz");
+    const quizItems = items.filter(
+      (item): item is MiniQuizItem => item.mechanic === "mini_quiz",
+    );
+
+    expect(quizItems.map((item) => item.id)).toEqual(["family-words-review"]);
+    expect(quizItems[0]).toEqual(
+      expect.objectContaining({
+        id: "family-words-review",
+        mechanic: "mini_quiz",
+        title: "Family Words Review",
+        instructions: "Choose the best answer.",
+        readiness: "placeholder",
+      }),
+    );
+    expect(quizItems[0].questions.map((question) => question.id)).toEqual([
+      "mother-word",
+      "father-word",
+    ]);
+    expect(quizItems[0].questions[0]).toEqual(
+      expect.objectContaining({
+        promptText: "Which word means Mother?",
+        promptEnglishText: "Mother",
+        correctOptionId: "maama",
+        explanationText: "Maama means Mother.",
+      }),
+    );
+    expect(quizItems[0].questions[0].options.map((option) => option.id)).toEqual([
+      "maama",
+      "taata",
+      "omwana",
+    ]);
+    expect(quizItems[0].questions[0].options).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "maama",
+          text: "Maama",
+          englishText: "Mother",
+        }),
+      ]),
+    );
+  });
+
+  it("normalizes cultural-card items with child-friendly card fields", () => {
+    const items = getLessonItemsForLesson("lg", "family-home", "home-greeting-card");
+    const cardItems = items.filter(
+      (item): item is CulturalCardItem => item.mechanic === "cultural_card",
+    );
+
+    expect(cardItems.map((item) => item.id)).toEqual(["morning-greeting-home"]);
+    expect(cardItems[0]).toEqual(
+      expect.objectContaining({
+        id: "morning-greeting-home",
+        mechanic: "cultural_card",
+        title: "Morning Greeting at Home",
+        localTitle: "Oluganda",
+        localText: "Wasuze otya?",
+        bodyText:
+          "In many Ugandan homes, morning greetings are a caring way to begin the day. In Luganda, one person can ask Wasuze otya?",
+        funFact: "Wasuze otya? means How did you sleep?",
+        reflectionPrompt: "Who could you greet kindly this morning?",
+        readiness: "placeholder",
+      }),
+    );
+  });
+
   it("returns only startable implemented lessons for a stage", () => {
     const firstWordsStage = getLearningStageById("lg", "first-words");
     const lessons = getLessonsForStage("lg", "first-words");
@@ -491,6 +560,103 @@ describe("learning hub repository", () => {
     expect(getLessonStatus(duplicateOptionIdsLesson, firstWordsStage)).toBe("empty");
   });
 
+  it("keeps malformed mini-quiz lessons from becoming startable", () => {
+    const familyStage = getLearningStageById("lg", "family-home");
+    const quizLesson = getLessonById("lg", "family-home", "family-mini-quiz");
+    const validItem = quizLesson?.items.find(
+      (item): item is MiniQuizItem => item.mechanic === "mini_quiz",
+    );
+
+    if (!quizLesson || !validItem) {
+      throw new Error("Expected a normalized mini-quiz lesson");
+    }
+
+    const missingCorrectIdLesson = {
+      ...quizLesson,
+      id: "missing-quiz-correct-option",
+      items: [
+        {
+          ...validItem,
+          questions: [
+            {
+              ...validItem.questions[0],
+              correctOptionId: "",
+            },
+          ],
+        },
+      ],
+    };
+    const invalidCorrectIdLesson = {
+      ...quizLesson,
+      id: "invalid-quiz-correct-option",
+      items: [
+        {
+          ...validItem,
+          questions: [
+            {
+              ...validItem.questions[0],
+              correctOptionId: "missing-option",
+            },
+          ],
+        },
+      ],
+    };
+    const malformedOptionsLesson = {
+      ...quizLesson,
+      id: "malformed-quiz-options",
+      items: [
+        {
+          ...validItem,
+          questions: [
+            {
+              ...validItem.questions[0],
+              options: [{ id: "maama", text: "Maama" }],
+            },
+          ],
+        },
+      ],
+    };
+    const emptyQuestionsLesson = {
+      ...quizLesson,
+      id: "empty-quiz-questions",
+      items: [{ ...validItem, questions: [] }],
+    };
+
+    expect(() => getLessonStatus(missingCorrectIdLesson, familyStage)).not.toThrow();
+    expect(getLessonStatus(missingCorrectIdLesson, familyStage)).toBe("empty");
+    expect(getLessonStatus(invalidCorrectIdLesson, familyStage)).toBe("empty");
+    expect(getLessonStatus(malformedOptionsLesson, familyStage)).toBe("empty");
+    expect(getLessonStatus(emptyQuestionsLesson, familyStage)).toBe("empty");
+  });
+
+  it("keeps malformed cultural-card lessons from becoming startable", () => {
+    const familyStage = getLearningStageById("lg", "family-home");
+    const cardLesson = getLessonById("lg", "family-home", "home-greeting-card");
+    const validItem = cardLesson?.items.find(
+      (item): item is CulturalCardItem => item.mechanic === "cultural_card",
+    );
+
+    if (!cardLesson || !validItem) {
+      throw new Error("Expected a normalized cultural-card lesson");
+    }
+
+    const missingTitleLesson = {
+      ...cardLesson,
+      id: "missing-cultural-card-title",
+      items: [{ ...validItem, title: "" }],
+    };
+    const missingBodyLesson = {
+      ...cardLesson,
+      id: "missing-cultural-card-body",
+      items: [{ ...validItem, bodyText: "" }],
+    };
+
+    expect(() => getLessonStatus(missingTitleLesson, familyStage)).not.toThrow();
+    expect(getLessonStatus(missingTitleLesson, familyStage)).toBe("empty");
+    expect(getLessonStatus(missingBodyLesson, familyStage)).toBe("empty");
+    expect(isLessonStartable(familyStage, missingBodyLesson)).toBe(false);
+  });
+
   it("marks empty lessons as not startable", () => {
     const firstWordsStage = getLearningStageById("lg", "first-words");
     const lesson = getLessonById("lg", "first-words", "greetings-1");
@@ -593,9 +759,9 @@ describe("learning hub repository", () => {
     expect(isMechanicImplemented("listen_and_choose")).toBe(true);
     expect(isMechanicImplemented("choose_correct_word")).toBe(true);
     expect(isMechanicImplemented("match_word_picture")).toBe(true);
-    expect(isMechanicImplemented("mini_quiz")).toBe(false);
+    expect(isMechanicImplemented("mini_quiz")).toBe(true);
+    expect(isMechanicImplemented("cultural_card")).toBe(true);
     expect(isMechanicImplemented("story_bite")).toBe(false);
-    expect(isMechanicImplemented("cultural_card")).toBe(false);
     expect(stageHasMechanicContent("lg", "first-words", "listen_and_choose")).toBe(
       true,
     );
@@ -604,7 +770,17 @@ describe("learning hub repository", () => {
     expect(stageHasMechanicContent("lg", "family-home", "match_word_picture")).toBe(
       false,
     );
+    expect(stageHasMechanicContent("lg", "family-home", "mini_quiz")).toBe(true);
+    expect(stageHasMechanicContent("lg", "family-home", "cultural_card")).toBe(
+      true,
+    );
     expect(stageHasMechanicContent("lg", "everyday-things", "mini_quiz")).toBe(false);
+    expect(getLessonStatus(getLessonById("lg", "family-home", "family-mini-quiz"))).toBe(
+      "startable",
+    );
+    expect(getLessonStatus(getLessonById("lg", "family-home", "home-greeting-card"))).toBe(
+      "startable",
+    );
     expect(getLessonStatus(getLessonById("lg", "family-home", "home-things-1"))).toBe(
       "coming_soon",
     );

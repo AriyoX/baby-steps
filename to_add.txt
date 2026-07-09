@@ -2,6 +2,8 @@ local first then caching with supabase activity logging
 refactor achievements
 streaks
 notifications
+locking of next stage
+points
 
 
 in curriculum, consider achievements and activities too. 

@@ -3,17 +3,21 @@ import { View } from "react-native";
 import { Text } from "@/components/StyledText";
 import type {
   ChooseCorrectWordItem,
+  CulturalCardItem,
   ItemResult,
   LearningLessonItem,
   ListenAndChooseItem,
   MatchWordPictureItem,
   MechanicType,
+  MiniQuizItem,
   TapToLearnItem,
 } from "@/content/learningHubTypes";
 import { getMechanicLabel } from "@/content/learningHubRepository";
 import { ChooseCorrectWordCard } from "./ChooseCorrectWordCard";
+import { CulturalCard } from "./CulturalCard";
 import { ListenAndChooseCard } from "./ListenAndChooseCard";
 import { MatchWordPictureCard } from "./MatchWordPictureCard";
+import { MiniQuizCard } from "./MiniQuizCard";
 import { TapToLearnCard } from "./TapToLearnCard";
 
 export type MechanicRendererProps = {
@@ -131,6 +135,60 @@ const MatchWordPictureRenderer = ({
   );
 };
 
+const MiniQuizRenderer = ({
+  item,
+  isLastItem,
+  stageImageKey,
+  onComplete,
+}: MechanicRendererProps) => {
+  if (item.mechanic !== "mini_quiz") {
+    return (
+      <UnsupportedMechanicNotice
+        item={item}
+        isLastItem={isLastItem}
+        stageImageKey={stageImageKey}
+        onComplete={onComplete}
+      />
+    );
+  }
+
+  return (
+    <MiniQuizCard
+      item={item as MiniQuizItem}
+      isLastItem={isLastItem}
+      stageImageKey={stageImageKey}
+      onComplete={onComplete}
+    />
+  );
+};
+
+const CulturalCardRenderer = ({
+  item,
+  isLastItem,
+  stageImageKey,
+  onComplete,
+}: MechanicRendererProps) => {
+  if (item.mechanic !== "cultural_card") {
+    return (
+      <UnsupportedMechanicNotice
+        item={item}
+        isLastItem={isLastItem}
+        stageImageKey={stageImageKey}
+        onComplete={onComplete}
+      />
+    );
+  }
+
+  return (
+    <CulturalCard
+      item={item as CulturalCardItem}
+      isLastItem={isLastItem}
+      stageImageKey={stageImageKey}
+      onComplete={onComplete}
+    />
+  );
+};
+
 export const MECHANIC_RENDERERS: Partial<
   Record<MechanicType, ComponentType<MechanicRendererProps>>
 > = {
@@ -138,6 +196,8 @@ export const MECHANIC_RENDERERS: Partial<
   listen_and_choose: ListenAndChooseRenderer,
   choose_correct_word: ChooseCorrectWordRenderer,
   match_word_picture: MatchWordPictureRenderer,
+  mini_quiz: MiniQuizRenderer,
+  cultural_card: CulturalCardRenderer,
 };
 
 export const UnsupportedMechanicNotice = ({ item }: MechanicRendererProps) => (

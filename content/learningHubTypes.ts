@@ -150,6 +150,24 @@ export interface ChooseCorrectWordItem extends LessonItemBase {
   options: ChooseCorrectWordOption[];
 }
 
+export interface MatchWordPictureOption {
+  id: string;
+  localText: string;
+  englishText?: string;
+  imageKey?: string;
+  imageAsset?: string;
+  emoji?: string;
+}
+
+export interface MatchWordPictureItem extends LessonItemBase {
+  mechanic: "match_word_picture";
+  promptText: string;
+  targetText: string;
+  targetEnglishText?: string;
+  correctOptionId: string;
+  options: MatchWordPictureOption[];
+}
+
 export interface CulturalCardItem extends LessonItemBase {
   mechanic: "cultural_card";
   title?: string;
@@ -161,7 +179,11 @@ export interface CulturalCardItem extends LessonItemBase {
 export interface UnsupportedLessonItem extends LessonItemBase {
   mechanic: Exclude<
     MechanicType,
-    "tap_to_learn" | "listen_and_choose" | "choose_correct_word" | "cultural_card"
+    | "tap_to_learn"
+    | "listen_and_choose"
+    | "choose_correct_word"
+    | "match_word_picture"
+    | "cultural_card"
   >;
   prompt?: string;
   word?: string;
@@ -172,5 +194,6 @@ export type LearningLessonItem =
   | TapToLearnItem
   | ListenAndChooseItem
   | ChooseCorrectWordItem
+  | MatchWordPictureItem
   | CulturalCardItem
   | UnsupportedLessonItem;

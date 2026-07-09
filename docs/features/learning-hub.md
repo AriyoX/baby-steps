@@ -2,7 +2,7 @@
 
 ## Current Status
 
-MVP JSON-backed Learning hub with a DB-ready local content contract, a two-step learning-area path, mechanic-driven lesson renderers for tap-to-learn, listen-and-choose practice, choose-correct-word practice, and local-only lesson completion tracking.
+MVP JSON-backed Learning hub with a DB-ready local content contract, a two-step learning-area path, mechanic-driven lesson renderers for tap-to-learn, listen-and-choose practice, choose-correct-word practice, match-word-picture practice, and local-only lesson completion tracking.
 
 ## Purpose
 
@@ -61,6 +61,7 @@ Lessons are mechanic-driven. The lesson session route loads the selected stage a
 - `components/learning/mechanics/TapToLearnCard.tsx`
 - `components/learning/mechanics/ListenAndChooseCard.tsx`
 - `components/learning/mechanics/ChooseCorrectWordCard.tsx`
+- `components/learning/mechanics/MatchWordPictureCard.tsx`
 
 The route keeps only generic session state:
 
@@ -86,7 +87,7 @@ The public content types live in `content/learningHubTypes.ts`:
 - `ContentReadiness`
 - `LessonStatus`
 
-Lesson items use a discriminated union by mechanic. `tap_to_learn` is normalized to stable `localText` and `englishText` fields while keeping `word` and `translation` aliases for the current renderer. `listen_and_choose` uses stable option IDs, `correctOptionId`, logical `audioKey`, and local `audioAsset` fallback fields so correctness does not depend on array order. `choose_correct_word` uses `promptText`, optional `questionText`, stable option IDs, and `correctOptionId`; no audio is required for this mechanic. Planned mechanics have typed placeholder payloads so content can be added safely before renderers exist.
+Lesson items use a discriminated union by mechanic. `tap_to_learn` is normalized to stable `localText` and `englishText` fields while keeping `word` and `translation` aliases for the current renderer. `listen_and_choose` uses stable option IDs, `correctOptionId`, logical `audioKey`, and local `audioAsset` fallback fields so correctness does not depend on array order. `choose_correct_word` uses `promptText`, optional `questionText`, stable option IDs, and `correctOptionId`; no audio is required for this mechanic. `match_word_picture` uses `promptText`, `targetText`, optional `targetEnglishText`, stable option IDs, `correctOptionId`, and option-level `imageKey`, `imageAsset`, or `emoji` fallback fields. Planned mechanics have typed placeholder payloads so content can be added safely before renderers exist.
 
 `LessonStatus` values:
 
@@ -138,6 +139,21 @@ The card shows one item at a time with:
 
 Correctness is determined only by matching the tapped option ID to `correctOptionId`; it does not depend on option array position. When the child eventually chooses correctly and advances, the renderer emits an in-memory `ItemResult` with `mechanic: "choose_correct_word"`, `correct: true`, and `attempts` equal to answer taps.
 
+`match_word_picture` is implemented as a correctness-based visual association mechanic.
+
+The card shows one item at a time with:
+
+- a child-friendly match-the-word instruction
+- a clear target word and optional English helper text
+- 2-4 picture options
+- image support through `imageAsset` / `imageKey` when local or future CDN references are available
+- emoji fallback visuals for the current MVP content
+- label fallback if a picture or emoji is unavailable
+- gentle feedback for wrong answers
+- a separate `Next` / `Finish` action after the correct answer
+
+Correctness is determined only by matching the tapped option ID to `correctOptionId`; it does not depend on option array position. When the child eventually chooses correctly and advances, the renderer emits an in-memory `ItemResult` with `mechanic: "match_word_picture"`, `correct: true`, and `attempts` equal to answer taps. No audio is required for this mechanic.
+
 ## Local Progress
 
 Learning Hub lesson completion is local-only for now:
@@ -161,7 +177,7 @@ The local completion shape is intentionally aligned with the existing schema. Ea
 
 The storage key includes child ID and DB language code so children and languages do not share progress. If an active child ID is unexpectedly unavailable, the local-only fallback ID is `local-demo-child`; that value must not be synced as a real DB UUID in a later pass without explicit mapping.
 
-There is no Supabase sync, no migration, and no remote progress hydration for this Learning Hub completion layer.
+There is no Supabase sync, no migration, and no remote progress hydration for this Learning Hub completion layer. Match-word-picture completion uses the same local-only lesson completion path after the final item.
 
 ## Audio Readiness
 
@@ -184,10 +200,9 @@ Before a recording is marked production-ready, review it for native-speaker pron
 
 ## Planned Mechanics
 
-The content model and labels include planned mechanics, but they are not startable until a renderer and valid content exist:
+The content model and labels still include planned mechanics, but they are not startable until a renderer and valid content exist:
 
 - `cultural_card`
-- `match_word_picture`
 - `mini_quiz`
 - `story_bite`
 - `practice_mix`
@@ -204,7 +219,7 @@ Current MVP stages:
 - Culture & Stories
 - Practice Mix
 
-First Words currently has startable `tap_to_learn`, `listen_and_choose`, and `choose_correct_word` lessons. Family & Home currently has a startable `tap_to_learn` lesson; its other path cards use planned or not-yet-valid mechanics and remain Coming soon. Everyday Things and Culture & Stories remain planned placeholders. Practice Mix is marked as practice content and remains locked until a future pass has enough reviewed completion history and runtime review logic.
+First Words currently has startable `tap_to_learn`, `listen_and_choose`, `choose_correct_word`, and `match_word_picture` lessons. Family & Home currently has a startable `tap_to_learn` lesson; its other path cards use planned or not-yet-valid mechanics and remain Coming soon. Everyday Things and Culture & Stories remain planned placeholders. Practice Mix is marked as practice content and remains locked until a future pass has enough reviewed completion history and runtime review logic.
 
 ## Future DB Mapping
 
@@ -215,7 +230,7 @@ No migrations have been added for Learning Hub progress. Content remains local J
 - Aggregate Learning summary can map to `child_activity_progress` with `activity_type = "language"`.
 - Future activity feed entries can map to `activities` with `activity_type = "language"` and `language_code = "lg"` or another DB language code.
 
-`audioKey` and `imageKey` should become logical content asset references. `audioAsset` and `imageAsset` remain local bundled fallback references for now.
+`audioKey` and `imageKey` should become logical content asset references. `audioAsset` and `imageAsset` remain local bundled fallback references for now. Current match-word-picture content uses emoji fallback visuals and remains local JSON, but its option shape is DB-ready for future image records or CDN references.
 
 ## Future Passes
 
@@ -226,6 +241,7 @@ Intentionally deferred:
 - achievements
 - parent dashboard summaries
 - Practice Mix runtime recommendations
+- Practice Mix runtime logic
 - AI recommendations
 - database migrations
 
@@ -236,4 +252,4 @@ Museum remains archived and hidden for possible future redesign. No Museum route
 - Decide canonical language codes for Luganda, Runyankole / Runyankore, and future Ugandan languages.
 - Define reviewed asset records for `audioKey` and `imageKey`.
 - Map readiness and lesson status rules into server-side content validation.
-- Add migrations only after the local contract and first three mechanics are stable.
+- Add migrations only after the local contract and implemented mechanics are stable.

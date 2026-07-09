@@ -18,16 +18,17 @@
           "status": "preview",
           "readiness": "draft",
           "estimatedMinutes": 3,
-          "lessonCount": 3,
+          "lessonCount": 4,
           "isPractice": false,
           "isLocked": false,
-          "mechanics": ["tap_to_learn", "listen_and_choose", "choose_correct_word"],
+          "mechanics": ["tap_to_learn", "listen_and_choose", "choose_correct_word", "match_word_picture"],
           "learningGoals": [
             "Hear simple Luganda words",
             "Tap pictures to learn meaning",
-            "Choose the correct word"
+            "Choose the correct word",
+            "Match words to pictures"
           ],
-          "placeholderMessage": "First Words has tap-to-learn, listening practice, and a tiny word check ready.",
+          "placeholderMessage": "First Words has tap-to-learn, listening practice, a tiny word check, and picture matching ready.",
           "lessons": [
             {
               "id": "greetings-1",
@@ -236,6 +237,83 @@
                   "readiness": "placeholder",
                   "metadata": {
                     "todo": "Review distractor set with curriculum/native-speaker support before production."
+                  }
+                }
+              ]
+            },
+            {
+              "id": "first-words-picture-match",
+              "title": "Picture Match",
+              "description": "Tap the picture that matches the Luganda word.",
+              "mechanic": "match_word_picture",
+              "order": 4,
+              "isStartable": true,
+              "readiness": "placeholder",
+              "items": [
+                {
+                  "id": "match-water-picture",
+                  "order": 1,
+                  "mechanic": "match_word_picture",
+                  "promptText": "Tap the picture that matches",
+                  "targetText": "Amazzi",
+                  "targetEnglishText": "Water",
+                  "correctOptionId": "water",
+                  "options": [
+                    {
+                      "id": "water",
+                      "localText": "Amazzi",
+                      "englishText": "Water",
+                      "emoji": "💧"
+                    },
+                    {
+                      "id": "mother",
+                      "localText": "Maama",
+                      "englishText": "Mother",
+                      "emoji": "👩"
+                    },
+                    {
+                      "id": "father",
+                      "localText": "Taata",
+                      "englishText": "Father",
+                      "emoji": "👨"
+                    }
+                  ],
+                  "readiness": "placeholder",
+                  "metadata": {
+                    "todo": "Replace emoji placeholders with reviewed local image assets before production if needed."
+                  }
+                },
+                {
+                  "id": "match-mother-picture",
+                  "order": 2,
+                  "mechanic": "match_word_picture",
+                  "promptText": "Tap the picture that matches",
+                  "targetText": "Maama",
+                  "targetEnglishText": "Mother",
+                  "correctOptionId": "mother",
+                  "options": [
+                    {
+                      "id": "water",
+                      "localText": "Amazzi",
+                      "englishText": "Water",
+                      "emoji": "💧"
+                    },
+                    {
+                      "id": "mother",
+                      "localText": "Maama",
+                      "englishText": "Mother",
+                      "emoji": "👩"
+                    },
+                    {
+                      "id": "father",
+                      "localText": "Taata",
+                      "englishText": "Father",
+                      "emoji": "👨"
+                    }
+                  ],
+                  "readiness": "placeholder",
+                  "metadata": {
+                    "todo": "Replace emoji placeholders with reviewed local image assets before production if needed."
                   }
                 }
               ]

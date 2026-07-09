@@ -22,7 +22,11 @@ import {
   stageHasMechanicContent,
 } from "../learningHubRepository";
 import { DEFAULT_LEARNING_LANGUAGE_CODE } from "../languages";
-import type { ChooseCorrectWordItem, ListenAndChooseItem } from "../learningHubTypes";
+import type {
+  ChooseCorrectWordItem,
+  ListenAndChooseItem,
+  MatchWordPictureItem,
+} from "../learningHubTypes";
 
 const REQUIRED_STAGE_IDS = [
   "first-words",
@@ -111,8 +115,9 @@ describe("learning hub repository", () => {
       "greetings-1",
       "listen-greetings-1",
       "first-words-word-check",
+      "first-words-picture-match",
     ]);
-    expect(lessons.map((lesson) => lesson.order)).toEqual([1, 2, 3]);
+    expect(lessons.map((lesson) => lesson.order)).toEqual([1, 2, 3, 4]);
   });
 
   it("finds a specific lesson by lessonId", () => {
@@ -278,6 +283,48 @@ describe("learning hub repository", () => {
     );
   });
 
+  it("normalizes match-word-picture items with stable option ids and emoji fallbacks", () => {
+    const items = getLessonItemsForLesson(
+      "lg",
+      "first-words",
+      "first-words-picture-match",
+    );
+    const matchItems = items.filter(
+      (item): item is MatchWordPictureItem => item.mechanic === "match_word_picture",
+    );
+
+    expect(matchItems.map((item) => item.id)).toEqual([
+      "match-water-picture",
+      "match-mother-picture",
+    ]);
+    expect(matchItems[0]).toEqual(
+      expect.objectContaining({
+        id: "match-water-picture",
+        mechanic: "match_word_picture",
+        promptText: "Tap the picture that matches",
+        targetText: "Amazzi",
+        targetEnglishText: "Water",
+        correctOptionId: "water",
+        readiness: "placeholder",
+      }),
+    );
+    expect(matchItems[0].options.map((option) => option.id)).toEqual([
+      "water",
+      "mother",
+      "father",
+    ]);
+    expect(matchItems[0].options).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "water",
+          localText: "Amazzi",
+          englishText: "Water",
+          emoji: "💧",
+        }),
+      ]),
+    );
+  });
+
   it("returns only startable implemented lessons for a stage", () => {
     const firstWordsStage = getLearningStageById("lg", "first-words");
     const lessons = getLessonsForStage("lg", "first-words");
@@ -286,13 +333,16 @@ describe("learning hub repository", () => {
       "greetings-1",
       "listen-greetings-1",
       "first-words-word-check",
+      "first-words-picture-match",
     ]);
     expect(isLessonStartable(firstWordsStage, lessons[0])).toBe(true);
     expect(isLessonStartable(firstWordsStage, lessons[1])).toBe(true);
     expect(isLessonStartable(firstWordsStage, lessons[2])).toBe(true);
+    expect(isLessonStartable(firstWordsStage, lessons[3])).toBe(true);
     expect(getLessonStatus(lessons[0], firstWordsStage)).toBe("startable");
     expect(getLessonStatus(lessons[1], firstWordsStage)).toBe("startable");
     expect(getLessonStatus(lessons[2], firstWordsStage)).toBe("startable");
+    expect(getLessonStatus(lessons[3], firstWordsStage)).toBe("startable");
   });
 
   it("keeps malformed listen-and-choose lessons from becoming startable", () => {
@@ -375,6 +425,59 @@ describe("learning hub repository", () => {
           options: [
             { id: "webale", localText: "Webale" },
             { id: "webale", localText: "Webale" },
+          ],
+        },
+      ],
+    };
+
+    expect(() => getLessonStatus(missingCorrectIdLesson, firstWordsStage)).not.toThrow();
+    expect(getLessonStatus(missingCorrectIdLesson, firstWordsStage)).toBe("empty");
+    expect(getLessonStatus(invalidCorrectIdLesson, firstWordsStage)).toBe("empty");
+    expect(getLessonStatus(malformedOptionsLesson, firstWordsStage)).toBe("empty");
+    expect(getLessonStatus(duplicateOptionIdsLesson, firstWordsStage)).toBe("empty");
+  });
+
+  it("keeps malformed match-word-picture lessons from becoming startable", () => {
+    const firstWordsStage = getLearningStageById("lg", "first-words");
+    const matchLesson = getLessonById("lg", "first-words", "first-words-picture-match");
+    const validItem = matchLesson?.items.find(
+      (item): item is MatchWordPictureItem => item.mechanic === "match_word_picture",
+    );
+
+    if (!matchLesson || !validItem) {
+      throw new Error("Expected a normalized match-word-picture lesson");
+    }
+
+    const missingCorrectIdLesson = {
+      ...matchLesson,
+      id: "missing-picture-correct-option",
+      items: [{ ...validItem, correctOptionId: "" }],
+    };
+    const invalidCorrectIdLesson = {
+      ...matchLesson,
+      id: "invalid-picture-correct-option",
+      items: [{ ...validItem, correctOptionId: "missing-option" }],
+    };
+    const malformedOptionsLesson = {
+      ...matchLesson,
+      id: "malformed-picture-options",
+      items: [
+        {
+          ...validItem,
+          correctOptionId: "water",
+          options: [{ id: "water", localText: "Amazzi", emoji: "💧" }],
+        },
+      ],
+    };
+    const duplicateOptionIdsLesson = {
+      ...matchLesson,
+      id: "duplicate-picture-options",
+      items: [
+        {
+          ...validItem,
+          options: [
+            { id: "water", localText: "Amazzi", emoji: "💧" },
+            { id: "water", localText: "Amazzi", emoji: "💧" },
           ],
         },
       ],
@@ -488,12 +591,15 @@ describe("learning hub repository", () => {
     expect(isMechanicImplemented("tap_to_learn")).toBe(true);
     expect(isMechanicImplemented("listen_and_choose")).toBe(true);
     expect(isMechanicImplemented("choose_correct_word")).toBe(true);
-    expect(isMechanicImplemented("match_word_picture")).toBe(false);
+    expect(isMechanicImplemented("match_word_picture")).toBe(true);
     expect(isMechanicImplemented("mini_quiz")).toBe(false);
+    expect(isMechanicImplemented("story_bite")).toBe(false);
+    expect(isMechanicImplemented("cultural_card")).toBe(false);
     expect(stageHasMechanicContent("lg", "first-words", "listen_and_choose")).toBe(
       true,
     );
     expect(stageHasMechanicContent("lg", "first-words", "choose_correct_word")).toBe(true);
+    expect(stageHasMechanicContent("lg", "first-words", "match_word_picture")).toBe(true);
     expect(stageHasMechanicContent("lg", "family-home", "match_word_picture")).toBe(
       false,
     );
@@ -502,6 +608,9 @@ describe("learning hub repository", () => {
       "coming_soon",
     );
     expect(getLessonStatus(getLessonById("lg", "everyday-things", "daily-review-1"))).toBe(
+      "coming_soon",
+    );
+    expect(getLessonStatus(getLessonById("lg", "culture-stories", "story-bite-kintu"))).toBe(
       "coming_soon",
     );
   });

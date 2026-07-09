@@ -126,9 +126,11 @@ describe("Learning stage path screen", () => {
     expect(text).toContain("Greetings");
     expect(text).toContain("Listen Practice");
     expect(text).toContain("Word Check");
+    expect(text).toContain("Picture Match");
     expect(text).toContain("Tap to learn");
     expect(text).toContain("Listen and choose");
     expect(text).toContain("Pick the word");
+    expect(text).toContain("Match pictures");
   });
 
   it("starts all startable First Words cards", async () => {
@@ -144,9 +146,14 @@ describe("Learning stage path screen", () => {
 
     const greetingsCard = findButtonByAccessibilityLabel(tree.root, "Greetings. Start");
     const wordCheckCard = findButtonByAccessibilityLabel(tree.root, "Word Check. Start");
+    const pictureMatchCard = findButtonByAccessibilityLabel(
+      tree.root,
+      "Picture Match. Start",
+    );
 
     expect(textContent(greetingsCard)).toContain("Start");
     expect(textContent(wordCheckCard)).toContain("Start");
+    expect(textContent(pictureMatchCard)).toContain("Start");
 
     await act(async () => {
       greetingsCard.props.onPress();
@@ -155,6 +162,15 @@ describe("Learning stage path screen", () => {
     expect(mockRouterPush).toHaveBeenCalledWith({
       pathname: "/child/learning/[stageId]/lesson/[lessonId]",
       params: { stageId: "first-words", lessonId: "greetings-1" },
+    });
+
+    await act(async () => {
+      pictureMatchCard.props.onPress();
+    });
+
+    expect(mockRouterPush).toHaveBeenCalledWith({
+      pathname: "/child/learning/[stageId]/lesson/[lessonId]",
+      params: { stageId: "first-words", lessonId: "first-words-picture-match" },
     });
   });
 
@@ -206,6 +222,29 @@ describe("Learning stage path screen", () => {
       pathname: "/child/learning/[stageId]/lesson/[lessonId]",
       params: { stageId: "first-words", lessonId: "greetings-1" },
     });
+  });
+
+  it("shows a locally completed match-word-picture lesson as reviewable", async () => {
+    mockGetCompletedLearningLessonIds.mockResolvedValue(["first-words-picture-match"]);
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = renderer.create(<LearningStagePathScreen />);
+      await Promise.resolve();
+    });
+
+    if (!tree) {
+      throw new Error("LearningStagePathScreen did not render");
+    }
+
+    const pictureMatchCard = findButtonByAccessibilityLabel(
+      tree.root,
+      "Picture Match. Review",
+    );
+
+    expect(textContent(pictureMatchCard)).toContain("Review");
+    expect(textContent(pictureMatchCard)).toContain("Completed");
+    expect(pictureMatchCard.props.disabled).toBe(false);
   });
 
   it("keeps Practice Mix locked", async () => {

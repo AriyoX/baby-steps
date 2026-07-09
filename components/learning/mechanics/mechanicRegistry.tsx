@@ -6,12 +6,14 @@ import type {
   ItemResult,
   LearningLessonItem,
   ListenAndChooseItem,
+  MatchWordPictureItem,
   MechanicType,
   TapToLearnItem,
 } from "@/content/learningHubTypes";
 import { getMechanicLabel } from "@/content/learningHubRepository";
 import { ChooseCorrectWordCard } from "./ChooseCorrectWordCard";
 import { ListenAndChooseCard } from "./ListenAndChooseCard";
+import { MatchWordPictureCard } from "./MatchWordPictureCard";
 import { TapToLearnCard } from "./TapToLearnCard";
 
 export type MechanicRendererProps = {
@@ -102,12 +104,40 @@ const ChooseCorrectWordRenderer = ({
   );
 };
 
+const MatchWordPictureRenderer = ({
+  item,
+  isLastItem,
+  stageImageKey,
+  onComplete,
+}: MechanicRendererProps) => {
+  if (item.mechanic !== "match_word_picture") {
+    return (
+      <UnsupportedMechanicNotice
+        item={item}
+        isLastItem={isLastItem}
+        stageImageKey={stageImageKey}
+        onComplete={onComplete}
+      />
+    );
+  }
+
+  return (
+    <MatchWordPictureCard
+      item={item as MatchWordPictureItem}
+      isLastItem={isLastItem}
+      stageImageKey={stageImageKey}
+      onComplete={onComplete}
+    />
+  );
+};
+
 export const MECHANIC_RENDERERS: Partial<
   Record<MechanicType, ComponentType<MechanicRendererProps>>
 > = {
   tap_to_learn: TapToLearnRenderer,
   listen_and_choose: ListenAndChooseRenderer,
   choose_correct_word: ChooseCorrectWordRenderer,
+  match_word_picture: MatchWordPictureRenderer,
 };
 
 export const UnsupportedMechanicNotice = ({ item }: MechanicRendererProps) => (

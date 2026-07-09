@@ -177,6 +177,62 @@ describe("Learning lesson completion persistence", () => {
     expect(JSON.stringify(tree.toJSON())).toContain("Great learning!");
   });
 
+  it("saves match-word-picture completion through the generic session flow", async () => {
+    mockUseLocalSearchParams.mockReturnValue({
+      stageId: "first-words",
+      lessonId: "first-words-picture-match",
+    });
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = renderer.create(<LearningLessonSessionScreen />);
+    });
+
+    if (!tree) {
+      throw new Error("LearningLessonSessionScreen did not render");
+    }
+
+    for (const itemId of ["match-water-picture", "match-mother-picture"]) {
+      await completeRenderedItem(tree, itemId);
+    }
+
+    expect(mockSaveLearningLessonCompletion).toHaveBeenCalledTimes(1);
+    expect(mockSaveLearningLessonCompletion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        childId: "child-1",
+        languageCode: "lg",
+        activityType: "language",
+        stageId: "first-words",
+        levelId: "first-words-picture-match",
+        status: "completed",
+        attempts: 1,
+        progressPayload: expect.objectContaining({
+          lessonId: "first-words-picture-match",
+          mechanicTypes: ["match_word_picture"],
+          totalItems: 2,
+          correctItems: 2,
+          contentVersion: "1.1",
+          itemResults: expect.arrayContaining([
+            expect.objectContaining({
+              itemId: "match-water-picture",
+              mechanic: "match_word_picture",
+              correct: true,
+              attempts: 1,
+            }),
+            expect.objectContaining({
+              itemId: "match-mother-picture",
+              mechanic: "match_word_picture",
+              correct: true,
+              attempts: 1,
+            }),
+          ]),
+        }),
+        readiness: "local_only",
+      }),
+    );
+    expect(JSON.stringify(tree.toJSON())).toContain("Great learning!");
+  });
+
   it("keeps the completion screen visible when local storage fails", async () => {
     const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
     mockSaveLearningLessonCompletion.mockRejectedValueOnce(new Error("storage failed"));

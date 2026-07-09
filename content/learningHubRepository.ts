@@ -15,6 +15,7 @@ import type {
   LearningStage,
   LessonStatus,
   ListenAndChooseItem,
+  MatchWordPictureItem,
   MechanicType,
   TapToLearnItem,
   UnsupportedLessonItem,
@@ -43,6 +44,8 @@ type RawLearningHubLessonItem = Partial<
     | "prompt"
     | "promptText"
     | "questionText"
+    | "targetText"
+    | "targetEnglishText"
     | "type",
     unknown
   >
@@ -135,6 +138,7 @@ const IMPLEMENTED_MECHANICS = new Set<MechanicType>([
   "tap_to_learn",
   "listen_and_choose",
   "choose_correct_word",
+  "match_word_picture",
 ]);
 
 const UNSTARTABLE_MECHANIC_FALLBACK: MechanicType = "practice_mix";
@@ -372,6 +376,60 @@ const normalizeChooseCorrectWordOptions = (
     .map(({ order: _order, sourceIndex: _sourceIndex, ...option }) => option);
 };
 
+const normalizeMatchWordPictureOptions = (
+  value: unknown,
+): MatchWordPictureItem["options"] => {
+  const seenOptionIds = new Set<string>();
+  const options = asObjectArray(value).reduce<
+    Array<MatchWordPictureItem["options"][number] & {
+      order?: number;
+      sourceIndex: number;
+    }>
+  >((currentOptions, option, index) => {
+    const id = asOptionalString(option.id);
+
+    if (!id || seenOptionIds.has(id)) {
+      return currentOptions;
+    }
+
+    const localText =
+      asOptionalString(option.localText) ?? asOptionalString(option.word);
+    const englishText =
+      asOptionalString(option.englishText) ?? asOptionalString(option.translation);
+    const imageKey = asOptionalString(option.imageKey);
+    const imageAsset = asOptionalString(option.imageAsset);
+    const emoji = asOptionalString(option.emoji);
+
+    if (!localText && !englishText && !imageKey && !imageAsset && !emoji) {
+      return currentOptions;
+    }
+
+    seenOptionIds.add(id);
+    currentOptions.push({
+      id,
+      localText: localText ?? englishText ?? id,
+      ...(englishText ? { englishText } : {}),
+      ...(imageKey ? { imageKey } : {}),
+      ...(imageAsset ? { imageAsset } : {}),
+      ...(emoji ? { emoji } : {}),
+      order: asOptionalPositiveNumber(option.order),
+      sourceIndex: index,
+    });
+
+    return currentOptions;
+  }, []);
+
+  return options
+    .sort(
+      (a, b) =>
+        (a.order ?? Number.MAX_SAFE_INTEGER) -
+          (b.order ?? Number.MAX_SAFE_INTEGER) ||
+        a.sourceIndex - b.sourceIndex ||
+        a.id.localeCompare(b.id),
+    )
+    .map(({ order: _order, sourceIndex: _sourceIndex, ...option }) => option);
+};
+
 const normalizeLessonItem = (
   item: RawLearningHubLessonItem,
   fallbackId: string,
@@ -452,6 +510,25 @@ const normalizeLessonItem = (
     } satisfies ChooseCorrectWordItem;
   }
 
+  if (mechanic === "match_word_picture") {
+    const targetText =
+      asOptionalString(item.targetText) ?? legacyText.localText ?? "";
+    const targetEnglishText =
+      asOptionalString(item.targetEnglishText) ?? legacyText.englishText;
+
+    return {
+      ...base,
+      localText: targetText,
+      englishText: targetEnglishText,
+      mechanic,
+      promptText: prompt ?? "Tap the picture that matches",
+      targetText,
+      ...(targetEnglishText ? { targetEnglishText } : {}),
+      correctOptionId: asOptionalString(item.correctOptionId) ?? "",
+      options: normalizeMatchWordPictureOptions(item.options),
+    } satisfies MatchWordPictureItem;
+  }
+
   if (mechanic === "cultural_card") {
     return {
       ...base,
@@ -508,6 +585,39 @@ const isValidChooseCorrectWordItem = (
   );
 };
 
+const isValidMatchWordPictureItem = (
+  item: LearningLessonItem,
+): item is MatchWordPictureItem => {
+  if (item.mechanic !== "match_word_picture") {
+    return false;
+  }
+
+  const optionIds = item.options.map((option) => option.id);
+  const uniqueOptionIds = new Set(optionIds);
+
+  return (
+    Boolean(item.promptText.trim()) &&
+    Boolean(item.targetText.trim()) &&
+    item.options.length >= 2 &&
+    item.options.length <= 4 &&
+    uniqueOptionIds.size === item.options.length &&
+    item.options.every(
+      (option) =>
+        Boolean(option.id.trim()) &&
+        Boolean(option.localText.trim()) &&
+        Boolean(
+          option.imageKey ||
+            option.imageAsset ||
+            option.emoji?.trim() ||
+            option.englishText?.trim() ||
+            option.localText.trim(),
+        ),
+    ) &&
+    Boolean(item.correctOptionId.trim()) &&
+    item.options.some((option) => option.id === item.correctOptionId)
+  );
+};
+
 const isValidTapToLearnItem = (item: LearningLessonItem): item is TapToLearnItem =>
   item.mechanic === "tap_to_learn" &&
   Boolean(item.localText.trim()) &&
@@ -524,6 +634,10 @@ const isValidLessonItem = (item: LearningLessonItem): boolean => {
 
   if (item.mechanic === "choose_correct_word") {
     return isValidChooseCorrectWordItem(item);
+  }
+
+  if (item.mechanic === "match_word_picture") {
+    return isValidMatchWordPictureItem(item);
   }
 
   return true;

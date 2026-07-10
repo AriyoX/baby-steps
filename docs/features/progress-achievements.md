@@ -20,7 +20,10 @@ Progress and achievements help parents see what children have completed and rewa
 ## Main Files Involved
 
 - `lib/utils.ts`
+- `lib/progressRepository.ts`
+- `lib/learningProgressRepository.ts`
 - `utils/storage.ts`
+- `context/ChildContext.tsx`
 - `components/games/achievements/achievementTypes.ts`
 - `components/games/achievements/achievementManager.ts`
 - `components/games/achievements/useAchievements.ts`
@@ -83,6 +86,7 @@ Implemented on 2026-06-29 as a local-first MVP sync layer.
 Current local progress handling:
 
 - Learning game: `components/games/utils/progressManagerLugandaLearning.ts` stores `totalScore`, `completedLevels`, saved stage/level lock state, and `userStats` in AsyncStorage. Keys are scoped by `childId` and `languageCode`, with explicit legacy Luganda fallback keys. The screen reads progress in `LearningGameComponent` after loading `content_items`/local content and updates it on level completion.
+- Learning Hub: `lib/learningProgressRepository.ts` stores a local lesson-completion summary under `@BabySteps:LearningProgress:v1:summary:{childId}:{languageCode}:language`, mirrors whole-lesson completions into `child_activity_progress` and `child_stage_progress`, and rebuilds that local summary from hydrated shared progress rows. Learning Hub content remains local JSON.
 - Counting game: `components/games/utils/progressManagerCountingGame.ts` stores `unlockedStages`, `currentStage`, `totalScore`, `lastPlayedLevel`, `completedStages`, `playHistory`, and `childId` in AsyncStorage. Keys are scoped by `childId` and `languageCode`, with a legacy Luganda fallback. `CountingGameComponent` reads on child/language load and saves on stage selection, level changes, score achievements, and stage completion.
 - Word game: `components/games/utils/progressManagerWordGame.ts` stores unlocked/current/completed level indexes, score, play history, and `childId`. Keys are scoped by `childId` and `languageCode`, with legacy fallback. Completion saves now mirror into normalized progress.
 - Stories: legacy story components use `StoryProgress`; DB-backed stories use `GenericStoryRenderer`. They wrote `activities` rows on read/quiz completion and now also write normalized story progress only on completion.
@@ -161,13 +165,15 @@ Final hydration and sync rules:
 - Default hydration cooldown is 20 minutes. Within that window, opening the same game/profile does not refetch remote progress unless hydration is forced because local progress is missing or a manual sync path is added.
 - If local progress exists, background freshness checks only run when the cooldown is stale.
 - Child/profile switching starts by flushing the previous child’s dirty queue in the background, then syncs/hydrates the new child’s known activity types with cooldown checks.
+- Child/profile switching also merges hydrated Learning Hub `activity_type = "language"` rows back into the Learning Hub summary cache so the stage path can show Review/Completed after login or child switch.
 - Small progress mutations, such as stage selection or last-played level updates, save locally, mark dirty, and rely on the 15-second debounced sync.
 - Immediate `syncProgressNow(childId)` is reserved for meaningful events: learning/word level completion, counting stage completion, story read/quiz completion, artwork saved, child switch, and future manual/logout/background sync hooks.
 - Sync reconciliation fetches only the child/language/activity slices represented by dirty records before upserting, then skips local records when the remote `local_updated_at` is newer.
 
 Integrated now:
 
-- Learning: local load, remote hydration fallback on new device, normalized summary/stage mirror, background sync after completion.
+- Learning Hub: local lesson summary, remote hydration fallback from `child_activity_progress` / `child_stage_progress`, child/language-scoped cache keys, stage-path Review/Completed restoration, normalized progress mirror, and immediate sync attempt after whole-lesson completion.
+- Legacy Learning game: local load, remote hydration fallback on new device, normalized summary/stage mirror, background sync after completion.
 - Counting: local load, remote hydration fallback, content-order stage unlocks, normalized summary/stage mirror, background sync after stage completion.
 - Word game: normalized summary mirror and remote hydration fallback.
 - Stories: normalized completion rows for reads/quizzes.

@@ -9,3 +9,5 @@ points
 in curriculum, consider achievements and activities too. 
 
 reduce vertical scrolling within elements
+
+analytics

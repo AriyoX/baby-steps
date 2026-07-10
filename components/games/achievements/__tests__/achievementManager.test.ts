@@ -13,8 +13,12 @@ jest.mock("@react-native-async-storage/async-storage", () =>
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import {
+  LEARNING_HUB_ACHIEVEMENT_DEFINITIONS,
+  LEARNING_HUB_ACHIEVEMENT_IDS,
+  LEARNING_HUB_GAME_KEY,
   awardAchievementToChild,
   clearAchievementCaches,
+  checkAndGrantNewAchievements,
   fetchAllDefinedAchievements,
   fetchChildEarnedAchievements,
   getChildAchievementsCacheKey,
@@ -77,6 +81,56 @@ const createAwardInsertQuery = (
   }),
 });
 
+const mockSuccessfulSeededAward = (
+  childId: string,
+  achievementId: string,
+  earnedId = `earned-${achievementId}`,
+) => {
+  (supabase.from as jest.Mock)
+    .mockReturnValueOnce(createChildAchievementsQuery({ data: [], error: null }))
+    .mockReturnValueOnce(createExistingAchievementQuery({ data: null, error: null }))
+    .mockReturnValueOnce(
+      createAwardInsertQuery({
+        data: earned(earnedId, childId, achievementId),
+        error: null,
+      }),
+    );
+};
+
+const getLearningDefinition = (achievementId: string): AchievementDefinition => {
+  const definition = LEARNING_HUB_ACHIEVEMENT_DEFINITIONS.find(
+    (achievement) => achievement.id === achievementId,
+  );
+
+  if (!definition) {
+    throw new Error(`Missing Learning Hub achievement definition: ${achievementId}`);
+  }
+
+  return definition;
+};
+
+const createLearningEvent = (
+  overrides: Partial<Parameters<typeof checkAndGrantNewAchievements>[0]["event"]> = {},
+): Parameters<typeof checkAndGrantNewAchievements>[0]["event"] => ({
+  type: "learning_hub_lesson_completed",
+  gameKey: LEARNING_HUB_GAME_KEY,
+  languageCode: "lg",
+  stageId: "first-words",
+  levelId: "greetings-1",
+  lessonId: "greetings-1",
+  completedLessonCount: 1,
+  completedLessonIds: ["greetings-1"],
+  stageStartableLessonIds: [
+    "greetings-1",
+    "listen-greetings-1",
+    "first-words-word-check",
+    "first-words-picture-match",
+    "first-words-quick-review",
+  ],
+  mechanicTypes: ["tap_to_learn"],
+  ...overrides,
+});
+
 beforeEach(async () => {
   jest.clearAllMocks();
   await clearAchievementCaches();
@@ -95,8 +149,24 @@ describe("achievement Supabase read cache", () => {
     const allDefinitions = await fetchAllDefinedAchievements();
     const wordDefinitions = await fetchAllDefinedAchievements("word_game");
 
-    expect(allDefinitions).toHaveLength(2);
+    expect(allDefinitions.length).toBeGreaterThanOrEqual(7);
     expect(wordDefinitions.map((item) => item.id)).toEqual(["word-achievement"]);
+    expect(supabase.from).toHaveBeenCalledTimes(1);
+  });
+
+  it("includes built-in Learning Hub definitions when remote definitions are empty", async () => {
+    (supabase.from as jest.Mock).mockReturnValueOnce(
+      createDefinitionsQuery({
+        data: [],
+        error: null,
+      }),
+    );
+
+    const learningDefinitions = await fetchAllDefinedAchievements(LEARNING_HUB_GAME_KEY);
+
+    expect(learningDefinitions.map((item) => item.id).sort()).toEqual(
+      LEARNING_HUB_ACHIEVEMENT_DEFINITIONS.map((item) => item.id).sort(),
+    );
     expect(supabase.from).toHaveBeenCalledTimes(1);
   });
 
@@ -162,5 +232,162 @@ describe("achievement Supabase read cache", () => {
     expect(cachedEarned).toEqual([existing]);
     expect(existingQuery.maybeSingle).toHaveBeenCalledTimes(1);
     expect(supabase.from).toHaveBeenCalledTimes(1);
+  });
+
+  it("prevents duplicate awards from the local child achievement cache", async () => {
+    const existing = earned(
+      "earned-existing",
+      "child-1",
+      LEARNING_HUB_ACHIEVEMENT_IDS.FIRST_LEARNING_STEP,
+    );
+    (supabase.from as jest.Mock).mockReturnValueOnce(
+      createChildAchievementsQuery({ data: [existing], error: null }),
+    );
+
+    await expect(
+      awardAchievementToChild(
+        "child-1",
+        LEARNING_HUB_ACHIEVEMENT_IDS.FIRST_LEARNING_STEP,
+      ),
+    ).resolves.toEqual(existing);
+
+    jest.clearAllMocks();
+
+    await expect(
+      awardAchievementToChild(
+        "child-1",
+        LEARNING_HUB_ACHIEVEMENT_IDS.FIRST_LEARNING_STEP,
+      ),
+    ).resolves.toEqual(existing);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+});
+
+describe("Learning Hub achievement checks", () => {
+  it("awards First Learning Step after any completed Learning Hub lesson", async () => {
+    const definition = getLearningDefinition(
+      LEARNING_HUB_ACHIEVEMENT_IDS.FIRST_LEARNING_STEP,
+    );
+    mockSuccessfulSeededAward("child-1", definition.id);
+
+    const newlyEarned = await checkAndGrantNewAchievements({
+      childId: "child-1",
+      definedAchievements: [definition],
+      earnedAchievementIds: [],
+      event: createLearningEvent(),
+    });
+
+    expect(newlyEarned.map((achievement) => achievement.id)).toEqual([definition.id]);
+  });
+
+  it("awards Learning Starter after 3 completed Learning Hub lessons", async () => {
+    const definition = getLearningDefinition(
+      LEARNING_HUB_ACHIEVEMENT_IDS.LEARNING_STARTER,
+    );
+    mockSuccessfulSeededAward("child-1", definition.id);
+
+    const newlyEarned = await checkAndGrantNewAchievements({
+      childId: "child-1",
+      definedAchievements: [definition],
+      earnedAchievementIds: [],
+      event: createLearningEvent({
+        completedLessonCount: 3,
+        completedLessonIds: [
+          "greetings-1",
+          "listen-greetings-1",
+          "first-words-word-check",
+        ],
+      }),
+    });
+
+    expect(newlyEarned.map((achievement) => achievement.id)).toEqual([definition.id]);
+  });
+
+  it("awards First Words Explorer after all startable First Words lessons", async () => {
+    const definition = getLearningDefinition(
+      LEARNING_HUB_ACHIEVEMENT_IDS.FIRST_WORDS_EXPLORER,
+    );
+    const firstWordsLessonIds = [
+      "greetings-1",
+      "listen-greetings-1",
+      "first-words-word-check",
+      "first-words-picture-match",
+      "first-words-quick-review",
+    ];
+    mockSuccessfulSeededAward("child-1", definition.id);
+
+    const newlyEarned = await checkAndGrantNewAchievements({
+      childId: "child-1",
+      definedAchievements: [definition],
+      earnedAchievementIds: [],
+      event: createLearningEvent({
+        levelId: "first-words-quick-review",
+        lessonId: "first-words-quick-review",
+        completedLessonCount: firstWordsLessonIds.length,
+        completedLessonIds: firstWordsLessonIds,
+        stageStartableLessonIds: firstWordsLessonIds,
+        mechanicTypes: ["mini_quiz"],
+      }),
+    });
+
+    expect(newlyEarned.map((achievement) => achievement.id)).toEqual([definition.id]);
+  });
+
+  it("awards Quiz Helper after a mini quiz Learning Hub lesson", async () => {
+    const definition = getLearningDefinition(LEARNING_HUB_ACHIEVEMENT_IDS.QUIZ_HELPER);
+    mockSuccessfulSeededAward("child-1", definition.id);
+
+    const newlyEarned = await checkAndGrantNewAchievements({
+      childId: "child-1",
+      definedAchievements: [definition],
+      earnedAchievementIds: [],
+      event: createLearningEvent({
+        levelId: "family-mini-quiz",
+        lessonId: "family-mini-quiz",
+        mechanicTypes: ["mini_quiz"],
+      }),
+    });
+
+    expect(newlyEarned.map((achievement) => achievement.id)).toEqual([definition.id]);
+  });
+
+  it("awards Story Listener after a story bite Learning Hub lesson", async () => {
+    const definition = getLearningDefinition(
+      LEARNING_HUB_ACHIEVEMENT_IDS.STORY_LISTENER,
+    );
+    mockSuccessfulSeededAward("child-1", definition.id);
+
+    const newlyEarned = await checkAndGrantNewAchievements({
+      childId: "child-1",
+      definedAchievements: [definition],
+      earnedAchievementIds: [],
+      event: createLearningEvent({
+        stageId: "family-home",
+        levelId: "thank-you-at-home-story",
+        lessonId: "thank-you-at-home-story",
+        mechanicTypes: ["story_bite"],
+      }),
+    });
+
+    expect(newlyEarned.map((achievement) => achievement.id)).toEqual([definition.id]);
+  });
+
+  it("does not award Learning Starter before 3 completed lessons", async () => {
+    const definition = getLearningDefinition(
+      LEARNING_HUB_ACHIEVEMENT_IDS.LEARNING_STARTER,
+    );
+
+    const newlyEarned = await checkAndGrantNewAchievements({
+      childId: "child-1",
+      definedAchievements: [definition],
+      earnedAchievementIds: [],
+      event: createLearningEvent({
+        completedLessonCount: 2,
+        completedLessonIds: ["greetings-1", "listen-greetings-1"],
+      }),
+    });
+
+    expect(newlyEarned).toEqual([]);
+    expect(supabase.from).not.toHaveBeenCalled();
   });
 });

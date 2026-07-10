@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { View, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
 import { Text } from "@/components/StyledText";
 import { TranslatedText } from "@/components/translated-text";
 import { useRouter } from "expo-router";
@@ -9,6 +9,10 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/lib/supabase"; // Your Supabase client
+import {
+  AchievementCard,
+  type AchievementChildBadge,
+} from "@/components/games/achievements/AchievementCard";
 
 import { 
     fetchAllDefinedAchievements, 
@@ -38,6 +42,7 @@ const getGameDisplayName = (gameKey: string | null | undefined): string => {
     switch (gameKey) {
         case "counting_game": return "Counting Game";
         case "luganda_learning_game": return "Luganda Learning";
+        case "learning_hub": return "Learning Hub";
         case "card_matching_game": return "Cultural Cards Match";
         case "word_game": return "Word Game";
         case "puzzle_game": return "Puzzle Game";
@@ -55,10 +60,12 @@ export default function AllAchievementsScreen() {
   const [earnedAchievementsByChild, setEarnedAchievementsByChild] = useState<Record<string, ChildAchievement[]>>({});
   // Add state for game filter
   const [selectedGameFilter, setSelectedGameFilter] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
+      setErrorMessage(null);
       try {
         // 1. Fetch current parent's children
         const { data: sessionData } = await supabase.auth.getSession();
@@ -97,6 +104,7 @@ export default function AllAchievementsScreen() {
 
       } catch (error) {
         console.error("Error fetching data for AllAchievementsScreen:", error);
+        setErrorMessage("We could not load achievements right now.");
       } finally {
         setLoading(false);
       }
@@ -214,11 +222,18 @@ export default function AllAchievementsScreen() {
           </View>
         )}
 
-        <ScrollView className="flex-1">
-          {Object.keys(filteredAchievements).length === 0 && !loading && (
-            <View className="p-6 items-center">
-                <Ionicons name="trophy-outline" size={48} color="#cbd5e1" className="mb-3"/>
-                <Text className="text-slate-500 text-center">No achievements defined yet or no children found.</Text>
+        <ScrollView className="flex-1" contentContainerStyle={styles.scrollContent}>
+          {errorMessage && (
+            <View style={styles.stateBox}>
+              <Ionicons name="alert-circle-outline" size={42} color="#FF7B6C" />
+              <Text className="text-slate-600 text-center mt-2">{errorMessage}</Text>
+            </View>
+          )}
+
+          {Object.keys(filteredAchievements).length === 0 && !loading && !errorMessage && (
+            <View style={styles.stateBox}>
+                <Ionicons name="trophy-outline" size={48} color="#cbd5e1" />
+                <Text className="text-slate-500 text-center mt-2">No badges yet. Complete Learning Hub lessons and games to see them here.</Text>
             </View>
           )}
 
@@ -231,57 +246,24 @@ export default function AllAchievementsScreen() {
                 {getGameDisplayName(gameKey)}
               </Text>
               {achievementsInGroup.length > 0 ? (
-                <View className="space-y-3">
-                  {achievementsInGroup.map((ach) => (
-                    <View
-                      key={ach.id} // ach.id is AchievementDefinition.id, unique within defined achievements
-                      className="bg-white rounded-xl p-4 shadow-sm border border-gray-100"
-                    >
-                      <View className="flex-row items-start">
-                        <View className={`mr-4 mt-1 p-3 rounded-full shadow-sm ${ach.earnedByChildren.length > 0 ? 'bg-amber-100' : 'bg-slate-100'}`}>
-                          <Ionicons
-                            name={(ach.icon_name as any) || 'star-outline'}
-                            size={26}
-                            color={ach.earnedByChildren.length > 0 ? "#d97706" : "#9ca3af"}
-                          />
-                        </View>
-                        <View className="flex-1">
-                          <Text variant="medium" className="text-base text-gray-700">{ach.name}</Text>
-                          <Text className="text-xs text-gray-500 mt-0.5 mb-1.5" numberOfLines={2}>{ach.description}</Text>
-                          <View className="flex-row items-center bg-slate-50 px-2 py-0.5 rounded-full self-start mb-2">
-                              <Ionicons name="star" size={12} color="#a78bfa"/>
-                              <Text className="text-xs text-purple-700 ml-1">+{ach.points} Points</Text>
-                          </View>
-                          
-                          {/* Display children who earned this */}
-                          {childrenProfiles.length > 0 && (
-                            <View>
-                                <Text className="text-xs text-slate-600 mb-1">Earned by:</Text>
-                                {ach.earnedByChildren.length > 0 ? (
-                                    <View className="flex-row flex-wrap items-center">
-                                        {ach.earnedByChildren.map(child => (
-                                            <View key={child.id} className="flex-row items-center bg-green-50 border border-green-200 rounded-full px-2 py-0.5 mr-1.5 mb-1.5">
-                                                <Text className="text-xl text-xs mr-1">{child.avatar}</Text>
-                                                <Text className="text-xs text-green-700">{child.name}</Text>
-                                            </View>
-                                        ))}
-                                        {/* Show remaining children who haven't earned it */}
-                                        {childrenProfiles.filter(cp => !ach.earnedByChildren.find(ebc => ebc.id === cp.id)).map(child => (
-                                            <View key={child.id} className="flex-row items-center bg-gray-50 border border-gray-200 rounded-full px-2 py-0.5 mr-1.5 mb-1.5 opacity-60">
-                                                 <Text className="text-xl text-xs mr-1">{child.avatar}</Text>
-                                                <Text className="text-xs text-gray-500">{child.name}</Text>
-                                            </View>
-                                        ))}
-                                    </View>
-                                ) : (
-                                    <Text className="text-xs text-slate-400 italic">Not yet earned by any child.</Text>
-                                )}
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                    </View>
-                  ))}
+                <View style={styles.cardList}>
+                  {achievementsInGroup.map((ach) => {
+                    const unearnedChildren: AchievementChildBadge[] = childrenProfiles.filter(
+                      (child) =>
+                        !ach.earnedByChildren.find((earnedChild) => earnedChild.id === child.id),
+                    );
+
+                    return (
+                      <AchievementCard
+                        key={ach.id}
+                        achievement={ach}
+                        unlocked={ach.earnedByChildren.length > 0}
+                        earnedByChildren={ach.earnedByChildren}
+                        unearnedChildren={unearnedChildren}
+                        emptyEarnedText="No child has earned this badge yet."
+                      />
+                    );
+                  })}
                 </View>
               ) : (
                 <Text className="text-slate-500">No achievements defined for this game yet.</Text>
@@ -293,3 +275,17 @@ export default function AllAchievementsScreen() {
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  scrollContent: {
+    paddingBottom: 24,
+  },
+  stateBox: {
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+  },
+  cardList: {
+    gap: 12,
+  },
+});

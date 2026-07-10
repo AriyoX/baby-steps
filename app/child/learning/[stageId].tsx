@@ -31,6 +31,7 @@ import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientati
 import {
   getCompletedLearningLessonIds,
   getLearningProgressChildId,
+  hydrateLearningProgressFromRemote,
 } from "@/lib/learningProgressRepository";
 
 const getRouteStageId = (value: unknown): string => {
@@ -290,7 +291,10 @@ export default function LearningStagePathScreen() {
     useCallback(() => {
       let isActive = true;
 
-      void getCompletedLearningLessonIds(childId, languageCode)
+      void (async () => {
+        await hydrateLearningProgressFromRemote(childId, languageCode);
+        return getCompletedLearningLessonIds(childId, languageCode);
+      })()
         .then((lessonIds) => {
           if (isActive) {
             setCompletedLessonIds(lessonIds);

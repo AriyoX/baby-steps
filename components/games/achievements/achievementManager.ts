@@ -9,6 +9,68 @@ import type { PuzzleGameProgress } from '../utils/progressManagerPuzzleGame';
 
 export const ACHIEVEMENT_DEFINITIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 export const CHILD_ACHIEVEMENTS_CACHE_TTL_MS = 15 * 60 * 1000;
+export const LEARNING_HUB_GAME_KEY = 'learning_hub';
+
+export const LEARNING_HUB_ACHIEVEMENT_IDS = {
+  FIRST_LEARNING_STEP: '7d4f6a00-4b5f-4e00-9a10-000000000101',
+  LEARNING_STARTER: '7d4f6a00-4b5f-4e00-9a10-000000000102',
+  FIRST_WORDS_EXPLORER: '7d4f6a00-4b5f-4e00-9a10-000000000103',
+  QUIZ_HELPER: '7d4f6a00-4b5f-4e00-9a10-000000000104',
+  STORY_LISTENER: '7d4f6a00-4b5f-4e00-9a10-000000000105',
+} as const;
+
+export const LEARNING_HUB_ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
+  {
+    id: LEARNING_HUB_ACHIEVEMENT_IDS.FIRST_LEARNING_STEP,
+    name: 'First Learning Step',
+    description: 'You finished your first Learning Hub lesson.',
+    icon_name: 'footsteps-outline',
+    activity_type: 'learning_hub_first_lesson',
+    points: 10,
+    trigger_value: null,
+    game_key: LEARNING_HUB_GAME_KEY,
+  },
+  {
+    id: LEARNING_HUB_ACHIEVEMENT_IDS.LEARNING_STARTER,
+    name: 'Learning Starter',
+    description: 'You completed 3 Learning Hub lessons.',
+    icon_name: 'school-outline',
+    activity_type: 'learning_hub_lessons_completed',
+    points: 15,
+    trigger_value: 3,
+    game_key: LEARNING_HUB_GAME_KEY,
+  },
+  {
+    id: LEARNING_HUB_ACHIEVEMENT_IDS.FIRST_WORDS_EXPLORER,
+    name: 'First Words Explorer',
+    description: 'You completed every startable First Words lesson.',
+    icon_name: 'ribbon-outline',
+    activity_type: 'learning_hub_first_words_complete',
+    points: 25,
+    trigger_value: null,
+    game_key: LEARNING_HUB_GAME_KEY,
+  },
+  {
+    id: LEARNING_HUB_ACHIEVEMENT_IDS.QUIZ_HELPER,
+    name: 'Quiz Helper',
+    description: 'You finished a Learning Hub quiz lesson.',
+    icon_name: 'help-circle-outline',
+    activity_type: 'learning_hub_mini_quiz_lesson',
+    points: 15,
+    trigger_value: null,
+    game_key: LEARNING_HUB_GAME_KEY,
+  },
+  {
+    id: LEARNING_HUB_ACHIEVEMENT_IDS.STORY_LISTENER,
+    name: 'Story Listener',
+    description: 'You finished a Learning Hub story bite.',
+    icon_name: 'book-outline',
+    activity_type: 'learning_hub_story_bite_lesson',
+    points: 15,
+    trigger_value: null,
+    game_key: LEARNING_HUB_GAME_KEY,
+  },
+];
 
 const CACHE_VERSION = 1;
 const ACHIEVEMENT_DEFINITIONS_CACHE_KEY = 'cache:achievements:definitions';
@@ -130,6 +192,26 @@ const filterDefinitionsByGameKey = (
     ? definitions.filter((achievement) => achievement.game_key === gameKey)
     : definitions;
 
+const mergeBuiltInAchievementDefinitions = (
+  definitions: AchievementDefinition[],
+): AchievementDefinition[] => {
+  const merged = new Map<string, AchievementDefinition>();
+
+  LEARNING_HUB_ACHIEVEMENT_DEFINITIONS.forEach((achievement) => {
+    merged.set(achievement.id, achievement);
+  });
+  definitions.forEach((achievement) => {
+    merged.set(achievement.id, achievement);
+  });
+
+  return [...merged.values()].sort(
+    (first, second) =>
+      first.points - second.points ||
+      (first.game_key ?? '').localeCompare(second.game_key ?? '') ||
+      first.name.localeCompare(second.name),
+  );
+};
+
 const fetchAchievementDefinitionsFromRemote = async (): Promise<AchievementDefinition[]> => {
   const query = supabase.from('achievements').select('*').order('points', { ascending: true });
   const { data, error } = await query;
@@ -145,7 +227,11 @@ const refreshAchievementDefinitionsInBackground = (): void => {
 
   const refresh = fetchAchievementDefinitionsFromRemote()
     .then((definitions) =>
-      writeCacheEntry(key, achievementDefinitionMemoryCache, definitions),
+      writeCacheEntry(
+        key,
+        achievementDefinitionMemoryCache,
+        mergeBuiltInAchievementDefinitions(definitions),
+      ),
     )
     .catch((error) => {
       console.warn('Could not refresh achievement definitions cache.', error);
@@ -278,7 +364,10 @@ export const fetchAllDefinedAchievements = async (
     );
 
     if (cached) {
-      return filterDefinitionsByGameKey(cached.data, gameKey);
+      return filterDefinitionsByGameKey(
+        mergeBuiltInAchievementDefinitions(cached.data),
+        gameKey,
+      );
     }
 
     const staleCached = await readCacheEntry(
@@ -291,12 +380,17 @@ export const fetchAllDefinedAchievements = async (
 
     if (staleCached) {
       refreshAchievementDefinitionsInBackground();
-      return filterDefinitionsByGameKey(staleCached.data, gameKey);
+      return filterDefinitionsByGameKey(
+        mergeBuiltInAchievementDefinitions(staleCached.data),
+        gameKey,
+      );
     }
   }
 
   try {
-    const definitions = await fetchAchievementDefinitionsFromRemote();
+    const definitions = mergeBuiltInAchievementDefinitions(
+      await fetchAchievementDefinitionsFromRemote(),
+    );
     await writeCacheEntry(key, achievementDefinitionMemoryCache, definitions);
     return filterDefinitionsByGameKey(definitions, gameKey);
   } catch (error) {
@@ -308,7 +402,10 @@ export const fetchAllDefinedAchievements = async (
       isAchievementDefinitions,
       true,
     );
-    return filterDefinitionsByGameKey(cached?.data ?? [], gameKey);
+    return filterDefinitionsByGameKey(
+      mergeBuiltInAchievementDefinitions(cached?.data ?? []),
+      gameKey,
+    );
   }
 };
 
@@ -417,7 +514,6 @@ export const awardAchievementToChild = async (
     }
     return null;
   }
-  console.log('Achievement awarded:', data);
   await cacheAwardedChildAchievement(childId, data as ChildAchievement);
   return data;
 };
@@ -447,12 +543,15 @@ interface CheckAchievementsArgs {
       | 'puzzle_game_started' // For first play
       | 'puzzle_game_completed_successfully' // For any completion, specific completion, low moves, quick time
       | 'puzzle_game_stats_updated'
+      | 'learning_hub_lesson_completed'
       ;
       
     gameKey: string; // e.g., 'luganda_learning_game', 'counting_game'
     // Game-specific data carried by the event
-    levelId?: number;
-    stageId?: number;
+    levelId?: number | string;
+    stageId?: number | string;
+    lessonId?: string;
+    languageCode?: string;
     newTotalScore?: number;
     currentLevelScore?: number; // for perfect clear
     currentLevelMaxScore?: number; // for perfect clear
@@ -475,6 +574,11 @@ interface CheckAchievementsArgs {
     durationInSeconds?: number;
     puzzleGameProgress?: PuzzleGameProgress; // Current state of completed unique puzzles, games played
     totalUniquePuzzlesAvailable?: number;
+    // Learning Hub specific event data
+    completedLessonCount?: number;
+    completedLessonIds?: string[];
+    stageStartableLessonIds?: string[];
+    mechanicTypes?: string[];
   };
 }
 
@@ -716,6 +820,59 @@ export const checkAndGrantNewAchievements = async ({
               achDef.trigger_value !== null && achDef.trigger_value !== undefined && // trigger_value is the count of all unique puzzles
               event.puzzleGameProgress.completedPuzzleIds.length >= Number(achDef.trigger_value) &&
               event.puzzleGameProgress.completedPuzzleIds.length === event.totalUniquePuzzlesAvailable) {
+            shouldAward = true;
+          }
+          break;
+      }
+    }
+
+    else if (event.gameKey === LEARNING_HUB_GAME_KEY) {
+      const completedLessonIds = event.completedLessonIds ?? [];
+      const stageStartableLessonIds = event.stageStartableLessonIds ?? [];
+      const mechanicTypes = event.mechanicTypes ?? [];
+
+      switch (achDef.activity_type) {
+        case 'learning_hub_first_lesson':
+          if (event.type === 'learning_hub_lesson_completed') {
+            shouldAward = true;
+          }
+          break;
+        case 'learning_hub_lessons_completed':
+          if (
+            event.type === 'learning_hub_lesson_completed' &&
+            event.completedLessonCount !== undefined &&
+            achDef.trigger_value !== null &&
+            achDef.trigger_value !== undefined &&
+            event.completedLessonCount >= Number(achDef.trigger_value)
+          ) {
+            shouldAward = true;
+          }
+          break;
+        case 'learning_hub_first_words_complete':
+          if (
+            event.type === 'learning_hub_lesson_completed' &&
+            event.stageId === 'first-words' &&
+            stageStartableLessonIds.length > 0 &&
+            stageStartableLessonIds.every((lessonId) =>
+              completedLessonIds.includes(lessonId),
+            )
+          ) {
+            shouldAward = true;
+          }
+          break;
+        case 'learning_hub_mini_quiz_lesson':
+          if (
+            event.type === 'learning_hub_lesson_completed' &&
+            mechanicTypes.includes('mini_quiz')
+          ) {
+            shouldAward = true;
+          }
+          break;
+        case 'learning_hub_story_bite_lesson':
+          if (
+            event.type === 'learning_hub_lesson_completed' &&
+            mechanicTypes.includes('story_bite')
+          ) {
             shouldAward = true;
           }
           break;

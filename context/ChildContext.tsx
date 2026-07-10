@@ -1,5 +1,8 @@
 import React, { createContext, useCallback, useContext, useRef, useState } from 'react';
-import { DEFAULT_LEARNING_LANGUAGE_CODE } from '@/content/languages';
+import {
+  DEFAULT_LEARNING_LANGUAGE_CODE,
+  getDbLanguageCodeForLearningLanguage,
+} from '@/content/languages';
 import { hydrateProgressFromRemote, syncProgressNow } from '@/lib/progressRepository';
 
 interface ChildProfile {
@@ -35,11 +38,19 @@ export const ChildProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       if (child?.id) {
-        const languageCode = child.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE;
+        const languageCode = getDbLanguageCodeForLearningLanguage(
+          child.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE,
+        );
         await syncProgressNow(child.id);
         await hydrateProgressFromRemote(child.id, languageCode, {
           activityTypes: PROGRESS_ACTIVITY_TYPES,
         });
+        const {
+          hydrateLearningProgressFromSharedProgress,
+        }: typeof import('@/lib/learningProgressRepository') = require(
+          '@/lib/learningProgressRepository',
+        );
+        await hydrateLearningProgressFromSharedProgress(child.id, languageCode);
       }
     })();
   }, []);

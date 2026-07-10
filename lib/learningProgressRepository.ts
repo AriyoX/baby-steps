@@ -1,15 +1,29 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { AchievementDefinition } from "@/components/games/achievements/achievementTypes";
 import { getDbLanguageCodeForLearningLanguage } from "@/content/languages";
+import {
+  getLearningHubStages,
+  getLessonStatus,
+  type LearningHubLesson,
+  type LearningHubStage,
+} from "@/content/learningHubRepository";
 import type { ItemResult } from "@/content/learningHubTypes";
+import { checkAndGrantLearningHubAchievements } from "@/lib/learningAchievements";
 import type {
   LearningActivityType,
   LearningLessonCompletion,
   LearningProgressSummary,
 } from "@/lib/learningProgressTypes";
 import {
+  getActivityProgress,
+  getStageProgress,
+  hydrateProgressFromRemote,
   markLevelCompleted,
+  markStageCompleted,
   syncProgressNow,
   updateActivityProgress,
+  type ChildActivityProgress,
+  type ChildStageProgress,
 } from "@/lib/progressRepository";
 import { saveActivity, type Activity } from "@/lib/utils";
 
@@ -137,6 +151,26 @@ const getCompletionLessonId = (completion: LearningLessonCompletion): string =>
 const toCompletionIso = (completedAt: number): string =>
   new Date(completedAt).toISOString();
 
+const toCompletionMillis = (value: unknown, fallback = Date.now()): number => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Date.parse(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return fallback;
+};
+
+const getStageStartableLessonIds = (stage: LearningHubStage): string[] =>
+  stage.lessons
+    .filter((lesson) => getLessonStatus(lesson, stage) === "startable")
+    .map((lesson) => lesson.id);
+
 const buildLessonProgressPayload = (
   completion: LearningLessonCompletion,
 ): Record<string, unknown> =>
@@ -168,14 +202,14 @@ const buildActivityProgressPayload = (
       const completion = summary.completedByLessonId[lessonId];
 
       return compactRecord({
-      stageId: completion.stageId,
-      lessonId: getCompletionLessonId(completion),
-      stageTitle: completion.progressPayload.stageTitle,
-      lessonTitle: completion.progressPayload.lessonTitle,
-      stageNumber: completion.progressPayload.stageNumber,
-      lessonOrder: completion.progressPayload.lessonOrder,
-      score: completion.score,
-      attempts: completion.attempts,
+        stageId: completion.stageId,
+        lessonId: getCompletionLessonId(completion),
+        stageTitle: completion.progressPayload.stageTitle,
+        lessonTitle: completion.progressPayload.lessonTitle,
+        stageNumber: completion.progressPayload.stageNumber,
+        lessonOrder: completion.progressPayload.lessonOrder,
+        score: completion.score,
+        attempts: completion.attempts,
         completedAt: completion.completedAt,
       });
     }),
@@ -195,6 +229,28 @@ const buildActivityProgressPayload = (
       completedAt: latestCompletion.completedAt,
     }),
   });
+
+const buildStageProgressPayload = (
+  summary: LearningProgressSummary,
+  completion: LearningLessonCompletion,
+): Record<string, unknown> => {
+  const stageLessonIds = completion.progressPayload.stageLessonIds ?? [];
+  const completedLessonIds = stageLessonIds.filter((lessonId) =>
+    summary.completedLessonIds.includes(lessonId),
+  );
+
+  return compactRecord({
+    source: LEARNING_PROGRESS_SOURCE,
+    stageId: completion.stageId,
+    stageTitle: completion.progressPayload.stageTitle,
+    stageNumber: completion.progressPayload.stageNumber,
+    completedLessonIds,
+    completedLessonCount: completedLessonIds.length,
+    totalStartableLessons: stageLessonIds.length,
+    contentVersion: completion.progressPayload.contentVersion,
+    completedAt: completion.completedAt,
+  });
+};
 
 const getActivityTitle = (
   value: string | undefined,
@@ -318,6 +374,11 @@ const saveLearningActivityEntries = async (
   previousSummary: LearningProgressSummary,
   updatedSummary: LearningProgressSummary,
   completion: LearningLessonCompletion,
+  stageJustCompleted = getStageJustCompleted(
+    previousSummary,
+    updatedSummary,
+    completion,
+  ),
 ): Promise<void> => {
   if (completion.childId === LOCAL_LEARNING_FALLBACK_CHILD_ID) {
     return;
@@ -325,7 +386,7 @@ const saveLearningActivityEntries = async (
 
   await saveLearningActivityEntry(buildLearningLessonActivity(completion));
 
-  if (getStageJustCompleted(previousSummary, updatedSummary, completion)) {
+  if (stageJustCompleted) {
     await saveLearningActivityEntry(buildLearningStageActivity(completion));
   }
 };
@@ -333,6 +394,7 @@ const saveLearningActivityEntries = async (
 const queueLearningLessonProgressSync = async (
   summary: LearningProgressSummary,
   completion: LearningLessonCompletion,
+  stageJustCompleted: boolean,
 ): Promise<void> => {
   if (completion.childId === LOCAL_LEARNING_FALLBACK_CHILD_ID) {
     return;
@@ -365,6 +427,26 @@ const queueLearningLessonProgressSync = async (
         progress_payload: buildLessonProgressPayload(completion),
       },
     );
+    if (stageJustCompleted) {
+      const stageLessonIds = completion.progressPayload.stageLessonIds ?? [];
+      const stageAttempts = stageLessonIds.reduce((total, lessonId) => {
+        const stageCompletion = summary.completedByLessonId[lessonId];
+        return total + (stageCompletion?.attempts ?? 0);
+      }, 0);
+
+      await markStageCompleted(
+        completion.childId,
+        completion.languageCode,
+        LEARNING_ACTIVITY_TYPE,
+        completion.stageId,
+        {
+          score: 100,
+          attempts: stageAttempts,
+          completed_at: toCompletionIso(completion.completedAt),
+          progress_payload: buildStageProgressPayload(summary, completion),
+        },
+      );
+    }
     void syncProgressNow(completion.childId).catch((error) => {
       console.warn("Could not sync Learning lesson progress immediately:", error);
     });
@@ -559,6 +641,306 @@ const writeSummary = async (
   return sanitizedSummary;
 };
 
+const getCompletionFromStageProgress = (
+  record: ChildStageProgress,
+  stage: LearningHubStage,
+  lesson: LearningHubLesson,
+): LearningLessonCompletion | null => {
+  const progressPayload = asRecord(record.progress_payload);
+  const lessonId = asOptionalString(progressPayload.lessonId) ?? record.level_id;
+
+  if (
+    record.activity_type !== LEARNING_ACTIVITY_TYPE ||
+    record.status !== "completed" ||
+    progressPayload.source !== LEARNING_PROGRESS_SOURCE ||
+    record.stage_id !== stage.id ||
+    record.level_id !== lesson.id ||
+    lessonId !== lesson.id
+  ) {
+    return null;
+  }
+
+  const itemResults = Array.isArray(progressPayload.itemResults)
+    ? progressPayload.itemResults
+    : [];
+  const mechanicTypes = asStringArray(progressPayload.mechanicTypes);
+  const completedAt = toCompletionMillis(
+    progressPayload.completedAt,
+    toCompletionMillis(record.completed_at),
+  );
+
+  return sanitizeCompletion(
+    {
+      localId: buildLearningCompletionLocalId(
+        record.child_id,
+        record.language_code,
+        stage.id,
+        lesson.id,
+      ),
+      childId: record.child_id,
+      languageCode: record.language_code,
+      activityType: LEARNING_ACTIVITY_TYPE,
+      stageId: stage.id,
+      levelId: lesson.id,
+      status: "completed",
+      score: record.score ?? undefined,
+      stars: record.stars ?? undefined,
+      attempts: record.attempts,
+      completedAt,
+      progressPayload: {
+        source: LEARNING_PROGRESS_SOURCE,
+        lessonId,
+        stageTitle: asOptionalString(progressPayload.stageTitle) ?? stage.title,
+        lessonTitle: asOptionalString(progressPayload.lessonTitle) ?? lesson.title,
+        stageNumber:
+          typeof progressPayload.stageNumber === "number"
+            ? progressPayload.stageNumber
+            : stage.stageNumber,
+        lessonOrder:
+          typeof progressPayload.lessonOrder === "number"
+            ? progressPayload.lessonOrder
+            : lesson.order,
+        stageLessonIds: getStageStartableLessonIds(stage),
+        mechanicTypes: mechanicTypes.length > 0 ? mechanicTypes : [lesson.mechanic],
+        itemResults,
+        totalItems:
+          typeof progressPayload.totalItems === "number"
+            ? progressPayload.totalItems
+            : itemResults.length,
+        correctItems:
+          typeof progressPayload.correctItems === "number"
+            ? progressPayload.correctItems
+            : itemResults.filter((result) => asRecord(result).correct !== false).length,
+        completedAt,
+        contentVersion:
+          typeof progressPayload.contentVersion === "string"
+            ? progressPayload.contentVersion
+            : undefined,
+      },
+      readiness: "local_only",
+    },
+    {
+      childId: record.child_id,
+      languageCode: record.language_code,
+      activityType: LEARNING_ACTIVITY_TYPE,
+      lessonId,
+    },
+  );
+};
+
+const getCompletionFromActivityPayload = (
+  record: Record<string, unknown>,
+  activityProgress: ChildActivityProgress,
+  stage: LearningHubStage,
+  lesson: LearningHubLesson,
+): LearningLessonCompletion | null => {
+  const lessonId = asOptionalString(record.lessonId);
+  if (lessonId !== lesson.id) {
+    return null;
+  }
+
+  const completedAt = toCompletionMillis(
+    record.completedAt,
+    toCompletionMillis(activityProgress.local_updated_at),
+  );
+
+  return sanitizeCompletion(
+    {
+      localId: buildLearningCompletionLocalId(
+        activityProgress.child_id,
+        activityProgress.language_code,
+        stage.id,
+        lesson.id,
+      ),
+      childId: activityProgress.child_id,
+      languageCode: activityProgress.language_code,
+      activityType: LEARNING_ACTIVITY_TYPE,
+      stageId: stage.id,
+      levelId: lesson.id,
+      status: "completed",
+      score:
+        typeof record.score === "number"
+          ? record.score
+          : activityProgress.score ?? undefined,
+      stars: activityProgress.stars ?? undefined,
+      attempts:
+        typeof record.attempts === "number"
+          ? asNonNegativeInteger(record.attempts)
+          : 0,
+      completedAt,
+      progressPayload: {
+        source: LEARNING_PROGRESS_SOURCE,
+        lessonId,
+        stageTitle: asOptionalString(record.stageTitle) ?? stage.title,
+        lessonTitle: asOptionalString(record.lessonTitle) ?? lesson.title,
+        stageNumber:
+          typeof record.stageNumber === "number" ? record.stageNumber : stage.stageNumber,
+        lessonOrder:
+          typeof record.lessonOrder === "number" ? record.lessonOrder : lesson.order,
+        stageLessonIds: getStageStartableLessonIds(stage),
+        mechanicTypes: [lesson.mechanic],
+        itemResults: [],
+        totalItems: 0,
+        correctItems: 0,
+        completedAt,
+      },
+      readiness: "local_only",
+    },
+    {
+      childId: activityProgress.child_id,
+      languageCode: activityProgress.language_code,
+      activityType: LEARNING_ACTIVITY_TYPE,
+      lessonId,
+    },
+  );
+};
+
+const getLearningCompletionsFromSharedProgress = async (
+  childId: string,
+  languageCode: string,
+): Promise<LearningLessonCompletion[]> => {
+  const stages = getLearningHubStages(languageCode);
+  const completions: LearningLessonCompletion[] = [];
+
+  for (const stage of stages) {
+    for (const lesson of stage.lessons) {
+      const stageProgress = await getStageProgress(
+        childId,
+        languageCode,
+        LEARNING_ACTIVITY_TYPE,
+        stage.id,
+        lesson.id,
+      );
+      const completion = stageProgress
+        ? getCompletionFromStageProgress(stageProgress, stage, lesson)
+        : null;
+
+      if (completion) {
+        completions.push(completion);
+      }
+    }
+  }
+
+  const activityProgress = await getActivityProgress(
+    childId,
+    languageCode,
+    LEARNING_ACTIVITY_TYPE,
+  );
+  const activityPayload = asRecord(activityProgress?.progress_payload);
+
+  if (activityProgress && activityPayload.source === LEARNING_PROGRESS_SOURCE) {
+    const activityLessons = Array.isArray(activityPayload.completedLessons)
+      ? activityPayload.completedLessons.map(asRecord)
+      : asStringArray(activityPayload.completedLessonIds).map((lessonId) => ({
+          lessonId,
+        }));
+    const existingLessonIds = new Set(
+      completions.map((completion) => getCompletionLessonId(completion)),
+    );
+
+    for (const rawActivityLesson of activityLessons) {
+      const activityLesson = rawActivityLesson;
+      const lessonId = asOptionalString(activityLesson.lessonId);
+      if (!lessonId || existingLessonIds.has(lessonId)) {
+        continue;
+      }
+
+      for (const stage of stages) {
+        const lesson = stage.lessons.find((candidate) => candidate.id === lessonId);
+        if (!lesson) {
+          continue;
+        }
+
+        const completion = getCompletionFromActivityPayload(
+          activityLesson,
+          activityProgress,
+          stage,
+          lesson,
+        );
+        if (completion) {
+          completions.push(completion);
+          existingLessonIds.add(lessonId);
+        }
+        break;
+      }
+    }
+  }
+
+  return completions;
+};
+
+export const hydrateLearningProgressFromSharedProgress = async (
+  childId: string,
+  languageCode: string,
+): Promise<LearningProgressSummary> => {
+  const normalizedChildId = normalizeChildId(childId);
+  const normalizedLanguageCode = normalizeLanguageCode(languageCode);
+  const summary = await getLearningProgressSummary(
+    normalizedChildId,
+    normalizedLanguageCode,
+    LEARNING_ACTIVITY_TYPE,
+  );
+  const sharedCompletions = await getLearningCompletionsFromSharedProgress(
+    normalizedChildId,
+    normalizedLanguageCode,
+  );
+
+  if (sharedCompletions.length === 0) {
+    return summary;
+  }
+
+  let didMerge = false;
+  const completedByLessonId = { ...summary.completedByLessonId };
+
+  sharedCompletions.forEach((completion) => {
+    const lessonId = getCompletionLessonId(completion);
+    const existing = completedByLessonId[lessonId];
+
+    if (!existing || completion.completedAt > existing.completedAt) {
+      completedByLessonId[lessonId] = completion;
+      didMerge = true;
+    }
+  });
+
+  if (!didMerge) {
+    return summary;
+  }
+
+  return writeSummary({
+    ...summary,
+    childId: normalizedChildId,
+    languageCode: normalizedLanguageCode,
+    activityType: LEARNING_ACTIVITY_TYPE,
+    completedByLessonId,
+  });
+};
+
+export const hydrateLearningProgressFromRemote = async (
+  childId: string,
+  languageCode: string,
+  options: { force?: boolean; cooldownMs?: number } = {},
+): Promise<LearningProgressSummary> => {
+  const normalizedChildId = normalizeChildId(childId);
+  const normalizedLanguageCode = normalizeLanguageCode(languageCode);
+
+  if (normalizedChildId !== LOCAL_LEARNING_FALLBACK_CHILD_ID) {
+    try {
+      await hydrateProgressFromRemote(normalizedChildId, normalizedLanguageCode, {
+        activityType: LEARNING_ACTIVITY_TYPE,
+        force: options.force,
+        cooldownMs: options.cooldownMs,
+      });
+    } catch (error) {
+      console.warn("Could not hydrate Learning progress from remote:", error);
+    }
+  }
+
+  return hydrateLearningProgressFromSharedProgress(
+    normalizedChildId,
+    normalizedLanguageCode,
+  );
+};
+
 export const getLearningProgressSummary = async (
   childId: string,
   languageCode: string,
@@ -634,11 +1016,68 @@ export const saveLearningLessonCompletion = async (
     activityType: LEARNING_ACTIVITY_TYPE,
     completedByLessonId,
   });
+  const stageJustCompleted = getStageJustCompleted(
+    summary,
+    updatedSummary,
+    sanitizedCompletion,
+  );
 
-  await saveLearningActivityEntries(summary, updatedSummary, sanitizedCompletion);
-  await queueLearningLessonProgressSync(updatedSummary, sanitizedCompletion);
+  await saveLearningActivityEntries(
+    summary,
+    updatedSummary,
+    sanitizedCompletion,
+    stageJustCompleted,
+  );
+  await queueLearningLessonProgressSync(
+    updatedSummary,
+    sanitizedCompletion,
+    stageJustCompleted,
+  );
 
   return sanitizedCompletion;
+};
+
+export interface LearningLessonCompletionWithAchievements {
+  completion: LearningLessonCompletion;
+  newlyEarnedAchievements: AchievementDefinition[];
+}
+
+export const saveLearningLessonCompletionWithAchievements = async (
+  completion: LearningLessonCompletion,
+): Promise<LearningLessonCompletionWithAchievements> => {
+  const savedCompletion = await saveLearningLessonCompletion(completion);
+
+  if (savedCompletion.childId === LOCAL_LEARNING_FALLBACK_CHILD_ID) {
+    return {
+      completion: savedCompletion,
+      newlyEarnedAchievements: [],
+    };
+  }
+
+  try {
+    const summary = await getLearningProgressSummary(
+      savedCompletion.childId,
+      savedCompletion.languageCode,
+      LEARNING_ACTIVITY_TYPE,
+    );
+    const newlyEarnedAchievements = await checkAndGrantLearningHubAchievements({
+      childId: savedCompletion.childId,
+      languageCode: savedCompletion.languageCode,
+      completion: savedCompletion,
+      completedLessonIds: summary.completedLessonIds,
+    });
+
+    return {
+      completion: savedCompletion,
+      newlyEarnedAchievements,
+    };
+  } catch (error) {
+    console.warn("Could not award Learning Hub achievements:", error);
+    return {
+      completion: savedCompletion,
+      newlyEarnedAchievements: [],
+    };
+  }
 };
 
 export const getLearningLessonCompletion = async (

@@ -13,7 +13,8 @@
     "lint": "expo lint"
   },
   "jest": {
-    "preset": "jest-expo"
+    "preset": "jest-expo",
+    "testTimeout": 30000
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

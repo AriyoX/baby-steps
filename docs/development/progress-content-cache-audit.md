@@ -1,6 +1,6 @@
 # Progress, Content, and Read Cache Audit
 
-Last updated: 2026-07-01
+Last updated: 2026-07-10
 
 ## Progress Sync
 
@@ -13,8 +13,10 @@ The current progress system is local-first and MVP-safe.
 - Failed sync keeps dirty queue items for a later retry.
 - Sync completion only clears dirty records when the local `local_updated_at` still matches the record that was pushed.
 - Child and language switches are isolated by storage keys and queue identity.
+- Child switches flush/sync the previous child, hydrate the new child's known activity types, then merge hydrated Learning Hub rows into the Learning Hub summary cache.
 - Meaningful completions call `syncProgressNow`; smaller progress changes remain local/dirty and use the debounced sync path.
 - `child_activity_progress` and `child_stage_progress` are the current/restorable progress sources. `activities` remains a recent-history log.
+- Learning Hub whole-lesson completions reuse this path with `activity_type = "language"`, `source = "learning_hub"`, lesson rows in `child_stage_progress`, optional stage-complete rows in `child_stage_progress`, and an aggregate in `child_activity_progress`.
 
 ## Active Content Flows
 
@@ -49,6 +51,7 @@ Luganda story migration status: Luganda story rows have been seeded in `content_
 - Puzzle no longer writes unfinished attempt rows on reset/back; completion rows remain.
 - Recent activity reads use `.limit(...)` and no longer fetch unbounded child activity history.
 - Earned achievements are child-scoped in code, cache keys, and the database unique constraint.
+- Learning Hub achievements use the same `achievements` and `child_achievements` tables/cache. Achievement writes are attempted live and are not added to a new offline queue in this pass.
 
 ## Remaining MVP TODOs
 

@@ -9,6 +9,7 @@ const mockRouterReplace = jest.fn();
 const mockRouterCanGoBack = jest.fn();
 const mockUseLocalSearchParams = jest.fn();
 const mockGetCompletedLearningLessonIds = jest.fn();
+const mockHydrateLearningProgressFromRemote = jest.fn();
 
 jest.mock("expo-router", () => ({
   Stack: {
@@ -52,6 +53,8 @@ jest.mock("@/lib/learningProgressRepository", () => ({
   getCompletedLearningLessonIds: (...args: unknown[]) =>
     mockGetCompletedLearningLessonIds(...args),
   getLearningProgressChildId: (childId?: string | null) => childId || "local-demo-child",
+  hydrateLearningProgressFromRemote: (...args: unknown[]) =>
+    mockHydrateLearningProgressFromRemote(...args),
 }));
 
 jest.mock("@/hooks/useChildLandscapeOrientation", () => ({
@@ -97,6 +100,9 @@ beforeEach(() => {
   mockRouterCanGoBack.mockReturnValue(false);
   mockUseLocalSearchParams.mockReturnValue({ stageId: "first-words" });
   mockGetCompletedLearningLessonIds.mockResolvedValue([]);
+  mockHydrateLearningProgressFromRemote.mockResolvedValue({
+    completedLessonIds: [],
+  });
 });
 
 afterEach(() => {
@@ -121,6 +127,11 @@ describe("Learning stage path screen", () => {
     const text = JSON.stringify(tree.toJSON());
     const lessonRail = tree.root.findByType(FlatList);
 
+    expect(mockHydrateLearningProgressFromRemote).toHaveBeenCalledWith(
+      "child-1",
+      "lg",
+    );
+    expect(mockGetCompletedLearningLessonIds).toHaveBeenCalledWith("child-1", "lg");
     expect(lessonRail.props.horizontal).toBe(true);
     expect(lessonRail.props.showsHorizontalScrollIndicator).toBe(false);
     expect(text).toContain("Greetings");

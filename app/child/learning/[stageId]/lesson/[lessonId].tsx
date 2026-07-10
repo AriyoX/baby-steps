@@ -27,13 +27,15 @@ import {
   getMechanicLabel,
 } from "@/content/learningHubRepository";
 import type { ItemResult } from "@/content/learningHubTypes";
+import { AchievementUnlockedModal } from "@/components/games/achievements/AchievementUnlockedModal";
+import type { AchievementDefinition } from "@/components/games/achievements/achievementTypes";
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation";
 import {
   LEARNING_ACTIVITY_TYPE,
   buildLearningCompletionLocalId,
   getLearningLessonCompletion,
   getLearningProgressChildId,
-  saveLearningLessonCompletion,
+  saveLearningLessonCompletionWithAchievements,
 } from "@/lib/learningProgressRepository";
 
 const getRouteParam = (value: unknown): string => {
@@ -134,6 +136,9 @@ export default function LearningLessonSessionScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [results, setResults] = useState<ItemResult[]>([]);
+  const [newlyEarnedAchievements, setNewlyEarnedAchievements] = useState<
+    AchievementDefinition[]
+  >([]);
   const resultsRef = useRef<ItemResult[]>([]);
   const saveCompletionInFlightRef = useRef(false);
 
@@ -168,6 +173,7 @@ export default function LearningLessonSessionScreen() {
     setCurrentIndex(0);
     setIsComplete(false);
     setResults([]);
+    setNewlyEarnedAchievements([]);
     resultsRef.current = [];
     saveCompletionInFlightRef.current = false;
   }, [lesson?.id, stageId]);
@@ -219,7 +225,7 @@ export default function LearningLessonSessionScreen() {
         .filter((stageLesson) => getLessonStatus(stageLesson, stage) === "startable")
         .map((stageLesson) => stageLesson.id);
 
-      await saveLearningLessonCompletion({
+      const completionResult = await saveLearningLessonCompletionWithAchievements({
         localId: buildLearningCompletionLocalId(
           childId,
           languageCode,
@@ -252,9 +258,23 @@ export default function LearningLessonSessionScreen() {
         },
         readiness: "local_only",
       });
+
+      if (completionResult.newlyEarnedAchievements.length > 0) {
+        setNewlyEarnedAchievements((currentAchievements) => [
+          ...currentAchievements,
+          ...completionResult.newlyEarnedAchievements,
+        ]);
+      }
     },
     [childId, items, languageCode, lesson, stage],
   );
+
+  const currentAchievementNotice = newlyEarnedAchievements[0] ?? null;
+  const closeAchievementNotice = useCallback(() => {
+    setNewlyEarnedAchievements((currentAchievements) =>
+      currentAchievements.slice(1),
+    );
+  }, []);
 
   const handleItemComplete = useCallback(
     (result: ItemResult) => {
@@ -402,6 +422,12 @@ export default function LearningLessonSessionScreen() {
                 </TouchableOpacity>
               </View>
             </ScrollView>
+            <AchievementUnlockedModal
+              achievement={currentAchievementNotice}
+              visible={Boolean(currentAchievementNotice)}
+              message="You finished a Learning Hub lesson."
+              onClose={closeAchievementNotice}
+            />
           </SafeAreaView>
         </ImageBackground>
       </>

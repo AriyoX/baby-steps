@@ -9,7 +9,6 @@ const mockRouterCanGoBack = jest.fn();
 const mockUseLocalSearchParams = jest.fn();
 const mockSaveLearningLessonCompletion = jest.fn();
 const mockGetLearningLessonCompletion = jest.fn();
-const mockCheckAndGrantNewAchievements = jest.fn();
 const MockMechanicRenderer = ({
   item,
   onComplete,
@@ -163,13 +162,8 @@ jest.mock("@/lib/learningProgressRepository", () => ({
   getLearningLessonCompletion: (...args: unknown[]) =>
     mockGetLearningLessonCompletion(...args),
   getLearningProgressChildId: (childId?: string | null) => childId || "local-demo-child",
-  saveLearningLessonCompletion: (...args: unknown[]) =>
+  saveLearningLessonCompletionWithAchievements: (...args: unknown[]) =>
     mockSaveLearningLessonCompletion(...args),
-}));
-
-jest.mock("@/components/games/achievements/achievementManager", () => ({
-  checkAndGrantNewAchievements: (...args: unknown[]) =>
-    mockCheckAndGrantNewAchievements(...args),
 }));
 
 jest.mock("@/components/learning/mechanics/mechanicRegistry", () => ({
@@ -209,7 +203,12 @@ beforeEach(() => {
     lessonId: "greetings-1",
   });
   mockGetLearningLessonCompletion.mockResolvedValue(null);
-  mockSaveLearningLessonCompletion.mockResolvedValue(undefined);
+  mockSaveLearningLessonCompletion.mockImplementation((completion) =>
+    Promise.resolve({
+      completion,
+      newlyEarnedAchievements: [],
+    }),
+  );
 });
 
 describe("Learning lesson completion persistence", () => {
@@ -571,7 +570,7 @@ describe("Learning lesson completion persistence", () => {
     warnSpy.mockRestore();
   });
 
-  it("does not create achievements for Learning Hub lesson completion", async () => {
+  it("does not show an unlock notification when no new achievement is earned", async () => {
     let tree: renderer.ReactTestRenderer | undefined;
 
     await act(async () => {
@@ -587,6 +586,42 @@ describe("Learning lesson completion persistence", () => {
     }
 
     expect(mockSaveLearningLessonCompletion).toHaveBeenCalledTimes(1);
-    expect(mockCheckAndGrantNewAchievements).not.toHaveBeenCalled();
+    expect(JSON.stringify(tree.toJSON())).not.toContain("Achievement unlocked!");
+  });
+
+  it("shows an unlock notification for a newly earned Learning Hub achievement", async () => {
+    mockSaveLearningLessonCompletion.mockImplementation((completion) =>
+      Promise.resolve({
+        completion,
+        newlyEarnedAchievements: [
+          {
+            id: "7d4f6a00-4b5f-4e00-9a10-000000000101",
+            name: "First Learning Step",
+            description: "You finished your first Learning Hub lesson.",
+            icon_name: "footsteps-outline",
+            activity_type: "learning_hub_first_lesson",
+            points: 10,
+            game_key: "learning_hub",
+          },
+        ],
+      }),
+    );
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = renderer.create(<LearningLessonSessionScreen />);
+    });
+
+    if (!tree) {
+      throw new Error("LearningLessonSessionScreen did not render");
+    }
+
+    for (const itemId of ["well-done", "thank-you", "mother", "father", "water"]) {
+      await completeRenderedItem(tree, itemId);
+    }
+
+    expect(mockSaveLearningLessonCompletion).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(tree.toJSON())).toContain("Achievement unlocked!");
+    expect(JSON.stringify(tree.toJSON())).toContain("First Learning Step");
   });
 });

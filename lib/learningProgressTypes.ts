@@ -7,7 +7,7 @@ export type LearningProgressReadiness = "local_only";
 export interface LearningLessonCompletion {
   localId: string;
 
-  // Future child_stage_progress mapping.
+  // child_stage_progress mapping.
   childId: string;
   languageCode: string;
   activityType: LearningActivityType;
@@ -15,13 +15,13 @@ export interface LearningLessonCompletion {
   levelId: string;
   status: "completed";
 
-  // Future child_stage_progress fields.
+  // child_stage_progress fields.
   score?: number;
   stars?: number;
   attempts: number;
   completedAt: number;
 
-  // Future progress_payload jsonb.
+  // progress_payload jsonb.
   progressPayload: {
     source?: "learning_hub";
     lessonId: string;
@@ -46,7 +46,7 @@ export interface LearningProgressSummary {
   languageCode: string;
   activityType: LearningActivityType;
 
-  // Future child_activity_progress-style aggregate fields.
+  // child_activity_progress-style aggregate fields.
   status: "not_started" | "in_progress" | "completed";
   attempts: number;
   lastStageId?: string;

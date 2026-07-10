@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons"
 import { supabase } from "@/lib/supabase" // Assuming this is your Supabase client
 import { useChild } from "@/context/ChildContext"
 import { getLearningLanguage } from "@/content/languages"
+import { AchievementCard } from "@/components/games/achievements/AchievementCard"
 
 // Achievement imports
 import { useAchievements } from "@/components/games/achievements/useAchievements" // Ensure this path is correct
@@ -211,32 +212,14 @@ export default function ChildDetailScreen() {
                     {/* Show either 5 or all achievements based on state */}
                     {(showAllAchievements ? childsEarnedFullAchievements : childsEarnedFullAchievements.slice(0, 5)).map((achievement, index, displayedArray) => (
                       <View
-                          key={achievement.earned_instance_id}
-                          className={`
-                            bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex-row items-start
-                            ${index < displayedArray.length - 1 ? "mb-3" : ""} 
-                          `}
-                        >
-                        <View className="mr-4 mt-1 bg-amber-100 p-3 rounded-full shadow-sm">
-                          <Ionicons
-                            name={(achievement.icon_name as any) || 'star-outline'}
-                            size={26}
-                            color="#d97706"
-                          />
-                        </View>
-                        <View className="flex-1">
-                          <Text variant="medium" className="text-base text-gray-700">{achievement.name}</Text>
-                          <Text className="text-xs text-gray-500 mt-0.5 mb-1.5" numberOfLines={2}>{achievement.description}</Text>
-                          <View className="flex-row justify-between items-center mt-1">
-                            <View className="flex-row items-center bg-amber-50 px-2 py-0.5 rounded-full">
-                                <Ionicons name="star" size={12} color="#f59e0b"/>
-                                <Text className="text-xs text-amber-700 ml-1">+{achievement.points} Points</Text>
-                            </View>
-                            <Text className="text-xs text-gray-400">
-                              {formatDate(achievement.earned_at_timestamp)}
-                            </Text>
-                          </View>
-                        </View>
+                        key={achievement.earned_instance_id}
+                        className={index < displayedArray.length - 1 ? "mb-3" : ""}
+                      >
+                        <AchievementCard
+                          achievement={achievement}
+                          unlocked
+                          earnedAtLabel={formatDate(achievement.earned_at_timestamp)}
+                        />
                       </View>
                     ))}
                     
@@ -266,7 +249,7 @@ export default function ChildDetailScreen() {
                       {`${childData?.name || "This child"} hasn't unlocked any achievements yet.`}
                     </TranslatedText>
                     <TranslatedText className="text-gray-400 text-xs text-center mt-1">
-                      Keep playing games to earn them!
+                      Complete Learning Hub lessons and games to earn badges.
                     </TranslatedText>
                   </View>
                 )}

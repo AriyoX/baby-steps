@@ -221,6 +221,7 @@ The Learning-specific local summary remains the source for immediate Review / Co
 - If the current completion finishes all startable lessons in that Learning area, `saveActivity(...)` also writes one stage-complete feed entry.
 - `updateActivityProgress(...)` queues a `child_activity_progress` aggregate for `activity_type = "language"`.
 - `markLevelCompleted(...)` queues a `child_stage_progress` lesson row with the Learning area in `stage_id` and lesson ID in `level_id`.
+- If all startable lessons in that Learning area are complete, `markStageCompleted(...)` also queues a stage-level `child_stage_progress` row for the same `stage_id` with an empty `level_id`.
 - `syncProgressNow(childId)` attempts an immediate Supabase sync when a session is available.
 
 Each `LearningLessonCompletion` maps cleanly to a `child_stage_progress` row:
@@ -237,9 +238,11 @@ Each `LearningLessonCompletion` maps cleanly to a `child_stage_progress` row:
 
 `LearningProgressSummary` is shaped like a `child_activity_progress` aggregate for `activity_type = "language"`: status, attempts, last stage ID, completed stage count, completed lesson IDs, and a local lookup by lesson ID. In this pass, `completedStageCount` counts completed lesson rows because lesson completion is represented with `stageId` plus `levelId`.
 
-The storage key includes child ID and DB language code so children and languages do not share progress. If an active child ID is unexpectedly unavailable, the local-only fallback ID is `local-demo-child`; that value must not be synced as a real DB UUID in a later pass without explicit mapping.
+The storage key includes child ID and DB language code so children and languages do not share progress. The Learning screens normalize legacy labels such as `luganda` to DB-style codes such as `lg` before reading or writing progress. If an active child ID is unexpectedly unavailable, the local-only fallback ID is `local-demo-child`; that value is not synced as a real DB UUID.
 
-Offline and failure behavior follows the existing app patterns. Dirty `child_activity_progress` and `child_stage_progress` rows are stored locally and queued for later sync. The append-only `activities` feed write follows the same immediate Supabase insert pattern used by games and stories, so a failed or offline feed insert is not queued. If an activity feed write, progress write, or sync attempt fails, the child still reaches the completion screen and the local Learning summary remains saved.
+Hydration also reuses the existing progress repository. `ChildProvider` syncs the previous child, syncs/hydrates the new child, then calls `hydrateLearningProgressFromSharedProgress(...)` so hydrated `child_stage_progress` / `child_activity_progress` rows are merged back into the Learning summary cache. The Learning stage screen calls `hydrateLearningProgressFromRemote(...)` on focus, which delegates to `hydrateProgressFromRemote(childId, languageCode, { activityType: "language" })` and then merges the shared rows. The generic repository keeps the 20-minute hydration cooldown under `progress:lastHydratedAt:{childId}:{languageCode}:{activityType}`, so repeated stage opens do not repeatedly read Supabase. Remote rows are merged only when they represent `source: "learning_hub"` completions, and older hydrated rows do not replace newer local Learning summary completions.
+
+Offline and failure behavior follows the existing app patterns. Dirty `child_activity_progress` and `child_stage_progress` rows are stored locally and queued for later sync under the shared progress queue. The append-only `activities` feed write follows the same immediate Supabase insert pattern used by games and stories, so a failed or offline feed insert is not queued in this pass. If an activity feed write, progress write, hydration attempt, or sync attempt fails, the child still reaches the completion screen and the local Learning summary remains saved.
 
 No migration was needed for this pass. The existing progress tables already support `activity_type = "language"`, text `stage_id` / `level_id`, attempts, score, completion time, and JSON `progress_payload`.
 
@@ -248,6 +251,49 @@ Append-only `activities` feed rows use `activity_type = "language"`, `activity_n
 Learning Hub activity rows are compatible with the existing parent/recent activity feed. The parent-facing formatter labels `activity_type = "language"` rows as Learning, shows the activity name, time, and score, and hides Learning Hub raw `details` metadata from the UI.
 
 The queued Supabase progress rows are intended for cross-session progress restoration and future history/dashboard readiness. Parent dashboard summaries beyond the existing activity feed are still not implemented for Learning Hub.
+
+## Learning Hub Achievements
+
+Learning Hub achievements reuse the existing Baby Steps achievement system instead of adding a new one:
+
+- Achievement definitions are global/static badge definitions: ID, name, description, icon, `activity_type`, points, optional `trigger_value`, and `game_key`.
+- Child achievement records are child-specific earned rows in `child_achievements`, keyed by `child_id` and `achievement_id`.
+- Learning Hub content provides context only, such as `stageId`, `lessonId`, `mechanic`, and `languageCode`. Achievement state is not stored in `content/learningHubContent.json`.
+
+The first Learning Hub badges are built into the achievement manager with stable UUIDs and `game_key = "learning_hub"`:
+
+- First Learning Step: complete any Learning Hub lesson.
+- Learning Starter: complete 3 Learning Hub lessons.
+- First Words Explorer: complete all currently startable First Words lessons.
+- Quiz Helper: complete a Learning Hub lesson containing `mini_quiz`.
+- Story Listener: complete a Learning Hub lesson containing `story_bite`.
+
+Achievements are checked only after the whole-lesson completion save path runs. The lesson screen calls `saveLearningLessonCompletionWithAchievements(...)`, which first saves the local Learning completion through the existing `saveLearningLessonCompletion(...)` flow, then passes the saved completion and updated completed-lesson summary to `checkAndGrantLearningHubAchievements(...)`. Individual taps, answer attempts, quiz questions, story pages, and audio replays do not award achievements.
+
+The stage-complete condition derives the currently startable lessons from `content/learningHubRepository.ts` through `getStartableLessonsForStage(...)`. The completion payload's `stageLessonIds` is only a fallback. This keeps the achievement condition aligned with the same repository/validator logic used by the Learning Hub UI and avoids hand-duplicating lesson arrays in achievement code.
+
+Stable IDs matter:
+
+- `stageId` identifies the Learning area, for example `first-words`.
+- `lessonId` / `levelId` identifies the completed lesson, for example `greetings-1`.
+- `mechanic` / `mechanicTypes` identifies lesson mechanics such as `mini_quiz` and `story_bite`.
+- `languageCode` identifies the DB-style learning language, for example `lg`.
+
+If future content renames `stageId`, `lessonId`, or mechanic keys, existing local progress summaries and achievement conditions may no longer line up. Add content migrations or compatibility aliases before changing those IDs in shipped content.
+
+Achievement caching stays in the existing achievement manager:
+
+- Definitions use memory plus AsyncStorage under `cache:achievements:definitions` with a 24-hour TTL.
+- Child achievements use memory plus AsyncStorage under `cache:child_achievements:{childId}` with a 15-minute TTL.
+- Built-in Learning Hub definitions are merged into cached and remote definition results, so an older definitions cache does not hide the new local badges.
+- After a successful child achievement insert, the child achievement cache is updated immediately.
+- Duplicate unlocks are prevented by the in-memory/AsyncStorage child cache, an exact remote row check, and the existing unique database constraint on `(child_id, achievement_id)`.
+
+The existing schema supports these achievements without new tables or columns. The `20260709225210_seed_learning_hub_achievements.sql` data migration seeds the five global Learning Hub rows into `achievements` with stable UUIDs, so `child_achievements.achievement_id` can reference them through the existing foreign key. The app keeps the built-in definitions for cache/UI resilience, but child award writes only insert into `child_achievements`.
+
+If Supabase is offline or an achievement save fails, lesson completion still succeeds. The local Learning summary, activity attempt, and progress queue continue through their existing paths. Achievement unlocks are not added to a new offline queue in this pass; if the child-achievement insert cannot complete, no unlock notification is shown and the badge can be earned later when the completion condition is checked again.
+
+The child completion screen shows a lightweight in-app unlock modal only for newly earned achievements returned from the award check. It is not a device push notification, does not request notification permissions, and does not run in the background.
 
 ## Audio Readiness
 
@@ -303,12 +349,14 @@ No migrations have been added for Learning Hub progress. Content remains local J
 
 Intentionally deferred:
 
-- achievements
 - parent dashboard summaries
 - Practice Mix runtime recommendations
 - Practice Mix runtime logic
 - AI recommendations
-- database migrations
+- Supabase content fetching for Learning Hub
+- Supabase progress syncing beyond the existing progress repository path
+- Learning Hub content/progress schema migrations
+- full recommendation algorithm
 
 Museum remains archived and hidden for possible future redesign. No Museum routes or WebView surfaces are re-enabled by Learning Hub work.
 
@@ -317,4 +365,4 @@ Museum remains archived and hidden for possible future redesign. No Museum route
 - Decide canonical language codes for Luganda, Runyankole / Runyankore, and future Ugandan languages.
 - Define reviewed asset records for `audioKey` and `imageKey`.
 - Map readiness and lesson status rules into server-side content validation.
-- Add migrations only after the local contract and implemented mechanics are stable.
+- Add content/progress schema migrations only after the local contract and implemented mechanics are stable.

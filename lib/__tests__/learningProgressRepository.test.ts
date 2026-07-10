@@ -3,18 +3,33 @@ jest.mock("@react-native-async-storage/async-storage", () =>
 );
 
 const mockMarkLevelCompleted = jest.fn();
+const mockMarkStageCompleted = jest.fn();
 const mockSaveActivity = jest.fn();
 const mockSyncProgressNow = jest.fn();
 const mockUpdateActivityProgress = jest.fn();
+const mockCheckAndGrantLearningHubAchievements = jest.fn();
+const mockGetActivityProgress = jest.fn();
+const mockGetStageProgress = jest.fn();
+const mockHydrateProgressFromRemote = jest.fn();
 
 jest.mock("@/lib/progressRepository", () => ({
+  getActivityProgress: (...args: unknown[]) => mockGetActivityProgress(...args),
+  getStageProgress: (...args: unknown[]) => mockGetStageProgress(...args),
+  hydrateProgressFromRemote: (...args: unknown[]) =>
+    mockHydrateProgressFromRemote(...args),
   markLevelCompleted: (...args: unknown[]) => mockMarkLevelCompleted(...args),
+  markStageCompleted: (...args: unknown[]) => mockMarkStageCompleted(...args),
   syncProgressNow: (...args: unknown[]) => mockSyncProgressNow(...args),
   updateActivityProgress: (...args: unknown[]) => mockUpdateActivityProgress(...args),
 }));
 
 jest.mock("@/lib/utils", () => ({
   saveActivity: (...args: unknown[]) => mockSaveActivity(...args),
+}));
+
+jest.mock("@/lib/learningAchievements", () => ({
+  checkAndGrantLearningHubAchievements: (...args: unknown[]) =>
+    mockCheckAndGrantLearningHubAchievements(...args),
 }));
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -29,9 +44,12 @@ import {
   buildLearningCompletionLocalId,
   clearLearningProgressForChild,
   getCompletedLearningLessonIds,
+  hydrateLearningProgressFromRemote,
+  hydrateLearningProgressFromSharedProgress,
   getLearningProgressSummary,
   isLearningLessonCompleted,
   saveLearningLessonCompletion,
+  saveLearningLessonCompletionWithAchievements,
 } from "../learningProgressRepository";
 
 const childId = "child-1";
@@ -81,10 +99,15 @@ const createCompletion = (
 
 beforeEach(async () => {
   jest.clearAllMocks();
+  mockGetActivityProgress.mockResolvedValue(null);
+  mockGetStageProgress.mockResolvedValue(null);
+  mockHydrateProgressFromRemote.mockResolvedValue({ activities: 0, stages: 0 });
   mockMarkLevelCompleted.mockResolvedValue(undefined);
+  mockMarkStageCompleted.mockResolvedValue(undefined);
   mockSaveActivity.mockResolvedValue(true);
   mockSyncProgressNow.mockResolvedValue({ pushed: 0, skipped: 0, failed: 0 });
   mockUpdateActivityProgress.mockResolvedValue(undefined);
+  mockCheckAndGrantLearningHubAchievements.mockResolvedValue([]);
   await AsyncStorage.clear();
 });
 
@@ -229,6 +252,7 @@ describe("learning progress repository", () => {
         }),
       }),
     );
+    expect(mockMarkStageCompleted).not.toHaveBeenCalled();
     expect(mockSyncProgressNow).toHaveBeenCalledWith(childId);
   });
 
@@ -283,6 +307,25 @@ describe("learning progress repository", () => {
         details: expect.stringContaining("lessonIds=greetings-1,listen-greetings-1"),
         stage: 1,
         language_code: "lg",
+      }),
+    );
+    expect(mockMarkStageCompleted).toHaveBeenCalledWith(
+      childId,
+      languageCode,
+      "language",
+      "first-words",
+      expect.objectContaining({
+        score: 100,
+        attempts: 3,
+        completed_at: "1970-01-01T00:00:02.000Z",
+        progress_payload: expect.objectContaining({
+          source: "learning_hub",
+          stageId: "first-words",
+          stageTitle: "First Words",
+          completedLessonIds: ["greetings-1", "listen-greetings-1"],
+          completedLessonCount: 2,
+          totalStartableLessons: 2,
+        }),
       }),
     );
   });
@@ -437,6 +480,155 @@ describe("learning progress repository", () => {
     ]);
   });
 
+  it("keeps duplicate completions as one lesson summary entry", async () => {
+    await saveLearningLessonCompletion(createCompletion({ completedAt: 1000, attempts: 1 }));
+    await saveLearningLessonCompletion(createCompletion({ completedAt: 2000, attempts: 2 }));
+
+    const summary = await getLearningProgressSummary(childId, languageCode);
+
+    expect(summary.completedLessonIds).toEqual(["greetings-1"]);
+    expect(Object.keys(summary.completedByLessonId)).toEqual(["greetings-1"]);
+    expect(summary.completedByLessonId["greetings-1"]).toEqual(
+      expect.objectContaining({
+        attempts: 2,
+        completedAt: 2000,
+      }),
+    );
+  });
+
+  it("hydrates Learning summary from shared child_stage_progress rows", async () => {
+    mockGetStageProgress.mockImplementation(
+      async (
+        _childId: string,
+        _languageCode: string,
+        _activityType: string,
+        stageId: string,
+        levelId: string,
+      ) =>
+        stageId === "first-words" && levelId === "greetings-1"
+          ? {
+              child_id: childId,
+              language_code: languageCode,
+              activity_type: "language",
+              stage_id: "first-words",
+              level_id: "greetings-1",
+              status: "completed",
+              score: 100,
+              stars: null,
+              attempts: 1,
+              completed_at: "1970-01-01T00:00:01.000Z",
+              local_updated_at: "1970-01-01T00:00:01.000Z",
+              progress_payload: {
+                source: "learning_hub",
+                stageId: "first-words",
+                lessonId: "greetings-1",
+                stageTitle: "First Words",
+                lessonTitle: "Greetings",
+                stageNumber: 1,
+                lessonOrder: 1,
+                mechanicTypes: ["tap_to_learn"],
+                itemResults: [],
+                totalItems: 0,
+                correctItems: 0,
+                completedAt: 1000,
+                contentVersion: "1.1",
+              },
+            }
+          : null,
+    );
+
+    const summary = await hydrateLearningProgressFromSharedProgress(
+      childId,
+      languageCode,
+    );
+
+    expect(summary.completedLessonIds).toEqual(["greetings-1"]);
+    expect(summary.completedByLessonId["greetings-1"]).toEqual(
+      expect.objectContaining({
+        childId,
+        languageCode,
+        activityType: "language",
+        stageId: "first-words",
+        levelId: "greetings-1",
+        status: "completed",
+        completedAt: 1000,
+      }),
+    );
+    await expect(getCompletedLearningLessonIds(childId, languageCode)).resolves.toEqual([
+      "greetings-1",
+    ]);
+    expect(mockGetActivityProgress).toHaveBeenCalledWith(
+      childId,
+      languageCode,
+      "language",
+    );
+  });
+
+  it("delegates remote hydration through the shared progress repository before merging", async () => {
+    await hydrateLearningProgressFromRemote(childId, "luganda", { force: true });
+
+    expect(mockHydrateProgressFromRemote).toHaveBeenCalledWith(
+      childId,
+      "lg",
+      expect.objectContaining({
+        activityType: "language",
+        force: true,
+      }),
+    );
+    expect(mockGetStageProgress).toHaveBeenCalled();
+  });
+
+  it("does not overwrite newer local Learning completion with older hydrated progress", async () => {
+    await saveLearningLessonCompletion(createCompletion({ completedAt: 3000, attempts: 2 }));
+    mockGetStageProgress.mockImplementation(
+      async (
+        _childId: string,
+        _languageCode: string,
+        _activityType: string,
+        stageId: string,
+        levelId: string,
+      ) =>
+        stageId === "first-words" && levelId === "greetings-1"
+          ? {
+              child_id: childId,
+              language_code: languageCode,
+              activity_type: "language",
+              stage_id: "first-words",
+              level_id: "greetings-1",
+              status: "completed",
+              score: 100,
+              stars: null,
+              attempts: 1,
+              completed_at: "1970-01-01T00:00:01.000Z",
+              local_updated_at: "1970-01-01T00:00:01.000Z",
+              progress_payload: {
+                source: "learning_hub",
+                stageId: "first-words",
+                lessonId: "greetings-1",
+                mechanicTypes: ["tap_to_learn"],
+                itemResults: [],
+                totalItems: 0,
+                correctItems: 0,
+                completedAt: 1000,
+              },
+            }
+          : null,
+    );
+
+    const summary = await hydrateLearningProgressFromSharedProgress(
+      childId,
+      languageCode,
+    );
+
+    expect(summary.completedLessonIds).toEqual(["greetings-1"]);
+    expect(summary.completedByLessonId["greetings-1"]).toEqual(
+      expect.objectContaining({
+        attempts: 2,
+        completedAt: 3000,
+      }),
+    );
+  });
+
   it("does not crash on corrupted local JSON", async () => {
     await AsyncStorage.setItem(
       "@BabySteps:LearningProgress:v1:summary:child-1:lg:language",
@@ -490,6 +682,72 @@ describe("learning progress repository", () => {
         completedLessonIds: ["greetings-1"],
       }),
     );
+  });
+
+  it("awards Learning Hub achievements after lesson completion through the wrapper", async () => {
+    const firstLearningStep = {
+      id: "7d4f6a00-4b5f-4e00-9a10-000000000101",
+      name: "First Learning Step",
+      description: "You finished your first Learning Hub lesson.",
+      icon_name: "footsteps-outline",
+      activity_type: "learning_hub_first_lesson",
+      points: 10,
+      game_key: "learning_hub",
+    };
+    mockCheckAndGrantLearningHubAchievements.mockResolvedValueOnce([
+      firstLearningStep,
+    ]);
+
+    const result = await saveLearningLessonCompletionWithAchievements(
+      createCompletion(),
+    );
+
+    expect(result.completion).toEqual(
+      expect.objectContaining({
+        childId,
+        stageId: "first-words",
+        levelId: "greetings-1",
+      }),
+    );
+    expect(result.newlyEarnedAchievements).toEqual([firstLearningStep]);
+    expect(mockCheckAndGrantLearningHubAchievements).toHaveBeenCalledWith(
+      expect.objectContaining({
+        childId,
+        languageCode,
+        completion: expect.objectContaining({
+          stageId: "first-words",
+          levelId: "greetings-1",
+        }),
+        completedLessonIds: ["greetings-1"],
+      }),
+    );
+  });
+
+  it("does not block lesson completion when achievement awarding fails", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    mockCheckAndGrantLearningHubAchievements.mockRejectedValueOnce(
+      new Error("achievement save failed"),
+    );
+
+    await expect(
+      saveLearningLessonCompletionWithAchievements(createCompletion()),
+    ).resolves.toEqual({
+      completion: expect.objectContaining({
+        childId,
+        stageId: "first-words",
+        levelId: "greetings-1",
+      }),
+      newlyEarnedAchievements: [],
+    });
+    await expect(
+      isLearningLessonCompleted(childId, languageCode, "first-words", "greetings-1"),
+    ).resolves.toBe(true);
+    expect(warnSpy).toHaveBeenCalledWith(
+      "Could not award Learning Hub achievements:",
+      expect.any(Error),
+    );
+
+    warnSpy.mockRestore();
   });
 
   it("maps legacy Learning language labels to DB language codes", () => {

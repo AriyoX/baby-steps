@@ -10,6 +10,7 @@ const mockRouterCanGoBack = jest.fn();
 const mockUseLocalSearchParams = jest.fn();
 const mockGetCompletedLearningLessonIds = jest.fn();
 const mockHydrateLearningProgressFromRemote = jest.fn();
+let mockSelectedLanguageCode = "lg";
 
 jest.mock("expo-router", () => ({
   Stack: {
@@ -40,11 +41,15 @@ jest.mock("@expo/vector-icons", () => ({
   },
 }));
 
+jest.mock("@/components/brand/BrandMark", () => ({
+  BrandMark: "BrandMark",
+}));
+
 jest.mock("@/context/ChildContext", () => ({
   useChild: () => ({
     activeChild: {
       id: "child-1",
-      selected_language_code: "lg",
+      selected_language_code: mockSelectedLanguageCode,
     },
   }),
 }));
@@ -98,6 +103,7 @@ beforeEach(() => {
   jest.useFakeTimers();
   jest.clearAllMocks();
   mockRouterCanGoBack.mockReturnValue(false);
+  mockSelectedLanguageCode = "lg";
   mockUseLocalSearchParams.mockReturnValue({ stageId: "first-words" });
   mockGetCompletedLearningLessonIds.mockResolvedValue([]);
   mockHydrateLearningProgressFromRemote.mockResolvedValue({
@@ -285,5 +291,29 @@ describe("Learning stage path screen", () => {
 
     expect(textContent(practiceCard)).toContain("Locked");
     expect(practiceCard.props.disabled).toBe(true);
+  });
+
+  it("does not render Luganda lessons for a direct Runyankole stage route", async () => {
+    mockSelectedLanguageCode = "nyn";
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = renderer.create(<LearningStagePathScreen />);
+    });
+
+    if (!tree) {
+      throw new Error("LearningStagePathScreen did not render");
+    }
+
+    const text = JSON.stringify(tree.toJSON());
+
+    expect(text).toContain("Runyankole lessons");
+    expect(text).toContain("coming soon");
+    expect(text).not.toContain("Greetings");
+    expect(text).not.toContain("Listen Practice");
+    expect(tree.root.findAllByType(FlatList)).toHaveLength(0);
+    expect(mockHydrateLearningProgressFromRemote).not.toHaveBeenCalled();
+    expect(mockGetCompletedLearningLessonIds).not.toHaveBeenCalled();
+    expect(mockRouterPush).not.toHaveBeenCalled();
   });
 });

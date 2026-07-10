@@ -9,6 +9,8 @@ const mockRouterCanGoBack = jest.fn();
 const mockUseLocalSearchParams = jest.fn();
 const mockSaveLearningLessonCompletion = jest.fn();
 const mockGetLearningLessonCompletion = jest.fn();
+const mockGetMechanicRenderer = jest.fn();
+let mockSelectedLanguageCode = "luganda";
 const MockMechanicRenderer = ({
   item,
   onComplete,
@@ -138,11 +140,15 @@ jest.mock("@expo/vector-icons", () => ({
   },
 }));
 
+jest.mock("@/components/brand/BrandMark", () => ({
+  BrandMark: "BrandMark",
+}));
+
 jest.mock("@/context/ChildContext", () => ({
   useChild: () => ({
     activeChild: {
       id: "child-1",
-      selected_language_code: "luganda",
+      selected_language_code: mockSelectedLanguageCode,
     },
   }),
 }));
@@ -167,7 +173,7 @@ jest.mock("@/lib/learningProgressRepository", () => ({
 }));
 
 jest.mock("@/components/learning/mechanics/mechanicRegistry", () => ({
-  getMechanicRenderer: () => MockMechanicRenderer,
+  getMechanicRenderer: (...args: unknown[]) => mockGetMechanicRenderer(...args),
 }));
 
 const findButtonByAccessibilityLabel = (
@@ -197,6 +203,8 @@ const completeRenderedItem = async (
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockSelectedLanguageCode = "luganda";
+  mockGetMechanicRenderer.mockReturnValue(MockMechanicRenderer);
   mockRouterCanGoBack.mockReturnValue(false);
   mockUseLocalSearchParams.mockReturnValue({
     stageId: "first-words",
@@ -212,6 +220,28 @@ beforeEach(() => {
 });
 
 describe("Learning lesson completion persistence", () => {
+  it("does not start a Luganda mechanic for a direct Runyankole lesson route", async () => {
+    mockSelectedLanguageCode = "nyn";
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = renderer.create(<LearningLessonSessionScreen />);
+    });
+
+    if (!tree) {
+      throw new Error("LearningLessonSessionScreen did not render");
+    }
+
+    const text = JSON.stringify(tree.toJSON());
+
+    expect(text).toContain("Runyankole lessons");
+    expect(text).toContain("coming soon");
+    expect(text).not.toContain("well-done");
+    expect(mockGetMechanicRenderer).not.toHaveBeenCalled();
+    expect(mockGetLearningLessonCompletion).not.toHaveBeenCalled();
+    expect(mockSaveLearningLessonCompletion).not.toHaveBeenCalled();
+  });
+
   it("does not save or log activity before the final lesson item", async () => {
     let tree: renderer.ReactTestRenderer | undefined;
 

@@ -22,9 +22,11 @@ Learning hub content is local JSON-backed for now:
 
 The JSON models a versioned content bundle with languages, stages, lessons, lesson items, mechanics, order, lock state, readiness, and startable state. This shape is intended to stay close to future DB-backed content while keeping the current MVP offline-safe.
 
+Learning Hub content is currently available locally only when a language has an explicit bundle in `content/learningHubContent.json`. Missing or unsupported languages never fall back to another language's Learning Hub bundle. This is intentionally separate from the generic DB-backed content system, which already keeps Luganda and Runyankole content distinct.
+
 `content/learningHubRepository.ts` is the content adapter. UI and renderer components should consume normalized repository objects instead of raw JSON. The adapter handles:
 
-- default language fallback
+- explicit local-bundle language resolution with no cross-language fallback
 - stage, lesson, and item ordering
 - mechanic-specific item normalization
 - legacy `word` / `translation` compatibility
@@ -33,7 +35,9 @@ The JSON models a versioned content bundle with languages, stages, lessons, less
 - lesson status rules
 - implemented mechanic checks
 
-The current default language is Luganda (`lg`). If a selected child language has no Learning hub path yet, the repository falls back to the default Luganda hub content. The model is ready for future language bundles such as Runyankole / Runyankore and other Ugandan languages.
+The current default language is Luganda (`lg`) when a child has no selected language. Luganda continues to load its explicit local bundle normally. If a child selects Runyankole (`nyn`), or any other language without an explicit Learning Hub bundle, the Learning tab and direct stage/lesson routes show a language-specific unavailable state and do not load Luganda stages, lessons, mechanics, or progress in that language namespace. The selected language is not changed automatically.
+
+Runyankole should remain in this unavailable/coming-soon state until its DB-backed Learning Hub bundle is introduced. This is a temporary safety behavior before the planned Supabase content migration; it does not add placeholder Runyankole lessons and does not change the separate generic content registry.
 
 The current DB language code for Luganda is `lg`, matching `children.selected_language_code`. Temporary bridge helpers map legacy labels such as `luganda` / `oluganda` to `lg` and Runyankole / Runyankore labels to `nyn` so local progress uses DB-style language codes without breaking bundled content lookup.
 

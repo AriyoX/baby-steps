@@ -11,20 +11,23 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/StyledText";
+import { LearningLanguageUnavailableState } from "@/components/learning/LearningLanguageUnavailableState";
 import { getMechanicRenderer } from "@/components/learning/mechanics/mechanicRegistry";
 import { brandColors } from "@/constants/Brand";
 import { useChild } from "@/context/ChildContext";
 import {
   DEFAULT_LEARNING_LANGUAGE_CODE,
-  getDbLanguageCodeForLearningLanguage,
+  getLearningLanguage,
 } from "@/content/languages";
 import {
   getLearningContentBundle,
+  getLearningLanguageContent,
   getLearningStageById,
   getLessonById,
   getLessonItemsForLesson,
   getLessonStatus,
   getMechanicLabel,
+  resolveLearningHubLanguageCode,
 } from "@/content/learningHubRepository";
 import type { ItemResult } from "@/content/learningHubTypes";
 import { AchievementUnlockedModal } from "@/components/games/achievements/AchievementUnlockedModal";
@@ -130,9 +133,14 @@ export default function LearningLessonSessionScreen() {
   const stageId = getRouteParam(params.stageId);
   const lessonId = getRouteParam(params.lessonId);
   const childId = getLearningProgressChildId(activeChild?.id);
-  const languageCode = getDbLanguageCodeForLearningLanguage(
+  const languageCode = resolveLearningHubLanguageCode(
     activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE,
   );
+  const languageContent = useMemo(
+    () => getLearningLanguageContent(languageCode),
+    [languageCode],
+  );
+  const languageName = getLearningLanguage(languageCode)?.name;
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [results, setResults] = useState<ItemResult[]>([]);
@@ -299,6 +307,20 @@ export default function LearningLessonSessionScreen() {
     },
     [currentIndex, items.length, saveLessonCompletion],
   );
+
+  if (!languageContent) {
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false, animation: "slide_from_right" }} />
+        <StatusBar style="light" translucent backgroundColor="transparent" />
+        <LearningLanguageUnavailableState
+          languageName={languageName}
+          actionLabel="Back to Learning"
+          onAction={goBackToLearning}
+        />
+      </>
+    );
+  }
 
   if (!stage) {
     return (

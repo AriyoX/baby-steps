@@ -17,12 +17,17 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Text } from "@/components/StyledText"
 import { CachedImage } from "@/components/common/CachedImage"
+import { LearningLanguageUnavailableState } from "@/components/learning/LearningLanguageUnavailableState"
 import { brandColors } from "@/constants/Brand"
 import { useAudio } from "@/context/AudioContext"
 import { useChild } from "@/context/ChildContext"
-import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages"
 import {
-  getLearningHubStages,
+  DEFAULT_LEARNING_LANGUAGE_CODE,
+  getLearningLanguage,
+} from "@/content/languages"
+import {
+  getLearningLanguageContent,
+  resolveLearningHubLanguageCode,
   type LearningHubStage,
 } from "@/content/learningHubRepository"
 import { resolveImageSource } from "@/content/assets"
@@ -89,8 +94,8 @@ const DEFAULT_STAGE_PRESENTATION: StagePresentation = {
   fallbackImageKey: "learning-beginner.jpg",
 }
 
-const buildLearningStageCards = (languageCode?: string | null): LearningHubCard[] =>
-  getLearningHubStages(languageCode).map((stage) => {
+const buildLearningStageCards = (stages: LearningHubStage[]): LearningHubCard[] =>
+  stages.map((stage) => {
     const presentation = STAGE_PRESENTATION[stage.id] ?? DEFAULT_STAGE_PRESENTATION
 
     return {
@@ -146,9 +151,18 @@ export default function LearningHubScreen() {
     toggleBackgroundMusicMuted,
     toggleAppSoundsMuted,
   } = useAudio()
-  // TODO: Keep this tied to the child/profile language setting as more Learning bundles are added.
-  const languageCode = activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE
-  const cards = useMemo(() => buildLearningStageCards(languageCode), [languageCode])
+  const languageCode = resolveLearningHubLanguageCode(
+    activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE,
+  )
+  const languageContent = useMemo(
+    () => getLearningLanguageContent(languageCode),
+    [languageCode],
+  )
+  const languageName = getLearningLanguage(languageCode)?.name
+  const cards = useMemo(
+    () => buildLearningStageCards(languageContent?.stages ?? []),
+    [languageContent],
+  )
   const { height } = Dimensions.get("window")
   const cardHeight = Math.max(156, Math.min(194, height * 0.44))
   const pulseAnim = useRef(new Animated.Value(1)).current
@@ -157,6 +171,10 @@ export default function LearningHubScreen() {
   useChildLandscapeOrientation("child learning hub")
 
   useEffect(() => {
+    if (!languageContent) {
+      return
+    }
+
     const pulseSequence = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
@@ -198,7 +216,7 @@ export default function LearningHubScreen() {
       pulseSequence.stop()
       bounceSequence.stop()
     }
-  }, [bounceAnim, pulseAnim])
+  }, [bounceAnim, languageContent, pulseAnim])
 
   const handleParentalPress = () => {
     audioManager.speakAppText("For parents only", {
@@ -214,6 +232,20 @@ export default function LearningHubScreen() {
       pathname: "/child/learning/[stageId]",
       params: { stageId: card.id },
     } as any)
+  }
+
+  if (!languageContent) {
+    return (
+      <>
+        <StatusBar style="light" translucent backgroundColor="transparent" />
+        <LearningLanguageUnavailableState
+          languageName={languageName}
+          actionLabel="Back to Games"
+          onAction={() => router.replace("/child" as any)}
+          bottomClearance={CHILD_TAB_BAR_CLEARANCE}
+        />
+      </>
+    )
   }
 
   return (

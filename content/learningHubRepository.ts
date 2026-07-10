@@ -272,12 +272,12 @@ export const getDefaultLearningLanguageCode = (): LearningLanguageCode => {
   return Object.keys(getRawLanguages())[0] ?? DEFAULT_LEARNING_LANGUAGE_CODE;
 };
 
-export const getDefaultLearningLanguage = (
+export const resolveLearningHubLanguageCode = (
   languageCode?: string | null,
 ): LearningLanguageCode => {
   const normalizedLanguageCode = normalizeLearningLanguageCode(languageCode);
 
-  if (normalizedLanguageCode && hasLearningHubLanguage(normalizedLanguageCode)) {
+  if (normalizedLanguageCode) {
     return normalizedLanguageCode;
   }
 
@@ -1123,22 +1123,18 @@ export const getAvailableLearningLanguages = (): Array<{
 
 export const getLearningLanguageContent = (
   languageCode?: string | null,
-): LearningLanguageContent => {
+): LearningLanguageContent | null => {
   const bundle = getLearningContentBundle();
-  const resolvedLanguageCode = getDefaultLearningLanguage(languageCode);
+  const resolvedLanguageCode = resolveLearningHubLanguageCode(languageCode);
 
-  return (
-    bundle.languages[resolvedLanguageCode] ??
-    bundle.languages[bundle.defaultLanguage] ??
-    normalizeLanguageContent(undefined, bundle.defaultLanguage)
-  );
+  return bundle.languages[resolvedLanguageCode] ?? null;
 };
 
 // TODO: Replace or augment this local JSON source with Supabase content_items
 // once reviewed lesson payloads and renderer contracts are production-ready.
 export const getLearningHubStages = (
   languageCode?: string | null,
-): LearningHubStage[] => getLearningLanguageContent(languageCode).stages;
+): LearningHubStage[] => getLearningLanguageContent(languageCode)?.stages ?? [];
 
 export const getLearningStageById = (
   languageCode: string | null | undefined,
@@ -1227,4 +1223,4 @@ export const getMechanicLabel = (mechanic: MechanicType | string): string =>
 
 export const getLearningHubPathTitle = (
   languageCode?: string | null,
-): string => getLearningLanguageContent(languageCode).pathTitle;
+): string | undefined => getLearningLanguageContent(languageCode)?.pathTitle;

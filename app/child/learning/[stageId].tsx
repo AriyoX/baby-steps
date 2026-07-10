@@ -11,18 +11,21 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/StyledText";
+import { LearningLanguageUnavailableState } from "@/components/learning/LearningLanguageUnavailableState";
 import { brandColors } from "@/constants/Brand";
 import { useChild } from "@/context/ChildContext";
 import {
   DEFAULT_LEARNING_LANGUAGE_CODE,
-  getDbLanguageCodeForLearningLanguage,
+  getLearningLanguage,
 } from "@/content/languages";
 import {
+  getLearningLanguageContent,
   getLearningStageById,
   getLessonStatus,
   getLessonItemCount,
   getLessonsForStage,
   getMechanicLabel,
+  resolveLearningHubLanguageCode,
   type LearningHubLesson,
   type LearningHubStage,
 } from "@/content/learningHubRepository";
@@ -267,9 +270,14 @@ export default function LearningStagePathScreen() {
   const { width, height } = useWindowDimensions();
   const stageId = getRouteStageId(params.stageId);
   const childId = getLearningProgressChildId(activeChild?.id);
-  const languageCode = getDbLanguageCodeForLearningLanguage(
+  const languageCode = resolveLearningHubLanguageCode(
     activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE,
   );
+  const languageContent = useMemo(
+    () => getLearningLanguageContent(languageCode),
+    [languageCode],
+  );
+  const languageName = getLearningLanguage(languageCode)?.name;
   const [completedLessonIds, setCompletedLessonIds] = useState<string[]>([]);
 
   useChildLandscapeOrientation("child learning stage path");
@@ -289,6 +297,10 @@ export default function LearningStagePathScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (!languageContent) {
+        return;
+      }
+
       let isActive = true;
 
       void (async () => {
@@ -310,7 +322,7 @@ export default function LearningStagePathScreen() {
       return () => {
         isActive = false;
       };
-    }, [childId, languageCode]),
+    }, [childId, languageCode, languageContent]),
   );
 
   const landscapeWidth = Math.max(width, height);
@@ -339,6 +351,20 @@ export default function LearningStagePathScreen() {
       params: { stageId: stage.id, lessonId: lesson.id },
     } as any);
   };
+
+  if (!languageContent) {
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false, animation: "slide_from_right" }} />
+        <StatusBar style="light" translucent backgroundColor="transparent" />
+        <LearningLanguageUnavailableState
+          languageName={languageName}
+          actionLabel="Back to Learning"
+          onAction={goBackToLearning}
+        />
+      </>
+    );
+  }
 
   if (!stage) {
     return (

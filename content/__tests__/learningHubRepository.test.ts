@@ -1,7 +1,6 @@
 import {
   getAvailableLearningLanguages,
   getDefaultLearningLanguageCode,
-  getDefaultLearningLanguage,
   getFirstLessonByMechanic,
   getFirstStartableLessonForStage,
   getLearningContentBundle,
@@ -19,6 +18,7 @@ import {
   isLessonLocked,
   isLessonStartable,
   isMechanicImplemented,
+  resolveLearningHubLanguageCode,
   stageHasMechanicContent,
 } from "../learningHubRepository";
 import { DEFAULT_LEARNING_LANGUAGE_CODE } from "../languages";
@@ -819,31 +819,46 @@ describe("learning hub repository", () => {
     expect(getLessonStatus(undefined)).toBe("empty");
   });
 
-  it("falls back safely when a language has no Learning hub path yet", () => {
-    expect(getDefaultLearningLanguage("nyn")).toBe(DEFAULT_LEARNING_LANGUAGE_CODE);
-    expect(getDefaultLearningLanguage("missing-language")).toBe(
-      DEFAULT_LEARNING_LANGUAGE_CODE,
-    );
-    expect(getLearningHubStages("nyn").map((stage) => stage.id)).toEqual(
-      REQUIRED_STAGE_IDS,
-    );
-    expect(getLearningLanguageContent("nyn")).toEqual(
+  it("resolves Luganda only from its explicit Learning hub bundle", () => {
+    expect(resolveLearningHubLanguageCode("lg")).toBe("lg");
+    expect(getLearningLanguageContent("lg")).toEqual(
       expect.objectContaining({
         languageCode: "lg",
         displayName: "Luganda",
       }),
     );
-    expect(getLessonById("nyn", "first-words", "greetings-1")).toEqual(
-      expect.objectContaining({
-        id: "greetings-1",
-        mechanic: "tap_to_learn",
-      }),
+    expect(getLearningHubStages("lg").map((stage) => stage.id)).toEqual(
+      REQUIRED_STAGE_IDS,
     );
-    expect(getFirstStartableLessonForStage("nyn", "first-words")).toEqual(
-      expect.objectContaining({
-        mechanic: "tap_to_learn",
-      }),
+  });
+
+  it("does not fall back to Luganda for Runyankole", () => {
+    const requestedLanguageCode = "nyn";
+
+    expect(resolveLearningHubLanguageCode(requestedLanguageCode)).toBe(
+      requestedLanguageCode,
     );
+    expect(getLearningLanguageContent(requestedLanguageCode)).toBeNull();
+    expect(getLearningHubStages(requestedLanguageCode)).toEqual([]);
+    expect(
+      getLessonById(requestedLanguageCode, "first-words", "greetings-1"),
+    ).toBeUndefined();
+    expect(
+      getFirstStartableLessonForStage(requestedLanguageCode, "first-words"),
+    ).toBeUndefined();
+  });
+
+  it("does not fall back to Luganda or rewrite an unknown language", () => {
+    const requestedLanguageCode = "acholi";
+
+    expect(resolveLearningHubLanguageCode(requestedLanguageCode)).toBe(
+      requestedLanguageCode,
+    );
+    expect(getLearningLanguageContent(requestedLanguageCode)).toBeNull();
+    expect(getLearningHubStages(requestedLanguageCode)).toEqual([]);
+    expect(
+      getLearningStageById(requestedLanguageCode, "first-words"),
+    ).toBeUndefined();
   });
 
   it("keeps Practice Mix locked and not startable", () => {

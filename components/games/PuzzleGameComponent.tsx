@@ -20,8 +20,8 @@ import { useRouter } from "expo-router";
 import { Text } from "@/components/StyledText";
 import { saveActivity } from "@/lib/utils"; // Import saveActivity
 import { useChild } from "@/context/ChildContext"; // Import useChild context
+import { useChildNotice } from "@/context/ChildNoticeContext";
 import { useAchievements } from "./achievements/useAchievements"; 
-import { AchievementDefinition } from "./achievements/achievementTypes"; 
 import { 
     PuzzleGameProgress, 
     DEFAULT_PUZZLE_PROGRESS, 
@@ -144,8 +144,8 @@ const BugandaPuzzleGame: React.FC = () => {
     isLoadingAchievements, 
     checkAndGrantNewAchievements 
   } = useAchievements(activeChild?.id, 'puzzle_game'); // Game key
+  const { enqueueAchievementUnlocked } = useChildNotice();
 
-  const [newlyEarnedAchievementPZ, setNewlyEarnedAchievementPZ] = useState<AchievementDefinition | null>(null);
   const [puzzleProgress, setPuzzleProgress] = useState<PuzzleGameProgress>(DEFAULT_PUZZLE_PROGRESS);
   const gameStartTime = useRef(Date.now()); // Track when game started
 
@@ -401,7 +401,7 @@ const BugandaPuzzleGame: React.FC = () => {
             if (newlyEarned.length > 0) {
                 newlyEarned.forEach(ach => {
                     console.log(`PUZZLE GAME - FIRST PLAY - NEW ACHIEVEMENT: ${ach.name}`);
-                    setNewlyEarnedAchievementPZ(ach);
+                    enqueueAchievementUnlocked(ach);
                     // Handle points if necessary
                 });
             }
@@ -550,7 +550,7 @@ const BugandaPuzzleGame: React.FC = () => {
               // Points contribute to global child score if such a system exists.
               newlyEarned.forEach(ach => {
                   console.log(`PUZZLE GAME - COMPLETE - NEW ACHIEVEMENT: ${ach.name}`);
-                  setNewlyEarnedAchievementPZ(ach);
+                  enqueueAchievementUnlocked(ach);
               });
           }
           // --- END ACHIEVEMENT CHECKING ---
@@ -589,40 +589,6 @@ const BugandaPuzzleGame: React.FC = () => {
         );
       }, 1000);
     }
-  };
-
-  const renderAchievementUnlockedModalPZ = () => {
-    if (!newlyEarnedAchievementPZ) return null;
-    // Use same modal structure as other games
-    return (
-      <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-        <View style={{ backgroundColor: 'white', borderRadius: 20, padding: 24, width: '85%', maxWidth: 380, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 }}>
-          <View style={{ position: 'absolute', top: -40, backgroundColor: '#f59e0b', width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: 'white' }}>
-            <Ionicons name={(newlyEarnedAchievementPZ.icon_name as any) || "star"} size={36} color="white" />
-          </View>
-          <Text style={{ fontWeight: 'bold', fontSize: 20, color: '#b45309', marginTop: 48, marginBottom: 8, textAlign: 'center' }}>
-            Achievement Unlocked!
-          </Text>
-          <Text style={{ fontWeight: 'bold', fontSize: 24, color: '#374151', marginBottom: 8, textAlign: 'center' }}>
-            {newlyEarnedAchievementPZ.name}
-          </Text>
-          <Text style={{ fontSize: 14, color: '#4b5563', textAlign: 'center', marginBottom: 16 }}>
-            {newlyEarnedAchievementPZ.description}
-          </Text>
-          <Text style={{ fontWeight: 'bold', fontSize: 18, color: '#f59e0b', marginBottom: 24 }}>
-            +{newlyEarnedAchievementPZ.points} Points!
-          </Text>
-          <TouchableOpacity
-            style={{ backgroundColor: '#f59e0b', paddingVertical: 12, paddingHorizontal: 40, borderRadius: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 1.41, elevation: 2 }}
-            onPress={() => setNewlyEarnedAchievementPZ(null)}
-          >
-            <Text style={{ fontWeight: 'bold', color: 'white', fontSize: 16, textAlign: 'center' }}>
-              Awesome!
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
   };
 
   const handleReset = () => {
@@ -752,8 +718,6 @@ const BugandaPuzzleGame: React.FC = () => {
   return (
     <View className="flex-1 bg-blue-50">
       <StatusBar style="dark" />
-      {renderAchievementUnlockedModalPZ()}
-
       <View className="flex-row items-center justify-between px-5 pt-4 pb-1">
         <TouchableOpacity
           className="w-11 h-11 rounded-full bg-white items-center justify-center shadow-md border-2 border-primary-200"

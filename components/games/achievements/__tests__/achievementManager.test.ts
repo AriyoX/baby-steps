@@ -202,9 +202,28 @@ describe("achievement Supabase read cache", () => {
     const result = await awardAchievementToChild("child-1", "achievement-new");
     const cachedEarned = await fetchChildEarnedAchievements("child-1");
 
-    expect(result).toEqual(awarded);
+    expect(result).toEqual({
+      status: "newly-awarded",
+      award: awarded,
+      newlyAwarded: true,
+    });
     expect(cachedEarned).toEqual([awarded]);
     expect(supabase.from).toHaveBeenCalledTimes(3);
+
+    jest.clearAllMocks();
+    const repeatedResult = await awardAchievementToChild(
+      "child-1",
+      "achievement-new",
+    );
+    const cachedAfterRepeat = await fetchChildEarnedAchievements("child-1");
+
+    expect(repeatedResult).toEqual({
+      status: "already-earned",
+      award: awarded,
+      newlyAwarded: false,
+    });
+    expect(cachedAfterRepeat).toEqual([awarded]);
+    expect(supabase.from).not.toHaveBeenCalled();
   });
 
   it("checks the exact remote child achievement before inserting when cache misses", async () => {
@@ -228,7 +247,11 @@ describe("achievement Supabase read cache", () => {
     );
     const cachedEarned = await fetchChildEarnedAchievements("child-1");
 
-    expect(result).toEqual(existing);
+    expect(result).toEqual({
+      status: "already-earned",
+      award: existing,
+      newlyAwarded: false,
+    });
     expect(cachedEarned).toEqual([existing]);
     expect(existingQuery.maybeSingle).toHaveBeenCalledTimes(1);
     expect(supabase.from).toHaveBeenCalledTimes(1);
@@ -249,7 +272,11 @@ describe("achievement Supabase read cache", () => {
         "child-1",
         LEARNING_HUB_ACHIEVEMENT_IDS.FIRST_LEARNING_STEP,
       ),
-    ).resolves.toEqual(existing);
+    ).resolves.toEqual({
+      status: "already-earned",
+      award: existing,
+      newlyAwarded: false,
+    });
 
     jest.clearAllMocks();
 
@@ -258,8 +285,80 @@ describe("achievement Supabase read cache", () => {
         "child-1",
         LEARNING_HUB_ACHIEVEMENT_IDS.FIRST_LEARNING_STEP,
       ),
-    ).resolves.toEqual(existing);
+    ).resolves.toEqual({
+      status: "already-earned",
+      award: existing,
+      newlyAwarded: false,
+    });
     expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it("treats a unique-constraint race as already earned and caches one row", async () => {
+    const achievementDefinition = getLearningDefinition(
+      LEARNING_HUB_ACHIEVEMENT_IDS.FIRST_LEARNING_STEP,
+    );
+    const existing = earned(
+      "earned-race-winner",
+      "child-1",
+      achievementDefinition.id,
+    );
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+
+    (supabase.from as jest.Mock)
+      .mockReturnValueOnce(createChildAchievementsQuery({ data: [], error: null }))
+      .mockReturnValueOnce(createExistingAchievementQuery({ data: null, error: null }))
+      .mockReturnValueOnce(
+        createAwardInsertQuery({
+          data: null,
+          error: { code: "23505", message: "duplicate key" },
+        }),
+      )
+      .mockReturnValueOnce(
+        createExistingAchievementQuery({ data: existing, error: null }),
+      );
+
+    const newlyEarned = await checkAndGrantNewAchievements({
+      childId: "child-1",
+      definedAchievements: [achievementDefinition],
+      earnedAchievementIds: [],
+      event: createLearningEvent(),
+    });
+    const cachedEarned = await fetchChildEarnedAchievements("child-1");
+
+    expect(newlyEarned).toEqual([]);
+    expect(cachedEarned).toEqual([existing]);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+
+    warnSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it("returns a failed non-award when remote checking fails", async () => {
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    (supabase.from as jest.Mock)
+      .mockReturnValueOnce(
+        createChildAchievementsQuery({
+          data: null,
+          error: { message: "offline" },
+        }),
+      )
+      .mockReturnValueOnce(
+        createExistingAchievementQuery({
+          data: null,
+          error: { message: "offline" },
+        }),
+      );
+
+    await expect(
+      awardAchievementToChild("child-1", "achievement-offline"),
+    ).resolves.toEqual({
+      status: "failed",
+      award: null,
+      newlyAwarded: false,
+    });
+
+    errorSpy.mockRestore();
   });
 });
 

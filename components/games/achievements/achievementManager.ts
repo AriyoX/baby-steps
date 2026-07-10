@@ -1,6 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
-import type { AchievementDefinition, ChildAchievement } from './achievementTypes';
+import type {
+  AchievementAwardResult,
+  AchievementDefinition,
+  ChildAchievement,
+} from './achievementTypes';
 import type { UserStats as LugandaLearningUserStats } from '../utils/progressManagerLugandaLearning'; 
 import type { WordGameProgress } from '../utils/progressManagerWordGame'; 
 import type { PuzzleGameProgress } from '../utils/progressManagerPuzzleGame';
@@ -464,15 +468,21 @@ export const fetchChildEarnedAchievements = async (
 export const awardAchievementToChild = async (
   childId: string,
   achievementId: string
-): Promise<ChildAchievement | null> => {
-  if (!childId || !achievementId) return null;
+): Promise<AchievementAwardResult> => {
+  if (!childId || !achievementId) {
+    return { status: 'failed', award: null, newlyAwarded: false };
+  }
 
   const cachedEarned = await fetchChildEarnedAchievements(childId);
   const alreadyEarned = cachedEarned.find(
     (achievement) => achievement.achievement_id === achievementId,
   );
   if (alreadyEarned) {
-    return alreadyEarned;
+    return {
+      status: 'already-earned',
+      award: alreadyEarned,
+      newlyAwarded: false,
+    };
   }
 
   let remoteAlreadyEarned: ChildAchievement | null = null;
@@ -483,39 +493,63 @@ export const awardAchievementToChild = async (
     );
   } catch (error) {
     console.error('Error checking existing child achievement:', error);
-    return null;
+    return { status: 'failed', award: null, newlyAwarded: false };
   }
 
   if (remoteAlreadyEarned) {
     await cacheAwardedChildAchievement(childId, remoteAlreadyEarned);
-    return remoteAlreadyEarned;
+    return {
+      status: 'already-earned',
+      award: remoteAlreadyEarned,
+      newlyAwarded: false,
+    };
   }
 
-  const { data, error } = await supabase
-    .from('child_achievements')
-    .insert([{ child_id: childId, achievement_id: achievementId }])
-    .select()
-    .single(); 
+  try {
+    const { data, error } = await supabase
+      .from('child_achievements')
+      .insert([{ child_id: childId, achievement_id: achievementId }])
+      .select()
+      .single();
 
-  if (error) {
-    console.error('Error awarding achievement:', error);
-    // Check for unique constraint violation specifically if you added it
-    if (error.code === '23505') { // PostgreSQL unique violation error code
+    if (error) {
+      console.error('Error awarding achievement:', error);
+      if (error.code === '23505') {
         console.warn(`Attempted to award already earned achievement (ID: ${achievementId}) to child ${childId}. Constraint prevented duplicate.`);
-        // Find the existing record to return, so the calling function thinks it "succeeded" in a way
-        const existing = await fetchExistingChildAchievementFromRemote(
-          childId,
-          achievementId,
-        );
-        if (existing) {
-          await cacheAwardedChildAchievement(childId, existing);
+
+        try {
+          const existing = await fetchExistingChildAchievementFromRemote(
+            childId,
+            achievementId,
+          );
+          if (existing) {
+            await cacheAwardedChildAchievement(childId, existing);
+          }
+          return {
+            status: 'already-earned',
+            award: existing,
+            newlyAwarded: false,
+          };
+        } catch (fetchError) {
+          console.error('Error fetching concurrently awarded achievement:', fetchError);
+          return {
+            status: 'already-earned',
+            award: null,
+            newlyAwarded: false,
+          };
         }
-        return existing;
+      }
+
+      return { status: 'failed', award: null, newlyAwarded: false };
     }
-    return null;
+
+    const award = data as ChildAchievement;
+    await cacheAwardedChildAchievement(childId, award);
+    return { status: 'newly-awarded', award, newlyAwarded: true };
+  } catch (error) {
+    console.error('Error awarding achievement:', error);
+    return { status: 'failed', award: null, newlyAwarded: false };
   }
-  await cacheAwardedChildAchievement(childId, data as ChildAchievement);
-  return data;
 };
 
 
@@ -880,8 +914,8 @@ export const checkAndGrantNewAchievements = async ({
     }
 
     if (shouldAward) {
-      const awarded = await awardAchievementToChild(childId, achDef.id);
-      if (awarded) {
+      const awardResult = await awardAchievementToChild(childId, achDef.id);
+      if (awardResult.newlyAwarded) {
         newlyEarned.push(achDef);
       }
     }

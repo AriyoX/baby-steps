@@ -23,6 +23,7 @@ import { Text } from "@/components/StyledText"
 import { ComingSoonState } from "@/components/child/ComingSoonState"
 import { CachedImage } from "@/components/common/CachedImage"
 import { useChild } from "@/context/ChildContext"
+import { useChildNotice } from "@/context/ChildNoticeContext"
 import { brandColors } from "@/constants/Brand"
 import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages"
 import {
@@ -36,7 +37,6 @@ import { preloadContentBundleImages } from "@/content/imagePreloader"
 import { saveActivity } from "@/lib/utils"
 import { syncProgressNow } from "@/lib/progressRepository"
 import { useAchievements } from "./achievements/useAchievements"
-import type { AchievementDefinition } from "./achievements/achievementTypes"
 import { playWordAudio, loadGameSounds } from "./utils/audioManager"
 import { audioManager } from "@/lib/audioManager"
 
@@ -121,8 +121,8 @@ const LugandaLearningGame: React.FC = () => {
     isLoadingAchievements, // Can be combined with main isLoading
     checkAndGrantNewAchievements,
   } = useAchievements(activeChild?.id, achievementGameKey) // Pass childId and gameKey
+  const { enqueueAchievementUnlocked } = useChildNotice()
 
-  const [newlyEarnedAchievementLL, setNewlyEarnedAchievementLL] = useState<AchievementDefinition | null>(null)
   const gameStartTime = useRef(Date.now())
 
   // Get dimensions for responsive layout
@@ -642,8 +642,7 @@ const LugandaLearningGame: React.FC = () => {
         newlyEarnedFromEvent.forEach((ach) => {
           achievementPointsEarned += ach.points
           console.log(`LEARNING GAME - NEW ACHIEVEMENT: ${ach.name}`)
-          setNewlyEarnedAchievementLL(ach) // For modal/toast
-          // Toast.show(`Achievement: ${ach.name}! +${ach.points} pts`, Toast.LONG);
+          enqueueAchievementUnlocked(ach)
         })
       }
     }
@@ -673,96 +672,6 @@ const LugandaLearningGame: React.FC = () => {
     }
 
     setGameState("levelComplete")
-  }
-
-  const renderAchievementUnlockedModalLL = () => {
-    if (!newlyEarnedAchievementLL) return null
-
-    return (
-      <View
-        style={{
-          position: "absolute",
-          top: 0,
-          bottom: 0,
-          left: 0,
-          right: 0,
-          backgroundColor: "rgba(0,0,0,0.6)",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 100,
-        }}
-      >
-        <View
-          style={{
-            backgroundColor: "white",
-            borderRadius: 20,
-            padding: 24,
-            width: "85%",
-            maxWidth: 380,
-            alignItems: "center",
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.25,
-            shadowRadius: 3.84,
-            elevation: 5,
-          }}
-        >
-          <View
-            style={{
-              position: "absolute",
-              top: -40,
-              backgroundColor: "#f59e0b",
-              width: 80,
-              height: 80,
-              borderRadius: 40,
-              alignItems: "center",
-              justifyContent: "center",
-              borderWidth: 4,
-              borderColor: "white",
-            }}
-          >
-            <Ionicons name={(newlyEarnedAchievementLL.icon_name as any) || "star"} size={36} color="white" />
-          </View>
-          <Text
-            style={{
-              fontWeight: "bold",
-              fontSize: 20,
-              color: "#b45309",
-              marginTop: 48,
-              marginBottom: 8,
-              textAlign: "center",
-            }}
-          >
-            Achievement Unlocked!
-          </Text>
-          <Text style={{ fontWeight: "bold", fontSize: 24, color: "#374151", marginBottom: 8, textAlign: "center" }}>
-            {newlyEarnedAchievementLL.name}
-          </Text>
-          <Text style={{ fontSize: 14, color: "#4b5563", textAlign: "center", marginBottom: 16 }}>
-            {newlyEarnedAchievementLL.description}
-          </Text>
-          <Text style={{ fontWeight: "bold", fontSize: 18, color: "#f59e0b", marginBottom: 24 }}>
-            +{newlyEarnedAchievementLL.points} Points!
-          </Text>
-          <TouchableOpacity
-            style={{
-              backgroundColor: "#f59e0b",
-              paddingVertical: 12,
-              paddingHorizontal: 40,
-              borderRadius: 12,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.2,
-              shadowRadius: 1.41,
-              elevation: 2,
-            }}
-            onPress={() => setNewlyEarnedAchievementLL(null)}
-          >
-            <Text style={{ fontWeight: "bold", color: "white", fontSize: 16, textAlign: "center" }}>Awesome!</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    )
   }
 
   const saveGameProgress = async () => {
@@ -1779,47 +1688,17 @@ const LugandaLearningGame: React.FC = () => {
   // Main render function that switches between game states
   switch (gameState) {
     case "stageSelect":
-      return (
-        <>
-          {renderStageSelectScreen()}
-          {renderAchievementUnlockedModalLL()}
-        </>
-      )
+      return renderStageSelectScreen()
     case "levelSelect":
-      return (
-        <>
-          {renderLevelSelectScreen()}
-          {renderAchievementUnlockedModalLL()}
-        </>
-      )
+      return renderLevelSelectScreen()
     case "learning":
-      return (
-        <>
-          {renderLearningScreen()}
-          {renderAchievementUnlockedModalLL()}
-        </>
-      )
+      return renderLearningScreen()
     case "playing":
-      return (
-        <>
-          {renderGameScreen()}
-          {renderAchievementUnlockedModalLL()}
-        </>
-      )
+      return renderGameScreen()
     case "levelComplete":
-      return (
-        <>
-          {renderLevelCompletionScreen()}
-          {renderAchievementUnlockedModalLL()}
-        </>
-      )
+      return renderLevelCompletionScreen()
     default:
-      return (
-        <>
-          {renderStageSelectScreen()}
-          {renderAchievementUnlockedModalLL()}
-        </>
-      )
+      return renderStageSelectScreen()
   }
 }
 

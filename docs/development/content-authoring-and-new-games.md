@@ -707,14 +707,19 @@ Current behavior:
 - Achievement definitions are read from `achievements` and cached under `cache:achievements:definitions` for 24 hours.
 - Earned child achievements are cached per child under `cache:child_achievements:{childId}` for 15 minutes.
 - Definitions can be filtered by `game_key`.
-- `awardAchievementToChild` checks the child-scoped cache, checks the exact remote row, and then inserts.
+- `awardAchievementToChild` distinguishes a new insert from cached/remote existing rows and failures. Only `newlyAwarded: true` may be presented as a fresh unlock.
+- New inserts and exact existing rows update the child-scoped earned cache without duplicate `achievement_id` records.
 - The `20260701000000_add_child_achievements_unique_constraint.sql` migration enforces one row per `(child_id, achievement_id)`.
+- Child mode presents fresh unlocks through the shared FIFO `ChildNoticeProvider`; games must not add their own blocking achievement overlay.
+- Hydration and cache refreshes update earned state but never enqueue unlock notices.
+- Failed/offline inserts are not yet queued for later evaluation. Device notifications are separate and are not part of the in-app notice path.
 
 For new games:
 
 - Pick one stable `gameKey`.
 - Define achievement event types around completions or milestones.
 - Pass enough event context for `checkAndGrantNewAchievements`.
+- Enqueue every definition returned by the checker through `useChildNotice`; do not keep only the final result in component state.
 - Do not award the same achievement repeatedly.
 - Add tests for duplicate-award prevention when introducing a new achievement path.
 

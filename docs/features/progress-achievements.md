@@ -27,6 +27,8 @@ Progress and achievements help parents see what children have completed and rewa
 - `components/games/achievements/achievementTypes.ts`
 - `components/games/achievements/achievementManager.ts`
 - `components/games/achievements/useAchievements.ts`
+- `context/ChildNoticeContext.tsx`
+- `app/child/_layout.tsx`
 - `components/games/utils/progressManagerWordGame.ts`
 - `components/games/utils/progressManagerCountingGame.ts`
 - `components/games/utils/progressManagerLugandaLearning.ts`
@@ -49,6 +51,8 @@ Progress and achievements help parents see what children have completed and rewa
 - `awardAchievementToChild`
 - `checkAndGrantNewAchievements`
 - `useAchievements`
+- `ChildNoticeProvider`
+- `useChildNotice`
 
 ## Data And Content Used
 
@@ -78,6 +82,36 @@ Local AsyncStorage progress keys are game-specific. Examples include:
 - Achievements require Supabase-defined achievement rows.
 - `app/parent/child-progress.tsx` is a static/sample progress screen and is not wired to live child data.
 - `utils/storage.ts` contains generic local progress/activity/session helpers, but current screens also use game-specific managers and Supabase utilities.
+
+## Achievement Identity, Awarding, And Notices
+
+Achievement state has two distinct layers:
+
+- `achievements` contains the stable achievement definitions: UUID, name, description, icon, points, `game_key`, and award condition metadata.
+- `child_achievements` contains child-earned records. Each row links one child UUID to one achievement UUID, and the database unique constraint on `(child_id, achievement_id)` prevents duplicate earned records.
+
+Definitions and earned records are child/account data, not language-specific content. Changing a child's learning language does not create another achievement identity or earned row.
+
+`awardAchievementToChild` returns an explicit result contract:
+
+- `status: "newly-awarded"` and `newlyAwarded: true` only when this call successfully inserts the database row.
+- `status: "already-earned"` and `newlyAwarded: false` when the child-scoped cache already contains the row, an exact remote lookup finds it, or a concurrent insert loses the unique-constraint race.
+- `status: "failed"` and `newlyAwarded: false` when the award cannot be checked or inserted.
+
+`checkAndGrantNewAchievements` returns definitions only for `newlyAwarded: true` results. Existing remote rows are therefore never interpreted as fresh unlocks. Successful and already-existing remote rows update the child-achievement cache immediately, merging by `achievement_id` so the cache does not contain duplicates. Award failures return no new achievement and do not block the lesson or game completion flow.
+
+Achievement cache behavior:
+
+- Definitions use `cache:achievements:definitions`, with a 24-hour TTL and stale-cache fallback/background refresh.
+- Earned records use `cache:child_achievements:{childId}`, with a 15-minute TTL and stale-cache fallback/background refresh.
+- A successful award writes the child cache immediately. Parent achievement screens continue to read these same cached/database records.
+- Reading or hydrating definitions/earned rows never produces an unlock notice. Only the result of a live completion-time award check can enqueue one.
+
+Child-facing presentation is mounted once in `app/child/_layout.tsx` through `ChildNoticeProvider`. The provider accepts already-decided notices and is not an achievement source of truth. Achievement unlocks are compact, non-blocking cards shown one at a time in FIFO order. Multiple awards from one completion are retained and shown sequentially.
+
+Notice deduplication is session-only. The stable key contains the active child ID, notice type, and achievement ID. A key is ignored if it is visible, queued, or was already displayed during the current mounted child session. The provider is keyed by active child and unmounts outside child mode, so changing children/accounts or leaving child mode resets this in-memory set. Notice queues and displayed keys are deliberately not persisted to AsyncStorage; reloads and hydration must not replay old unlocks.
+
+Current offline limitation: failed achievement checks/inserts are not queued for later retry or evaluation. Progress and completion can still save, but an achievement whose insert fails while offline may require a later qualifying evaluation. Device notifications are a separate feature: `expo-notifications`, notification permissions, local/push notifications, and a notification inbox are not implemented here.
 
 ## Remote Progress Sync Audit
 
@@ -240,9 +274,12 @@ Current focused coverage:
 
 - `lib/__tests__/progressRepository.test.ts` covers local dirty queueing, no-session sync preservation, upsert payload sanitization, dirty-safe hydration, hydration cooldown scoping, partial hydration failure behavior, and in-flight sync races.
 - `supabase/migrations/__tests__/progressMigration.test.ts` covers the normalized progress migration shape, constraints, indexes, and RLS policy intent.
+- `components/games/achievements/__tests__/achievementManager.test.ts` covers newly inserted, cached, remote-existing, concurrent unique-race, cache-update, and failed award results.
+- `context/__tests__/ChildNoticeContext.test.tsx` covers render, automatic/manual dismissal, FIFO ordering, multiple notices, session deduplication, timer cleanup, touch pass-through structure, and reduced motion.
+- Learning Hub completion tests cover full-batch notice handoff and continuing from the completion screen, while source integration tests keep every standalone game on the shared notice path.
 - Existing content-helper tests indirectly cover some stage/content unlock behavior.
 
-Remaining gaps: Supabase activity writes, achievement awarding, parent activity dashboards, and game-screen integration behavior are not yet covered by component-level tests.
+Remaining gaps: Supabase activity writes and parent activity dashboard behavior are not yet covered by end-to-end tests. Standalone game notice wiring has focused source-level integration coverage rather than full gameplay rendering for every game.
 
 ## Known Limitations Or Bugs
 
@@ -252,6 +289,7 @@ Remaining gaps: Supabase activity writes, achievement awarding, parent activity 
 - `activities.details` is text, not structured JSON.
 - Achievement definitions are not seeded in the schema file.
 - Parent progress screen contains hardcoded sample data.
+- Failed/offline achievement inserts are not queued for later evaluation.
 
 ## Future MVP Improvements
 
@@ -270,6 +308,13 @@ Remaining gaps: Supabase activity writes, achievement awarding, parent activity 
 - [ ] Confirm `child_activity_progress` and `child_stage_progress` rows appear after meaningful completions.
 - [ ] Confirm activities screen filters and search still work.
 - [ ] Seed achievement definitions and confirm expected achievements unlock.
+- [ ] Trigger one achievement and confirm its compact card dismisses automatically without blocking game controls or navigation.
+- [ ] Trigger multiple achievements in one completion and confirm every card appears once in FIFO order without stacking.
+- [ ] Dismiss a notice manually and confirm gameplay/completion controls remain usable.
+- [ ] Repeat the same completion and confirm an already-earned achievement notice does not replay.
+- [ ] Switch child profiles and confirm notices and earned records do not mix between children.
+- [ ] Enable reduced motion and confirm unlock notices avoid enter/exit animation.
+- [ ] Confirm device notification permission is not requested.
 - [ ] Confirm child detail shows earned achievements.
 - [ ] Confirm all-achievements groups definitions by game.
 - [ ] Confirm progress survives app restart for local-progress games.

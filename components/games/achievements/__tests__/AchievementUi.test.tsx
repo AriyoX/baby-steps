@@ -1,8 +1,6 @@
 import React from "react";
-import { TouchableOpacity } from "react-native";
 import renderer, { act } from "react-test-renderer";
 import { AchievementCard } from "../AchievementCard";
-import { AchievementUnlockedModal } from "../AchievementUnlockedModal";
 import type { AchievementDefinition } from "../achievementTypes";
 
 jest.mock("@expo/vector-icons", () => ({
@@ -66,60 +64,5 @@ describe("achievement UI components", () => {
     expect(json).toContain("Unlocked");
     expect(json).toContain("Jan 1, 2026");
     expect(json).toContain("Ari");
-  });
-
-  it("shows and closes the achievement unlock notification", async () => {
-    const onClose = jest.fn();
-    let tree: renderer.ReactTestRenderer | undefined;
-
-    await act(async () => {
-      tree = renderer.create(
-        <AchievementUnlockedModal
-          achievement={achievement}
-          visible
-          onClose={onClose}
-        />,
-      );
-    });
-
-    if (!tree) {
-      throw new Error("AchievementUnlockedModal did not render");
-    }
-    const renderedTree = tree;
-
-    expect(JSON.stringify(renderedTree.toJSON())).toContain("Achievement unlocked!");
-    expect(JSON.stringify(renderedTree.toJSON())).toContain("First Learning Step");
-
-    await act(async () => {
-      renderedTree.root
-        .findAllByType(TouchableOpacity)
-        .find(
-          (button) =>
-            button.props.accessibilityLabel === "Close achievement notification",
-        )
-        ?.props.onPress();
-    });
-
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not render the unlock notification without a newly earned achievement", async () => {
-    let tree: renderer.ReactTestRenderer | undefined;
-
-    await act(async () => {
-      tree = renderer.create(
-        <AchievementUnlockedModal
-          achievement={null}
-          visible={false}
-          onClose={jest.fn()}
-        />,
-      );
-    });
-
-    if (!tree) {
-      throw new Error("AchievementUnlockedModal did not render");
-    }
-
-    expect(tree.toJSON()).toBeNull();
   });
 });

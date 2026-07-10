@@ -6,6 +6,7 @@ import { AppState } from "react-native"
 import * as ScreenOrientation from "expo-screen-orientation"
 import { useChild } from "@/context/ChildContext"
 import { LanguageProvider } from "@/context/language-context"
+import { ChildNoticeProvider } from "@/context/ChildNoticeContext"
 
 const CHILD_ROUTE_ORIENTATION = "landscape_left" as const
 const CHILD_ORIENTATION_LOCK = ScreenOrientation.OrientationLock.LANDSCAPE_LEFT
@@ -71,40 +72,42 @@ export default function TabLayout() {
   }
 
   return (
-    <LanguageProvider>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          orientation: CHILD_ROUTE_ORIENTATION,
-        }}
-      >
-        <Stack.Screen
-          name="(tabs)"
-          options={{
-            animation: "none",
-            orientation: CHILD_ROUTE_ORIENTATION,
-          }}
-        />
-        <Stack.Screen
-          name="games"
-          options={{
-            orientation: CHILD_ROUTE_ORIENTATION,
-          }}
-        />
-        <Stack.Screen
-          name="learning"
-          options={{
-            orientation: CHILD_ROUTE_ORIENTATION,
-          }}
-        />
-        <Stack.Screen
-          name="parent-gate"
-          options={{
+    <ChildNoticeProvider key={activeChild.id} childId={activeChild.id}>
+      <LanguageProvider>
+        <Stack
+          screenOptions={{
             headerShown: false,
             orientation: CHILD_ROUTE_ORIENTATION,
           }}
-        />
-      </Stack>
-    </LanguageProvider>
+        >
+          <Stack.Screen
+            name="(tabs)"
+            options={{
+              animation: "none",
+              orientation: CHILD_ROUTE_ORIENTATION,
+            }}
+          />
+          <Stack.Screen
+            name="games"
+            options={{
+              orientation: CHILD_ROUTE_ORIENTATION,
+            }}
+          />
+          <Stack.Screen
+            name="learning"
+            options={{
+              orientation: CHILD_ROUTE_ORIENTATION,
+            }}
+          />
+          <Stack.Screen
+            name="parent-gate"
+            options={{
+              headerShown: false,
+              orientation: CHILD_ROUTE_ORIENTATION,
+            }}
+          />
+        </Stack>
+      </LanguageProvider>
+    </ChildNoticeProvider>
   )
 }

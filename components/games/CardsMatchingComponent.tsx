@@ -25,8 +25,8 @@ import {
   DEFAULT_OVERALL_STATS // Import the default stats constant
 } from './utils/progressManagerCardGame';
 import { useAchievements } from "./achievements/useAchievements";
-import { AchievementDefinition } from "./achievements/achievementTypes";
 import { audioManager } from "@/lib/audioManager";
+import { useChildNotice } from "@/context/ChildNoticeContext";
 
 // Define card interface
 interface Card {
@@ -302,8 +302,8 @@ const BugandaMatchingGame: React.FC = () => {
     isLoadingAchievements, 
     checkAndGrantNewAchievements 
   } = useAchievements(activeChild?.id, 'card_matching_game'); // Game key
+  const { enqueueAchievementUnlocked } = useChildNotice();
 
-  const [newlyEarnedAchievementCM, setNewlyEarnedAchievementCM] = useState<AchievementDefinition | null>(null);
   const [matchStreak, setMatchStreak] = useState(0); // For match streak achievement
   const [overallStats, setOverallStats] = useState<CardGameOverallStats | null>(null); // For overall game stats
   const [cards, setCards] = useState<Card[]>([]);
@@ -578,7 +578,7 @@ const BugandaMatchingGame: React.FC = () => {
               newlyEarnedFromEvent.forEach(ach => {
                   achievementPointsEarnedThisGame += ach.points;
                   console.log(`CARD MATCH - GAME COMPLETE - NEW ACHIEVEMENT: ${ach.name}`);
-                  setNewlyEarnedAchievementCM(ach); // Show modal
+                  enqueueAchievementUnlocked(ach);
               });
           }
       }
@@ -683,7 +683,7 @@ const BugandaMatchingGame: React.FC = () => {
                     newlyEarnedFromEvent.forEach(ach => {
                         achievementPointsEarnedThisTurn += ach.points; // Accumulate points if any for this turn
                         console.log(`CARD MATCH - NEW ACHIEVEMENT: ${ach.name}`);
-                        setNewlyEarnedAchievementCM(ach);
+                        enqueueAchievementUnlocked(ach);
                     });
                 }
             }
@@ -771,40 +771,6 @@ const BugandaMatchingGame: React.FC = () => {
     setInfoModal({ ...infoModal, show: false });
   };
 
-  const renderAchievementUnlockedModalCM = () => {
-  if (!newlyEarnedAchievementCM) return null;
-  // Use the same modal structure as renderAchievementUnlockedModalLL, just different state variable
-    return (
-      <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-        <View style={{ backgroundColor: 'white', borderRadius: 20, padding: 24, width: '85%', maxWidth: 380, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 }}>
-          <View style={{ position: 'absolute', top: -40, backgroundColor: '#f59e0b', width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: 'white' }}>
-            <Ionicons name={(newlyEarnedAchievementCM.icon_name as any) || "star"} size={36} color="white" />
-          </View>
-          <Text style={{ fontWeight: 'bold', fontSize: 20, color: '#b45309', marginTop: 48, marginBottom: 8, textAlign: 'center' }}>
-            Achievement Unlocked!
-          </Text>
-          <Text style={{ fontWeight: 'bold', fontSize: 24, color: '#374151', marginBottom: 8, textAlign: 'center' }}>
-            {newlyEarnedAchievementCM.name}
-          </Text>
-          <Text style={{ fontSize: 14, color: '#4b5563', textAlign: 'center', marginBottom: 16 }}>
-            {newlyEarnedAchievementCM.description}
-          </Text>
-          <Text style={{ fontWeight: 'bold', fontSize: 18, color: '#f59e0b', marginBottom: 24 }}>
-            +{newlyEarnedAchievementCM.points} Points!
-          </Text>
-          <TouchableOpacity
-            style={{ backgroundColor: '#f59e0b', paddingVertical: 12, paddingHorizontal: 40, borderRadius: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 1.41, elevation: 2 }}
-            onPress={() => setNewlyEarnedAchievementCM(null)}
-          >
-            <Text style={{ fontWeight: 'bold', color: 'white', fontSize: 16, textAlign: 'center' }}>
-              Awesome!
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  };
-
   // Show loading screen while fetching saved state
   if (isLoading) {
     return (
@@ -846,8 +812,6 @@ const BugandaMatchingGame: React.FC = () => {
   return (
     <View className="flex-1 flex-col bg-blue-50">
       <StatusBar style="dark" />
-      {renderAchievementUnlockedModalCM()}
-
       {/* Top navigation bar with all elements aligned horizontally */}
       <View className="flex-row justify-between items-center px-5 pt-4 pb-1">
         {/* Back button */}

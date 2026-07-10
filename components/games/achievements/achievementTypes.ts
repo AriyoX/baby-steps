@@ -19,3 +19,20 @@ export interface ChildAchievement {
   earned_at: string;
   created_at?: string;
 }
+
+export type AchievementAwardResult =
+  | {
+      status: "newly-awarded";
+      award: ChildAchievement;
+      newlyAwarded: true;
+    }
+  | {
+      status: "already-earned";
+      award: ChildAchievement | null;
+      newlyAwarded: false;
+    }
+  | {
+      status: "failed";
+      award: null;
+      newlyAwarded: false;
+    };

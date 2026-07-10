@@ -36,8 +36,8 @@ import {
   isLevelUnlocked
 } from './utils/progressManagerWordGame';
 import { useAchievements } from "./achievements/useAchievements"; 
-import { AchievementDefinition } from "./achievements/achievementTypes"; 
 import { audioManager } from "@/lib/audioManager";
+import { useChildNotice } from "@/context/ChildNoticeContext";
 
 const WORD_GAME_MODAL_ORIENTATIONS: ModalProps["supportedOrientations"] = ["landscape-left", "landscape-right"];
 
@@ -67,8 +67,8 @@ const WordGame: React.FC = () => {
     isLoadingAchievements, 
     checkAndGrantNewAchievements 
   } = useAchievements(activeChild?.id, 'word_game'); // Game key
+  const { enqueueAchievementUnlocked } = useChildNotice();
 
-  const [newlyEarnedAchievementWG, setNewlyEarnedAchievementWG] = useState<AchievementDefinition | null>(null);
   const [hintUsedCurrentLevel, setHintUsedCurrentLevel] = useState<boolean>(false); // For no-hint achievement
   const [consecutiveWins, setConsecutiveWins] = useState<number>(0);
   
@@ -312,7 +312,7 @@ const WordGame: React.FC = () => {
               newlyEarnedFromEvent.forEach(ach => {
                   achievementPointsEarned += ach.points;
                   console.log(`WORD GAME - NEW ACHIEVEMENT: ${ach.name}`);
-                  setNewlyEarnedAchievementWG(ach);
+                  enqueueAchievementUnlocked(ach);
               });
           }
       }
@@ -370,7 +370,7 @@ const WordGame: React.FC = () => {
                 newlyEarnedAllComplete.forEach(ach => {
                     pointsFromAllComplete += ach.points;
                     console.log(`WORD GAME - ALL LEVELS COMPLETE - NEW ACHIEVEMENT: ${ach.name}`);
-                    setNewlyEarnedAchievementWG(ach);
+                    enqueueAchievementUnlocked(ach);
                 });
                 if (pointsFromAllComplete > 0) {
                     const finalProgressWithAllCompletePoints = {
@@ -528,40 +528,6 @@ const WordGame: React.FC = () => {
       isMounted = false;
     };
   }, [activeChild, languageCode]);
-
-  const renderAchievementUnlockedModalWG = () => {
-    if (!newlyEarnedAchievementWG) return null;
-    // Use same modal structure as other games, just different state variable
-    return (
-      <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-        <View style={{ backgroundColor: 'white', borderRadius: 20, padding: 24, width: '85%', maxWidth: 380, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 }}>
-          <View style={{ position: 'absolute', top: -40, backgroundColor: '#f59e0b', width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: 'white' }}>
-            <Ionicons name={(newlyEarnedAchievementWG.icon_name as any) || "star"} size={36} color="white" />
-          </View>
-          <Text style={{ fontWeight: 'bold', fontSize: 20, color: '#b45309', marginTop: 48, marginBottom: 8, textAlign: 'center' }}>
-            Achievement Unlocked!
-          </Text>
-          <Text style={{ fontWeight: 'bold', fontSize: 24, color: '#374151', marginBottom: 8, textAlign: 'center' }}>
-            {newlyEarnedAchievementWG.name}
-          </Text>
-          <Text style={{ fontSize: 14, color: '#4b5563', textAlign: 'center', marginBottom: 16 }}>
-            {newlyEarnedAchievementWG.description}
-          </Text>
-          <Text style={{ fontWeight: 'bold', fontSize: 18, color: '#f59e0b', marginBottom: 24 }}>
-            +{newlyEarnedAchievementWG.points} Points!
-          </Text>
-          <TouchableOpacity
-            style={{ backgroundColor: '#f59e0b', paddingVertical: 12, paddingHorizontal: 40, borderRadius: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 1.41, elevation: 2 }}
-            onPress={() => setNewlyEarnedAchievementWG(null)}
-          >
-            <Text style={{ fontWeight: 'bold', color: 'white', fontSize: 16, textAlign: 'center' }}>
-              Awesome!
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  };
 
   // Move to next level
   const animateLetterToWord = (
@@ -744,8 +710,6 @@ const WordGame: React.FC = () => {
   return (
     <View ref={containerRef} className="flex-1 bg-blue-50">
       <StatusBar style="dark" translucent backgroundColor="transparent" />
-      {renderAchievementUnlockedModalWG()}
-
       {/* Top navigation bar with all elements aligned horizontally */}
       <View className="flex-row justify-between items-center px-5 pt-6 pb-2">
         {/* Back button */}

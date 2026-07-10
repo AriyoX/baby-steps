@@ -45,8 +45,8 @@ import {
   isStageUnlocked,
 } from "./utils/progressManagerCountingGame"
 import { useAchievements } from "./achievements/useAchievements" // Adjust path
-import type { AchievementDefinition } from "./achievements/achievementTypes" // Adjust path
 import { audioManager } from "@/lib/audioManager"
+import { useChildNotice } from "@/context/ChildNoticeContext"
 
 const DEFAULT_COUNTING_ITEM: CountingGameItem = {
   name: "items",
@@ -116,8 +116,6 @@ const LugandaCountingGame: React.FC = () => {
   const [gameLevels, setGameLevels] = useState<number[]>([])
   const [stageCompleted, setStageCompleted] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState<boolean>(true)
-  const [newlyEarnedAchievement, setNewlyEarnedAchievement] = useState<AchievementDefinition | null>(null)
-
   // Progress state
   const [progress, setProgress] = useState<CountingGameProgress>(DEFAULT_PROGRESS)
   const [fadeAnim] = useState(new Animated.Value(0))
@@ -136,6 +134,7 @@ const LugandaCountingGame: React.FC = () => {
     isLoadingAchievements: isLoadingAch, // rename to avoid conflict
     checkAndGrantNewAchievements,
   } = useAchievements(activeChild?.id, "counting_game")
+  const { enqueueAchievementUnlocked } = useChildNotice()
 
   const getStageById = (stageId: number): CountingGameStage | undefined =>
     countingStages.find((stage) => stage.id === stageId) ?? countingStages[0]
@@ -274,8 +273,7 @@ const LugandaCountingGame: React.FC = () => {
       newlyEarnedFromStage.forEach((ach) => {
         achievementPointsEarned += ach.points
         console.log(`NEW ACHIEVEMENT: ${ach.name}`)
-        setNewlyEarnedAchievement(ach) // For modal/toast
-        // Toast.show(`Achievement Unlocked: ${ach.name}! +${ach.points} points`, Toast.LONG);
+        enqueueAchievementUnlocked(ach)
       })
 
       updatedProgress = {
@@ -636,8 +634,7 @@ const LugandaCountingGame: React.FC = () => {
         newlyEarnedFromScore.forEach((ach) => {
           achievementPointsEarned += ach.points
           console.log(`NEW ACHIEVEMENT (Score): ${ach.name}`)
-          setNewlyEarnedAchievement(ach) // For modal/toast
-          // Toast.show(`Achievement Unlocked: ${ach.name}! +${ach.points} points`, Toast.LONG);
+          enqueueAchievementUnlocked(ach)
         })
         progressWithScoreAchievements = {
           ...progress,
@@ -677,38 +674,6 @@ const LugandaCountingGame: React.FC = () => {
         setSelectedCount(null)
       }, 1500)
     }
-  }
-
-  const renderAchievementUnlockedModal = () => {
-    if (!newlyEarnedAchievement) return null
-
-    return (
-      <View className="absolute inset-0 bg-black/60 items-center justify-center z-50">
-        <View className="bg-white rounded-2xl p-6 w-4/5 max-w-sm items-center shadow-xl">
-          <View className="absolute -top-10 bg-amber-400 w-20 h-20 rounded-full items-center justify-center border-4 border-white">
-            <Ionicons name={(newlyEarnedAchievement.icon_name as any) || "star"} size={36} color="white" />
-          </View>
-          <Text variant="bold" className="text-xl text-amber-600 mt-8 mb-2 text-center">
-            Achievement Unlocked!
-          </Text>
-          <Text variant="bold" className="text-2xl text-slate-700 mb-2 text-center">
-            {newlyEarnedAchievement.name}
-          </Text>
-          <Text className="text-slate-500 text-center mb-4">{newlyEarnedAchievement.description}</Text>
-          <Text variant="bold" className="text-lg text-amber-500 mb-6">
-            +{newlyEarnedAchievement.points} Points!
-          </Text>
-          <TouchableOpacity
-            className="bg-amber-500 py-3 px-10 rounded-xl shadow-md"
-            onPress={() => setNewlyEarnedAchievement(null)}
-          >
-            <Text variant="bold" className="text-white text-lg text-center">
-              Awesome!
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    )
   }
 
   const renderNumberOptions = (): React.ReactElement[] => {
@@ -1431,7 +1396,6 @@ const LugandaCountingGame: React.FC = () => {
           </View>
         </View>
       )}
-      {renderAchievementUnlockedModal()}
     </SafeAreaView>
   )
 }

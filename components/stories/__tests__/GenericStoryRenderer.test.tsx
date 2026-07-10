@@ -272,7 +272,7 @@ describe("GenericStoryRenderer", () => {
     expect(finishButton.props.disabled).toBe(false);
 
     await act(async () => {
-      await finishButton.props.onPress();
+      await Promise.all([finishButton.props.onPress(), finishButton.props.onPress()]);
     });
 
     expect(saveActivity).toHaveBeenCalledTimes(1);
@@ -308,6 +308,16 @@ describe("GenericStoryRenderer", () => {
       expect.objectContaining({ score: 100 }),
     );
     expect(syncProgressNow).toHaveBeenCalledWith("child-1");
+    expect(mockBack).not.toHaveBeenCalled();
+    expect(JSON.stringify(tree.toJSON())).toContain("story-completion-card");
+    expect(JSON.stringify(tree.toJSON())).toContain("Story complete!");
+    expect(JSON.stringify(tree.toJSON())).toContain("Quiz result");
+    expect(JSON.stringify(tree.toJSON())).toContain("1/1");
+
+    await act(async () => {
+      findButtonByAccessibilityLabel(tree.root, "Back to Stories").props.onPress();
+    });
+
     expect(mockBack).toHaveBeenCalledTimes(1);
   });
 
@@ -397,6 +407,21 @@ describe("GenericStoryRenderer", () => {
     expect(updateActivityProgress).not.toHaveBeenCalled();
     expect(markStageCompleted).not.toHaveBeenCalled();
     expect(syncProgressNow).not.toHaveBeenCalled();
-    expect(mockBack).toHaveBeenCalledTimes(1);
+    expect(mockBack).not.toHaveBeenCalled();
+    expect(JSON.stringify(tree.toJSON())).toContain("story-completion-card");
+
+    await act(async () => {
+      findButtonByAccessibilityLabel(tree.root, "Read Again").props.onPress();
+    });
+
+    expect(JSON.stringify(tree.toJSON())).not.toContain("story-completion-card");
+
+    await act(async () => {
+      await findButtonByText(tree.root, "Finish").props.onPress();
+    });
+
+    expect(saveActivity).not.toHaveBeenCalled();
+    expect(markStageCompleted).not.toHaveBeenCalled();
+    expect(JSON.stringify(tree.toJSON())).toContain("story-completion-card");
   });
 });

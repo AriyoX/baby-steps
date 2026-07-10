@@ -17,14 +17,15 @@ type NavItem = {
 // Your navigation items
 const navigationItems: NavItem[] = [
   {
+    id: "learning",
+    label: "Learning",
+    iconName: "school-outline",
+    activeIconName: "school",
+  },
+  {
     id: "index",
     icon: require("@/assets/icons/game.png"),
     label: "Games",
-  },
-  {
-    id: "coloring",
-    icon: require("@/assets/icons/coloring.png"),
-    label: "Coloring",
   },
   {
     id: "Stories",
@@ -32,10 +33,9 @@ const navigationItems: NavItem[] = [
     label: "Stories",
   },
   {
-    id: "learning",
-    label: "Learning",
-    iconName: "school-outline",
-    activeIconName: "school",
+    id: "coloring",
+    icon: require("@/assets/icons/coloring.png"),
+    label: "Coloring",
   },
 ]
 
@@ -44,6 +44,7 @@ export default function TabLayout() {
   return (
     <LanguageProvider>
       <Tabs
+        initialRouteName="learning"
         detachInactiveScreens={false}
         screenOptions={{
           headerShown: false,

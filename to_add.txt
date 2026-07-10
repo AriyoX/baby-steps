@@ -8,11 +8,8 @@ points
 
 in curriculum, consider achievements and activities too. 
 
-reduce vertical scrolling within elements
 
 analytics
-
-stories doesnt have a done or quiz result
 
 caching of achievements
 

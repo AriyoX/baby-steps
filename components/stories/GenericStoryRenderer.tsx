@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/StyledText";
 import { ComingSoonState } from "@/components/child/ComingSoonState";
+import { ChildCompletionCard } from "@/components/child/ChildCompletionCard";
 import { CachedImage } from "@/components/common/CachedImage";
 import { useAudio } from "@/context/AudioContext";
 import { useChild } from "@/context/ChildContext";
@@ -147,6 +148,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, number>>({});
   const [hasSavedCompletion, setHasSavedCompletion] = useState(false);
   const [hasCompletedStory, setHasCompletedStory] = useState(false);
+  const [showCompletionCard, setShowCompletionCard] = useState(false);
   const [textSize, setTextSize] = useState<StoryTextSize>("medium");
   const [readingSpeed, setReadingSpeed] = useState<ReadingSpeed>("normal");
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -361,6 +363,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
     setSelectedAnswers({});
     setHasSavedCompletion(false);
     setHasCompletedStory(false);
+    setShowCompletionCard(false);
     setRestoredProgressKey(null);
     isSavingCompletionRef.current = false;
     startedAtRef.current = Date.now();
@@ -453,16 +456,18 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
     }, 0);
   }, [selectedAnswers, story]);
 
-  const saveCompletion = async () => {
+  const saveCompletion = async (): Promise<boolean> => {
+    if (hasSavedCompletion || hasCompletedStory) {
+      return true;
+    }
+
     if (
       !activeChild ||
       !story ||
-      hasSavedCompletion ||
-      hasCompletedStory ||
       !hasAnsweredAllQuestions ||
       isSavingCompletionRef.current
     ) {
-      return;
+      return false;
     }
 
     isSavingCompletionRef.current = true;
@@ -515,9 +520,26 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
 
       setHasCompletedStory(true);
       setHasSavedCompletion(true);
+      return true;
     } finally {
       isSavingCompletionRef.current = false;
     }
+  };
+
+  const finishStory = async () => {
+    const didComplete = await saveCompletion();
+    if (didComplete && isMountedRef.current) {
+      stopReading();
+      setShowCompletionCard(true);
+    }
+  };
+
+  const readAgain = () => {
+    stopReading();
+    setPageIndex(0);
+    setSelectedAnswers({});
+    setShowCompletionCard(false);
+    startedAtRef.current = Date.now();
   };
 
   const handleReadingSpeedChange = (value: ReadingSpeed) => {
@@ -575,6 +597,51 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
         title="Story not ready"
         message="This story is missing pages, so it cannot be opened yet."
       />
+    );
+  }
+
+  if (showCompletionCard) {
+    return (
+      <SafeAreaView className="flex-1 bg-amber-50">
+        <View className="flex-1 items-center justify-center px-6 py-4">
+          <ChildCompletionCard
+            title="Story complete!"
+            message={`You finished ${story.title}. Great reading!`}
+            icon="book"
+            accentColor="#8B4513"
+            availableWidth={width}
+            metrics={[
+              {
+                label: "Pages read",
+                value: story.pages.length,
+                icon: "book-outline",
+              },
+              ...(hasQuiz && quizScore !== undefined
+                ? [{
+                    label: "Quiz result",
+                    value: `${quizScore}/${totalQuestions}`,
+                    icon: "checkmark-circle" as const,
+                  }]
+                : []),
+            ]}
+            actions={[
+              {
+                label: "Read Again",
+                icon: "refresh",
+                onPress: readAgain,
+                variant: "secondary",
+              },
+              {
+                label: "Back to Stories",
+                icon: "arrow-back",
+                onPress: () => router.back(),
+                variant: "quiet",
+              },
+            ]}
+            testID="story-completion-card"
+          />
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -855,10 +922,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                     paddingHorizontal: isCompactReader ? 20 : 24,
                     paddingVertical: isCompactReader ? 10 : 12,
                   }}
-                  onPress={async () => {
-                    await saveCompletion();
-                    router.back();
-                  }}
+                  onPress={finishStory}
                   disabled={!hasAnsweredAllQuestions}
                   accessibilityRole="button"
                   accessibilityState={{ disabled: !hasAnsweredAllQuestions }}

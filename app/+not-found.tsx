@@ -1,10 +1,11 @@
 import { View, StyleSheet } from 'react-native';
 import { Link, Stack } from 'expo-router';
 import { useChild } from '@/context/ChildContext';
+import { CHILD_HOME_ROUTE } from '@/constants/ChildNavigation';
 
 export default function NotFoundScreen() {
   const { activeChild } = useChild();
-  const fallbackHref = activeChild ? '/child' : '/parent';
+  const fallbackHref = activeChild ? CHILD_HOME_ROUTE : '/parent';
 
   return (
     <>

@@ -5,13 +5,13 @@ import { useState, useEffect, useRef } from "react"
 import {
   View,
   TouchableOpacity,
-  Dimensions,
   ImageBackground,
   ScrollView,
   Animated,
   Easing,
   BackHandler,
   ActivityIndicator,
+  useWindowDimensions,
 } from "react-native"
 import { StatusBar } from "expo-status-bar"
 import { useRouter, usePathname } from "expo-router"
@@ -33,6 +33,7 @@ import { BrandMark } from "@/components/brand/BrandMark"
 import { brandColors } from "@/constants/Brand"
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation"
 import { audioManager } from "@/lib/audioManager"
+import { getChildInterfaceCardLayout } from "@/components/child/childInterfaceSizing"
 
 // Define types
 type LearningCard = {
@@ -206,8 +207,8 @@ const AfricanThemeGameInterface: React.FC = () => {
     router.push(`/${card.targetPage}` as any)
   }
 
-  const { height } = Dimensions.get("window")
-  const cardHeight = Math.max(166, Math.min(210, height * 0.48))
+  const { height, width } = useWindowDimensions()
+  const cardLayout = getChildInterfaceCardLayout(width, height)
 
   return (
     <>
@@ -306,7 +307,7 @@ const AfricanThemeGameInterface: React.FC = () => {
                 contentContainerStyle={{ alignItems: "center", paddingTop: 12, paddingBottom: 16 }}
               >
                 {/* Start card */}
-                <View className="bg-white/15 rounded-2xl p-4 mr-2.5 w-[200px]" style={{ height: cardHeight }}>
+                <View className="bg-white/15 rounded-2xl p-4 mr-2.5 w-[200px]" style={{ height: cardLayout.cardHeight }}>
                   <TranslatedText variant="bold" className="text-white text-2xl">
                     Start
                   </TranslatedText>
@@ -326,19 +327,24 @@ const AfricanThemeGameInterface: React.FC = () => {
                 {learningCards.map((card) => (
                   <TouchableOpacity
                     key={card.id}
-                    className="bg-white rounded-2xl w-[250px] mr-4 overflow-hidden shadow-md border-2 border-accent-500"
-                    style={{ height: cardHeight }}
+                    className="bg-white rounded-2xl overflow-hidden shadow-md border-2 border-accent-500"
+                    style={{
+                      height: cardLayout.cardHeight,
+                      marginRight: cardLayout.cardGap,
+                      width: cardLayout.cardWidth,
+                    }}
                     activeOpacity={0.7}
                     onPress={() => handleCardPress(card)}
                   >
                     <CachedImage
                       source={resolveImageSource(card.image, "african-focus.png")}
                       fallbackSource={resolveImageSource("african-focus.png")}
-                      className="w-full h-[60%]"
+                      className="w-full"
+                      style={{ height: cardLayout.imageHeight }}
                       resizeMode="cover"
                       accessibilityLabel={card.title}
                     />
-                    <View className="p-3 bg-white h-[40%] justify-center">
+                    <View className="p-3 bg-white justify-center" style={{ height: cardLayout.textHeight }}>
                       <TranslatedText variant="bold" className="text-base text-primary-700 mb-1" numberOfLines={1}>
                         {card.title}
                       </TranslatedText>
@@ -349,12 +355,26 @@ const AfricanThemeGameInterface: React.FC = () => {
                   </TouchableOpacity>
                 ))}
                 {isContentLoading && (
-                  <View className="bg-white rounded-2xl w-[250px] mr-4 items-center justify-center border-2 border-accent-500" style={{ height: cardHeight }}>
+                  <View
+                    className="bg-white rounded-2xl items-center justify-center border-2 border-accent-500"
+                    style={{
+                      height: cardLayout.cardHeight,
+                      marginRight: cardLayout.cardGap,
+                      width: cardLayout.cardWidth,
+                    }}
+                  >
                     <ActivityIndicator size="large" color={brandColors.victoriaBlue} />
                   </View>
                 )}
                 {!isContentLoading && learningCards.length === 0 && (
-                  <View className="bg-white rounded-2xl w-[250px] mr-4 items-center justify-center p-4 border-2 border-accent-500" style={{ height: cardHeight }}>
+                  <View
+                    className="bg-white rounded-2xl items-center justify-center p-4 border-2 border-accent-500"
+                    style={{
+                      height: cardLayout.cardHeight,
+                      marginRight: cardLayout.cardGap,
+                      width: cardLayout.cardWidth,
+                    }}
+                  >
                     <BrandMark kind="mascot" width={54} height={72} />
                     <Text variant="display" className="text-xl text-primary-700 mt-3 text-center">
                       Coming soon

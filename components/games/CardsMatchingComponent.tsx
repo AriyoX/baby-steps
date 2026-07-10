@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   TouchableOpacity,
-  Dimensions,
   Animated,
   ActivityIndicator,
+  useWindowDimensions,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
@@ -27,6 +27,8 @@ import {
 import { useAchievements } from "./achievements/useAchievements";
 import { audioManager } from "@/lib/audioManager";
 import { useChildNotice } from "@/context/ChildNoticeContext";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { getCardsMatchingGridSizing } from "./responsiveSizing";
 
 // Define card interface
 interface Card {
@@ -296,6 +298,8 @@ const cardGradients: string[][] = [
 const BugandaMatchingGame: React.FC = () => {
   const router = useRouter();
   const { activeChild } = useChild();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const { 
     // definedAchievements, 
     // earnedChildAchievements, 
@@ -307,6 +311,7 @@ const BugandaMatchingGame: React.FC = () => {
   const [matchStreak, setMatchStreak] = useState(0); // For match streak achievement
   const [overallStats, setOverallStats] = useState<CardGameOverallStats | null>(null); // For overall game stats
   const [cards, setCards] = useState<Card[]>([]);
+  const [boardSize, setBoardSize] = useState({ height: 0, width: 0 });
   const [flippedCards, setFlippedCards] = useState<Card[]>([]);
   const [matchedCount, setMatchedCount] = useState(0);
   const [moves, setMoves] = useState(0);
@@ -782,26 +787,18 @@ const BugandaMatchingGame: React.FC = () => {
     );
   }
 
-  // Calculate optimal number of columns and card size
-  const screenWidth = Dimensions.get("window").width;
-  const screenHeight = Dimensions.get("window").height;
-  const isLandscape = screenWidth > screenHeight;
-
-  // Determine number of columns based on device orientation
-  const numColumns = isLandscape ? 8 : 4;
-  const rowCount = Math.ceil(cards.length / numColumns) || 1;
-  const cardGap = isLandscape ? 3 : 4;
-  const boardVerticalAllowance = Math.max(136, screenHeight - (isLandscape ? 112 : 168));
-  const maxCardHeight = boardVerticalAllowance / rowCount - cardGap * 2;
-  const maxCardWidthFromHeight = maxCardHeight / 1.08;
-
-  // Calculate card size to fit the screen width perfectly
-  const cardWidth = Math.min(
-    (screenWidth - 32) / numColumns - cardGap * 2,
-    maxCardWidthFromHeight,
+  const fallbackBoardWidth = Math.max(0, windowWidth - insets.left - insets.right - 16);
+  const fallbackBoardHeight = Math.max(0, windowHeight - insets.top - insets.bottom);
+  const {
+    cardHeight,
+    cardWidth,
+    columnGap,
+    rowGap,
+  } = getCardsMatchingGridSizing(
+    boardSize.width || fallbackBoardWidth,
+    boardSize.height || fallbackBoardHeight,
+    cards.length,
   );
-  // Adjust card height to be shorter (originally 1.4x width)
-  const cardHeight = cardWidth * 1.08;
 
   // Get gradient colors for a card based on its index
   const getCardGradient = (index: number): readonly [string, string] => {
@@ -810,7 +807,10 @@ const BugandaMatchingGame: React.FC = () => {
   };
 
   return (
-    <View className="flex-1 flex-col bg-blue-50">
+    <View
+      className="flex-1 flex-col bg-blue-50"
+      style={{ paddingLeft: insets.left, paddingRight: insets.right }}
+    >
       <StatusBar style="dark" />
       {/* Top navigation bar with all elements aligned horizontally */}
       <View className="flex-row justify-between items-center px-5 pt-4 pb-1">
@@ -884,17 +884,25 @@ const BugandaMatchingGame: React.FC = () => {
 
       {/* Game board with improved visuals - reduced padding */}
       <Animated.View
-        className="flex-1 px-3 pb-3 pt-1"
+        className="flex-1 px-2 pb-2 pt-1"
         style={{ transform: [{ scale: bounceAnim }] }}
       >
-        <View className="flex-1 flex-row flex-wrap justify-center items-center">
+        <View
+          className="flex-1 flex-row flex-wrap justify-center items-center"
+          onLayout={({ nativeEvent }) => {
+            const { height, width } = nativeEvent.layout;
+            if (Math.abs(boardSize.height - height) > 0.5 || Math.abs(boardSize.width - width) > 0.5) {
+              setBoardSize({ height, width });
+            }
+          }}
+          style={{ columnGap, rowGap }}
+        >
           {cards.map((card, index) => (
             <TouchableOpacity
               key={card.id}
               style={{
                 width: cardWidth,
                 height: cardHeight,
-                margin: cardGap,
               }}
               className={`
                   rounded-2xl overflow-hidden justify-center items-center

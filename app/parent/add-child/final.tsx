@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { getLearningLanguage } from "@/content/languages"
 import { BrandMark } from "@/components/brand/BrandMark"
 import { brandColors } from "@/constants/Brand"
+import { CHILD_HOME_ROUTE } from "@/constants/ChildNavigation"
 
 type SavedChildProfile = {
   id: string
@@ -70,7 +71,7 @@ export default function SubmitScreen() {
       avatar: savedChild.gender === "male" ? "boy" : savedChild.gender === "female" ? "girl" : "child",
     })
     router.replace({
-      pathname: "/child" as any,
+      pathname: CHILD_HOME_ROUTE as any,
       params: { active: savedChild.id },
     })
   }

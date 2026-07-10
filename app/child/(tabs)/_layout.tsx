@@ -5,9 +5,11 @@ import { TranslatedText } from "@/components/translated-text"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { LanguageProvider } from "@/context/language-context"
 import { brandColors } from "@/constants/Brand"
+import { CHILD_TAB_ITEMS, type ChildTabId } from "@/constants/ChildNavigation"
 
 type NavItem = {
-  id: string
+  href: (typeof CHILD_TAB_ITEMS)[number]["href"]
+  id: ChildTabId
   label: string
   icon?: any
   iconName?: keyof typeof Ionicons.glyphMap
@@ -15,29 +17,26 @@ type NavItem = {
 }
 
 // Your navigation items
-const navigationItems: NavItem[] = [
-  {
-    id: "learning",
-    label: "Learning",
-    iconName: "school-outline",
-    activeIconName: "school",
-  },
-  {
-    id: "index",
-    icon: require("@/assets/icons/game.png"),
-    label: "Games",
-  },
-  {
-    id: "Stories",
-    icon: require("@/assets/icons/logic.png"),
-    label: "Stories",
-  },
-  {
-    id: "coloring",
-    icon: require("@/assets/icons/coloring.png"),
-    label: "Coloring",
-  },
-]
+const navigationItems: NavItem[] = CHILD_TAB_ITEMS.map((item) => {
+  if (item.id === "learning") {
+    return {
+      ...item,
+      iconName: "school-outline",
+      activeIconName: "school",
+    }
+  }
+
+  const iconByTab: Record<Exclude<ChildTabId, "learning">, any> = {
+    index: require("@/assets/icons/game.png"),
+    Stories: require("@/assets/icons/logic.png"),
+    coloring: require("@/assets/icons/coloring.png"),
+  }
+
+  return {
+    ...item,
+    icon: iconByTab[item.id],
+  }
+})
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets()
@@ -83,6 +82,7 @@ export default function TabLayout() {
             key={item.id}
             name={item.id}
             options={{
+              href: item.href,
               tabBarLabel: ({ focused, color }) => (
                 <TranslatedText
                   variant={focused ? "bold" : "regular"}

@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase" // Assuming this is your Supabase clie
 import { useChild } from "@/context/ChildContext"
 import { getLearningLanguage } from "@/content/languages"
 import { AchievementCard } from "@/components/games/achievements/AchievementCard"
+import { CHILD_HOME_ROUTE } from "@/constants/ChildNavigation"
 
 // Achievement imports
 import { useAchievements } from "@/components/games/achievements/useAchievements" // Ensure this path is correct
@@ -120,7 +121,7 @@ export default function ChildDetailScreen() {
     if (childData) {
       setActiveChild(childData)
       router.push({
-        pathname: "/child" as any,
+        pathname: CHILD_HOME_ROUTE as any,
         params: { active: childId },
       })
     }

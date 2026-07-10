@@ -6,12 +6,12 @@ import { useRouter } from "expo-router"
 import { useEffect, useMemo, useRef } from "react"
 import {
   Animated,
-  Dimensions,
   Easing,
   ImageBackground,
   ScrollView,
   TouchableOpacity,
   View,
+  useWindowDimensions,
   type ImageSourcePropType,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -33,6 +33,11 @@ import {
 import { resolveImageSource } from "@/content/assets"
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation"
 import { audioManager } from "@/lib/audioManager"
+import {
+  getChildInterfaceCardLayout,
+  type ChildInterfaceCardLayout,
+} from "@/components/child/childInterfaceSizing"
+import { CHILD_GAMES_ROUTE } from "@/constants/ChildNavigation"
 
 type LearningHubCard = {
   id: string
@@ -48,7 +53,7 @@ type LearningHubCard = {
 
 type LearningStageCardProps = {
   card: LearningHubCard
-  height: number
+  layout: ChildInterfaceCardLayout
   onPress: (card: LearningHubCard) => void
 }
 
@@ -113,12 +118,16 @@ const buildLearningStageCards = (stages: LearningHubStage[]): LearningHubCard[] 
 
 const LearningStageCard = ({
   card,
-  height,
+  layout,
   onPress,
 }: LearningStageCardProps) => (
   <TouchableOpacity
-    className="bg-white rounded-2xl w-[250px] mr-4 overflow-hidden shadow-md border-2 border-accent-500"
-    style={{ height }}
+    className="bg-white rounded-2xl overflow-hidden shadow-md border-2 border-accent-500"
+    style={{
+      height: layout.cardHeight,
+      marginRight: layout.cardGap,
+      width: layout.cardWidth,
+    }}
     onPress={() => onPress(card)}
     activeOpacity={0.7}
     accessibilityRole="button"
@@ -127,13 +136,14 @@ const LearningStageCard = ({
     <CachedImage
       source={card.imageSource}
       fallbackSource={card.fallbackImage}
-      className="w-full h-[60%]"
+      className="w-full"
+      style={{ height: layout.imageHeight }}
       resizeMode="cover"
       accessibilityLabel={`${card.title} picture`}
     />
 
-    <View className="bg-white p-3 h-[40%] justify-center">
-      <Text variant="bold" className="text-base text-primary-700 mb-1" numberOfLines={1}>
+    <View className="bg-white p-3 justify-center" style={{ height: layout.textHeight }}>
+      <Text variant="bold" className="text-base text-primary-700 mb-1" numberOfLines={2}>
         {card.title}
       </Text>
       <Text className="text-xs text-neutral-600 leading-4" numberOfLines={2}>
@@ -163,8 +173,8 @@ export default function LearningHubScreen() {
     () => buildLearningStageCards(languageContent?.stages ?? []),
     [languageContent],
   )
-  const { height } = Dimensions.get("window")
-  const cardHeight = Math.max(156, Math.min(194, height * 0.44))
+  const { height, width } = useWindowDimensions()
+  const cardLayout = getChildInterfaceCardLayout(width, height)
   const pulseAnim = useRef(new Animated.Value(1)).current
   const bounceAnim = useRef(new Animated.Value(0)).current
 
@@ -241,7 +251,7 @@ export default function LearningHubScreen() {
         <LearningLanguageUnavailableState
           languageName={languageName}
           actionLabel="Back to Games"
-          onAction={() => router.replace("/child" as any)}
+          onAction={() => router.replace(CHILD_GAMES_ROUTE as any)}
           bottomClearance={CHILD_TAB_BAR_CLEARANCE}
         />
       </>
@@ -337,7 +347,7 @@ export default function LearningHubScreen() {
                 style={{ marginTop: 3 }}
                 contentContainerStyle={{ alignItems: "center", paddingTop: 6, paddingBottom: 8 }}
               >
-                <View className="bg-white/15 rounded-2xl p-3 mr-2.5 w-[200px]" style={{ height: cardHeight }}>
+                <View className="bg-white/15 rounded-2xl p-3 mr-2.5 w-[200px]" style={{ height: cardLayout.cardHeight }}>
                   <Text variant="bold" className="text-white text-2xl">
                     Start
                   </Text>
@@ -353,7 +363,7 @@ export default function LearningHubScreen() {
                   <LearningStageCard
                     key={item.id}
                     card={item}
-                    height={cardHeight}
+                    layout={cardLayout}
                     onPress={handleCardPress}
                   />
                 ))}

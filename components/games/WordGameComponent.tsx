@@ -8,6 +8,7 @@ import {
   type ModalProps,
   ScrollView,
   ActivityIndicator,
+  useWindowDimensions,
 } from "react-native";
 import type { Audio } from "expo-av";
 import { StatusBar } from "expo-status-bar";
@@ -38,6 +39,8 @@ import {
 import { useAchievements } from "./achievements/useAchievements"; 
 import { audioManager } from "@/lib/audioManager";
 import { useChildNotice } from "@/context/ChildNoticeContext";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { getWordGameSizing } from "./responsiveSizing";
 
 const WORD_GAME_MODAL_ORIENTATIONS: ModalProps["supportedOrientations"] = ["landscape-left", "landscape-right"];
 
@@ -62,6 +65,9 @@ const getImageSource = (imageName: string | undefined) => {
 const WordGame: React.FC = () => {
   // Add child context
   const { activeChild } = useChild();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const wordGameSizing = getWordGameSizing(windowWidth, windowHeight);
   const languageCode = activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE;
   const { 
     isLoadingAchievements, 
@@ -708,7 +714,11 @@ const WordGame: React.FC = () => {
   const currentLevel = gameLevels[currentLevelIndex] ?? gameLevels[0];
 
   return (
-    <View ref={containerRef} className="flex-1 bg-blue-50">
+    <View
+      ref={containerRef}
+      className="flex-1 bg-blue-50"
+      style={{ paddingLeft: insets.left, paddingRight: insets.right }}
+    >
       <StatusBar style="dark" translucent backgroundColor="transparent" />
       {/* Top navigation bar with all elements aligned horizontally */}
       <View className="flex-row justify-between items-center px-5 pt-6 pb-2">
@@ -727,10 +737,12 @@ const WordGame: React.FC = () => {
         <View className="flex-1 mx-3 bg-white px-4 py-2 rounded-2xl shadow-md border-2 border-blue-100">
           <Text
             variant="medium"
-            className="text-base text-primary-700 text-center"
+            className="text-primary-700 text-center"
+            style={{
+              fontSize: wordGameSizing.titleFontSize,
+              lineHeight: wordGameSizing.titleLineHeight,
+            }}
             numberOfLines={2}
-            adjustsFontSizeToFit
-            minimumFontScale={0.84}
           >
             {currentQuestion}
           </Text>
@@ -794,13 +806,31 @@ const WordGame: React.FC = () => {
               <View
                 key={index}
                 ref={(ref) => { wordSlotRefs.current[index] = ref; }}
-                className="w-10 h-11 justify-center items-center mx-0.5 my-0.5 relative"
+                className="justify-center items-center relative"
+                style={{
+                  height: wordGameSizing.answerSlotHeight,
+                  margin: wordGameSizing.answerSlotMargin,
+                  width: wordGameSizing.answerSlotWidth,
+                }}
               >
-                <Text variant="bold" className="text-2xl text-primary-700 pt-1.5" numberOfLines={1}>
+                <Text
+                  variant="bold"
+                  className="text-primary-700"
+                  style={{
+                    fontSize: wordGameSizing.answerLetterFontSize,
+                    lineHeight: wordGameSizing.answerLetterLineHeight,
+                  }}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.75}
+                >
                   {char !== "_" ? char : ""}
                 </Text>
                 {char === "_" && (
-                  <View className="absolute bottom-0 w-9 h-1.5 bg-primary-500 rounded-full" />
+                  <View
+                    className="absolute bottom-0 h-1.5 bg-primary-500 rounded-full"
+                    style={{ width: wordGameSizing.answerSlotWidth * 0.82 }}
+                  />
                 )}
               </View>
             ))}
@@ -827,11 +857,16 @@ const WordGame: React.FC = () => {
                   ref={(ref) => {
                     letterRefs.current[index] = ref;
                   }}
-                  className={`w-12 h-12 rounded-full m-1.5 justify-center items-center shadow-lg border-2 ${
+                  className={`rounded-full justify-center items-center shadow-lg border-2 ${
                     isGreyedOut
                       ? "bg-gray-300 border-gray-400 opacity-70"
                       : "bg-secondary-500 border-secondary-300"
                   }`}
+                  style={{
+                    height: wordGameSizing.choiceButtonSize,
+                    margin: wordGameSizing.choiceButtonMargin,
+                    width: wordGameSizing.choiceButtonSize,
+                  }}
                   onPress={() => handleLetterPress(letter, index)}
                   disabled={isDisabled}
                   activeOpacity={0.8}
@@ -839,7 +874,17 @@ const WordGame: React.FC = () => {
                   accessibilityLabel={`Letter ${letter}`}
                   accessibilityState={{ disabled: isDisabled }}
                 >
-                  <Text variant="bold" className="text-white text-lg" numberOfLines={1}>
+                  <Text
+                    variant="bold"
+                    className="text-white"
+                    style={{
+                      fontSize: wordGameSizing.choiceLetterFontSize,
+                      lineHeight: wordGameSizing.choiceLetterLineHeight,
+                    }}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.75}
+                  >
                     {letter}
                   </Text>
                 </TouchableOpacity>
@@ -888,7 +933,14 @@ const WordGame: React.FC = () => {
             },
           ]}
         >
-          <Text variant="bold" className="text-3xl text-primary-600 shadow">
+          <Text
+            variant="bold"
+            className="text-primary-600 shadow"
+            style={{
+              fontSize: wordGameSizing.choiceLetterFontSize,
+              lineHeight: wordGameSizing.choiceLetterLineHeight,
+            }}
+          >
             {animatingLetter.letter}
           </Text>
         </Animated.View>

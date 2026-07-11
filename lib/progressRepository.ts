@@ -89,10 +89,13 @@ export interface HydrateProgressOptions {
 const PROGRESS_STORAGE_PREFIX = "@BabySteps:Progress:v1";
 const PROGRESS_HYDRATION_PREFIX = "progress:lastHydratedAt";
 const PROGRESS_SYNC_QUEUE_KEY = `${PROGRESS_STORAGE_PREFIX}:syncQueue`;
+const ACTIVITY_PROGRESS_STORAGE_PREFIX = `${PROGRESS_STORAGE_PREFIX}:activity:`;
+const STAGE_PROGRESS_STORAGE_PREFIX = `${PROGRESS_STORAGE_PREFIX}:stage:`;
 const DEFAULT_SYNC_DEBOUNCE_MS = 15000;
 export const PROGRESS_HYDRATION_COOLDOWN_MS = 20 * 60 * 1000;
 
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
+let queueOperationTail: Promise<void> = Promise.resolve();
 
 const encodeKeyPart = (value: string): string => encodeURIComponent(value);
 
@@ -154,6 +157,101 @@ const stageIdentity = (record: {
 }): string =>
   `${record.child_id}:${record.language_code}:${record.activity_type}:${record.stage_id}:${record.level_id ?? ""}`;
 
+const decodeStorageKeyParts = (
+  key: string,
+  prefix: string,
+  expectedPartCount: number,
+): string[] | null => {
+  if (!key.startsWith(prefix)) return null;
+
+  const encodedParts = key.slice(prefix.length).split(":");
+  if (encodedParts.length !== expectedPartCount) return null;
+
+  try {
+    return encodedParts.map((part) => decodeURIComponent(part));
+  } catch {
+    return null;
+  }
+};
+
+const hasValidSnapshotBase = (
+  value: unknown,
+): value is Record<string, unknown> & {
+  child_id: string;
+  language_code: string;
+  activity_type: string;
+  local_updated_at: string;
+  dirty?: boolean;
+} => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.child_id === "string" &&
+    typeof record.language_code === "string" &&
+    typeof record.activity_type === "string" &&
+    typeof record.local_updated_at === "string" &&
+    (record.status === "not_started" ||
+      record.status === "in_progress" ||
+      record.status === "completed") &&
+    (record.score === null || typeof record.score === "number") &&
+    (record.stars === null || typeof record.stars === "number") &&
+    typeof record.attempts === "number" &&
+    Boolean(record.progress_payload) &&
+    typeof record.progress_payload === "object" &&
+    !Array.isArray(record.progress_payload) &&
+    (record.dirty === undefined || typeof record.dirty === "boolean")
+  );
+};
+
+const parseActivitySnapshot = (
+  key: string,
+  value: string | null,
+): ChildActivityProgress | null => {
+  const keyParts = decodeStorageKeyParts(key, ACTIVITY_PROGRESS_STORAGE_PREFIX, 3);
+  const parsed = safeParse<unknown>(value);
+  if (!keyParts || !hasValidSnapshotBase(parsed)) return null;
+
+  const [childId, languageCode, activityType] = keyParts;
+  if (
+    parsed.child_id !== childId ||
+    parsed.language_code !== languageCode ||
+    parsed.activity_type !== activityType ||
+    (parsed.last_stage_id !== null && typeof parsed.last_stage_id !== "string") ||
+    (parsed.highest_unlocked_stage !== null &&
+      typeof parsed.highest_unlocked_stage !== "number") ||
+    typeof parsed.completed_stage_count !== "number"
+  ) {
+    return null;
+  }
+
+  return parsed as unknown as ChildActivityProgress;
+};
+
+const parseStageSnapshot = (
+  key: string,
+  value: string | null,
+): ChildStageProgress | null => {
+  const keyParts = decodeStorageKeyParts(key, STAGE_PROGRESS_STORAGE_PREFIX, 5);
+  const parsed = safeParse<unknown>(value);
+  if (!keyParts || !hasValidSnapshotBase(parsed)) return null;
+
+  const [childId, languageCode, activityType, stageId, levelId] = keyParts;
+  if (
+    parsed.child_id !== childId ||
+    parsed.language_code !== languageCode ||
+    parsed.activity_type !== activityType ||
+    typeof parsed.stage_id !== "string" ||
+    parsed.stage_id !== stageId ||
+    (typeof parsed.level_id !== "string" && parsed.level_id !== undefined) ||
+    (parsed.level_id ?? "") !== levelId
+  ) {
+    return null;
+  }
+
+  return parsed as unknown as ChildStageProgress;
+};
+
 const queueIdentity = (item: ProgressQueueItem): string =>
   item.kind === "activity"
     ? `activity:${activityIdentity(item)}`
@@ -162,6 +260,15 @@ const queueIdentity = (item: ProgressQueueItem): string =>
         stage_id: item.stage_id ?? "",
         level_id: item.level_id ?? "",
       })}`;
+
+const runSerializedQueueOperation = <T>(operation: () => Promise<T>): Promise<T> => {
+  const result = queueOperationTail.then(operation);
+  queueOperationTail = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+};
 
 const loadQueue = async (): Promise<ProgressQueueItem[]> => {
   const parsed = safeParse<ProgressQueueItem[]>(
@@ -180,17 +287,127 @@ const saveQueue = async (queue: ProgressQueueItem[]): Promise<void> => {
   );
 };
 
+const mutateQueue = async (
+  mutation: (queue: ProgressQueueItem[]) => Promise<ProgressQueueItem[]> | ProgressQueueItem[],
+): Promise<void> =>
+  runSerializedQueueOperation(async () => {
+    const queue = await loadQueue();
+    await saveQueue(await mutation(queue));
+  });
+
+type QueueItemSnapshotState = "absent" | "malformed" | "clean" | "dirty";
+
+const queueItemStorageKey = (item: ProgressQueueItem): string =>
+  item.kind === "activity"
+    ? activityStorageKey(item.child_id, item.language_code, item.activity_type)
+    : stageStorageKey(
+        item.child_id,
+        item.language_code,
+        item.activity_type,
+        item.stage_id ?? "",
+        item.level_id ?? "",
+      );
+
+const getQueueItemSnapshotState = async (
+  item: ProgressQueueItem,
+): Promise<QueueItemSnapshotState> => {
+  const key = queueItemStorageKey(item);
+  const value = await AsyncStorage.getItem(key);
+  if (value === null) return "absent";
+
+  const snapshot = item.kind === "activity"
+    ? parseActivitySnapshot(key, value)
+    : parseStageSnapshot(key, value);
+  if (!snapshot) return "malformed";
+
+  return snapshot.dirty ? "dirty" : "clean";
+};
+
+const repairProgressQueue = async (): Promise<ProgressQueueItem[]> =>
+  runSerializedQueueOperation(async () => {
+    const queue = await loadQueue();
+    const keys = await AsyncStorage.getAllKeys();
+    const snapshotKeys = keys.filter(
+      (key) =>
+        decodeStorageKeyParts(key, ACTIVITY_PROGRESS_STORAGE_PREFIX, 3) !== null ||
+        decodeStorageKeyParts(key, STAGE_PROGRESS_STORAGE_PREFIX, 5) !== null,
+    );
+    const storedSnapshots = await AsyncStorage.multiGet(snapshotKeys);
+    const existingSnapshotKeys = new Set(snapshotKeys);
+    const validSnapshots = new Map<
+      string,
+      { item: ProgressQueueItem; dirty: boolean }
+    >();
+
+    for (const [key, value] of storedSnapshots) {
+      const activity = parseActivitySnapshot(key, value);
+      if (activity) {
+        const item: ProgressQueueItem = {
+          kind: "activity",
+          child_id: activity.child_id,
+          language_code: activity.language_code,
+          activity_type: activity.activity_type,
+        };
+        validSnapshots.set(queueIdentity(item), { item, dirty: Boolean(activity.dirty) });
+        continue;
+      }
+
+      const stage = parseStageSnapshot(key, value);
+      if (stage) {
+        const item: ProgressQueueItem = {
+          kind: "stage",
+          child_id: stage.child_id,
+          language_code: stage.language_code,
+          activity_type: stage.activity_type,
+          stage_id: stage.stage_id,
+          level_id: stage.level_id ?? "",
+        };
+        validSnapshots.set(queueIdentity(item), { item, dirty: Boolean(stage.dirty) });
+      }
+    }
+
+    const repaired = new Map<string, ProgressQueueItem>();
+    for (const item of queue) {
+      const identity = queueIdentity(item);
+      const snapshot = validSnapshots.get(identity);
+      const snapshotExists = existingSnapshotKeys.has(queueItemStorageKey(item));
+
+      if (!snapshotExists || (snapshot && !snapshot.dirty)) continue;
+      repaired.set(identity, item);
+    }
+
+    for (const [identity, snapshot] of validSnapshots) {
+      if (snapshot.dirty) repaired.set(identity, snapshot.item);
+    }
+
+    const repairedQueue = [...repaired.values()];
+    await saveQueue(repairedQueue);
+    return repairedQueue;
+  });
+
 const enqueueDirty = async (item: ProgressQueueItem): Promise<void> => {
-  const queue = await loadQueue();
-  await saveQueue([...queue, item]);
+  await mutateQueue((queue) => [...queue, item]);
 };
 
 const removeQueueItems = async (itemsToRemove: ProgressQueueItem[]): Promise<void> => {
   if (itemsToRemove.length === 0) return;
 
-  const removeIds = new Set(itemsToRemove.map(queueIdentity));
-  const queue = await loadQueue();
-  await saveQueue(queue.filter((item) => !removeIds.has(queueIdentity(item))));
+  await mutateQueue(async (queue) => {
+    const unique = new Map(queue.map((item) => [queueIdentity(item), item]));
+
+    for (const item of itemsToRemove) {
+      const state = await getQueueItemSnapshotState(item);
+      const identity = queueIdentity(item);
+
+      if (state === "clean") {
+        unique.delete(identity);
+      } else if (state === "dirty") {
+        unique.set(identity, item);
+      }
+    }
+
+    return [...unique.values()];
+  });
 };
 
 const getLastHydratedAt = async (
@@ -766,7 +983,7 @@ export const syncProgressNow = async (
     syncTimer = null;
   }
 
-  const queue = await loadQueue();
+  const queue = await repairProgressQueue();
   const pending = childId
     ? queue.filter((item) => item.child_id === childId)
     : queue;
@@ -1008,14 +1225,16 @@ export const clearProgressRepositoryStorage = async (): Promise<void> => {
     syncTimer = null;
   }
 
-  const keys = await AsyncStorage.getAllKeys();
-  await AsyncStorage.multiRemove(
-    keys.filter(
-      (key) =>
-        key.startsWith(PROGRESS_STORAGE_PREFIX) ||
-        key.startsWith(PROGRESS_HYDRATION_PREFIX),
-    ),
-  );
+  await runSerializedQueueOperation(async () => {
+    const keys = await AsyncStorage.getAllKeys();
+    await AsyncStorage.multiRemove(
+      keys.filter(
+        (key) =>
+          key.startsWith(PROGRESS_STORAGE_PREFIX) ||
+          key.startsWith(PROGRESS_HYDRATION_PREFIX),
+      ),
+    );
+  });
 };
 
 export const clearProgressRepositoryStorageForChild = async (
@@ -1028,20 +1247,22 @@ export const clearProgressRepositoryStorageForChild = async (
     syncTimer = null;
   }
 
-  const encodedChildId = encodeKeyPart(childId);
-  const keys = await AsyncStorage.getAllKeys();
-  const childProgressKeyPrefixes = [
-    `${PROGRESS_STORAGE_PREFIX}:activity:${encodedChildId}:`,
-    `${PROGRESS_STORAGE_PREFIX}:stage:${encodedChildId}:`,
-    `${PROGRESS_HYDRATION_PREFIX}:${encodedChildId}:`,
-  ];
+  await runSerializedQueueOperation(async () => {
+    const encodedChildId = encodeKeyPart(childId);
+    const keys = await AsyncStorage.getAllKeys();
+    const childProgressKeyPrefixes = [
+      `${PROGRESS_STORAGE_PREFIX}:activity:${encodedChildId}:`,
+      `${PROGRESS_STORAGE_PREFIX}:stage:${encodedChildId}:`,
+      `${PROGRESS_HYDRATION_PREFIX}:${encodedChildId}:`,
+    ];
 
-  await AsyncStorage.multiRemove(
-    keys.filter((key) =>
-      childProgressKeyPrefixes.some((prefix) => key.startsWith(prefix)),
-    ),
-  );
+    await AsyncStorage.multiRemove(
+      keys.filter((key) =>
+        childProgressKeyPrefixes.some((prefix) => key.startsWith(prefix)),
+      ),
+    );
 
-  const queue = await loadQueue();
-  await saveQueue(queue.filter((item) => item.child_id !== childId));
+    const queue = await loadQueue();
+    await saveQueue(queue.filter((item) => item.child_id !== childId));
+  });
 };

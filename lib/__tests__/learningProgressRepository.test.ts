@@ -37,8 +37,13 @@ import {
   getDbLanguageCodeForLearningLanguage,
   getLearningLanguageFromDbCode,
 } from "@/content/languages";
+import {
+  getLearningHubStages,
+  getLessonStatus,
+} from "@/content/learningHubRepository";
 import type { LearningLessonCompletion } from "@/lib/learningProgressTypes";
 import {
+  calculateLearningProgressAggregate,
   LEARNING_ACTIVITY_TYPE,
   LOCAL_LEARNING_FALLBACK_CHILD_ID,
   buildLearningCompletionLocalId,
@@ -54,6 +59,16 @@ import {
 
 const childId = "child-1";
 const languageCode = "lg";
+
+const deferred = <T = void>() => {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+};
 
 const createCompletion = (
   overrides: Partial<LearningLessonCompletion> = {},
@@ -198,7 +213,7 @@ describe("learning progress repository", () => {
         score: 100,
         attempts: 1,
         last_stage_id: "first-words",
-        completed_stage_count: 1,
+        completed_stage_count: 0,
         progress_payload: expect.objectContaining({
           source: "learning_hub",
           completedLessonIds: ["greetings-1"],
@@ -256,56 +271,92 @@ describe("learning progress repository", () => {
     expect(mockSyncProgressNow).toHaveBeenCalledWith(childId);
   });
 
-  it("logs a stage activity when the final startable stage lesson completes", async () => {
-    await saveLearningLessonCompletion(
-      createCompletion({
-        progressPayload: {
-          ...createCompletion().progressPayload,
-          stageLessonIds: ["greetings-1", "listen-greetings-1"],
-        },
-      }),
-    );
-    await saveLearningLessonCompletion(
-      createCompletion({
-        localId: buildLearningCompletionLocalId(
-          childId,
-          languageCode,
-          "first-words",
-          "listen-greetings-1",
-        ),
-        levelId: "listen-greetings-1",
-        score: 50,
-        attempts: 2,
-        progressPayload: {
-          lessonId: "listen-greetings-1",
-          source: "learning_hub",
-          stageTitle: "First Words",
-          lessonTitle: "Listen Practice",
-          stageNumber: 1,
-          lessonOrder: 2,
-          stageLessonIds: ["greetings-1", "listen-greetings-1"],
-          mechanicTypes: ["listen_and_choose"],
-          itemResults: [],
-          totalItems: 2,
-          correctItems: 1,
-          completedAt: 2000,
-          contentVersion: "1.1",
-        },
-        completedAt: 2000,
-      }),
+  it("queues shared dirty Learning progress before starting a delayed activity insert", async () => {
+    const activity = deferred<boolean>();
+    mockSaveActivity.mockReturnValueOnce(activity.promise);
+
+    await expect(saveLearningLessonCompletion(createCompletion())).resolves.toEqual(
+      expect.objectContaining({ levelId: "greetings-1" }),
     );
 
-    expect(mockSaveActivity).toHaveBeenCalledTimes(3);
+    expect(mockUpdateActivityProgress).toHaveBeenCalledTimes(1);
+    expect(mockMarkLevelCompleted).toHaveBeenCalledTimes(1);
+    expect(mockSaveActivity).toHaveBeenCalledTimes(1);
+    expect(mockUpdateActivityProgress.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSaveActivity.mock.invocationCallOrder[0],
+    );
+    expect(mockMarkLevelCompleted.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSaveActivity.mock.invocationCallOrder[0],
+    );
+
+    activity.resolve(true);
+    await activity.promise;
+  });
+
+  it("logs a stage activity when the final startable stage lesson completes", async () => {
+    const stage = getLearningHubStages(languageCode).find(
+      (candidate) => candidate.id === "first-words",
+    )!;
+    const lessons = stage.lessons.filter(
+      (lesson) => getLessonStatus(lesson, stage) === "startable",
+    );
+    const lessonIds = lessons.map((lesson) => lesson.id);
+
+    expect(lessons.length).toBeGreaterThan(1);
+
+    for (const [index, lesson] of lessons.entries()) {
+      const completedAt = 1000 + index;
+      await saveLearningLessonCompletion(
+        createCompletion({
+          localId: buildLearningCompletionLocalId(
+            childId,
+            languageCode,
+            stage.id,
+            lesson.id,
+          ),
+          stageId: stage.id,
+          levelId: lesson.id,
+          score: 100,
+          attempts: index + 1,
+          progressPayload: {
+            lessonId: lesson.id,
+            source: "learning_hub",
+            stageTitle: stage.title,
+            lessonTitle: lesson.title,
+            stageNumber: stage.stageNumber,
+            lessonOrder: lesson.order,
+            // Deliberately stale caller input: normalized repository content must win.
+            stageLessonIds: [lesson.id],
+            mechanicTypes: [lesson.mechanic],
+            itemResults: [],
+            totalItems: 0,
+            correctItems: 0,
+            completedAt,
+            contentVersion: "1.1",
+          },
+          completedAt,
+        }),
+      );
+
+      if (index < lessons.length - 1) {
+        expect(mockMarkStageCompleted).not.toHaveBeenCalled();
+      }
+    }
+
+    const finalCompletedAt = 1000 + lessons.length - 1;
+    const totalAttempts = lessons.reduce((total, _lesson, index) => total + index + 1, 0);
+
+    expect(mockSaveActivity).toHaveBeenCalledTimes(lessons.length + 1);
     expect(mockSaveActivity).toHaveBeenNthCalledWith(
-      3,
+      lessons.length + 1,
       expect.objectContaining({
         child_id: childId,
         activity_type: "language",
-        activity_name: 'Completed "First Words" Stage',
+        activity_name: `Completed "${stage.title}" Stage`,
         score: "100%",
-        completed_at: "1970-01-01T00:00:02.000Z",
-        details: expect.stringContaining("lessonIds=greetings-1,listen-greetings-1"),
-        stage: 1,
+        completed_at: new Date(finalCompletedAt).toISOString(),
+        details: expect.stringContaining(`lessonIds=${lessonIds.join(",")}`),
+        stage: stage.stageNumber,
         language_code: "lg",
       }),
     );
@@ -313,18 +364,18 @@ describe("learning progress repository", () => {
       childId,
       languageCode,
       "language",
-      "first-words",
+      stage.id,
       expect.objectContaining({
         score: 100,
-        attempts: 3,
-        completed_at: "1970-01-01T00:00:02.000Z",
+        attempts: totalAttempts,
+        completed_at: new Date(finalCompletedAt).toISOString(),
         progress_payload: expect.objectContaining({
           source: "learning_hub",
-          stageId: "first-words",
-          stageTitle: "First Words",
-          completedLessonIds: ["greetings-1", "listen-greetings-1"],
-          completedLessonCount: 2,
-          totalStartableLessons: 2,
+          stageId: stage.id,
+          stageTitle: stage.title,
+          completedLessonIds: lessonIds,
+          completedLessonCount: lessons.length,
+          totalStartableLessons: lessons.length,
         }),
       }),
     );
@@ -564,6 +615,78 @@ describe("learning progress repository", () => {
     );
   });
 
+  it("preserves retired completion details from shared aggregate progress", async () => {
+    const retiredLessonId = "retired-lesson";
+    mockGetActivityProgress.mockResolvedValueOnce({
+      child_id: childId,
+      language_code: languageCode,
+      activity_type: "language",
+      status: "in_progress",
+      score: 88,
+      attempts: 2,
+      last_stage_id: "retired-stage",
+      completed_stage_count: 0,
+      local_updated_at: "1970-01-01T00:00:05.000Z",
+      progress_payload: {
+        source: "learning_hub",
+        completedLessonIds: [retiredLessonId],
+        completedLessons: [
+          {
+            stageId: "retired-stage",
+            lessonId: retiredLessonId,
+            stageTitle: "Retired Stage",
+            lessonTitle: "Retired Lesson",
+            stageNumber: 9,
+            lessonOrder: 3,
+            score: 88,
+            attempts: 2,
+            completedAt: 5000,
+            mechanicTypes: ["tap_to_learn"],
+            itemResults: [],
+            totalItems: 1,
+            correctItems: 1,
+            contentVersion: "retired-v1",
+          },
+        ],
+      },
+    });
+
+    const summary = await hydrateLearningProgressFromSharedProgress(
+      childId,
+      languageCode,
+    );
+
+    expect(summary).toEqual(
+      expect.objectContaining({
+        status: "not_started",
+        completedStageCount: 0,
+        completedLessonIds: [retiredLessonId],
+      }),
+    );
+    expect(summary.completedByLessonId[retiredLessonId]).toEqual(
+      expect.objectContaining({
+        childId,
+        languageCode,
+        stageId: "retired-stage",
+        levelId: retiredLessonId,
+        score: 88,
+        attempts: 2,
+        completedAt: 5000,
+        progressPayload: expect.objectContaining({
+          lessonId: retiredLessonId,
+          stageTitle: "Retired Stage",
+          lessonTitle: "Retired Lesson",
+          stageNumber: 9,
+          lessonOrder: 3,
+          mechanicTypes: ["tap_to_learn"],
+          totalItems: 1,
+          correctItems: 1,
+          contentVersion: "retired-v1",
+        }),
+      }),
+    );
+  });
+
   it("delegates remote hydration through the shared progress repository before merging", async () => {
     await hydrateLearningProgressFromRemote(childId, "luganda", { force: true });
 
@@ -678,10 +801,311 @@ describe("learning progress repository", () => {
         status: "in_progress",
         attempts: 2,
         lastStageId: "first-words",
-        completedStageCount: 1,
+        completedStageCount: 0,
         completedLessonIds: ["greetings-1"],
       }),
     );
+  });
+
+  describe("Learning Hub current-curriculum aggregates", () => {
+    const startableStages = () =>
+      getLearningHubStages(languageCode)
+        .map((stage) => ({
+          stage,
+          lessons: stage.lessons.filter(
+            (lesson) => getLessonStatus(lesson, stage) === "startable",
+          ),
+        }))
+        .filter(({ lessons }) => lessons.length > 0);
+
+    const saveLessons = async (
+      lessons: Array<{
+        stage: ReturnType<typeof getLearningHubStages>[number];
+        lesson: ReturnType<typeof getLearningHubStages>[number]["lessons"][number];
+      }>,
+    ) => {
+      for (const [index, { stage, lesson }] of lessons.entries()) {
+        await saveLearningLessonCompletion(
+          createCompletion({
+            localId: buildLearningCompletionLocalId(
+              childId,
+              languageCode,
+              stage.id,
+              lesson.id,
+            ),
+            stageId: stage.id,
+            levelId: lesson.id,
+            completedAt: 1000 + index,
+            progressPayload: {
+              ...createCompletion().progressPayload,
+              lessonId: lesson.id,
+              stageTitle: stage.title,
+              lessonTitle: lesson.title,
+              stageNumber: stage.stageNumber,
+              lessonOrder: lesson.order,
+              stageLessonIds: stage.lessons
+                .filter(
+                  (candidate) =>
+                    getLessonStatus(candidate, stage) === "startable",
+                )
+                .map((candidate) => candidate.id),
+              mechanicTypes: [lesson.mechanic],
+            },
+          }),
+        );
+      }
+    };
+
+    it("does not count several lessons in one incomplete stage as a completed stage", async () => {
+      const [{ stage, lessons }] = startableStages();
+      await saveLessons(
+        lessons.slice(0, Math.max(1, lessons.length - 1)).map((lesson) => ({
+          stage,
+          lesson,
+        })),
+      );
+
+      await expect(getLearningProgressSummary(childId, languageCode)).resolves.toEqual(
+        expect.objectContaining({
+          status: "in_progress",
+          completedStageCount: 0,
+        }),
+      );
+    });
+
+    it("counts one stage only after all of its startable lessons are complete", async () => {
+      const [{ stage, lessons }] = startableStages();
+      await saveLessons(lessons.map((lesson) => ({ stage, lesson })));
+
+      await expect(getLearningProgressSummary(childId, languageCode)).resolves.toEqual(
+        expect.objectContaining({
+          status: "in_progress",
+          completedStageCount: 1,
+        }),
+      );
+    });
+
+    it("counts multiple fully completed startable stages", async () => {
+      const stages = startableStages().slice(0, 2);
+      await saveLessons(
+        stages.flatMap(({ stage, lessons }) =>
+          lessons.map((lesson) => ({ stage, lesson })),
+        ),
+      );
+
+      await expect(getLearningProgressSummary(childId, languageCode)).resolves.toEqual(
+        expect.objectContaining({
+          status: "in_progress",
+          completedStageCount: 2,
+        }),
+      );
+    });
+
+    it("marks the curriculum complete after every current startable lesson", async () => {
+      const stages = startableStages();
+      await saveLessons(
+        stages.flatMap(({ stage, lessons }) =>
+          lessons.map((lesson) => ({ stage, lesson })),
+        ),
+      );
+
+      await expect(getLearningProgressSummary(childId, languageCode)).resolves.toEqual(
+        expect.objectContaining({
+          status: "completed",
+          completedStageCount: stages.length,
+        }),
+      );
+    });
+
+    it("excludes locked Practice Mix from required lesson and stage totals", () => {
+      const stages = getLearningHubStages(languageCode);
+      const practiceMix = stages.find((stage) => stage.id === "practice-mix");
+      const currentLessonIds = startableStages().flatMap(({ lessons }) =>
+        lessons.map((lesson) => lesson.id),
+      );
+
+      expect(practiceMix).toEqual(
+        expect.objectContaining({ isPractice: true, isLocked: true }),
+      );
+      expect(
+        practiceMix?.lessons.every(
+          (lesson) => getLessonStatus(lesson, practiceMix) !== "startable",
+        ),
+      ).toBe(true);
+      expect(
+        calculateLearningProgressAggregate(stages, currentLessonIds),
+      ).toEqual({
+        status: "completed",
+        completedStageCount: startableStages().length,
+      });
+    });
+
+    it("excludes locked, explicitly non-startable, and invalid content from aggregates", () => {
+      const templateStage = startableStages()[0].stage;
+      const templateLesson = templateStage.lessons.find(
+        (lesson) => getLessonStatus(lesson, templateStage) === "startable",
+      )!;
+      const requiredStage = {
+        ...templateStage,
+        id: "required-stage",
+        isLocked: false,
+        locked: false,
+        lessons: [
+          {
+            ...templateLesson,
+            id: "required-lesson",
+            isLocked: false,
+            locked: false,
+            isStartable: true,
+          },
+        ],
+      };
+      const lockedStage = {
+        ...requiredStage,
+        id: "locked-stage",
+        isLocked: true,
+        locked: true,
+        lessons: [
+          {
+            ...requiredStage.lessons[0],
+            id: "locked-lesson",
+          },
+        ],
+      };
+      const nonStartableStage = {
+        ...requiredStage,
+        id: "non-startable-stage",
+        lessons: [
+          {
+            ...requiredStage.lessons[0],
+            id: "non-startable-lesson",
+            isStartable: false,
+          },
+        ],
+      };
+      const invalidStage = {
+        ...requiredStage,
+        id: "invalid-stage",
+        lessons: [
+          {
+            ...requiredStage.lessons[0],
+            id: "invalid-lesson",
+            items: [],
+          },
+        ],
+      };
+      const stages = [requiredStage, lockedStage, nonStartableStage, invalidStage];
+
+      expect(getLessonStatus(lockedStage.lessons[0], lockedStage)).toBe("locked");
+      expect(
+        getLessonStatus(nonStartableStage.lessons[0], nonStartableStage),
+      ).toBe("coming_soon");
+      expect(getLessonStatus(invalidStage.lessons[0], invalidStage)).toBe("empty");
+      expect(
+        calculateLearningProgressAggregate(stages, [
+          "required-lesson",
+          "locked-lesson",
+          "non-startable-lesson",
+          "invalid-lesson",
+        ]),
+      ).toEqual({
+        status: "completed",
+        completedStageCount: 1,
+      });
+      expect(
+        calculateLearningProgressAggregate(stages, [
+          "locked-lesson",
+          "non-startable-lesson",
+          "invalid-lesson",
+        ]),
+      ).toEqual({
+        status: "not_started",
+        completedStageCount: 0,
+      });
+    });
+
+    it("preserves an unknown historic lesson id without inflating current totals", async () => {
+      const unknownLessonId = "historic-retired-lesson";
+      await saveLearningLessonCompletion(
+        createCompletion({
+          localId: buildLearningCompletionLocalId(
+            childId,
+            languageCode,
+            "historic-stage",
+            unknownLessonId,
+          ),
+          stageId: "historic-stage",
+          levelId: unknownLessonId,
+          progressPayload: {
+            ...createCompletion().progressPayload,
+            lessonId: unknownLessonId,
+          },
+        }),
+      );
+
+      const summary = await getLearningProgressSummary(childId, languageCode);
+      expect(summary.completedLessonIds).toContain(unknownLessonId);
+      expect(summary).toEqual(
+        expect.objectContaining({
+          status: "not_started",
+          completedStageCount: 0,
+        }),
+      );
+      expect(mockUpdateActivityProgress).toHaveBeenLastCalledWith(
+        childId,
+        languageCode,
+        "language",
+        expect.objectContaining({
+          status: "not_started",
+          completed_stage_count: 0,
+          progress_payload: expect.objectContaining({
+            completedLessonIds: [unknownLessonId],
+            completedLessonCount: 0,
+            currentCompletedLessonIds: [],
+          }),
+        }),
+      );
+    });
+
+    it("makes a completed stage and curriculum incomplete when a new startable lesson is added", () => {
+      const stages = getLearningHubStages(languageCode);
+      const completedLessonIds = startableStages().flatMap(({ lessons }) =>
+        lessons.map((lesson) => lesson.id),
+      );
+      const firstStage = stages.find((stage) => stage.id === "first-words")!;
+      const templateLesson = firstStage.lessons.find(
+        (lesson) => getLessonStatus(lesson, firstStage) === "startable",
+      )!;
+      const expandedStages = stages.map((stage) =>
+        stage.id === firstStage.id
+          ? {
+              ...stage,
+              lessons: [
+                ...stage.lessons,
+                {
+                  ...templateLesson,
+                  id: "new-startable-lesson",
+                  order: stage.lessons.length + 1,
+                },
+              ],
+            }
+          : stage,
+      );
+
+      expect(
+        calculateLearningProgressAggregate(stages, completedLessonIds),
+      ).toEqual({
+        status: "completed",
+        completedStageCount: startableStages().length,
+      });
+      expect(
+        calculateLearningProgressAggregate(expandedStages, completedLessonIds),
+      ).toEqual({
+        status: "in_progress",
+        completedStageCount: startableStages().length - 1,
+      });
+      expect(completedLessonIds).not.toContain("new-startable-lesson");
+    });
   });
 
   it("awards Learning Hub achievements after lesson completion through the wrapper", async () => {

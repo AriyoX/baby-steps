@@ -29,6 +29,11 @@ import { preloadContentBundleImages } from "@/content/imagePreloader";
 import { saveActivity } from "@/lib/utils"; // Import saveActivity function
 import { syncProgressNow } from "@/lib/progressRepository";
 import {
+  completeLocallyFirst,
+  runCompletionOnce,
+  type LocalFirstCompletionResult,
+} from "@/lib/completionReliability";
+import {
   WordGameProgress,
   DEFAULT_PROGRESS,
   loadGameProgress,
@@ -37,12 +42,37 @@ import {
   isLevelUnlocked
 } from './utils/progressManagerWordGame';
 import { useAchievements } from "./achievements/useAchievements"; 
+import type { AchievementDefinition } from "./achievements/achievementTypes";
 import { audioManager } from "@/lib/audioManager";
 import { useChildNotice } from "@/context/ChildNoticeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getWordGameSizing } from "./responsiveSizing";
 
 const WORD_GAME_MODAL_ORIENTATIONS: ModalProps["supportedOrientations"] = ["landscape-left", "landscape-right"];
+
+interface WordCompletionOrderOptions {
+  persistProgress: (progress: WordGameProgress) => Promise<void>;
+  revealCompletion: (progress: WordGameProgress) => void;
+  runBestEffortNetworkWork: (progress: WordGameProgress) => Promise<void>;
+  onLocalError?: (error: unknown) => void;
+  onNetworkError?: (error: unknown) => void;
+}
+
+const completeWordProgressLocallyFirst = (
+  completedProgress: WordGameProgress,
+  options: WordCompletionOrderOptions,
+): Promise<LocalFirstCompletionResult<WordGameProgress>> =>
+  completeLocallyFirst({
+    persistLocal: async () => {
+      await options.persistProgress(completedProgress);
+      return completedProgress;
+    },
+    fallbackValue: completedProgress,
+    revealCompletion: (progress) => options.revealCompletion(progress),
+    runBestEffortNetworkWork: (progress) => options.runBestEffortNetworkWork(progress),
+    onLocalError: options.onLocalError,
+    onNetworkError: options.onNetworkError,
+  });
 
 // Define types for the component's state and props
 type LetterPosition = {
@@ -102,9 +132,48 @@ const WordGame: React.FC = () => {
   const [showSubHint, setShowSubHint] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [progress, setProgress] = useState<WordGameProgress>(DEFAULT_PROGRESS);
+  const progressRef = useRef<WordGameProgress>(DEFAULT_PROGRESS);
+  const progressRevisionRef = useRef(0);
+  const progressOwnerRef = useRef({
+    childId: activeChild?.id,
+    languageCode,
+  });
+  const isMountedRef = useRef(false);
+  const hydrationGenerationRef = useRef(0);
+  const completionLockRef = useRef<Promise<void> | null>(null);
   const [showLevelSelect, setShowLevelSelect] = useState<boolean>(false);
   const [fadeAnim] = useState(new Animated.Value(1));
   const levelIntroTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bounceResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  progressOwnerRef.current = {
+    childId: activeChild?.id,
+    languageCode,
+  };
+
+  const updateProgressState = (nextProgress: WordGameProgress): number => {
+    progressRef.current = nextProgress;
+    progressRevisionRef.current += 1;
+    setProgress(nextProgress);
+    return progressRevisionRef.current;
+  };
+
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    return () => {
+      isMountedRef.current = false;
+      hydrationGenerationRef.current += 1;
+      if (levelIntroTimeoutRef.current) {
+        clearTimeout(levelIntroTimeoutRef.current);
+        levelIntroTimeoutRef.current = null;
+      }
+      if (bounceResetTimeoutRef.current) {
+        clearTimeout(bounceResetTimeoutRef.current);
+        bounceResetTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   // Animation values
   const letterScale = useState(new Animated.Value(1))[0];
@@ -163,7 +232,9 @@ const WordGame: React.FC = () => {
     if (levelIndex >= levels.length) {
       setCurrentLevelIndex(levels.length - 1);
       setIsGameCompleted(true);
-      trackGameCompletion(); // Track full game completion
+      void trackGameCompletion().catch((error) => {
+        console.warn("Could not track Word Game completion:", error);
+      });
       return;
     }
 
@@ -198,7 +269,10 @@ const WordGame: React.FC = () => {
     }
 
     levelIntroTimeoutRef.current = setTimeout(() => {
-      setShowLevelIntroModal(true);
+      levelIntroTimeoutRef.current = null;
+      if (isMountedRef.current) {
+        setShowLevelIntroModal(true);
+      }
     }, 250);
 
   };
@@ -212,9 +286,11 @@ const WordGame: React.FC = () => {
           ...progress,
           currentLevel: levelIndex
         };
-        setProgress(updatedProgress);
-        saveGameProgress(updatedProgress, activeChild.id, languageCode, {
+        updateProgressState(updatedProgress);
+        void saveGameProgress(updatedProgress, activeChild.id, languageCode, {
           levelCount: gameLevels.length,
+        }).catch((error) => {
+          console.warn("Could not save Word Game level selection:", error);
         });
       }
       
@@ -230,7 +306,7 @@ const WordGame: React.FC = () => {
 
     const duration = Date.now() - levelStartTime.current; // Duration in milliseconds
 
-    await saveActivity({
+    const saved = await saveActivity({
       child_id: activeChild.id,
       activity_type: "words", // Using 'words' activity type
       activity_name: `Word Game Level ${currentLevelIndex + 1}`,
@@ -241,13 +317,16 @@ const WordGame: React.FC = () => {
       level: currentLevelIndex + 1,
       language_code: languageCode,
     });
+    if (!saved) {
+      throw new Error("Could not save Word Game level activity.");
+    }
   };
 
   // Function to track game completion
   const trackGameCompletion = async () => {
     if (!activeChild) return;
 
-    await saveActivity({
+    const saved = await saveActivity({
       child_id: activeChild.id,
       activity_type: "words",
       activity_name: "Word Game Completed",
@@ -256,147 +335,189 @@ const WordGame: React.FC = () => {
       details: `Completed all ${gameLevels.length} words in the Word Game`,
       language_code: languageCode,
     });
+    if (!saved) {
+      throw new Error("Could not save Word Game completion activity.");
+    }
   };
 
-  // Modified goToNextLevel to track level completion and unlock the next level
-  const goToNextLevel = async () => {
-    await trackLevelCompletion(); // Original tracking
-
+  // Persist the completed level before any Supabase-backed activity or achievement work.
+  const performNextLevelCompletion = async (): Promise<void> => {
+    const completionChildId = activeChild?.id;
+    const completionLanguageCode = languageCode;
     const nextLevelIdx = currentLevelIndex + 1;
+    const isLastLevel = nextLevelIdx >= gameLevels.length;
     const nextCurrentLevel = Math.min(nextLevelIdx, Math.max(0, gameLevels.length - 1));
-    let finalProgress = progress; // Start with current progress
+    const currentConsecutiveWins = consecutiveWins + 1;
+    const progressAtCompletion = progressRef.current;
+    const progressAfterLevel = updateProgressForLevelCompletion(
+      {
+        ...progressAtCompletion,
+        unlockedLevels: [...progressAtCompletion.unlockedLevels],
+        completedLevels: [...progressAtCompletion.completedLevels],
+        playHistory: [...progressAtCompletion.playHistory],
+      },
+      currentLevelIndex,
+      currentWord,
+      gameLevels.length,
+      completionChildId,
+    );
+    const completedProgress: WordGameProgress = {
+      ...progressAfterLevel,
+      currentLevel: nextCurrentLevel,
+    };
 
-    if (activeChild) {
-      const progressAfterLevel = updateProgressForLevelCompletion(
-        progress,
-        currentLevelIndex,
-        currentWord,
-        gameLevels.length,
-        activeChild.id
-      );
-      // No need to push to completedLevels or unlockedLevels here, updateProgressForLevelCompletion handles it.
-      
-      // --- ACHIEVEMENT CHECKING (AFTER LEVEL COMPLETE) ---
-      let achievementPointsEarned = 0;
-      const eventsForAchievements: Parameters<typeof checkAndGrantNewAchievements>[0][] = [];
-
-      // Event for level completion
-      eventsForAchievements.push({
-          type: 'word_game_level_just_completed',
-          gameKey: 'word_game',
-          levelIndex: currentLevelIndex,
-          wordGameProgress: progressAfterLevel, // Pass the progress *after* this level is notionally complete
-          hintUsedThisLevel: hintUsedCurrentLevel,
-          // consecutiveLevelsCompleted: currentConsecutiveWins, // If tracking this
-      });
-
-      // Event for stats update (score, completed levels count)
-      eventsForAchievements.push({
-          type: 'word_game_stats_updated', // Or just use 'word_game_level_just_completed' and let manager derive
-          gameKey: 'word_game',
-          wordGameProgress: progressAfterLevel,
-      });
-      
-      // Handle consecutive wins (simplified example: assumes linear play)
-      // If they can jump levels, this needs more robust logic, perhaps from playHistory.
-      const currentConsecutiveWins = consecutiveWins + 1;
-      setConsecutiveWins(currentConsecutiveWins); // Update state
-      if (currentConsecutiveWins >= 3) { // Example for "Three in a Row"
-          eventsForAchievements.push({
-              type: 'word_game_level_just_completed', // Re-use or make specific 'word_game_streak_achieved'
-              gameKey: 'word_game',
-              levelIndex: currentLevelIndex, // Context
-              consecutiveLevelsCompleted: currentConsecutiveWins,
-              wordGameProgress: progressAfterLevel, 
-          });
+    const revealCompletion = (savedProgress: WordGameProgress): number => {
+      const owner = progressOwnerRef.current;
+      if (
+        !isMountedRef.current ||
+        owner.childId !== completionChildId ||
+        owner.languageCode !== completionLanguageCode
+      ) {
+        return 0;
       }
 
+      const revision = updateProgressState(savedProgress);
+      setConsecutiveWins(currentConsecutiveWins);
+      setShowSuccessModal(false);
+      setSelectedLetters([]);
+      setHintUsedCurrentLevel(false);
 
-      for (const event of eventsForAchievements) {
-          const newlyEarnedFromEvent = await checkAndGrantNewAchievements(event);
-          if (newlyEarnedFromEvent.length > 0) {
-              newlyEarnedFromEvent.forEach(ach => {
-                  achievementPointsEarned += ach.points;
-                  console.log(`WORD GAME - NEW ACHIEVEMENT: ${ach.name}`);
-                  enqueueAchievementUnlocked(ach);
-              });
-          }
-      }
-
-      // Add achievement points to the progress that will be saved
-      finalProgress = {
-          ...progressAfterLevel,
-          currentLevel: nextCurrentLevel,
-          totalScore: progressAfterLevel.totalScore + achievementPointsEarned,
-      };
-      // --- END ACHIEVEMENT CHECKING ---
-
-      setProgress(finalProgress); // Update local state with points
-      await saveGameProgress(finalProgress, activeChild.id, languageCode, {
-        levelCount: gameLevels.length,
-      }); // Save progress with new points
-      void syncProgressNow(activeChild.id);
-    } else {
-      // If no active child, still update local state for non-persistent play
-      finalProgress = updateProgressForLevelCompletion(
-          progress,
-          currentLevelIndex,
-          currentWord,
-          gameLevels.length,
-          undefined // no childId
-        );
-      finalProgress = {
-        ...finalProgress,
-        currentLevel: nextCurrentLevel,
-      };
-      setProgress(finalProgress);
-    }
-
-    setShowSuccessModal(false);
-    setSelectedLetters([]); // Should be done when new level loads
-    
-    // Reset for next level BEFORE loading it
-    setHintUsedCurrentLevel(false); 
-    
-    // Check if this was the last level
-    if (nextLevelIdx >= gameLevels.length) {
+      if (isLastLevel) {
         setIsGameCompleted(true);
-        await trackGameCompletion(); // Original tracking
-        // --- ACHIEVEMENT CHECKING (ALL LEVELS COMPLETE) ---
-        if (activeChild) {
-            const eventAllComplete: Parameters<typeof checkAndGrantNewAchievements>[0] = {
-                type: 'game_completed', // Using generic 'game_completed'
-                gameKey: 'word_game',
-                wordGameProgress: finalProgress, // Pass the latest progress
-                allLevelsInGameCount: gameLevels.length,
-            };
-            const newlyEarnedAllComplete = await checkAndGrantNewAchievements(eventAllComplete);
-            if (newlyEarnedAllComplete.length > 0) {
-                let pointsFromAllComplete = 0;
-                newlyEarnedAllComplete.forEach(ach => {
-                    pointsFromAllComplete += ach.points;
-                    console.log(`WORD GAME - ALL LEVELS COMPLETE - NEW ACHIEVEMENT: ${ach.name}`);
-                    enqueueAchievementUnlocked(ach);
-                });
-                if (pointsFromAllComplete > 0) {
-                    const finalProgressWithAllCompletePoints = {
-                        ...finalProgress,
-                        totalScore: finalProgress.totalScore + pointsFromAllComplete,
-                    };
-                    setProgress(finalProgressWithAllCompletePoints);
-                    await saveGameProgress(finalProgressWithAllCompletePoints, activeChild.id, languageCode, {
-                      levelCount: gameLevels.length,
-                    });
-                    void syncProgressNow(activeChild.id);
-                }
-            }
-        }
-        // --- END ALL LEVELS COMPLETE ACHIEVEMENT CHECKING ---
-    } else {
+      } else {
         setCurrentLevelIndex(nextLevelIdx);
         loadLevel(nextLevelIdx);
+      }
+
+      return revision;
+    };
+
+    if (!completionChildId) {
+      revealCompletion(completedProgress);
+      return;
     }
+
+    let completionRevision = 0;
+    const achievementEvents: Parameters<typeof checkAndGrantNewAchievements>[0][] = [
+      {
+        type: "word_game_level_just_completed",
+        gameKey: "word_game",
+        levelIndex: currentLevelIndex,
+        wordGameProgress: completedProgress,
+        hintUsedThisLevel: hintUsedCurrentLevel,
+      },
+      {
+        type: "word_game_stats_updated",
+        gameKey: "word_game",
+        wordGameProgress: completedProgress,
+      },
+    ];
+
+    if (currentConsecutiveWins >= 3) {
+      achievementEvents.push({
+        type: "word_game_level_just_completed",
+        gameKey: "word_game",
+        levelIndex: currentLevelIndex,
+        consecutiveLevelsCompleted: currentConsecutiveWins,
+        wordGameProgress: completedProgress,
+      });
+    }
+
+    if (isLastLevel) {
+      achievementEvents.push({
+        type: "game_completed",
+        gameKey: "word_game",
+        wordGameProgress: completedProgress,
+        allLevelsInGameCount: gameLevels.length,
+      });
+    }
+
+    await completeWordProgressLocallyFirst(completedProgress, {
+      persistProgress: (nextProgress) =>
+        saveGameProgress(nextProgress, completionChildId, completionLanguageCode, {
+          levelCount: gameLevels.length,
+        }),
+      revealCompletion: (savedProgress) => {
+        completionRevision = revealCompletion(savedProgress);
+      },
+      runBestEffortNetworkWork: async (savedProgress) => {
+        const achievementWork = async () => {
+          const outcomes = await Promise.allSettled(
+            achievementEvents.map((event) => checkAndGrantNewAchievements(event)),
+          );
+          const newlyAwarded = new Map<string, AchievementDefinition>();
+
+          outcomes.forEach((outcome) => {
+            if (outcome.status === "rejected") {
+              console.warn("Could not evaluate a Word Game achievement:", outcome.reason);
+              return;
+            }
+
+            outcome.value.forEach((achievement) => {
+              if (!newlyAwarded.has(achievement.id)) {
+                newlyAwarded.set(achievement.id, achievement);
+              }
+            });
+          });
+
+          const awardedAchievements = [...newlyAwarded.values()];
+          const achievementPoints = awardedAchievements.reduce(
+            (total, achievement) => total + achievement.points,
+            0,
+          );
+          const owner = progressOwnerRef.current;
+          if (
+            !isMountedRef.current ||
+            owner.childId !== completionChildId ||
+            owner.languageCode !== completionLanguageCode ||
+            progressRevisionRef.current !== completionRevision ||
+            progressRef.current !== savedProgress
+          ) {
+            return;
+          }
+
+          awardedAchievements.forEach((achievement) => enqueueAchievementUnlocked(achievement));
+          if (achievementPoints <= 0) return;
+
+          const progressWithAchievementPoints = {
+            ...savedProgress,
+            totalScore: savedProgress.totalScore + achievementPoints,
+          };
+          updateProgressState(progressWithAchievementPoints);
+          await saveGameProgress(
+            progressWithAchievementPoints,
+            completionChildId,
+            completionLanguageCode,
+            { levelCount: gameLevels.length },
+          );
+        };
+        const networkTasks: Promise<unknown>[] = [
+          trackLevelCompletion(),
+          achievementWork(),
+          syncProgressNow(completionChildId),
+        ];
+        if (isLastLevel) {
+          networkTasks.push(trackGameCompletion());
+        }
+
+        const outcomes = await Promise.allSettled(networkTasks);
+        outcomes.forEach((outcome) => {
+          if (outcome.status === "rejected") {
+            console.warn("Could not finish Word Game best-effort network work:", outcome.reason);
+          }
+        });
+      },
+      onLocalError: (error) => {
+        console.warn("Word Game completion was not durably saved locally:", error);
+      },
+      onNetworkError: (error) => {
+        console.warn("Could not finish Word Game best-effort network work:", error);
+      },
+    });
   };
+
+  const goToNextLevel = (): Promise<void> =>
+    runCompletionOnce(completionLockRef, performNextLevelCompletion);
 
   // Load game sounds on mount.
   useEffect(() => {
@@ -412,7 +533,13 @@ const WordGame: React.FC = () => {
           );
           if (correctSoundObject) {
             loadedSounds.push(correctSoundObject);
-            setCorrectSound(correctSoundObject);
+            if (isMountedRef.current) {
+              setCorrectSound(correctSoundObject);
+            } else {
+              void audioManager.unloadAppSound(correctSoundObject).catch((error) => {
+                console.warn("Could not unload late Word Game sound:", error);
+              });
+            }
           }
         } catch (error) {
           console.log("Could not load correct sound:", error);
@@ -424,7 +551,13 @@ const WordGame: React.FC = () => {
           );
           if (wrongSoundObject) {
             loadedSounds.push(wrongSoundObject);
-            setWrongSound(wrongSoundObject);
+            if (isMountedRef.current) {
+              setWrongSound(wrongSoundObject);
+            } else {
+              void audioManager.unloadAppSound(wrongSoundObject).catch((error) => {
+                console.warn("Could not unload late Word Game sound:", error);
+              });
+            }
           }
         } catch (error) {
           console.log("Could not load wrong sound:", error);
@@ -436,7 +569,13 @@ const WordGame: React.FC = () => {
           );
           if (successSoundObject) {
             loadedSounds.push(successSoundObject);
-            setSuccessSound(successSoundObject);
+            if (isMountedRef.current) {
+              setSuccessSound(successSoundObject);
+            } else {
+              void audioManager.unloadAppSound(successSoundObject).catch((error) => {
+                console.warn("Could not unload late Word Game sound:", error);
+              });
+            }
           }
         } catch (error) {
           console.log("Could not load success sound:", error);
@@ -449,21 +588,37 @@ const WordGame: React.FC = () => {
     // Initialize level start time
     levelStartTime.current = Date.now();
 
-    loadSounds();
+    void loadSounds().catch((error) => {
+      console.warn("Could not finish loading Word Game sounds:", error);
+    });
 
     return () => {
       if (levelIntroTimeoutRef.current) {
         clearTimeout(levelIntroTimeoutRef.current);
       }
       loadedSounds.forEach((loadedSound) => {
-        void audioManager.unloadAppSound(loadedSound);
+        void audioManager.unloadAppSound(loadedSound).catch((error) => {
+          console.warn("Could not unload Word Game sound:", error);
+        });
       });
     };
   }, []);
 
   // This useEffect will load the saved progress when the component mounts
   useEffect(() => {
-    let isMounted = true;
+    const requestGeneration = ++hydrationGenerationRef.current;
+    const requestedChildId = activeChild?.id;
+    const requestedLanguageCode = languageCode;
+    completionLockRef.current = null;
+    const isCurrentRequest = (): boolean => {
+      const owner = progressOwnerRef.current;
+      return (
+        isMountedRef.current &&
+        hydrationGenerationRef.current === requestGeneration &&
+        owner.childId === requestedChildId &&
+        owner.languageCode === requestedLanguageCode
+      );
+    };
 
     const loadSavedProgress = async () => {
       try {
@@ -476,13 +631,15 @@ const WordGame: React.FC = () => {
         setShowSubHint(false);
         setSelectedLetters([]);
 
-        const contentResult = await loadContentBundle(languageCode);
+        const contentResult = await loadContentBundle(requestedLanguageCode);
         const levels = contentResult.bundle?.wordGame.levels ?? [];
         if (contentResult.bundle) {
-          void preloadContentBundleImages(contentResult.bundle);
+          void preloadContentBundleImages(contentResult.bundle).catch((error) => {
+            console.warn("Could not preload Word Game images:", error);
+          });
         }
 
-        if (!isMounted) return;
+        if (!isCurrentRequest()) return;
 
         setGameLevels(levels);
 
@@ -492,22 +649,31 @@ const WordGame: React.FC = () => {
 
         let levelToLoad = 0;
 
-        if (activeChild) {
+        if (requestedChildId) {
           try {
-            console.log(`Loading word game progress for child: ${activeChild.id}`);
-            const savedProgress = await loadGameProgress(activeChild.id, languageCode, levels.length);
+            console.log(`Loading word game progress for child: ${requestedChildId}`);
+            const savedProgress = await loadGameProgress(
+              requestedChildId,
+              requestedLanguageCode,
+              levels.length,
+            );
+            if (!isCurrentRequest()) return;
+
             console.log('Loaded progress:', JSON.stringify(savedProgress));
-            setProgress(savedProgress);
+            updateProgressState(savedProgress);
             levelToLoad = savedProgress.currentLevel;
           } catch (error) {
             console.error("Error loading progress:", error);
-            setProgress({ ...DEFAULT_PROGRESS, childId: activeChild.id });
+            if (!isCurrentRequest()) return;
+            updateProgressState({ ...DEFAULT_PROGRESS, childId: requestedChildId });
           }
         } else {
-          setProgress(DEFAULT_PROGRESS);
+          updateProgressState(DEFAULT_PROGRESS);
         }
 
         const safeLevelToLoad = Math.min(Math.max(levelToLoad, 0), levels.length - 1);
+        if (!isCurrentRequest()) return;
+
         console.log(`Loading level: ${safeLevelToLoad}`);
         loadLevel(safeLevelToLoad, levels);
 
@@ -518,22 +684,31 @@ const WordGame: React.FC = () => {
         }).start();
       } catch (error) {
         console.error("Error loading word game:", error);
-        if (isMounted) {
+        if (isCurrentRequest()) {
           setGameLevels([]);
         }
       } finally {
-        if (isMounted) {
+        if (isCurrentRequest()) {
           setIsLoading(false);
         }
       }
     };
 
-    loadSavedProgress();
+    void loadSavedProgress().catch((error) => {
+      console.warn("Could not finish Word Game hydration:", error);
+    });
 
     return () => {
-      isMounted = false;
+      if (hydrationGenerationRef.current === requestGeneration) {
+        hydrationGenerationRef.current += 1;
+      }
+      completionLockRef.current = null;
+      if (levelIntroTimeoutRef.current) {
+        clearTimeout(levelIntroTimeoutRef.current);
+        levelIntroTimeoutRef.current = null;
+      }
     };
-  }, [activeChild, languageCode]);
+  }, [activeChild?.id, languageCode]);
 
   // Move to next level
   const animateLetterToWord = (
@@ -592,6 +767,7 @@ const WordGame: React.FC = () => {
                 }),
               ]),
             ]).start(() => {
+              if (!isMountedRef.current) return;
               flyingLetterOpacity.setValue(0);
               setAnimatingLetter(null);
 
@@ -619,9 +795,13 @@ const WordGame: React.FC = () => {
 
     // Check if word is complete
     if (!newDisplay.includes("_")) {
+      completionLockRef.current = null;
+
       // Play success sound
       if (successSound) {
-        void audioManager.replayAppSound(successSound);
+        void audioManager.replayAppSound(successSound).catch((error) => {
+          console.warn("Could not replay Word Game success sound:", error);
+        });
       }
 
       // Animate word bounce
@@ -631,8 +811,14 @@ const WordGame: React.FC = () => {
         tension: 40,
         useNativeDriver: true,
       }).start(() => {
+        if (!isMountedRef.current) return;
         setShowSuccessModal(true);
-        setTimeout(() => {
+        if (bounceResetTimeoutRef.current) {
+          clearTimeout(bounceResetTimeoutRef.current);
+        }
+        bounceResetTimeoutRef.current = setTimeout(() => {
+          bounceResetTimeoutRef.current = null;
+          if (!isMountedRef.current) return;
           bounceValue.setValue(0);
         }, 1000);
       });
@@ -664,7 +850,9 @@ const WordGame: React.FC = () => {
 
       if (remainingOccurrences > 0) {
         if (correctSound) {
-          void audioManager.replayAppSound(correctSound);
+          void audioManager.replayAppSound(correctSound).catch((error) => {
+            console.warn("Could not replay Word Game correct sound:", error);
+          });
         }
 
         // Only add to selectedLetters if all occurrences are now filled
@@ -686,12 +874,16 @@ const WordGame: React.FC = () => {
         }
       } else {
         if (wrongSound) {
-          void audioManager.replayAppSound(wrongSound);
+          void audioManager.replayAppSound(wrongSound).catch((error) => {
+            console.warn("Could not replay Word Game wrong sound:", error);
+          });
         }
       }
     } else {
       if (wrongSound) {
-        void audioManager.replayAppSound(wrongSound);
+        void audioManager.replayAppSound(wrongSound).catch((error) => {
+          console.warn("Could not replay Word Game wrong sound:", error);
+        });
       }
     }
   };
@@ -1014,7 +1206,11 @@ const WordGame: React.FC = () => {
               {/* Next level or play again button */}
               <TouchableOpacity
                 className="bg-primary-500 py-3 px-5 rounded-full shadow-lg border-2 border-primary-400 active:scale-95 min-w-[124px] items-center"
-                onPress={goToNextLevel}
+                onPress={() => {
+                  void goToNextLevel().catch((error) => {
+                    console.warn("Could not finish Word Game level completion:", error);
+                  });
+                }}
                 activeOpacity={0.7}
               >
                 <Text variant="bold" className="text-white text-sm" numberOfLines={1}>
@@ -1083,7 +1279,7 @@ const WordGame: React.FC = () => {
               {/* Button with improved styling */}
               <TouchableOpacity
                 className="bg-primary-500 py-3 px-8 rounded-full shadow-lg border-2 border-primary-400 active:scale-95"
-                onPress={async () => {
+                onPress={() => {
                   setIsGameCompleted(false);
                   setCurrentLevelIndex(0);
                   // Reset level start time

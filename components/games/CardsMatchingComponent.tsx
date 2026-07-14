@@ -17,17 +17,23 @@ import {
   loadGameState, 
   saveGameState, 
   clearGameState, 
-  loadOverallStats, 
   updateTotalPairsMatched, 
   incrementGamesPlayed,
   CardGameState,
   CardGameOverallStats, // Import the type too
-  DEFAULT_OVERALL_STATS // Import the default stats constant
+  CardGameStatsSaveError,
+  DEFAULT_OVERALL_STATS,
 } from './utils/progressManagerCardGame';
 import { useAchievements } from "./achievements/useAchievements";
 import { audioManager } from "@/lib/audioManager";
 import { useChildNotice } from "@/context/ChildNoticeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  completeLocallyFirst,
+  runCompletionOnce,
+  type LocalFirstCompletionResult,
+  type LocalPersistenceStatus,
+} from "@/lib/completionReliability";
 import { getCardsMatchingGridSizing } from "./responsiveSizing";
 
 // Define card interface
@@ -295,6 +301,155 @@ const cardGradients: string[][] = [
   ["#FFB7B2", "#B5EAD7"], // Light Pink to Teal
 ];
 
+export interface CardsMatchingPairPersistenceOptions {
+  gameState: CardGameState;
+  persistPairStats: () => Promise<CardGameOverallStats>;
+  persistGameState: () => Promise<void>;
+  revealPersistedPair: (
+    result: CardsMatchingPairPersistenceResult,
+    persistence: LocalPersistenceStatus,
+  ) => void;
+  evaluateAchievements: (
+    result: CardsMatchingPairPersistenceResult,
+    persistence: LocalPersistenceStatus,
+  ) => Promise<void>;
+  onLocalError?: (error: unknown) => void;
+  onNetworkError?: (error: unknown) => void;
+}
+
+export interface CardsMatchingPairPersistenceResult {
+  gameState: CardGameState;
+  overallStats: CardGameOverallStats;
+}
+
+export const persistCardsMatchingPairLocallyFirst = async ({
+  gameState,
+  persistPairStats,
+  persistGameState,
+  revealPersistedPair,
+  evaluateAchievements,
+  onLocalError,
+  onNetworkError,
+}: CardsMatchingPairPersistenceOptions): Promise<
+  LocalFirstCompletionResult<CardsMatchingPairPersistenceResult>
+> => {
+  let fallbackOverallStats = { ...DEFAULT_OVERALL_STATS };
+
+  return completeLocallyFirst({
+    persistLocal: async () => {
+      let overallStats: CardGameOverallStats;
+      try {
+        overallStats = await persistPairStats();
+      } catch (error) {
+        if (error instanceof CardGameStatsSaveError) {
+          fallbackOverallStats = error.attemptedStats;
+        }
+        throw error;
+      }
+      fallbackOverallStats = overallStats;
+      await persistGameState();
+      return { gameState, overallStats };
+    },
+    fallbackValue: () => ({ gameState, overallStats: fallbackOverallStats }),
+    revealCompletion: revealPersistedPair,
+    runBestEffortNetworkWork: evaluateAchievements,
+    onLocalError,
+    onNetworkError,
+  });
+};
+
+export interface CardsMatchingCompletionOptions {
+  persistGamesPlayed: () => Promise<CardGameOverallStats>;
+  clearPersistedGame: () => Promise<void>;
+  revealCompletion: (
+    overallStats: CardGameOverallStats,
+    persistence: LocalPersistenceStatus,
+  ) => void;
+  evaluateAchievements: (
+    overallStats: CardGameOverallStats,
+    persistence: LocalPersistenceStatus,
+  ) => Promise<void>;
+  saveCompletionActivity: (
+    overallStats: CardGameOverallStats,
+    persistence: LocalPersistenceStatus,
+  ) => Promise<unknown>;
+  onLocalError?: (error: unknown) => void;
+  onNetworkError?: (error: unknown) => void;
+}
+
+export const completeCardsMatchingGameLocallyFirst = async ({
+  persistGamesPlayed,
+  clearPersistedGame,
+  revealCompletion,
+  evaluateAchievements,
+  saveCompletionActivity,
+  onLocalError,
+  onNetworkError,
+}: CardsMatchingCompletionOptions): Promise<
+  LocalFirstCompletionResult<CardGameOverallStats>
+> => {
+  let fallbackOverallStats = { ...DEFAULT_OVERALL_STATS };
+
+  return completeLocallyFirst({
+    persistLocal: async () => {
+      let overallStats: CardGameOverallStats;
+      try {
+        overallStats = await persistGamesPlayed();
+      } catch (error) {
+        if (error instanceof CardGameStatsSaveError) {
+          fallbackOverallStats = error.attemptedStats;
+        }
+        throw error;
+      }
+      fallbackOverallStats = overallStats;
+      await clearPersistedGame();
+      return overallStats;
+    },
+    fallbackValue: () => fallbackOverallStats,
+    revealCompletion,
+    runBestEffortNetworkWork: async (saved, persistence) => {
+      await Promise.all([
+        evaluateAchievements(saved, persistence),
+        saveCompletionActivity(saved, persistence),
+      ]);
+    },
+    onLocalError,
+    onNetworkError,
+  });
+};
+
+export const buildCardsMatchingCompletionData = (
+  childId: string,
+  completedMoves: number,
+  duration: number,
+  completedAt: string,
+) => {
+  const perfectMoves = PAIRS_PER_GAME;
+  const efficiency = Math.max(
+    0,
+    100 - Math.floor(((completedMoves - perfectMoves) / perfectMoves) * 50),
+  );
+
+  return {
+    achievementEvent: {
+      type: 'game_completed' as const,
+      gameKey: 'card_matching_game' as const,
+      moves: completedMoves,
+      durationSeconds: duration,
+    },
+    activity: {
+      child_id: childId,
+      activity_type: 'cultural' as const,
+      activity_name: 'Completed Matching Game',
+      score: `${efficiency}%`,
+      duration,
+      completed_at: completedAt,
+      details: `Completed Buganda Cultural Cards matching game in ${completedMoves} moves and ${duration} seconds`,
+    },
+    efficiency,
+  };
+};
+
 const BugandaMatchingGame: React.FC = () => {
   const router = useRouter();
   const { activeChild } = useChild();
@@ -309,7 +464,6 @@ const BugandaMatchingGame: React.FC = () => {
   const { enqueueAchievementUnlocked } = useChildNotice();
 
   const [matchStreak, setMatchStreak] = useState(0); // For match streak achievement
-  const [overallStats, setOverallStats] = useState<CardGameOverallStats | null>(null); // For overall game stats
   const [cards, setCards] = useState<Card[]>([]);
   const [boardSize, setBoardSize] = useState({ height: 0, width: 0 });
   const [flippedCards, setFlippedCards] = useState<Card[]>([]);
@@ -335,14 +489,58 @@ const BugandaMatchingGame: React.FC = () => {
   
   // Add game start time reference for duration tracking
   const gameStartTime = useRef(Date.now());
+  const isMountedRef = useRef(true);
+  const pendingTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const cardPressLockRef = useRef(false);
+  const pairResolutionLockRef = useRef(false);
+  const completionScheduledRef = useRef(false);
+  const completionWorkRef = useRef<Promise<void> | null>(null);
+  const flippedCardsRef = useRef<Card[]>([]);
+  const movesRef = useRef(0);
+  const matchedCountRef = useRef(0);
+  const matchStreakRef = useRef(0);
+  const gameStateRef = useRef<CardGameState | null>(null);
+
+  const clearPendingTimers = () => {
+    pendingTimersRef.current.forEach((timer) => clearTimeout(timer));
+    pendingTimersRef.current.clear();
+  };
+
+  const scheduleTimer = (callback: () => void, delayMs: number) => {
+    const timer = setTimeout(() => {
+      pendingTimersRef.current.delete(timer);
+      callback();
+    }, delayMs);
+    pendingTimersRef.current.add(timer);
+  };
+
+  const resetCompletionLocks = () => {
+    cardPressLockRef.current = false;
+    pairResolutionLockRef.current = false;
+    completionScheduledRef.current = false;
+    completionWorkRef.current = null;
+  };
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      clearPendingTimers();
+    };
+  }, []);
 
   // Initialize game
   useEffect(() => {
+    let cancelled = false;
+    clearPendingTimers();
+    resetCompletionLocks();
+
     // Load saved game state if available
     const loadSavedState = async () => {
       if (activeChild) {
         try {
           const savedState = await loadGameState(activeChild.id);
+          if (cancelled || !isMountedRef.current) return;
           
           if (savedState && savedState.matchedValues.length > 0) {
             console.log("Loading saved game state:", savedState);
@@ -355,17 +553,24 @@ const BugandaMatchingGame: React.FC = () => {
           }
         } catch (error) {
           console.error("Error loading game state:", error);
-          initGame(); // Fallback to new game
+          if (!cancelled && isMountedRef.current) {
+            initGame(); // Fallback to new game
+          }
         } finally {
-          setIsLoading(false);
+          if (!cancelled && isMountedRef.current) {
+            setIsLoading(false);
+          }
         }
       } else {
+        if (cancelled || !isMountedRef.current) return;
         initGame();
         setIsLoading(false);
       }
     };
 
-    loadSavedState();
+    void loadSavedState().catch((error) => {
+      console.warn("Could not initialize Cards Matching state:", error);
+    });
 
     // Initial bounce animation
     Animated.sequence([
@@ -380,16 +585,11 @@ const BugandaMatchingGame: React.FC = () => {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [activeChild]);
 
-  useEffect(() => {
-    const fetchOverallStats = async () => {
-      if (activeChild) {
-        const stats = await loadOverallStats(activeChild.id);
-        setOverallStats(stats);
-      }
+    return () => {
+      cancelled = true;
+      clearPendingTimers();
     };
-    fetchOverallStats();
   }, [activeChild]);
 
   // Function to initialize game with saved state
@@ -444,10 +644,16 @@ const BugandaMatchingGame: React.FC = () => {
     // Update state
     setCards(shuffledCards);
     setFlippedCards([]);
+    flippedCardsRef.current = [];
     setMatchedCount(matchedCount);
+    matchedCountRef.current = matchedCount;
     setMoves(savedState.moves || 0);
+    movesRef.current = savedState.moves || 0;
+    setMatchStreak(0);
+    matchStreakRef.current = 0;
     setGameOver(false);
     setInfoModal({ show: false, info: "", value: "", symbol: "" });
+    gameStateRef.current = savedState;
     
     // Reset game start time from saved state
     gameStartTime.current = savedState.gameStartTime || Date.now();
@@ -465,9 +671,14 @@ const BugandaMatchingGame: React.FC = () => {
 
   // Start a new game, clearing any saved state
   const initGame = () => {
+    clearPendingTimers();
+    resetCompletionLocks();
+
     // Clear saved state if there's an active child
     if (activeChild) {
-      clearGameState(activeChild.id);
+      void clearGameState(activeChild.id).catch((error) => {
+        console.warn("Could not clear the previous Cards Matching game:", error);
+      });
     }
 
     // Select random items from the collection for this game
@@ -490,8 +701,13 @@ const BugandaMatchingGame: React.FC = () => {
     const shuffledCards = shuffleCards(cardPairs);
     setCards(shuffledCards);
     setFlippedCards([]);
+    flippedCardsRef.current = [];
     setMatchedCount(0);
+    matchedCountRef.current = 0;
     setMoves(0);
+    movesRef.current = 0;
+    setMatchStreak(0);
+    matchStreakRef.current = 0;
     setGameOver(false);
     setInfoModal({ show: false, info: "", value: "", symbol: "" });
     
@@ -503,6 +719,7 @@ const BugandaMatchingGame: React.FC = () => {
       childId: activeChild?.id || 'default'
     };
     setGameState(newGameState);
+    gameStateRef.current = newGameState;
     
     // Reset start time when restarting game
     gameStartTime.current = Date.now();
@@ -510,6 +727,9 @@ const BugandaMatchingGame: React.FC = () => {
 
   // Reset current game (keep same cards but reset state)
   const resetGame = () => {
+    clearPendingTimers();
+    resetCompletionLocks();
+
     // Reset all cards to unflipped and unmatched state
     const resetCards = cards.map(card => ({
       ...card,
@@ -519,14 +739,21 @@ const BugandaMatchingGame: React.FC = () => {
     
     setCards(resetCards);
     setFlippedCards([]);
+    flippedCardsRef.current = [];
     setMatchedCount(0);
+    matchedCountRef.current = 0;
     setMoves(0);
+    movesRef.current = 0;
+    setMatchStreak(0);
+    matchStreakRef.current = 0;
     setGameOver(false);
     setInfoModal({ show: false, info: "", value: "", symbol: "" });
     
     // Clear saved state if there's an active child
     if (activeChild) {
-      clearGameState(activeChild.id);
+      void clearGameState(activeChild.id).catch((error) => {
+        console.warn("Could not clear Cards Matching state during reset:", error);
+      });
     }
     
     // Reset game state
@@ -537,238 +764,288 @@ const BugandaMatchingGame: React.FC = () => {
       childId: activeChild?.id || 'default'
     };
     setGameState(newGameState);
+    gameStateRef.current = newGameState;
     
     // Reset start time when resetting game
     gameStartTime.current = Date.now();
   };
 
-  // Track activity when game completes
-  const trackGameCompletion = async () => {
-    if (!activeChild) return;
-    
-
-    // Calculate efficiency - lower moves is better
-    const perfectMoves = PAIRS_PER_GAME; // Perfect score would be one move per match
-    const efficiency = Math.max(0, 100 - Math.floor(((moves - perfectMoves) / perfectMoves) * 50));
-    
-    // Calculate duration in seconds
-    const duration = Math.round((Date.now() - gameStartTime.current) / 1000);
-
-     const newOverallStatsAfterGame = await incrementGamesPlayed(activeChild.id);
-      if (overallStats) { // if overallStats was loaded
-          setOverallStats(prev => ({...(prev || DEFAULT_OVERALL_STATS), gamesPlayed: newOverallStatsAfterGame.gamesPlayed}));
+  // Track activity when game completes. The shared promise is installed before
+  // persistence starts, so repeated delayed callbacks reuse the same completion.
+  const trackGameCompletion = (completedMoves: number): Promise<void> =>
+    runCompletionOnce(completionWorkRef, async () => {
+      if (!activeChild) {
+        if (isMountedRef.current) setGameOver(true);
+        return;
       }
 
+      const childId = activeChild.id;
+      const duration = Math.round((Date.now() - gameStartTime.current) / 1000);
+      const { achievementEvent, activity } = buildCardsMatchingCompletionData(
+        childId,
+        completedMoves,
+        duration,
+        new Date().toISOString(),
+      );
 
-      // --- ACHIEVEMENT CHECKING (ON GAME COMPLETE) ---
-      const eventsForAchievements: Parameters<typeof checkAndGrantNewAchievements>[0][] = [];
-      
-      eventsForAchievements.push({
-          type: 'game_completed',
-          gameKey: 'card_matching_game',
-          moves: moves,
-          durationSeconds: duration,
+      await completeCardsMatchingGameLocallyFirst({
+        persistGamesPlayed: () => incrementGamesPlayed(childId),
+        clearPersistedGame: () => clearGameState(childId),
+        revealCompletion: () => {
+          if (isMountedRef.current) setGameOver(true);
+        },
+        evaluateAchievements: async () => {
+          const newlyEarnedFromEvent = await checkAndGrantNewAchievements(achievementEvent);
+          if (!isMountedRef.current) return;
+          newlyEarnedFromEvent.forEach(ach => {
+            console.log(`CARD MATCH - GAME COMPLETE - NEW ACHIEVEMENT: ${ach.name}`);
+            enqueueAchievementUnlocked(ach);
+          });
+        },
+        saveCompletionActivity: () => saveActivity(activity),
+        onLocalError: (error) => {
+          console.warn("Could not persist Cards Matching completion locally:", error);
+        },
+        onNetworkError: (error) => {
+          console.warn("Could not finish background Cards Matching completion work:", error);
+        },
       });
-
-      // If it's the first game ever played (for "Game On!" achievement)
-      if (newOverallStatsAfterGame.gamesPlayed === 1) {
-          // The 'matching_game_first_play' achievement type implicitly handles "first"
-          // by only being awardable once.
-      }
-
-      let achievementPointsEarnedThisGame = 0;
-      for (const event of eventsForAchievements) {
-          const newlyEarnedFromEvent = await checkAndGrantNewAchievements(event);
-          if (newlyEarnedFromEvent.length > 0) {
-              newlyEarnedFromEvent.forEach(ach => {
-                  achievementPointsEarnedThisGame += ach.points;
-                  console.log(`CARD MATCH - GAME COMPLETE - NEW ACHIEVEMENT: ${ach.name}`);
-                  enqueueAchievementUnlocked(ach);
-              });
-          }
-      }
-
-    await saveActivity({
-      child_id: activeChild.id,
-      activity_type: "cultural",
-      activity_name: "Completed Matching Game",
-      score: `${efficiency}%`,
-      duration: duration,
-      completed_at: new Date().toISOString(),
-      details: `Completed Buganda Cultural Cards matching game in ${moves} moves and ${duration} seconds`
     });
-    
-    // Clear saved game state when game is completed
-    if (activeChild) {
-      await clearGameState(activeChild.id);
-    }
-  };
 
   const handleCardPress = async (card: Card) => {
-    // Prevent flipping if card is already flipped or matched, or if two cards are already flipped
-    if (card.flipped || card.matched || flippedCards.length >= 2) {
+    const selectedCards = flippedCardsRef.current;
+    if (
+      cardPressLockRef.current ||
+      pairResolutionLockRef.current ||
+      completionScheduledRef.current ||
+      gameOver ||
+      card.flipped ||
+      card.matched ||
+      selectedCards.length >= 2 ||
+      selectedCards.some((selected) => selected.id === card.id)
+    ) {
       return;
     }
 
-    // Play sound effect
+    // This lock is synchronous so a second tap cannot enter while sound playback
+    // is awaiting or before React has rendered the first flipped card.
+    cardPressLockRef.current = true;
     try {
-      await audioManager.playAppSound(require("@/assets/audio/page-turn.mp3"));
-    } catch (error) {
-      console.log("Error playing sound", error);
-    }
+      try {
+        await audioManager.playAppSound(require("@/assets/audio/page-turn.mp3"));
+      } catch (error) {
+        console.log("Error playing sound", error);
+      }
+      if (!isMountedRef.current) return;
 
-    // Flip the card
-    const updatedCards = cards.map((c) =>
-      c.id === card.id ? { ...c, flipped: true } : c
-    );
+      const currentSelection = flippedCardsRef.current;
+      if (
+        pairResolutionLockRef.current ||
+        completionScheduledRef.current ||
+        currentSelection.length >= 2 ||
+        currentSelection.some((selected) => selected.id === card.id)
+      ) {
+        return;
+      }
 
-    setCards(updatedCards);
+      const flippedCard = { ...card, flipped: true };
+      const updatedFlippedCards = [...currentSelection, flippedCard];
 
-    const updatedFlippedCards = [...flippedCards, card];
-    setFlippedCards(updatedFlippedCards);
+      if (updatedFlippedCards.length === 2) {
+        const [firstCard, secondCard] = updatedFlippedCards;
+        const isMatch = firstCard.value === secondCard.value;
+        const completedMoves = movesRef.current + 1;
+        const completesGame = isMatch && matchedCountRef.current + 1 === PAIRS_PER_GAME;
 
-    // If this is the second flipped card
-    if (updatedFlippedCards.length === 2) {
-      setMoves((prevMoves) => prevMoves + 1);
+        // Pair and final-completion locks are installed before any state update
+        // or delayed callback can expose stale render state to another tap.
+        pairResolutionLockRef.current = true;
+        if (completesGame) completionScheduledRef.current = true;
+        movesRef.current = completedMoves;
+        flippedCardsRef.current = updatedFlippedCards;
 
-      // Check for a match
-      const [firstCard, secondCard] = updatedFlippedCards;
-      if (firstCard.value === secondCard.value) {
-        // It's a match
-        setTimeout(async () => {
-          const matchedCards = cards.map((c) =>
-            c.value === firstCard.value ? { ...c, matched: true } : c
-          );
+        setCards((currentCards) =>
+          currentCards.map((currentCard) =>
+            currentCard.id === card.id ? flippedCard : currentCard,
+          ),
+        );
+        setFlippedCards(updatedFlippedCards);
+        setMoves(completedMoves);
 
-          setCards(matchedCards);
-          setFlippedCards([]);
-          setMatchedCount((prevCount) => prevCount + 1);
-          
-          // Save game state with new match
-          if (activeChild) {
-            setMatchStreak(prev => prev + 1); // Increment streak
-            const currentTotalPairsMatched = (overallStats?.totalPairsMatched || 0) + 1;
-            const newOverallStats = await updateTotalPairsMatched(1, activeChild.id);
-            setOverallStats(newOverallStats); // Update local state for overall stats
+        if (isMatch) {
+          scheduleTimer(() => {
+            void (async () => {
+              if (!isMountedRef.current) return;
 
-            const eventsForAchievements: Parameters<typeof checkAndGrantNewAchievements>[0][] = [];
+              const nextMatchedCount = matchedCountRef.current + 1;
+              const nextMatchStreak = matchStreakRef.current + 1;
+              matchedCountRef.current = nextMatchedCount;
+              matchStreakRef.current = nextMatchStreak;
+              flippedCardsRef.current = [];
 
-            eventsForAchievements.push({
-                type: 'match_made',
-                gameKey: 'card_matching_game',
-                matchedCardValue: firstCard.value,
-            });
+              setCards((currentCards) =>
+                currentCards.map((currentCard) =>
+                  currentCard.value === firstCard.value
+                    ? { ...currentCard, matched: true }
+                    : currentCard,
+                ),
+              );
+              setFlippedCards([]);
+              setMatchedCount(nextMatchedCount);
+              setMatchStreak(nextMatchStreak);
 
-            // If it's the very first match overall for this child (for "First Match!" achievement)
-            if (newOverallStats.totalPairsMatched === 1) {
-                // The 'matching_game_first_match' achievement type implicitly handles "first"
-                // by only being awardable once. So, just sending 'match_made' is enough.
-            }
+              if (activeChild) {
+                const previousGameState = gameStateRef.current;
+                const updatedMatchedValues = previousGameState
+                  ? [...new Set([...previousGameState.matchedValues, firstCard.value])]
+                  : [firstCard.value];
+                const updatedState: CardGameState = {
+                  matchedValues: updatedMatchedValues,
+                  moves: completedMoves,
+                  gameStartTime: gameStartTime.current,
+                  childId: activeChild.id,
+                };
 
-            if (matchStreak + 1 >= 3) { // Check against current streak + 1 (for streak of 3)
-                eventsForAchievements.push({
-                    type: 'match_streak_achieved',
-                    gameKey: 'card_matching_game',
-                    streakCount: matchStreak + 1,
-                });
-            }
-            
-            // Event for total pairs matched update
-            eventsForAchievements.push({
-                type: 'stats_updated', // Generic event type
-                gameKey: 'card_matching_game',
-                totalPairsMatchedAcrossGames: newOverallStats.totalPairsMatched,
-            });
+                await persistCardsMatchingPairLocallyFirst({
+                  gameState: updatedState,
+                  persistPairStats: () => updateTotalPairsMatched(1, activeChild.id),
+                  persistGameState: () => saveGameState(updatedState, activeChild.id),
+                  revealPersistedPair: ({ gameState: savedState }) => {
+                    if (!isMountedRef.current) return;
+                    gameStateRef.current = savedState;
+                    setGameState(savedState);
+                  },
+                  evaluateAchievements: async ({ overallStats: savedStats }, persistence) => {
+                    const eventsForAchievements: Parameters<
+                      typeof checkAndGrantNewAchievements
+                    >[0][] = [
+                      {
+                        type: 'match_made',
+                        gameKey: 'card_matching_game',
+                        matchedCardValue: firstCard.value,
+                      },
+                    ];
 
+                    if (nextMatchStreak >= 3) {
+                      eventsForAchievements.push({
+                        type: 'match_streak_achieved',
+                        gameKey: 'card_matching_game',
+                        streakCount: nextMatchStreak,
+                      });
+                    }
 
-            let achievementPointsEarnedThisTurn = 0;
-            for (const event of eventsForAchievements) {
-                const newlyEarnedFromEvent = await checkAndGrantNewAchievements(event);
-                if (newlyEarnedFromEvent.length > 0) {
-                    newlyEarnedFromEvent.forEach(ach => {
-                        achievementPointsEarnedThisTurn += ach.points; // Accumulate points if any for this turn
+                    if (persistence.persisted) {
+                      eventsForAchievements.push({
+                        type: 'stats_updated',
+                        gameKey: 'card_matching_game',
+                        totalPairsMatchedAcrossGames: savedStats.totalPairsMatched,
+                      });
+                    }
+
+                    for (const event of eventsForAchievements) {
+                      const newlyEarnedFromEvent = await checkAndGrantNewAchievements(event);
+                      if (!isMountedRef.current) return;
+                      newlyEarnedFromEvent.forEach(ach => {
                         console.log(`CARD MATCH - NEW ACHIEVEMENT: ${ach.name}`);
                         enqueueAchievementUnlocked(ach);
-                    });
-                }
+                      });
+                    }
+                  },
+                  onLocalError: (error) => {
+                    console.warn("Could not persist the matched Cards pair locally:", error);
+                  },
+                  onNetworkError: (error) => {
+                    console.warn("Could not finish background Cards Matching achievement work:", error);
+                  },
+                });
+              }
+
+              try {
+                await audioManager.playAppSound(require("@/assets/sounds/correct.mp3"));
+              } catch (error) {
+                console.log("Error playing sound", error);
+              }
+              if (!isMountedRef.current) return;
+
+              setInfoModal({
+                show: true,
+                info: firstCard.info,
+                value: firstCard.value,
+                symbol: firstCard.imageSymbol,
+              });
+
+              Animated.sequence([
+                Animated.timing(bounceAnim, {
+                  toValue: 1.05,
+                  duration: 200,
+                  useNativeDriver: true,
+                }),
+                Animated.spring(bounceAnim, {
+                  toValue: 1,
+                  friction: 4,
+                  useNativeDriver: true,
+                }),
+              ]).start();
+
+              if (completesGame) {
+                scheduleTimer(() => {
+                  if (!isMountedRef.current) return;
+                  void trackGameCompletion(completedMoves).catch((error) => {
+                    console.warn("Could not process Cards Matching completion:", error);
+                    completionScheduledRef.current = false;
+                  });
+                }, 1000);
+              } else {
+                pairResolutionLockRef.current = false;
+              }
+            })().catch((error) => {
+              console.warn("Could not resolve the matched Cards pair:", error);
+              pairResolutionLockRef.current = false;
+              if (completesGame) completionScheduledRef.current = false;
+            });
+          }, 500);
+        } else {
+          scheduleTimer(() => {
+            if (!isMountedRef.current) return;
+
+            setCards((currentCards) =>
+              currentCards.map((currentCard) =>
+                (currentCard.id === firstCard.id || currentCard.id === secondCard.id) &&
+                !currentCard.matched
+                  ? { ...currentCard, flipped: false }
+                  : currentCard,
+              ),
+            );
+            flippedCardsRef.current = [];
+            matchStreakRef.current = 0;
+            setFlippedCards([]);
+            setMatchStreak(0);
+
+            if (activeChild && gameStateRef.current) {
+              const updatedState: CardGameState = {
+                ...gameStateRef.current,
+                moves: completedMoves,
+              };
+              gameStateRef.current = updatedState;
+              setGameState(updatedState);
+              void saveGameState(updatedState, activeChild.id).catch((error) => {
+                console.warn("Could not persist the Cards Matching move locally:", error);
+              });
             }
-            const updatedMatchedValues = gameState ? 
-              [...gameState.matchedValues, firstCard.value] : 
-              [firstCard.value];
-              
-            const updatedState: CardGameState = {
-              matchedValues: updatedMatchedValues,
-              moves: moves + 1, // Include the move that just happened
-              gameStartTime: gameStartTime.current,
-              childId: activeChild.id
-            };
-            
-            setGameState(updatedState);
-            await saveGameState(updatedState, activeChild.id);
-          }
-
-          // Play match sound
-          try {
-            await audioManager.playAppSound(require("@/assets/sounds/correct.mp3"));
-          } catch (error) {
-            console.log("Error playing sound", error);
-          }
-
-          // Show info modal with symbol
-          setInfoModal({
-            show: true,
-            info: firstCard.info,
-            value: firstCard.value,
-            symbol: firstCard.imageSymbol,
-          });
-
-          // Celebrate with animation
-          Animated.sequence([
-            Animated.timing(bounceAnim, {
-              toValue: 1.05,
-              duration: 200,
-              useNativeDriver: true,
-            }),
-            Animated.spring(bounceAnim, {
-              toValue: 1,
-              friction: 4,
-              useNativeDriver: true,
-            }),
-          ]).start();
-
-          // Check if all pairs are matched
-          if (matchedCount + 1 === PAIRS_PER_GAME) {
-            setTimeout(async () => {
-              // Track game completion before showing game over screen
-              await trackGameCompletion();
-              setGameOver(true);
-            }, 1000);
-          }
-        }, 500);
+            pairResolutionLockRef.current = false;
+          }, 1000);
+        }
       } else {
-        // Not a match, flip cards back
-        setTimeout(() => {
-          const resetCards = cards.map((c) =>
-            (c.id === firstCard.id || c.id === secondCard.id) && !c.matched
-              ? { ...c, flipped: false }
-              : c
-          );
-          setCards(resetCards);
-          setFlippedCards([]);
-          setMatchStreak(0);
-          
-          // Save moves in game state
-          if (activeChild && gameState) {
-            const updatedState: CardGameState = {
-              ...gameState,
-              moves: moves + 1,
-            };
-            
-            setGameState(updatedState);
-            saveGameState(updatedState, activeChild.id);
-          }
-        }, 1000);
+        flippedCardsRef.current = updatedFlippedCards;
+        setCards((currentCards) =>
+          currentCards.map((currentCard) =>
+            currentCard.id === card.id ? flippedCard : currentCard,
+          ),
+        );
+        setFlippedCards(updatedFlippedCards);
       }
+    } finally {
+      cardPressLockRef.current = false;
     }
   };
 
@@ -909,7 +1186,11 @@ const BugandaMatchingGame: React.FC = () => {
                   shadow-md border-2
                   ${card.matched ? "border-green-400" : "border-white"}
                 `}
-              onPress={() => handleCardPress(card)}
+              onPress={() => {
+                void handleCardPress(card).catch((error) => {
+                  console.warn("Could not handle the Cards Matching tap:", error);
+                });
+              }}
               activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel={card.flipped || card.matched ? `${card.value} card` : "Hidden card"}

@@ -27,6 +27,17 @@ let mockStageProgress: {
   progress_payload: Record<string, unknown>;
 } | null = null;
 
+const deferred = <T,>() => {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+
+  return { promise, reject, resolve };
+};
+
 jest.mock("@react-native-async-storage/async-storage", () =>
   jest.requireActual(
     "@react-native-async-storage/async-storage/jest/async-storage-mock",
@@ -319,6 +330,215 @@ describe("GenericStoryRenderer", () => {
     });
 
     expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("queues local story progress and reveals completion while activity insertion is delayed", async () => {
+    mockActiveChild = {
+      id: "child-1",
+      selected_language_code: "lg",
+    };
+    const story = {
+      ...lugandaStories.find((item) => item.id === "kintu")!,
+      pages: [lugandaStories.find((item) => item.id === "kintu")!.pages[0]],
+      questions: [],
+    };
+    const delayedActivity = deferred<boolean>();
+    const timeline: string[] = [];
+    let activitySettled = false;
+    let completionSettled = false;
+
+    (updateActivityProgress as jest.Mock).mockImplementationOnce(async () => {
+      timeline.push("local-activity-progress");
+    });
+    (markStageCompleted as jest.Mock).mockImplementationOnce(async () => {
+      timeline.push("local-stage-progress");
+    });
+    (saveActivity as jest.Mock).mockImplementationOnce(() => {
+      timeline.push("activity-insert");
+      void delayedActivity.promise.then(() => {
+        activitySettled = true;
+      }).catch(() => {
+        activitySettled = true;
+      });
+      return delayedActivity.promise;
+    });
+    (syncProgressNow as jest.Mock).mockImplementationOnce(async () => {
+      timeline.push("progress-sync");
+      return { pushed: 0, skipped: 0, failed: 0 };
+    });
+
+    const tree = renderStory(story);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    let completionPromise!: Promise<void>;
+    act(() => {
+      completionPromise = Promise.resolve(
+        findButtonByText(tree.root, "Finish").props.onPress(),
+      );
+      void completionPromise.then(() => {
+        completionSettled = true;
+      }).catch(() => {
+        completionSettled = true;
+      });
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(timeline).toEqual([
+      "local-activity-progress",
+      "local-stage-progress",
+      "activity-insert",
+      "progress-sync",
+    ]);
+    expect(completionSettled).toBe(true);
+    expect(activitySettled).toBe(false);
+    expect(JSON.stringify(tree.toJSON())).toContain("story-completion-card");
+
+    await act(async () => {
+      delayedActivity.resolve(true);
+      await delayedActivity.promise;
+      await completionPromise;
+    });
+  });
+
+  it("keeps story completion visible when detached activity insertion rejects", async () => {
+    mockActiveChild = {
+      id: "child-1",
+      selected_language_code: "nyn",
+    };
+    const story = {
+      ...runyankoleContent.stories[0],
+      pages: [runyankoleContent.stories[0].pages[0]],
+      questions: [],
+    };
+    const rejectedActivity = deferred<boolean>();
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    (saveActivity as jest.Mock).mockReturnValueOnce(rejectedActivity.promise);
+
+    const tree = renderStory(story);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    let completionPromise!: Promise<void>;
+    act(() => {
+      completionPromise = Promise.resolve(
+        findButtonByText(tree.root, "Finish").props.onPress(),
+      );
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(updateActivityProgress).toHaveBeenCalledWith(
+      "child-1",
+      "nyn",
+      "stories",
+      expect.objectContaining({ status: "completed" }),
+    );
+    expect(markStageCompleted).toHaveBeenCalled();
+    expect(JSON.stringify(tree.toJSON())).toContain("story-completion-card");
+    await expect(completionPromise).resolves.toBeUndefined();
+
+    await act(async () => {
+      rejectedActivity.reject(new Error("offline"));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      "Could not finish background story completion work:",
+      expect.any(Error),
+    );
+    expect(JSON.stringify(tree.toJSON())).toContain("story-completion-card");
+    warnSpy.mockRestore();
+  });
+
+  it("does not reveal story completion after unmount while local completion is pending", async () => {
+    mockActiveChild = {
+      id: "child-1",
+      selected_language_code: "lg",
+    };
+    const story = {
+      ...lugandaStories.find((item) => item.id === "kintu")!,
+      pages: [lugandaStories.find((item) => item.id === "kintu")!.pages[0]],
+      questions: [],
+    };
+    const delayedLocalWrite = deferred<void>();
+    (updateActivityProgress as jest.Mock).mockReturnValueOnce(delayedLocalWrite.promise);
+
+    const tree = renderStory(story);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    act(() => {
+      findButtonByText(tree.root, "Finish").props.onPress();
+    });
+    expect(updateActivityProgress).toHaveBeenCalledTimes(1);
+
+    act(() => tree.unmount());
+
+    await act(async () => {
+      delayedLocalWrite.resolve();
+      await delayedLocalWrite.promise;
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(tree.toJSON()).toBeNull();
+    expect(markStageCompleted).toHaveBeenCalledTimes(1);
+    expect(saveActivity).toHaveBeenCalledTimes(1);
+    expect(syncProgressNow).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a local story write failure while keeping completion and later work non-blocking", async () => {
+    mockActiveChild = {
+      id: "child-1",
+      selected_language_code: "nyn",
+    };
+    const story = {
+      ...runyankoleContent.stories[0],
+      pages: [runyankoleContent.stories[0].pages[0]],
+      questions: [],
+    };
+    const localError = new Error("storage unavailable");
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    (updateActivityProgress as jest.Mock).mockRejectedValueOnce(localError);
+
+    const tree = renderStory(story);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    act(() => {
+      findButtonByText(tree.root, "Finish").props.onPress();
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      "Could not persist story completion locally:",
+      localError,
+    );
+    expect(markStageCompleted).not.toHaveBeenCalled();
+    expect(saveActivity).toHaveBeenCalledTimes(1);
+    expect(syncProgressNow).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(tree.toJSON())).toContain("story-completion-card");
+    expect(JSON.stringify(tree.toJSON())).toContain("Story complete!");
+
+    warnSpy.mockRestore();
+    act(() => tree.unmount());
   });
 
   it("reads the current story page aloud at the selected speed", async () => {

@@ -41,5 +41,6 @@ export const savePuzzleProgress = async (progress: PuzzleGameProgress, childId: 
     await AsyncStorage.setItem(key, JSON.stringify({ ...progress, childId }));
   } catch (error) {
     console.error('Failed to save puzzle game progress:', error);
+    throw error;
   }
 };

@@ -8,10 +8,21 @@ const mockRouterReplace = jest.fn();
 const mockRouterCanGoBack = jest.fn();
 const mockUseLocalSearchParams = jest.fn();
 const mockSaveLearningLessonCompletion = jest.fn();
+const mockAwardLearningLessonCompletionAchievements = jest.fn();
 const mockGetLearningLessonCompletion = jest.fn();
 const mockGetMechanicRenderer = jest.fn();
 const mockEnqueueAchievementUnlocks = jest.fn();
 let mockSelectedLanguageCode = "luganda";
+
+const deferred = <T = void>() => {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+};
 const MockMechanicRenderer = ({
   item,
   onComplete,
@@ -160,6 +171,8 @@ jest.mock("@/hooks/useChildLandscapeOrientation", () => ({
 
 jest.mock("@/lib/learningProgressRepository", () => ({
   LEARNING_ACTIVITY_TYPE: "language",
+  awardLearningLessonCompletionAchievements: (...args: unknown[]) =>
+    mockAwardLearningLessonCompletionAchievements(...args),
   buildLearningCompletionLocalId: (
     childId: string,
     languageCode: string,
@@ -169,7 +182,7 @@ jest.mock("@/lib/learningProgressRepository", () => ({
   getLearningLessonCompletion: (...args: unknown[]) =>
     mockGetLearningLessonCompletion(...args),
   getLearningProgressChildId: (childId?: string | null) => childId || "local-demo-child",
-  saveLearningLessonCompletionWithAchievements: (...args: unknown[]) =>
+  saveLearningLessonCompletion: (...args: unknown[]) =>
     mockSaveLearningLessonCompletion(...args),
 }));
 
@@ -220,11 +233,9 @@ beforeEach(() => {
   mockGetLearningLessonCompletion.mockResolvedValue(null);
   mockEnqueueAchievementUnlocks.mockReturnValue(0);
   mockSaveLearningLessonCompletion.mockImplementation((completion) =>
-    Promise.resolve({
-      completion,
-      newlyEarnedAchievements: [],
-    }),
+    Promise.resolve(completion),
   );
+  mockAwardLearningLessonCompletionAchievements.mockResolvedValue([]);
 });
 
 describe("Learning lesson completion persistence", () => {
@@ -461,6 +472,40 @@ describe("Learning lesson completion persistence", () => {
     expect(JSON.stringify(tree.toJSON())).toContain("Great learning!");
   });
 
+  it("reveals completion while local persistence is pending and waits to evaluate achievements", async () => {
+    const localPersistence = deferred<unknown>();
+    mockSaveLearningLessonCompletion.mockReturnValueOnce(localPersistence.promise);
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = renderer.create(<LearningLessonSessionScreen />);
+    });
+
+    if (!tree) {
+      throw new Error("LearningLessonSessionScreen did not render");
+    }
+
+    for (const itemId of ["well-done", "thank-you", "mother", "father", "water"]) {
+      await completeRenderedItem(tree, itemId);
+    }
+
+    expect(mockSaveLearningLessonCompletion).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(tree.toJSON())).toContain("Great learning!");
+    expect(mockAwardLearningLessonCompletionAchievements).not.toHaveBeenCalled();
+
+    const savedCompletion = mockSaveLearningLessonCompletion.mock.calls[0][0];
+    await act(async () => {
+      localPersistence.resolve(savedCompletion);
+      await localPersistence.promise;
+      await Promise.resolve();
+    });
+
+    expect(mockAwardLearningLessonCompletionAchievements).toHaveBeenCalledTimes(1);
+    expect(mockAwardLearningLessonCompletionAchievements).toHaveBeenCalledWith(
+      savedCompletion,
+    );
+  });
+
   it("saves match-word-picture completion through the generic session flow", async () => {
     mockUseLocalSearchParams.mockReturnValue({
       stageId: "first-words",
@@ -604,6 +649,7 @@ describe("Learning lesson completion persistence", () => {
       "Could not save local Learning lesson completion:",
       expect.any(Error),
     );
+    expect(mockAwardLearningLessonCompletionAchievements).not.toHaveBeenCalled();
 
     warnSpy.mockRestore();
   });
@@ -624,6 +670,102 @@ describe("Learning lesson completion persistence", () => {
     }
 
     expect(mockSaveLearningLessonCompletion).toHaveBeenCalledTimes(1);
+    expect(mockEnqueueAchievementUnlocks).not.toHaveBeenCalled();
+  });
+
+  it("keeps authoritative local completion and UI independent of delayed achievement evaluation", async () => {
+    const achievementEvaluation = deferred<unknown[]>();
+    mockAwardLearningLessonCompletionAchievements.mockReturnValueOnce(
+      achievementEvaluation.promise,
+    );
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = renderer.create(<LearningLessonSessionScreen />);
+    });
+    if (!tree) throw new Error("LearningLessonSessionScreen did not render");
+
+    for (const itemId of ["well-done", "thank-you", "mother", "father", "water"]) {
+      await completeRenderedItem(tree, itemId);
+    }
+
+    expect(mockSaveLearningLessonCompletion).toHaveBeenCalledTimes(1);
+    expect(mockAwardLearningLessonCompletionAchievements).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(tree.toJSON())).toContain("Great learning!");
+    expect(mockEnqueueAchievementUnlocks).not.toHaveBeenCalled();
+
+    achievementEvaluation.resolve([]);
+    await act(async () => {
+      await achievementEvaluation.promise;
+    });
+  });
+
+  it("keeps completion visible when achievement evaluation rejects", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    const achievementEvaluation = deferred<unknown[]>();
+    mockAwardLearningLessonCompletionAchievements.mockReturnValueOnce(
+      achievementEvaluation.promise,
+    );
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = renderer.create(<LearningLessonSessionScreen />);
+    });
+    if (!tree) throw new Error("LearningLessonSessionScreen did not render");
+
+    for (const itemId of ["well-done", "thank-you", "mother", "father", "water"]) {
+      await completeRenderedItem(tree, itemId);
+    }
+
+    achievementEvaluation.reject(new Error("offline"));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockSaveLearningLessonCompletion).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(tree.toJSON())).toContain("Great learning!");
+    expect(mockEnqueueAchievementUnlocks).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(
+      "Could not award Learning Hub achievements:",
+      expect.any(Error),
+    );
+    warnSpy.mockRestore();
+  });
+
+  it("does not enqueue a delayed achievement after the lesson unmounts", async () => {
+    const achievementEvaluation = deferred<unknown[]>();
+    const achievement = {
+      id: "delayed-achievement",
+      name: "Delayed",
+      description: "Delayed achievement",
+      icon_name: "star-outline",
+      activity_type: "learning_hub_first_lesson",
+      points: 10,
+      game_key: "learning_hub",
+    };
+    mockAwardLearningLessonCompletionAchievements.mockReturnValueOnce(
+      achievementEvaluation.promise,
+    );
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = renderer.create(<LearningLessonSessionScreen />);
+    });
+    if (!tree) throw new Error("LearningLessonSessionScreen did not render");
+
+    for (const itemId of ["well-done", "thank-you", "mother", "father", "water"]) {
+      await completeRenderedItem(tree, itemId);
+    }
+
+    await act(async () => {
+      tree?.unmount();
+    });
+    await act(async () => {
+      achievementEvaluation.resolve([achievement]);
+      await achievementEvaluation.promise;
+    });
+
     expect(mockEnqueueAchievementUnlocks).not.toHaveBeenCalled();
   });
 
@@ -648,11 +790,8 @@ describe("Learning lesson completion persistence", () => {
         game_key: "learning_hub",
       },
     ];
-    mockSaveLearningLessonCompletion.mockImplementation((completion) =>
-      Promise.resolve({
-        completion,
-        newlyEarnedAchievements,
-      }),
+    mockAwardLearningLessonCompletionAchievements.mockResolvedValueOnce(
+      newlyEarnedAchievements,
     );
     let tree: renderer.ReactTestRenderer | undefined;
 

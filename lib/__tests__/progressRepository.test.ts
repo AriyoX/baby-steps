@@ -14,12 +14,15 @@ jest.mock("@react-native-async-storage/async-storage", () =>
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import {
+  cancelScheduledProgressSync,
   clearProgressRepositoryStorage,
   getActivityProgress,
   getPendingProgressSyncCount,
   getStageProgress,
+  hydrateActivityProgressOnLocalMiss,
   hydrateProgressFromRemote,
   markLevelCompleted,
+  scheduleProgressSync,
   shouldHydrateProgress,
   syncProgressNow,
   updateActivityProgress,
@@ -59,19 +62,23 @@ const deferred = <T = void>() => {
   return { promise, resolve, reject };
 };
 
-const createQuery = (result: { data: unknown[] | null; error: unknown }) => {
+type QueryResult = { data: unknown[] | null; error: unknown };
+
+const createQuery = (result: QueryResult | Promise<QueryResult>) => {
   const promise = Promise.resolve(result);
   const query: {
     select: jest.Mock;
     eq: jest.Mock;
     in: jest.Mock;
-    then: Promise<typeof result>["then"];
-    catch: Promise<typeof result>["catch"];
-    finally: Promise<typeof result>["finally"];
+    abortSignal: jest.Mock;
+    then: Promise<QueryResult>["then"];
+    catch: Promise<QueryResult>["catch"];
+    finally: Promise<QueryResult>["finally"];
   } = {
     select: jest.fn(),
     eq: jest.fn(),
     in: jest.fn(),
+    abortSignal: jest.fn(),
     then: promise.then.bind(promise),
     catch: promise.catch.bind(promise),
     finally: promise.finally.bind(promise),
@@ -80,9 +87,16 @@ const createQuery = (result: { data: unknown[] | null; error: unknown }) => {
   query.select.mockReturnValue(query);
   query.eq.mockReturnValue(query);
   query.in.mockReturnValue(query);
+  query.abortSignal.mockReturnValue(query);
 
   return query;
 };
+
+const createOwnedChildrenQuery = (...childIds: string[]) =>
+  createQuery({
+    data: childIds.map((id) => ({ id })),
+    error: null,
+  });
 
 beforeEach(async () => {
   (AsyncStorage.getItem as jest.Mock).mockImplementation(defaultGetItemImplementation);
@@ -214,6 +228,7 @@ describe("progress repository local-first behavior", () => {
     });
 
     (supabase.from as jest.Mock)
+      .mockReturnValueOnce(createOwnedChildrenQuery(childId))
       .mockReturnValueOnce(createQuery({ data: [], error: null }))
       .mockReturnValueOnce({ upsert });
 
@@ -283,6 +298,7 @@ describe("progress repository local-first behavior", () => {
     const upsert = jest.fn().mockReturnValue({ select });
 
     (supabase.from as jest.Mock)
+      .mockReturnValueOnce(createOwnedChildrenQuery(childId))
       .mockReturnValueOnce(createQuery({ data: [], error: null }))
       .mockReturnValueOnce({ upsert });
 
@@ -355,6 +371,181 @@ describe("progress repository local-first behavior", () => {
     expect(local?.progress_payload).toEqual({ source: "local" });
   });
 
+  it("does not overwrite a same-identity mutation saved after hydration's optimistic read", async () => {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "parent-1" } } },
+    });
+    (supabase.from as jest.Mock).mockImplementation((table: string) =>
+      table === "child_activity_progress"
+        ? createQuery({
+            data: [
+              {
+                child_id: childId,
+                language_code: "nyn",
+                activity_type: "learning",
+                status: "completed",
+                score: 99,
+                stars: 3,
+                attempts: 1,
+                last_stage_id: "3",
+                highest_unlocked_stage: 3,
+                completed_stage_count: 3,
+                progress_payload: { source: "remote" },
+                local_updated_at: "2026-07-12T00:00:00.000Z",
+              },
+              {
+                child_id: childId,
+                language_code: "nyn",
+                activity_type: "stories",
+                status: "in_progress",
+                score: 22,
+                stars: null,
+                attempts: 1,
+                last_stage_id: "2",
+                highest_unlocked_stage: 2,
+                completed_stage_count: 1,
+                progress_payload: { source: "unrelated-remote" },
+                local_updated_at: "2026-07-12T00:00:00.000Z",
+              },
+            ],
+            error: null,
+          })
+        : createQuery({ data: [], error: null }),
+    );
+
+    const targetKey = activityKey(childId, "nyn", "learning");
+    const optimisticReadStarted = deferred();
+    const resumeOptimisticRead = deferred();
+    let shouldPauseTargetRead = true;
+    (AsyncStorage.getItem as jest.Mock).mockImplementation(async (key: string) => {
+      if (key === targetKey && shouldPauseTargetRead) {
+        shouldPauseTargetRead = false;
+        const observed = await defaultGetItemImplementation(key);
+        optimisticReadStarted.resolve();
+        await resumeOptimisticRead.promise;
+        return observed;
+      }
+
+      return defaultGetItemImplementation(key);
+    });
+
+    const hydration = hydrateProgressFromRemote(childId, "nyn", {
+      activityTypes: ["learning", "stories"],
+      force: true,
+    });
+    await optimisticReadStarted.promise;
+
+    await updateActivityProgress(
+      childId,
+      "nyn",
+      "learning",
+      { score: 7, progress_payload: { source: "local-mutation" } },
+      {
+        scheduleSync: false,
+        localUpdatedAt: "2026-07-13T00:00:00.000Z",
+      },
+    );
+    resumeOptimisticRead.resolve();
+
+    await expect(hydration).resolves.toEqual({ activities: 1, stages: 0 });
+    expect(await getActivityProgress(childId, "nyn", "learning")).toEqual(
+      expect.objectContaining({
+        score: 7,
+        dirty: true,
+        progress_payload: { source: "local-mutation" },
+      }),
+    );
+    expect(await getActivityProgress(childId, "nyn", "stories")).toEqual(
+      expect.objectContaining({
+        score: 22,
+        dirty: false,
+        progress_payload: { source: "unrelated-remote" },
+      }),
+    );
+  });
+
+  it("does not overwrite a same-stage mutation saved after hydration's optimistic read", async () => {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "parent-1" } } },
+    });
+    (supabase.from as jest.Mock).mockImplementation((table: string) =>
+      table === "child_stage_progress"
+        ? createQuery({
+            data: [
+              {
+                child_id: childId,
+                language_code: "nyn",
+                activity_type: "language",
+                stage_id: "animals",
+                level_id: "match",
+                status: "completed",
+                score: 100,
+                stars: 3,
+                attempts: 1,
+                progress_payload: { source: "remote" },
+                completed_at: "2026-07-12T00:00:00.000Z",
+                local_updated_at: "2026-07-12T00:00:00.000Z",
+              },
+            ],
+            error: null,
+          })
+        : createQuery({ data: [], error: null }),
+    );
+
+    const targetKey = stageKey(childId, "nyn", "language", "animals", "match");
+    const optimisticReadStarted = deferred();
+    const resumeOptimisticRead = deferred();
+    let shouldPauseTargetRead = true;
+    (AsyncStorage.getItem as jest.Mock).mockImplementation(async (key: string) => {
+      if (key === targetKey && shouldPauseTargetRead) {
+        shouldPauseTargetRead = false;
+        const observed = await defaultGetItemImplementation(key);
+        optimisticReadStarted.resolve();
+        await resumeOptimisticRead.promise;
+        return observed;
+      }
+
+      return defaultGetItemImplementation(key);
+    });
+
+    const hydration = hydrateProgressFromRemote(childId, "nyn", {
+      activityType: "language",
+      force: true,
+    });
+    await optimisticReadStarted.promise;
+
+    await markLevelCompleted(
+      childId,
+      "nyn",
+      "language",
+      "animals",
+      "match",
+      {
+        score: 8,
+        completed_at: "2026-07-13T00:00:00.000Z",
+        progress_payload: { source: "local-mutation" },
+      },
+    );
+    resumeOptimisticRead.resolve();
+
+    await expect(hydration).resolves.toEqual({ activities: 0, stages: 0 });
+    expect(
+      await getStageProgress(
+        childId,
+        "nyn",
+        "language",
+        "animals",
+        "match",
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        score: 8,
+        dirty: true,
+        progress_payload: { source: "local-mutation" },
+      }),
+    );
+  });
+
   it("uses a scoped hydration cooldown for child, language, and activity", async () => {
     (supabase.auth.getSession as jest.Mock).mockResolvedValue({
       data: { session: { user: { id: "parent-1" } } },
@@ -423,6 +614,379 @@ describe("progress repository local-first behavior", () => {
     expect(shouldHydrateAgain).toBe(true);
     expect(supabase.from).toHaveBeenCalledTimes(2);
   });
+
+  it("bounded local-miss hydration restores the exact child, language, and activity snapshot", async () => {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "parent-1" } } },
+    });
+    const activityQuery = createQuery({
+      data: [
+        {
+          child_id: childId,
+          language_code: "nyn",
+          activity_type: "counting",
+          status: "in_progress",
+          score: 34,
+          stars: null,
+          attempts: 1,
+          last_stage_id: "2",
+          highest_unlocked_stage: 2,
+          completed_stage_count: 1,
+          progress_payload: { completedStages: [1], totalScore: 34 },
+          local_updated_at: "2026-07-11T00:00:00.000Z",
+        },
+      ],
+      error: null,
+    });
+    (supabase.from as jest.Mock).mockImplementation((table: string) =>
+      table === "child_activity_progress"
+        ? activityQuery
+        : createQuery({ data: [], error: null }),
+    );
+
+    const restored = await hydrateActivityProgressOnLocalMiss(
+      childId,
+      "nyn",
+      "counting",
+      { timeoutMs: 1000 },
+    );
+
+    expect(restored).toEqual(
+      expect.objectContaining({
+        child_id: childId,
+        language_code: "nyn",
+        activity_type: "counting",
+        score: 34,
+        dirty: false,
+      }),
+    );
+    expect(activityQuery.eq).toHaveBeenCalledWith("child_id", childId);
+    expect(activityQuery.eq).toHaveBeenCalledWith("language_code", "nyn");
+    expect(activityQuery.eq).toHaveBeenCalledWith("activity_type", "counting");
+  });
+
+  it("bounded local-miss hydration returns null without a session or after remote failure", async () => {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValueOnce({
+      data: { session: null },
+    });
+
+    await expect(
+      hydrateActivityProgressOnLocalMiss(childId, "nyn", "words", {
+        timeoutMs: 1000,
+      }),
+    ).resolves.toBeNull();
+    expect(supabase.from).not.toHaveBeenCalled();
+
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "parent-1" } } },
+    });
+    (supabase.from as jest.Mock).mockReturnValue(
+      createQuery({ data: null, error: new Error("offline") }),
+    );
+
+    await expect(
+      hydrateActivityProgressOnLocalMiss(childId, "nyn", "words", {
+        timeoutMs: 1000,
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it("does not start a local write when hydration is aborted after its remote read", async () => {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "parent-1" } } },
+    });
+    (supabase.from as jest.Mock).mockImplementation((table: string) =>
+      table === "child_activity_progress"
+        ? createQuery({
+            data: [
+              {
+                child_id: childId,
+                language_code: "nyn",
+                activity_type: "words",
+                status: "completed",
+                score: 55,
+                stars: 3,
+                attempts: 1,
+                last_stage_id: "5",
+                highest_unlocked_stage: 5,
+                completed_stage_count: 5,
+                progress_payload: { source: "remote" },
+                local_updated_at: "2026-07-12T00:00:00.000Z",
+              },
+            ],
+            error: null,
+          })
+        : createQuery({ data: [], error: null }),
+    );
+
+    const targetKey = activityKey(childId, "nyn", "words");
+    const optimisticReadStarted = deferred();
+    const resumeOptimisticRead = deferred();
+    let shouldPauseTargetRead = true;
+    (AsyncStorage.getItem as jest.Mock).mockImplementation(async (key: string) => {
+      if (key === targetKey && shouldPauseTargetRead) {
+        shouldPauseTargetRead = false;
+        const observed = await defaultGetItemImplementation(key);
+        optimisticReadStarted.resolve();
+        await resumeOptimisticRead.promise;
+        return observed;
+      }
+
+      return defaultGetItemImplementation(key);
+    });
+
+    const controller = new AbortController();
+    const hydration = hydrateProgressFromRemote(childId, "nyn", {
+      activityType: "words",
+      force: true,
+      signal: controller.signal,
+    });
+    await optimisticReadStarted.promise;
+
+    controller.abort();
+    resumeOptimisticRead.resolve();
+
+    await expect(hydration).resolves.toEqual({ activities: 0, stages: 0 });
+    expect(await getActivityProgress(childId, "nyn", "words")).toBeNull();
+    expect(AsyncStorage.setItem).not.toHaveBeenCalledWith(
+      targetKey,
+      expect.any(String),
+    );
+  });
+
+  it("does not start a late local write after local-miss hydration times out post-query", async () => {
+    jest.useFakeTimers();
+    try {
+      (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+        data: { session: { user: { id: "parent-1" } } },
+      });
+      (supabase.from as jest.Mock).mockImplementation((table: string) =>
+        table === "child_activity_progress"
+          ? createQuery({
+              data: [
+                {
+                  child_id: childId,
+                  language_code: "nyn",
+                  activity_type: "words",
+                  status: "completed",
+                  score: 55,
+                  stars: 3,
+                  attempts: 1,
+                  last_stage_id: "5",
+                  highest_unlocked_stage: 5,
+                  completed_stage_count: 5,
+                  progress_payload: { source: "late-remote" },
+                  local_updated_at: "2026-07-12T00:00:00.000Z",
+                },
+              ],
+              error: null,
+            })
+          : createQuery({ data: [], error: null }),
+      );
+
+      const targetKey = activityKey(childId, "nyn", "words");
+      const optimisticReadStarted = deferred();
+      const resumeOptimisticRead = deferred();
+      let targetReadCount = 0;
+      (AsyncStorage.getItem as jest.Mock).mockImplementation(async (key: string) => {
+        if (key === targetKey && ++targetReadCount === 2) {
+          const observed = await defaultGetItemImplementation(key);
+          optimisticReadStarted.resolve();
+          await resumeOptimisticRead.promise;
+          return observed;
+        }
+
+        return defaultGetItemImplementation(key);
+      });
+
+      const hydration = hydrateActivityProgressOnLocalMiss(
+        childId,
+        "nyn",
+        "words",
+        { timeoutMs: 50 },
+      );
+      await optimisticReadStarted.promise;
+
+      jest.advanceTimersByTime(50);
+      await expect(hydration).resolves.toBeNull();
+      resumeOptimisticRead.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(await getActivityProgress(childId, "nyn", "words")).toBeNull();
+      expect(AsyncStorage.setItem).not.toHaveBeenCalledWith(
+        targetKey,
+        expect.any(String),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("aborts a stalled local-miss hydration without allowing a late remote write", async () => {
+    jest.useFakeTimers();
+    try {
+      (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+        data: { session: { user: { id: "parent-1" } } },
+      });
+      const activityResult = deferred<QueryResult>();
+      const activityQueryStarted = deferred();
+      const activityQueries: ReturnType<typeof createQuery>[] = [];
+      (supabase.from as jest.Mock).mockImplementation((table: string) => {
+        if (table === "child_activity_progress") {
+          const activityQuery = createQuery(activityResult.promise);
+          activityQueries.push(activityQuery);
+          activityQueryStarted.resolve();
+          return activityQuery;
+        }
+
+        return createQuery({ data: [], error: null });
+      });
+
+      const hydration = hydrateActivityProgressOnLocalMiss(
+        childId,
+        "nyn",
+        "learning",
+        { timeoutMs: 50 },
+      );
+      await activityQueryStarted.promise;
+
+      jest.advanceTimersByTime(50);
+      await expect(hydration).resolves.toBeNull();
+
+      const signal = activityQueries[0]?.abortSignal.mock.calls[0]?.[0] as
+        | AbortSignal
+        | undefined;
+      expect(signal?.aborted).toBe(true);
+
+      await updateActivityProgress(
+        childId,
+        "nyn",
+        "learning",
+        { score: 0, progress_payload: { source: "post-timeout-default" } },
+        { scheduleSync: false },
+      );
+      activityResult.resolve({
+        data: [
+          {
+            child_id: childId,
+            language_code: "nyn",
+            activity_type: "learning",
+            status: "completed",
+            score: 99,
+            stars: 3,
+            attempts: 1,
+            last_stage_id: "3",
+            highest_unlocked_stage: 3,
+            completed_stage_count: 3,
+            progress_payload: { source: "late-remote" },
+            local_updated_at: "2026-07-11T00:00:00.000Z",
+          },
+        ],
+        error: null,
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(await getActivityProgress(childId, "nyn", "learning")).toEqual(
+        expect.objectContaining({
+          score: 0,
+          dirty: true,
+          progress_payload: { source: "post-timeout-default" },
+        }),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("cancels scheduled sync without discarding dirty progress", async () => {
+    jest.useFakeTimers();
+    try {
+      await updateActivityProgress(childId, "nyn", "words", {
+        score: 12,
+      });
+
+      cancelScheduledProgressSync();
+      jest.advanceTimersByTime(20000);
+      await Promise.resolve();
+
+      expect(supabase.auth.getSession).not.toHaveBeenCalled();
+      expect(await getActivityProgress(childId, "nyn", "words")).toEqual(
+        expect.objectContaining({ score: 12, dirty: true }),
+      );
+      expect(await getPendingProgressSyncCount(childId)).toBe(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("releases the snapshot serializer after a local activity write rejects", async () => {
+    const targetKey = activityKey(childId, "nyn", "words");
+    let rejectTargetWrite = true;
+    (AsyncStorage.setItem as jest.Mock).mockImplementation(
+      (key: string, value: string) => {
+        if (key === targetKey && rejectTargetWrite) {
+          rejectTargetWrite = false;
+          return Promise.reject(new Error("snapshot write failed"));
+        }
+
+        return defaultSetItemImplementation(key, value);
+      },
+    );
+
+    await expect(
+      updateActivityProgress(
+        childId,
+        "nyn",
+        "words",
+        { score: 1 },
+        { scheduleSync: false },
+      ),
+    ).rejects.toThrow("snapshot write failed");
+
+    await expect(
+      updateActivityProgress(
+        childId,
+        "nyn",
+        "words",
+        { score: 2 },
+        { scheduleSync: false },
+      ),
+    ).resolves.toEqual(expect.objectContaining({ score: 2, dirty: true }));
+    expect(await getPendingProgressSyncCount(childId)).toBe(1);
+  });
+
+  it("handles a rejected scheduled sync without discarding dirty progress", async () => {
+    jest.useFakeTimers();
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      await updateActivityProgress(
+        childId,
+        "nyn",
+        "words",
+        { score: 12 },
+        { scheduleSync: false },
+      );
+      (AsyncStorage.getAllKeys as jest.Mock).mockRejectedValueOnce(
+        new Error("storage unavailable"),
+      );
+
+      scheduleProgressSync(1);
+      await jest.advanceTimersByTimeAsync(1);
+
+      expect(warn).toHaveBeenCalledWith(
+        "Could not synchronize progress in the background:",
+        expect.objectContaining({ message: "storage unavailable" }),
+      );
+      expect(await getActivityProgress(childId, "nyn", "words")).toEqual(
+        expect.objectContaining({ score: 12, dirty: true }),
+      );
+      expect(await getPendingProgressSyncCount(childId)).toBe(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
 
 describe("progress queue reliability and repair", () => {
@@ -435,7 +999,18 @@ describe("progress queue reliability and repair", () => {
   const useSuccessfulActivitySync = (
     beforeUpsertResult?: (records: Array<Record<string, unknown>>) => Promise<void>,
   ) => {
-    (supabase.from as jest.Mock).mockImplementation(() => {
+    (supabase.from as jest.Mock).mockImplementation((table: string) => {
+      if (table === "children") {
+        return createOwnedChildrenQuery(
+          childId,
+          "child-a",
+          "child-b",
+          "child-c",
+          "target-child",
+          "other-child",
+        );
+      }
+
       const query = createQuery({ data: [], error: null }) as ReturnType<typeof createQuery> & {
         upsert: jest.Mock;
       };
@@ -445,6 +1020,28 @@ describe("progress queue reliability and repair", () => {
           return { data: records, error: null };
         }),
       }));
+      return query;
+    });
+  };
+
+  const useAccountAwareActivitySync = (
+    getOwnedChildIds: () => string[],
+    onUpsert?: (records: Array<Record<string, unknown>>) => void,
+  ) => {
+    (supabase.from as jest.Mock).mockImplementation((table: string) => {
+      if (table === "children") {
+        return createOwnedChildrenQuery(...getOwnedChildIds());
+      }
+
+      const query = createQuery({ data: [], error: null }) as ReturnType<typeof createQuery> & {
+        upsert: jest.Mock;
+      };
+      query.upsert = jest.fn((records: Array<Record<string, unknown>>) => {
+        onUpsert?.(records);
+        return {
+          select: jest.fn().mockResolvedValue({ data: records, error: null }),
+        };
+      });
       return query;
     });
   };
@@ -731,8 +1328,10 @@ describe("progress queue reliability and repair", () => {
 
   it("retains repaired dirty entries after a network failure", async () => {
     useSession();
-    (supabase.from as jest.Mock).mockReturnValue(
-      createQuery({ data: null, error: new Error("offline") }),
+    (supabase.from as jest.Mock).mockImplementation((table: string) =>
+      table === "children"
+        ? createOwnedChildrenQuery(childId)
+        : createQuery({ data: null, error: new Error("offline") }),
     );
     await updateActivityProgress(childId, "nyn", activityType, { score: 8 }, { scheduleSync: false });
     await AsyncStorage.setItem(queueKey, "[]");
@@ -761,5 +1360,203 @@ describe("progress queue reliability and repair", () => {
     expect(await readQueue()).toEqual([
       expect.objectContaining({ child_id: "other-child", language_code: "nyn" }),
     ]);
+  });
+
+  it("does not upsert an old-account row after a timed-out flush is aborted and the session changes", async () => {
+    jest.useFakeTimers();
+    try {
+      let parentId = "parent-a";
+      (supabase.auth.getSession as jest.Mock).mockImplementation(async () => ({
+        data: { session: { user: { id: parentId } } },
+      }));
+
+      const ownedChildrenQuery = createOwnedChildrenQuery("child-a");
+      const remoteReadStarted = deferred();
+      const finishRemoteRead = deferred<QueryResult>();
+      const remoteActivityQuery = createQuery(finishRemoteRead.promise);
+      const activityUpsert = jest.fn().mockReturnValue({
+        select: jest.fn().mockResolvedValue({ data: [], error: null }),
+      });
+      let activityTableReadCount = 0;
+
+      (supabase.from as jest.Mock).mockImplementation((table: string) => {
+        if (table === "children") return ownedChildrenQuery;
+        if (table === "child_activity_progress") {
+          activityTableReadCount += 1;
+          if (activityTableReadCount === 1) {
+            remoteReadStarted.resolve();
+            return remoteActivityQuery;
+          }
+          return { upsert: activityUpsert };
+        }
+        return createQuery({ data: [], error: null });
+      });
+
+      await updateActivityProgress(
+        "child-a",
+        "lg",
+        "learning",
+        { score: 17 },
+        { scheduleSync: false },
+      );
+
+      const flushController = new AbortController();
+      const flushTimeout = setTimeout(() => flushController.abort(), 750);
+      const synchronization = syncProgressNow("child-a", {
+        signal: flushController.signal,
+      });
+
+      await remoteReadStarted.promise;
+      expect(ownedChildrenQuery.abortSignal).toHaveBeenCalledWith(
+        flushController.signal,
+      );
+      expect(remoteActivityQuery.abortSignal).toHaveBeenCalledWith(
+        flushController.signal,
+      );
+      expect(flushController.signal.aborted).toBe(false);
+
+      parentId = "parent-b";
+      jest.advanceTimersByTime(750);
+      expect(flushController.signal.aborted).toBe(true);
+      finishRemoteRead.resolve({ data: [], error: null });
+
+      await expect(synchronization).resolves.toEqual({
+        pushed: 0,
+        skipped: 0,
+        failed: 1,
+      });
+      clearTimeout(flushTimeout);
+
+      expect(activityUpsert).not.toHaveBeenCalled();
+      expect(await getActivityProgress("child-a", "lg", "learning")).toEqual(
+        expect.objectContaining({ score: 17, dirty: true }),
+      );
+      expect(await readQueue()).toEqual([
+        expect.objectContaining({
+          child_id: "child-a",
+          language_code: "lg",
+          activity_type: "learning",
+        }),
+      ]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("does not attempt to upload another account's child rows", async () => {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "parent-b" } } },
+    });
+    const uploaded: Array<Record<string, unknown>> = [];
+    useAccountAwareActivitySync(
+      () => ["child-b"],
+      (records) => uploaded.push(...records),
+    );
+    await updateActivityProgress(
+      "child-a",
+      "lg",
+      "learning",
+      { score: 10 },
+      { scheduleSync: false },
+    );
+    await updateActivityProgress(
+      "child-b",
+      "nyn",
+      "learning",
+      { score: 20 },
+      { scheduleSync: false },
+    );
+
+    const result = await syncProgressNow();
+
+    expect(result).toEqual({ pushed: 1, skipped: 1, failed: 0 });
+    expect(uploaded).toEqual([
+      expect.objectContaining({ child_id: "child-b", score: 20 }),
+    ]);
+    expect(uploaded).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ child_id: "child-a" })]),
+    );
+    expect(await getActivityProgress("child-a", "lg", "learning")).toEqual(
+      expect.objectContaining({ dirty: true }),
+    );
+  });
+
+  it("lets valid current-account rows sync from a mixed-account queue", async () => {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "parent-b" } } },
+    });
+    useAccountAwareActivitySync(() => ["child-b"], (records) => {
+      if (records.some((record) => record.child_id === "child-a")) {
+        throw new Error("another account poisoned the batch");
+      }
+    });
+    await updateActivityProgress(
+      "child-a",
+      "lg",
+      "words",
+      { score: 1 },
+      { scheduleSync: false },
+    );
+    await updateActivityProgress(
+      "child-b",
+      "nyn",
+      "words",
+      { score: 2 },
+      { scheduleSync: false },
+    );
+
+    await expect(syncProgressNow()).resolves.toEqual({
+      pushed: 1,
+      skipped: 1,
+      failed: 0,
+    });
+    expect(await getActivityProgress("child-b", "nyn", "words")).toEqual(
+      expect.objectContaining({ dirty: false }),
+    );
+    expect(await getPendingProgressSyncCount()).toBe(1);
+  });
+
+  it("retains old-account dirty rows so they can sync when that account returns", async () => {
+    let ownedChildIds = ["child-b"];
+    (supabase.auth.getSession as jest.Mock).mockImplementation(async () => ({
+      data: {
+        session: {
+          user: { id: ownedChildIds[0] === "child-a" ? "parent-a" : "parent-b" },
+        },
+      },
+    }));
+    const uploadedChildIds: string[] = [];
+    useAccountAwareActivitySync(
+      () => ownedChildIds,
+      (records) =>
+        uploadedChildIds.push(...records.map((record) => String(record.child_id))),
+    );
+    await updateActivityProgress(
+      "child-a",
+      "lg",
+      "stories",
+      { score: 5 },
+      { scheduleSync: false },
+    );
+    await updateActivityProgress(
+      "child-b",
+      "nyn",
+      "stories",
+      { score: 6 },
+      { scheduleSync: false },
+    );
+
+    await syncProgressNow();
+    expect(await getPendingProgressSyncCount()).toBe(1);
+
+    ownedChildIds = ["child-a"];
+    await expect(syncProgressNow()).resolves.toEqual({
+      pushed: 1,
+      skipped: 0,
+      failed: 0,
+    });
+
+    expect(uploadedChildIds).toEqual(["child-b", "child-a"]);
+    expect(await getPendingProgressSyncCount()).toBe(0);
   });
 });

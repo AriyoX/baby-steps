@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import {
   View,
   TouchableOpacity,
@@ -36,7 +36,12 @@ import {
 import { preloadContentBundleImages } from "@/content/imagePreloader"
 import { saveActivity } from "@/lib/utils"
 import { syncProgressNow } from "@/lib/progressRepository"
+import {
+  completeLocallyFirst,
+  type LocalFirstCompletionResult,
+} from "@/lib/completionReliability"
 import { useAchievements } from "./achievements/useAchievements"
+import type { AchievementDefinition } from "./achievements/achievementTypes"
 import { playWordAudio, loadGameSounds } from "./utils/audioManager"
 import { audioManager } from "@/lib/audioManager"
 
@@ -48,6 +53,33 @@ import {
 } from "./utils/progressManagerLugandaLearning" // Adjust the import path as necessary
 
 type GameState = "menu" | "stageSelect" | "levelSelect" | "learning" | "playing" | "levelComplete"
+
+interface LearningGameCompletionOrderOptions {
+  persistProgress: (totalScore: number) => Promise<unknown>
+  revealCompletion: (totalScore: number) => void
+  runBestEffortNetworkWork: (totalScore: number) => Promise<void>
+  onLocalError?: (error: unknown) => void
+  onNetworkError?: (error: unknown) => void
+}
+
+const completeLearningGameProgressLocallyFirst = (
+  completedTotalScore: number,
+  options: LearningGameCompletionOrderOptions,
+): Promise<LocalFirstCompletionResult<number>> =>
+  completeLocallyFirst({
+    persistLocal: async () => {
+      const persisted = await options.persistProgress(completedTotalScore)
+      if (persisted === false) {
+        throw new Error("Legacy Learning Game progress was not saved locally.")
+      }
+      return completedTotalScore
+    },
+    fallbackValue: completedTotalScore,
+    revealCompletion: (totalScore) => options.revealCompletion(totalScore),
+    runBestEffortNetworkWork: (totalScore) => options.runBestEffortNetworkWork(totalScore),
+    onLocalError: options.onLocalError,
+    onNetworkError: options.onNetworkError,
+  })
 
 const GAME_SCREEN_OVERLAY = "rgba(2, 116, 187, 0.88)"
 
@@ -151,6 +183,18 @@ const LugandaLearningGame: React.FC = () => {
   // Game progress state
   const [totalScore, setTotalScore] = useState<number>(0)
   const [completedLevels, setCompletedLevels] = useState<number[]>([])
+  const userStatsRef = useRef<UserStats>({ ...DEFAULT_USER_STATS })
+  const completionRevisionRef = useRef(0)
+  const progressOwnerRef = useRef({
+    childId: activeChild?.id,
+    languageCode,
+  })
+  const isMountedRef = useRef(false)
+  const hydrationGenerationRef = useRef(0)
+  const answerLockRef = useRef(false)
+  const completionLockRef = useRef(false)
+  const answerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const optionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Playing state
   const [currentWordIndex, setCurrentWordIndex] = useState<number>(0)
@@ -162,6 +206,9 @@ const LugandaLearningGame: React.FC = () => {
   const [sound, setSound] = useState<Audio.Sound | undefined>()
   const [correctSound, setCorrectSound] = useState<Audio.Sound | undefined>()
   const [wrongSound, setWrongSound] = useState<Audio.Sound | undefined>()
+  const soundRef = useRef<Audio.Sound | undefined>(undefined)
+  const correctSoundRef = useRef<Audio.Sound | undefined>(undefined)
+  const wrongSoundRef = useRef<Audio.Sound | undefined>(undefined)
 
   // Animations
   const progressWidth = useState<Animated.Value>(new Animated.Value(0))[0]
@@ -170,13 +217,46 @@ const LugandaLearningGame: React.FC = () => {
   const confettiAnim = useState<Animated.Value>(new Animated.Value(0))[0]
   const [shakingOption, setShakingOption] = useState<string | null>(null)
 
-  const unloadSound = (loadedSound?: Audio.Sound) => {
+  progressOwnerRef.current = {
+    childId: activeChild?.id,
+    languageCode,
+  }
+
+  const updateUserStatsState = (nextUserStats: UserStats): void => {
+    userStatsRef.current = nextUserStats
+  }
+
+  const unloadSound = useCallback((loadedSound?: Audio.Sound): void => {
     if (!loadedSound) return
 
     void audioManager.unloadAppSound(loadedSound).catch((error) => {
       console.warn("Could not unload learning-game sound:", error)
     })
-  }
+  }, [])
+
+  const clearGameTimers = useCallback((): void => {
+    if (answerTimeoutRef.current) {
+      clearTimeout(answerTimeoutRef.current)
+      answerTimeoutRef.current = null
+    }
+    if (optionTimeoutRef.current) {
+      clearTimeout(optionTimeoutRef.current)
+      optionTimeoutRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    isMountedRef.current = true
+
+    return () => {
+      isMountedRef.current = false
+      hydrationGenerationRef.current += 1
+      clearGameTimers()
+      unloadSound(soundRef.current)
+      unloadSound(correctSoundRef.current)
+      unloadSound(wrongSoundRef.current)
+    }
+  }, [clearGameTimers, unloadSound])
 
   // Update animation when state changes
   useEffect(() => {
@@ -193,60 +273,81 @@ const LugandaLearningGame: React.FC = () => {
 
   // Load game progress on mount
   useEffect(() => {
-    let isMounted = true
+    const requestGeneration = ++hydrationGenerationRef.current
+    const requestedChildId = activeChild?.id
+    const requestedLanguageCode = languageCode
+    const isCurrentRequest = (): boolean => {
+      const owner = progressOwnerRef.current
+      return (
+        isMountedRef.current &&
+        hydrationGenerationRef.current === requestGeneration &&
+        owner.childId === requestedChildId &&
+        owner.languageCode === requestedLanguageCode
+      )
+    }
 
     const init = async () => {
       setIsLoading(true)
+      completionRevisionRef.current += 1
 
       try {
-        const contentResult = await loadContentBundle(languageCode)
+        const contentResult = await loadContentBundle(requestedLanguageCode)
         const contentStages = contentResult.bundle?.learningGame.stages ?? []
         if (contentResult.bundle) {
-          void preloadContentBundleImages(contentResult.bundle)
+          void preloadContentBundleImages(contentResult.bundle).catch((error) => {
+            console.warn("Could not preload legacy Learning images:", error)
+          })
         }
-        await loadSounds()
+        await loadSounds(isCurrentRequest)
 
-        if (!isMounted) return
+        if (!isCurrentRequest()) return
 
         setGameTitle(contentResult.bundle?.learningGame.title ?? "Learning")
         setSelectedStage(null)
         setSelectedLevel(null)
         setCurrentWords([])
 
-        if (activeChild && contentStages.length > 0) {
-          const progress = await loadProgress(activeChild.id, languageCode, contentStages)
+        if (requestedChildId && contentStages.length > 0) {
+          const progress = await loadProgress(requestedChildId, requestedLanguageCode, contentStages)
 
-          if (!isMounted) return
+          if (!isCurrentRequest()) return
 
           setTotalScore(progress.totalScore)
           setCompletedLevels(progress.completedLevels)
           setStages(progress.stages.length > 0 ? progress.stages : contentStages)
+          updateUserStatsState(progress.userStats)
         } else {
           setTotalScore(0)
           setCompletedLevels([])
           setStages(contentStages)
+          updateUserStatsState({ ...DEFAULT_USER_STATS })
         }
       } catch (error) {
         console.error("Error loading learning game content:", error)
-        if (isMounted) {
+        if (isCurrentRequest()) {
           setStages([])
+          updateUserStatsState({ ...DEFAULT_USER_STATS })
         }
       } finally {
-        if (isMounted) {
+        if (isCurrentRequest()) {
           setIsLoading(false)
         }
       }
     }
 
-    init()
+    void init().catch((error) => {
+      console.warn("Could not finish legacy Learning hydration:", error)
+    })
 
     return () => {
-      isMounted = false
-      unloadSound(sound)
-      unloadSound(correctSound)
-      unloadSound(wrongSound)
+      if (hydrationGenerationRef.current === requestGeneration) {
+        hydrationGenerationRef.current += 1
+      }
+      clearGameTimers()
+      answerLockRef.current = false
+      completionLockRef.current = false
     }
-  }, [activeChild, languageCode])
+  }, [activeChild?.id, languageCode, clearGameTimers])
 
   // Setup when selecting a level
   useEffect(() => {
@@ -317,16 +418,27 @@ const LugandaLearningGame: React.FC = () => {
           useNativeDriver: true,
         }),
       ]).start(() => {
-        setShakingOption(null)
+        if (isMountedRef.current) {
+          setShakingOption(null)
+        }
       })
     }
   }, [shakingOption])
 
-  const loadSounds = async (): Promise<void> => {
+  const loadSounds = async (
+    isCurrentRequest: () => boolean = () => isMountedRef.current,
+  ): Promise<void> => {
     try {
       const { correctSound: newCorrectSound, wrongSound: newWrongSound } = await loadGameSounds()
-      setCorrectSound(newCorrectSound)
-      setWrongSound(newWrongSound)
+      if (isCurrentRequest()) {
+        correctSoundRef.current = newCorrectSound
+        wrongSoundRef.current = newWrongSound
+        setCorrectSound(newCorrectSound)
+        setWrongSound(newWrongSound)
+      } else {
+        unloadSound(newCorrectSound)
+        unloadSound(newWrongSound)
+      }
     } catch (error) {
       console.error("Error loading sounds", error)
     }
@@ -335,7 +447,12 @@ const LugandaLearningGame: React.FC = () => {
   const playWordSound = async (word: LearningGameWord = currentWord!): Promise<void> => {
     try {
       const newSound = await playWordAudio(word, sound)
-      setSound(newSound)
+      if (isMountedRef.current) {
+        soundRef.current = newSound
+        setSound(newSound)
+      } else {
+        unloadSound(newSound)
+      }
     } catch (error) {
       console.error("Error playing sound", error)
     }
@@ -354,6 +471,10 @@ const LugandaLearningGame: React.FC = () => {
   // Level selection
   const selectLevel = (level: LearningGameLevel) => {
     if (!level.isLocked) {
+      clearGameTimers()
+      answerLockRef.current = false
+      completionLockRef.current = false
+      completionRevisionRef.current += 1
       const words = selectedStage
         ? getWordsForLevel(stages, selectedStage.id, level.id)
         : level.words
@@ -392,6 +513,9 @@ const LugandaLearningGame: React.FC = () => {
   }
 
   const startGame = (): void => {
+    clearGameTimers()
+    answerLockRef.current = false
+    completionLockRef.current = false
     setGameState("playing")
     setCurrentWordIndex(0)
     setLevelScore(0)
@@ -424,14 +548,16 @@ const LugandaLearningGame: React.FC = () => {
   }
 
   const handleOptionSelect = (option: string): void => {
-    if (!currentWord || selectedOption) return
+    if (!currentWord || selectedOption || answerLockRef.current) return
+    answerLockRef.current = true
 
     setSelectedOption(option)
 
     if (option === currentWord.english) {
       // Correct answer
+      const scoreAfterAnswer = levelScore + 10
       setIsCorrect(true)
-      setLevelScore(levelScore + 10)
+      setLevelScore(scoreAfterAnswer)
 
       // Play sound and animate
       if (correctSound) {
@@ -450,8 +576,22 @@ const LugandaLearningGame: React.FC = () => {
       })
 
       // Move to next word after a delay
-      setTimeout(() => {
-        nextWord()
+      if (answerTimeoutRef.current) {
+        clearTimeout(answerTimeoutRef.current)
+      }
+      const answerChildId = activeChild?.id
+      const answerLanguageCode = languageCode
+      answerTimeoutRef.current = setTimeout(() => {
+        answerTimeoutRef.current = null
+        const owner = progressOwnerRef.current
+        if (
+          !isMountedRef.current ||
+          owner.childId !== answerChildId ||
+          owner.languageCode !== answerLanguageCode
+        ) {
+          return
+        }
+        nextWord(scoreAfterAnswer)
       }, 1500)
     } else {
       // Wrong answer
@@ -465,14 +605,20 @@ const LugandaLearningGame: React.FC = () => {
       }
 
       // Allow trying again after a delay
-      setTimeout(() => {
+      if (answerTimeoutRef.current) {
+        clearTimeout(answerTimeoutRef.current)
+      }
+      answerTimeoutRef.current = setTimeout(() => {
+        answerTimeoutRef.current = null
+        if (!isMountedRef.current) return
         setSelectedOption(null)
         setIsCorrect(null)
+        answerLockRef.current = false
       }, 1500)
     }
   }
 
-  const nextWord = useCallback((): void => {
+  const nextWord = (completedLevelScore: number): void => {
     const nextIndex = currentWordIndex + 1
     fadeAnim.setValue(0)
 
@@ -481,28 +627,38 @@ const LugandaLearningGame: React.FC = () => {
       setCurrentWord(currentWords[nextIndex])
       setSelectedOption(null)
       setIsCorrect(null)
+      answerLockRef.current = false
 
-      setTimeout(() => {
+      if (optionTimeoutRef.current) {
+        clearTimeout(optionTimeoutRef.current)
+      }
+      optionTimeoutRef.current = setTimeout(() => {
+        optionTimeoutRef.current = null
+        if (!isMountedRef.current) return
         generateOptions(currentWords[nextIndex], currentWords)
       }, 300)
     } else {
       // Level completed
-      completeLevelAndUpdateProgress()
+      void completeLevelAndUpdateProgress(completedLevelScore).catch((error) => {
+        completionLockRef.current = false
+        answerLockRef.current = false
+        console.warn("Could not finish legacy Learning Game completion:", error)
+      })
     }
-  }, [currentWordIndex, currentWords])
+  }
 
-  const trackActivity = async (isStageComplete = false) => {
+  const trackActivity = async (isStageComplete = false, activityScore = levelScore) => {
     if (!activeChild) return
 
     const duration = Math.round((Date.now() - gameStartTime.current) / 1000) // duration in seconds
 
-    await saveActivity({
+    const saved = await saveActivity({
       child_id: activeChild.id,
       activity_type: "language",
       activity_name: isStageComplete
         ? `Completed ${selectedStage?.title} Stage`
         : `Mastered ${selectedLevel?.title} Words`,
-      score: levelScore.toString(),
+      score: activityScore.toString(),
       duration,
       completed_at: new Date().toISOString(),
       details: `${
@@ -514,23 +670,26 @@ const LugandaLearningGame: React.FC = () => {
       level: selectedLevel?.id,
       language_code: languageCode,
     })
+    if (!saved) {
+      throw new Error("Could not save legacy Learning Game activity.")
+    }
 
-    // Reset timer for next activity
-    gameStartTime.current = Date.now()
   }
 
-  // REMOVE this function from your component, its logic will be integrated:
-  // const saveGameProgress = async () => { ... };
+  const completeLevelAndUpdateProgress = async (completedLevelScore: number) => {
+    if (completionLockRef.current) return
+    completionLockRef.current = true
 
-  // MODIFY completeLevelAndUpdateProgress like this:
-  const completeLevelAndUpdateProgress = async () => {
-    // Make it async
     if (!activeChild || !selectedLevel || !selectedStage) {
       console.error("Missing activeChild, selectedLevel, or selectedStage in completeLevelAndUpdateProgress")
+      completionLockRef.current = false
+      answerLockRef.current = false
       return
     }
 
-    const newTotalScoreState = totalScore + levelScore // Use this for UI update
+    const completionChildId = activeChild.id
+    const completionLanguageCode = languageCode
+    const newTotalScoreState = totalScore + completedLevelScore
     const newCompletedLevelsState = [...completedLevels]
     if (!newCompletedLevelsState.includes(selectedLevel.id)) {
       newCompletedLevelsState.push(selectedLevel.id)
@@ -555,13 +714,8 @@ const LugandaLearningGame: React.FC = () => {
       }
     }
 
-    await trackActivity(nextStageUnlocked)
-
-    // Prepare User Stats (integrate logic similar to progressManager.updateUserStats)
-    const progressSoFar = await loadProgress(activeChild.id, languageCode, currentLocalStagesState) // Load existing stats
-    const existingUserStats = progressSoFar.userStats || { ...DEFAULT_USER_STATS } // Use default if undefined
-
-    const lastPlayedDate = new Date(existingUserStats.lastPlayed || 0) // Handle case where lastPlayed might be missing
+    const existingUserStats = userStatsRef.current
+    const lastPlayedDate = new Date(existingUserStats.lastPlayed || 0)
     const today = new Date()
 
     const isNewDay =
@@ -579,15 +733,13 @@ const LugandaLearningGame: React.FC = () => {
 
     const updatedUserStatsState: UserStats = {
       totalWords: (existingUserStats.totalWords || 0) + currentWords.length,
-      correctAnswers: (existingUserStats.correctAnswers || 0) + levelScore / 10,
-      wrongAnswers: (existingUserStats.wrongAnswers || 0) + (currentWords.length - levelScore / 10),
+      correctAnswers: (existingUserStats.correctAnswers || 0) + completedLevelScore / 10,
+      wrongAnswers: (existingUserStats.wrongAnswers || 0) + (currentWords.length - completedLevelScore / 10),
       lastPlayed: today.toISOString(),
       streakDays: newStreakDays,
     }
 
-    // --- ACHIEVEMENT CHECKING ---
-    let achievementPointsEarned = 0
-    const eventsForAchievements = []
+    const eventsForAchievements: Parameters<typeof checkAndGrantNewAchievements>[0][] = []
 
     // Event for level completion
     eventsForAchievements.push({
@@ -601,12 +753,12 @@ const LugandaLearningGame: React.FC = () => {
 
     // Event for perfect quiz (if applicable)
     const maxPossibleScoreForLevel = currentWords.length * 10
-    if (levelScore === maxPossibleScoreForLevel) {
+    if (completedLevelScore === maxPossibleScoreForLevel) {
       eventsForAchievements.push({
         type: "level_perfect_clear" as const,
         gameKey: achievementGameKey,
         levelId: selectedLevel.id,
-        currentLevelScore: levelScore,
+        currentLevelScore: completedLevelScore,
         currentLevelMaxScore: maxPossibleScoreForLevel,
       })
     }
@@ -636,42 +788,111 @@ const LugandaLearningGame: React.FC = () => {
       currentUserStats: updatedUserStatsState,
     })
 
-    for (const event of eventsForAchievements) {
-      const newlyEarnedFromEvent = await checkAndGrantNewAchievements(event)
-      if (newlyEarnedFromEvent.length > 0) {
-        newlyEarnedFromEvent.forEach((ach) => {
-          achievementPointsEarned += ach.points
-          console.log(`LEARNING GAME - NEW ACHIEVEMENT: ${ach.name}`)
-          enqueueAchievementUnlocked(ach)
+    let completionRevision = 0
+    const completionResult = await completeLearningGameProgressLocallyFirst(newTotalScoreState, {
+      persistProgress: (completedTotalScore) =>
+        saveProgress(
+          completedTotalScore,
+          newCompletedLevelsState,
+          currentLocalStagesState,
+          updatedUserStatsState,
+          completionChildId,
+          completionLanguageCode,
+        ),
+      revealCompletion: (completedTotalScore) => {
+        const owner = progressOwnerRef.current
+        if (
+          !isMountedRef.current ||
+          owner.childId !== completionChildId ||
+          owner.languageCode !== completionLanguageCode
+        ) {
+          return
+        }
+
+        completionRevisionRef.current += 1
+        completionRevision = completionRevisionRef.current
+        setTotalScore(completedTotalScore)
+        setCompletedLevels(newCompletedLevelsState)
+        setStages(currentLocalStagesState)
+        updateUserStatsState(updatedUserStatsState)
+        setGameState("levelComplete")
+        gameStartTime.current = Date.now()
+      },
+      runBestEffortNetworkWork: async (completedTotalScore) => {
+        const achievementWork = async () => {
+          const outcomes = await Promise.allSettled(
+            eventsForAchievements.map((event) => checkAndGrantNewAchievements(event)),
+          )
+          const newlyAwarded = new Map<string, AchievementDefinition>()
+
+          outcomes.forEach((outcome) => {
+            if (outcome.status === "rejected") {
+              console.warn("Could not evaluate a legacy Learning Game achievement:", outcome.reason)
+              return
+            }
+
+            outcome.value.forEach((achievement) => {
+              if (!newlyAwarded.has(achievement.id)) {
+                newlyAwarded.set(achievement.id, achievement)
+              }
+            })
+          })
+
+          const awardedAchievements = [...newlyAwarded.values()]
+          const achievementPoints = awardedAchievements.reduce(
+            (sum, achievement) => sum + achievement.points,
+            0,
+          )
+          const owner = progressOwnerRef.current
+          if (
+            !isMountedRef.current ||
+            owner.childId !== completionChildId ||
+            owner.languageCode !== completionLanguageCode ||
+            completionRevisionRef.current !== completionRevision
+          ) {
+            return
+          }
+
+          awardedAchievements.forEach((achievement) => enqueueAchievementUnlocked(achievement))
+          if (achievementPoints <= 0) return
+
+          const scoreWithAchievementPoints = completedTotalScore + achievementPoints
+          setTotalScore(scoreWithAchievementPoints)
+          const savedAchievementProgress = await saveProgress(
+            scoreWithAchievementPoints,
+            newCompletedLevelsState,
+            currentLocalStagesState,
+            updatedUserStatsState,
+            completionChildId,
+            completionLanguageCode,
+          )
+          if (!savedAchievementProgress) {
+            throw new Error("Legacy Learning achievement points were not saved locally.")
+          }
+        }
+        const outcomes = await Promise.allSettled([
+          trackActivity(nextStageUnlocked, completedLevelScore),
+          achievementWork(),
+          syncProgressNow(completionChildId),
+        ])
+
+        outcomes.forEach((outcome) => {
+          if (outcome.status === "rejected") {
+            console.warn("Could not finish legacy Learning Game best-effort network work:", outcome.reason)
+          }
         })
-      }
-    }
+      },
+      onLocalError: (error) => {
+        console.warn("Legacy Learning completion was not durably saved locally:", error)
+      },
+      onNetworkError: (error) => {
+        console.warn("Could not finish legacy Learning Game best-effort network work:", error)
+      },
+    })
 
-    // Add achievement points to the total score that will be saved
-    const finalTotalScoreToSave = newTotalScoreState + achievementPointsEarned
-
-    // Update React state with final scores including achievement points
-    setTotalScore(finalTotalScoreToSave) // UI reflects score + achievement points
-    setCompletedLevels(newCompletedLevelsState)
-    setStages(currentLocalStagesState)
-
-    // Now, save everything using the newly computed values
-    try {
-      await saveProgress(
-        finalTotalScoreToSave, // Save the score including achievement points
-        newCompletedLevelsState,
-        currentLocalStagesState,
-        updatedUserStatsState,
-        activeChild.id,
-        languageCode,
-      )
-      void syncProgressNow(activeChild.id)
+    if (completionResult.persistence.persisted) {
       console.log("Learning game progress saved successfully.")
-    } catch (error) {
-      console.error("Learning game: Failed to save game progress:", error)
     }
-
-    setGameState("levelComplete")
   }
 
   const saveGameProgress = async () => {
@@ -1162,7 +1383,11 @@ const LugandaLearningGame: React.FC = () => {
                   </Text>
                   <TouchableOpacity
                     className="bg-indigo-100 w-10 h-10 rounded-full items-center justify-center"
-                    onPress={() => playWordSound(currentLearnWord)}
+                    onPress={() => {
+                      void playWordSound(currentLearnWord).catch((error) => {
+                        console.warn("Could not play legacy Learning word sound:", error)
+                      })
+                    }}
                     accessibilityRole="button"
                     accessibilityLabel={`Hear ${currentLearnWord.targetText}`}
                   >
@@ -1247,7 +1472,11 @@ const LugandaLearningGame: React.FC = () => {
                     </Text>
                     <TouchableOpacity
                       className="bg-indigo-100 w-10 h-10 rounded-full items-center justify-center"
-                      onPress={() => playWordSound(currentLearnWord)}
+                      onPress={() => {
+                        void playWordSound(currentLearnWord).catch((error) => {
+                          console.warn("Could not play legacy Learning word sound:", error)
+                        })
+                      }}
                       accessibilityRole="button"
                       accessibilityLabel={`Hear ${currentLearnWord.targetText}`}
                     >
@@ -1325,7 +1554,12 @@ const LugandaLearningGame: React.FC = () => {
         <View className="flex-row justify-between items-center px-4 pt-5 pb-3">
           <TouchableOpacity
             className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
-            onPress={() => setGameState("learning")}
+            onPress={() => {
+              clearGameTimers()
+              answerLockRef.current = false
+              completionLockRef.current = false
+              setGameState("learning")
+            }}
             accessibilityRole="button"
             accessibilityLabel="Back to word cards"
           >
@@ -1394,7 +1628,11 @@ const LugandaLearningGame: React.FC = () => {
                       </Text>
                       <TouchableOpacity
                         className="ml-3 w-10 h-10 bg-indigo-100 rounded-full items-center justify-center"
-                        onPress={() => playWordSound()}
+                        onPress={() => {
+                          void playWordSound().catch((error) => {
+                            console.warn("Could not play legacy Learning word sound:", error)
+                          })
+                        }}
                         accessibilityRole="button"
                         accessibilityLabel={`Hear ${currentWord.targetText}`}
                       >
@@ -1487,7 +1725,11 @@ const LugandaLearningGame: React.FC = () => {
                     </Text>
                     <TouchableOpacity
                       className="ml-3 w-10 h-10 bg-indigo-100 rounded-full items-center justify-center"
-                      onPress={() => playWordSound()}
+                      onPress={() => {
+                        void playWordSound().catch((error) => {
+                          console.warn("Could not play legacy Learning word sound:", error)
+                        })
+                      }}
                       accessibilityRole="button"
                       accessibilityLabel={`Hear ${currentWord.targetText}`}
                     >

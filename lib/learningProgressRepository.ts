@@ -171,6 +171,64 @@ const getStageStartableLessonIds = (stage: LearningHubStage): string[] =>
     .filter((lesson) => getLessonStatus(lesson, stage) === "startable")
     .map((lesson) => lesson.id);
 
+const getCurrentCompletedLessonIds = (
+  stages: LearningHubStage[],
+  completedLessonIds: string[],
+): string[] => {
+  const requiredLessonIds = new Set(
+    stages.flatMap((stage) => getStageStartableLessonIds(stage)),
+  );
+
+  return completedLessonIds.filter((lessonId) => requiredLessonIds.has(lessonId));
+};
+
+export const calculateLearningProgressAggregate = (
+  stages: LearningHubStage[],
+  completedLessonIds: string[],
+): Pick<LearningProgressSummary, "status" | "completedStageCount"> => {
+  const startableStages = stages
+    .map((stage) => ({ lessonIds: getStageStartableLessonIds(stage) }))
+    .filter(({ lessonIds }) => lessonIds.length > 0);
+  const requiredLessonIds = new Set(startableStages.flatMap(({ lessonIds }) => lessonIds));
+  const completedCurrentLessonIds = new Set(
+    getCurrentCompletedLessonIds(stages, completedLessonIds),
+  );
+  const completedStageCount = startableStages.filter(({ lessonIds }) =>
+    lessonIds.every((lessonId) => completedCurrentLessonIds.has(lessonId)),
+  ).length;
+  const requiredLessonCount = requiredLessonIds.size;
+  const completedCurrentLessonCount = completedCurrentLessonIds.size;
+
+  return {
+    status:
+      requiredLessonCount > 0 && completedCurrentLessonCount === requiredLessonCount
+        ? "completed"
+        : completedCurrentLessonCount > 0
+          ? "in_progress"
+          : "not_started",
+    completedStageCount,
+  };
+};
+
+const getCurrentLearningAggregate = (
+  languageCode: string,
+  completedLessonIds: string[],
+): Pick<LearningProgressSummary, "status" | "completedStageCount"> =>
+  calculateLearningProgressAggregate(
+    getLearningHubStages(languageCode),
+    completedLessonIds,
+  );
+
+const getCompletionStageStartableLessonIds = (
+  completion: LearningLessonCompletion,
+): string[] => {
+  const stage = getLearningHubStages(completion.languageCode).find(
+    (candidate) => candidate.id === completion.stageId,
+  );
+
+  return stage ? getStageStartableLessonIds(stage) : [];
+};
+
 const buildLessonProgressPayload = (
   completion: LearningLessonCompletion,
 ): Record<string, unknown> =>
@@ -193,11 +251,17 @@ const buildLessonProgressPayload = (
 const buildActivityProgressPayload = (
   summary: LearningProgressSummary,
   latestCompletion: LearningLessonCompletion,
-): Record<string, unknown> =>
-  compactRecord({
+): Record<string, unknown> => {
+  const currentCompletedLessonIds = getCurrentCompletedLessonIds(
+    getLearningHubStages(summary.languageCode),
+    summary.completedLessonIds,
+  );
+
+  return compactRecord({
     source: LEARNING_PROGRESS_SOURCE,
     completedLessonIds: summary.completedLessonIds,
-    completedLessonCount: summary.completedLessonIds.length,
+    completedLessonCount: currentCompletedLessonIds.length,
+    currentCompletedLessonIds,
     completedLessons: summary.completedLessonIds.map((lessonId) => {
       const completion = summary.completedByLessonId[lessonId];
 
@@ -229,12 +293,13 @@ const buildActivityProgressPayload = (
       completedAt: latestCompletion.completedAt,
     }),
   });
+};
 
 const buildStageProgressPayload = (
   summary: LearningProgressSummary,
   completion: LearningLessonCompletion,
 ): Record<string, unknown> => {
-  const stageLessonIds = completion.progressPayload.stageLessonIds ?? [];
+  const stageLessonIds = getCompletionStageStartableLessonIds(completion);
   const completedLessonIds = stageLessonIds.filter((lessonId) =>
     summary.completedLessonIds.includes(lessonId),
   );
@@ -267,7 +332,7 @@ const getStageJustCompleted = (
   updatedSummary: LearningProgressSummary,
   completion: LearningLessonCompletion,
 ): boolean => {
-  const stageLessonIds = completion.progressPayload.stageLessonIds ?? [];
+  const stageLessonIds = getCompletionStageStartableLessonIds(completion);
   if (stageLessonIds.length === 0) return false;
 
   const previousCompletedIds = new Set(previousSummary.completedLessonIds);
@@ -326,7 +391,7 @@ const buildLearningStageActivity = (
     completion.progressPayload.stageTitle,
     completion.stageId,
   );
-  const stageLessonIds = completion.progressPayload.stageLessonIds ?? [];
+  const stageLessonIds = getCompletionStageStartableLessonIds(completion);
   const activity: Activity = {
     child_id: completion.childId,
     activity_type: LEARNING_ACTIVITY_TYPE,
@@ -384,11 +449,12 @@ const saveLearningActivityEntries = async (
     return;
   }
 
-  await saveLearningActivityEntry(buildLearningLessonActivity(completion));
-
+  const activities = [buildLearningLessonActivity(completion)];
   if (stageJustCompleted) {
-    await saveLearningActivityEntry(buildLearningStageActivity(completion));
+    activities.push(buildLearningStageActivity(completion));
   }
+
+  await Promise.all(activities.map(saveLearningActivityEntry));
 };
 
 const queueLearningLessonProgressSync = async (
@@ -406,7 +472,7 @@ const queueLearningLessonProgressSync = async (
       completion.languageCode,
       LEARNING_ACTIVITY_TYPE,
       {
-        status: "in_progress",
+        status: summary.status,
         score: completion.score,
         attempts: summary.attempts,
         last_stage_id: completion.stageId,
@@ -428,7 +494,7 @@ const queueLearningLessonProgressSync = async (
       },
     );
     if (stageJustCompleted) {
-      const stageLessonIds = completion.progressPayload.stageLessonIds ?? [];
+      const stageLessonIds = getCompletionStageStartableLessonIds(completion);
       const stageAttempts = stageLessonIds.reduce((total, lessonId) => {
         const stageCompletion = summary.completedByLessonId[lessonId];
         return total + (stageCompletion?.attempts ?? 0);
@@ -605,15 +671,19 @@ const sanitizeSummary = (
   const lastCompletion = completedLessonIds
     .map((lessonId) => completedByLessonId[lessonId])
     .sort((first, second) => second.completedAt - first.completedAt)[0];
+  const aggregate = getCurrentLearningAggregate(
+    normalizedLanguageCode,
+    completedLessonIds,
+  );
 
   return {
     childId: normalizedChildId,
     languageCode: normalizedLanguageCode,
     activityType,
-    status: completedLessonIds.length > 0 ? "in_progress" : "not_started",
+    status: aggregate.status,
     attempts,
     lastStageId: lastCompletion?.stageId,
-    completedStageCount: completedLessonIds.length,
+    completedStageCount: aggregate.completedStageCount,
     completedLessonIds,
     completedByLessonId,
   };
@@ -795,6 +865,70 @@ const getCompletionFromActivityPayload = (
   );
 };
 
+const getHistoricCompletionFromActivityPayload = (
+  record: Record<string, unknown>,
+  activityProgress: ChildActivityProgress,
+): LearningLessonCompletion | null => {
+  const lessonId = asOptionalString(record.lessonId);
+  const stageId = asOptionalString(record.stageId);
+  if (!lessonId || !stageId) return null;
+
+  const completedAt = toCompletionMillis(
+    record.completedAt,
+    toCompletionMillis(activityProgress.local_updated_at),
+  );
+  const itemResults = Array.isArray(record.itemResults) ? record.itemResults : [];
+
+  return sanitizeCompletion(
+    {
+      localId: buildLearningCompletionLocalId(
+        activityProgress.child_id,
+        activityProgress.language_code,
+        stageId,
+        lessonId,
+      ),
+      childId: activityProgress.child_id,
+      languageCode: activityProgress.language_code,
+      activityType: LEARNING_ACTIVITY_TYPE,
+      stageId,
+      levelId: lessonId,
+      status: "completed",
+      score: typeof record.score === "number" ? record.score : undefined,
+      attempts:
+        typeof record.attempts === "number"
+          ? asNonNegativeInteger(record.attempts)
+          : 0,
+      completedAt,
+      progressPayload: {
+        source: LEARNING_PROGRESS_SOURCE,
+        lessonId,
+        stageTitle: asOptionalString(record.stageTitle),
+        lessonTitle: asOptionalString(record.lessonTitle),
+        stageNumber:
+          typeof record.stageNumber === "number" ? record.stageNumber : undefined,
+        lessonOrder:
+          typeof record.lessonOrder === "number" ? record.lessonOrder : undefined,
+        stageLessonIds: asStringArray(record.stageLessonIds),
+        mechanicTypes: asStringArray(record.mechanicTypes),
+        itemResults,
+        totalItems:
+          typeof record.totalItems === "number" ? record.totalItems : itemResults.length,
+        correctItems:
+          typeof record.correctItems === "number" ? record.correctItems : 0,
+        completedAt,
+        contentVersion: asOptionalString(record.contentVersion),
+      },
+      readiness: "local_only",
+    },
+    {
+      childId: activityProgress.child_id,
+      languageCode: activityProgress.language_code,
+      activityType: LEARNING_ACTIVITY_TYPE,
+      lessonId,
+    },
+  );
+};
+
 const getLearningCompletionsFromSharedProgress = async (
   childId: string,
   languageCode: string,
@@ -862,6 +996,17 @@ const getLearningCompletionsFromSharedProgress = async (
           existingLessonIds.add(lessonId);
         }
         break;
+      }
+
+      if (!existingLessonIds.has(lessonId)) {
+        const historicCompletion = getHistoricCompletionFromActivityPayload(
+          activityLesson,
+          activityProgress,
+        );
+        if (historicCompletion) {
+          completions.push(historicCompletion);
+          existingLessonIds.add(lessonId);
+        }
       }
     }
   }
@@ -1022,17 +1167,19 @@ export const saveLearningLessonCompletion = async (
     sanitizedCompletion,
   );
 
-  await saveLearningActivityEntries(
-    summary,
-    updatedSummary,
-    sanitizedCompletion,
-    stageJustCompleted,
-  );
   await queueLearningLessonProgressSync(
     updatedSummary,
     sanitizedCompletion,
     stageJustCompleted,
   );
+  void saveLearningActivityEntries(
+    summary,
+    updatedSummary,
+    sanitizedCompletion,
+    stageJustCompleted,
+  ).catch((error) => {
+    console.warn("Could not finish background Learning activity logging:", error);
+  });
 
   return sanitizedCompletion;
 };
@@ -1042,16 +1189,11 @@ export interface LearningLessonCompletionWithAchievements {
   newlyEarnedAchievements: AchievementDefinition[];
 }
 
-export const saveLearningLessonCompletionWithAchievements = async (
-  completion: LearningLessonCompletion,
-): Promise<LearningLessonCompletionWithAchievements> => {
-  const savedCompletion = await saveLearningLessonCompletion(completion);
-
+export const awardLearningLessonCompletionAchievements = async (
+  savedCompletion: LearningLessonCompletion,
+): Promise<AchievementDefinition[]> => {
   if (savedCompletion.childId === LOCAL_LEARNING_FALLBACK_CHILD_ID) {
-    return {
-      completion: savedCompletion,
-      newlyEarnedAchievements: [],
-    };
+    return [];
   }
 
   try {
@@ -1060,24 +1202,29 @@ export const saveLearningLessonCompletionWithAchievements = async (
       savedCompletion.languageCode,
       LEARNING_ACTIVITY_TYPE,
     );
-    const newlyEarnedAchievements = await checkAndGrantLearningHubAchievements({
+    return await checkAndGrantLearningHubAchievements({
       childId: savedCompletion.childId,
       languageCode: savedCompletion.languageCode,
       completion: savedCompletion,
       completedLessonIds: summary.completedLessonIds,
     });
-
-    return {
-      completion: savedCompletion,
-      newlyEarnedAchievements,
-    };
   } catch (error) {
     console.warn("Could not award Learning Hub achievements:", error);
-    return {
-      completion: savedCompletion,
-      newlyEarnedAchievements: [],
-    };
+    return [];
   }
+};
+
+export const saveLearningLessonCompletionWithAchievements = async (
+  completion: LearningLessonCompletion,
+): Promise<LearningLessonCompletionWithAchievements> => {
+  const savedCompletion = await saveLearningLessonCompletion(completion);
+  const newlyEarnedAchievements =
+    await awardLearningLessonCompletionAchievements(savedCompletion);
+
+  return {
+    completion: savedCompletion,
+    newlyEarnedAchievements,
+  };
 };
 
 export const getLearningLessonCompletion = async (

@@ -26,6 +26,7 @@ import {
   updateActivityProgress,
 } from "@/lib/progressRepository";
 import { audioManager } from "@/lib/audioManager";
+import { completeLocallyFirst } from "@/lib/completionReliability";
 import { saveActivity } from "@/lib/utils";
 import type { LocalStory } from "@/content/types";
 
@@ -336,11 +337,14 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
 
   useEffect(() => {
     if (story) {
-      void preloadStoryImages(story);
+      void preloadStoryImages(story).catch((error) => {
+        console.warn("Could not preload story images:", error);
+      });
     }
   }, [story]);
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
       clearSpeechFallbackTimer();
@@ -410,7 +414,12 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
       setRestoredProgressKey(progressScopeKey);
     };
 
-    restoreStoryProgress();
+    void restoreStoryProgress().catch((error) => {
+      console.warn("Could not restore story progress:", error);
+      if (isMounted && isMountedRef.current) {
+        setRestoredProgressKey(progressScopeKey);
+      }
+    });
 
     return () => {
       isMounted = false;
@@ -437,6 +446,8 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
         currentPageIndex: pageIndex,
         lastReadAt: new Date().toISOString(),
       },
+    }).catch((error) => {
+      console.warn("Could not persist story reading progress:", error);
     });
   }, [
     activeChild,
@@ -458,6 +469,10 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
 
   const saveCompletion = async (): Promise<boolean> => {
     if (hasSavedCompletion || hasCompletedStory) {
+      if (isMountedRef.current) {
+        stopReading();
+        setShowCompletionCard(true);
+      }
       return true;
     }
 
@@ -478,60 +493,82 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
         ? Math.round((quizScore / totalQuestions) * 100)
         : undefined;
 
+    const childId = activeChild.id;
+    const activity = {
+      child_id: childId,
+      activity_type: "stories" as const,
+      activity_name: `Read "${story.title}"`,
+      score:
+        totalQuestions > 0 && quizScore !== undefined
+          ? `${quizScore}/${totalQuestions}`
+          : undefined,
+      duration,
+      completed_at: completedAt,
+      details: `Completed story "${story.title}"`,
+      language_code: languageCode,
+    };
+
     try {
-      await saveActivity({
-        child_id: activeChild.id,
-        activity_type: "stories",
-        activity_name: `Read "${story.title}"`,
-        score: totalQuestions > 0 && quizScore !== undefined ? `${quizScore}/${totalQuestions}` : undefined,
-        duration,
-        completed_at: completedAt,
-        details: `Completed story "${story.title}"`,
-        language_code: languageCode,
-      });
-
-      await updateActivityProgress(activeChild.id, languageCode, "stories", {
-        status: "completed",
-        score: percentage,
-        last_stage_id: story.id,
-        completed_stage_count: 1,
-        progress_payload: {
-          storyId: story.id,
-          storyTitle: story.title,
-          totalPages: story.pages.length,
-          quizScore,
-          quizTotal: totalQuestions,
-          quizCompletedAt: hasQuiz ? completedAt : undefined,
-          durationSeconds: duration,
-          completedAt,
+      await completeLocallyFirst({
+        persistLocal: async () => {
+          await updateActivityProgress(childId, languageCode, "stories", {
+            status: "completed",
+            score: percentage,
+            last_stage_id: story.id,
+            completed_stage_count: 1,
+            progress_payload: {
+              storyId: story.id,
+              storyTitle: story.title,
+              totalPages: story.pages.length,
+              quizScore,
+              quizTotal: totalQuestions,
+              quizCompletedAt: hasQuiz ? completedAt : undefined,
+              durationSeconds: duration,
+              completedAt,
+            },
+          });
+          await markStageCompleted(childId, languageCode, "stories", story.id, {
+            score: percentage,
+            progress_payload: {
+              storyTitle: story.title,
+              totalPages: story.pages.length,
+              quizScore,
+              quizTotal: totalQuestions,
+              quizCompletedAt: hasQuiz ? completedAt : undefined,
+            },
+          });
+        },
+        fallbackValue: undefined,
+        revealCompletion: () => {
+          if (!isMountedRef.current) return;
+          setHasCompletedStory(true);
+          setHasSavedCompletion(true);
+          stopReading();
+          setShowCompletionCard(true);
+        },
+        runBestEffortNetworkWork: async () => {
+          await Promise.all([
+            saveActivity(activity),
+            syncProgressNow(childId),
+          ]);
+        },
+        onLocalError: (error) => {
+          console.warn("Could not persist story completion locally:", error);
+        },
+        onNetworkError: (error) => {
+          console.warn("Could not finish background story completion work:", error);
         },
       });
-      await markStageCompleted(activeChild.id, languageCode, "stories", story.id, {
-        score: percentage,
-        progress_payload: {
-          storyTitle: story.title,
-          totalPages: story.pages.length,
-          quizScore,
-          quizTotal: totalQuestions,
-          quizCompletedAt: hasQuiz ? completedAt : undefined,
-        },
-      });
-      void syncProgressNow(activeChild.id);
-
-      setHasCompletedStory(true);
-      setHasSavedCompletion(true);
       return true;
     } finally {
       isSavingCompletionRef.current = false;
     }
   };
 
-  const finishStory = async () => {
-    const didComplete = await saveCompletion();
-    if (didComplete && isMountedRef.current) {
-      stopReading();
-      setShowCompletionCard(true);
-    }
+  const finishStory = () => {
+    void saveCompletion().catch((error) => {
+      console.warn("Could not process story completion:", error);
+    });
   };
 
   const readAgain = () => {

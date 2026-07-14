@@ -219,14 +219,16 @@ Learning Hub lesson completion is local-first:
 - `lib/learningProgressRepository.ts`
 - `lib/progressRepository.ts`
 
-The Learning-specific local summary remains the source for immediate Review / Completed UI in the stage path. After that local save succeeds, the repository records the completion through the existing app progress pattern used by games and stories:
+The Learning-specific local summary remains the source for immediate Review / Completed UI in the stage path. The lesson screen keeps its completion UI non-blocking while it attempts that authoritative summary. A failed local write is logged through the existing internal path and is not described as durably persisted. When the summary save succeeds, the repository queues the shared dirty progress snapshot before starting any live Supabase work:
 
-- `saveActivity(...)` writes an append-only `activities` feed entry for each completed lesson.
-- If the current completion finishes all startable lessons in that Learning area, `saveActivity(...)` also writes one stage-complete feed entry.
 - `updateActivityProgress(...)` queues a `child_activity_progress` aggregate for `activity_type = "language"`.
 - `markLevelCompleted(...)` queues a `child_stage_progress` lesson row with the Learning area in `stage_id` and lesson ID in `level_id`.
 - If all startable lessons in that Learning area are complete, `markStageCompleted(...)` also queues a stage-level `child_stage_progress` row for the same `stage_id` with an empty `level_id`.
-- `syncProgressNow(childId)` attempts an immediate Supabase sync when a session is available.
+- `syncProgressNow(childId)` is then started as a detached best-effort Supabase sync when a session is available.
+- `saveActivity(...)` is started afterward as a detached best-effort feed write for each completed lesson and, when applicable, the completed stage.
+- Achievement evaluation is also detached after authoritative local persistence; newly awarded notices still use the existing notice queue.
+
+If the authoritative local summary save rejects, the accepted MVP behavior is to leave the completion screen usable and report the failure internally. Feed and achievement work that requires the saved completion does not start on that path. This does not create a retry queue or guarantee that every completion-looking screen has durable local state.
 
 Each `LearningLessonCompletion` maps cleanly to a `child_stage_progress` row:
 
@@ -240,7 +242,7 @@ Each `LearningLessonCompletion` maps cleanly to a `child_stage_progress` row:
 
 `progressPayload` stores `source: "learning_hub"`, the lesson ID again for clarity, stage/lesson titles, mechanic types, summarized item-level `ItemResult[]`, total item count, correct item count, completion time, and the local content version when available.
 
-`LearningProgressSummary` is shaped like a `child_activity_progress` aggregate for `activity_type = "language"`: status, attempts, last stage ID, completed stage count, completed lesson IDs, and a local lookup by lesson ID. In this pass, `completedStageCount` counts completed lesson rows because lesson completion is represented with `stageId` plus `levelId`.
+`LearningProgressSummary` is shaped like a `child_activity_progress` aggregate for `activity_type = "language"`: status, attempts, last stage ID, completed stage count, completed lesson IDs, and a local lookup by lesson ID. `completedStageCount` counts fully completed stages, where every currently startable lesson in the stage is complete. Curriculum status becomes `completed` only when every currently startable lesson in every currently startable stage is complete. Locked Practice Mix and non-startable content do not contribute to the totals. Historic completion IDs remain stored but unknown IDs do not affect current aggregate status or stage counts.
 
 The storage key includes child ID and DB language code so children and languages do not share progress. The Learning screens normalize legacy labels such as `luganda` to DB-style codes such as `lg` before reading or writing progress. If an active child ID is unexpectedly unavailable, the local-only fallback ID is `local-demo-child`; that value is not synced as a real DB UUID.
 
@@ -272,9 +274,9 @@ The first Learning Hub badges are built into the achievement manager with stable
 - Quiz Helper: complete a Learning Hub lesson containing `mini_quiz`.
 - Story Listener: complete a Learning Hub lesson containing `story_bite`.
 
-Achievements are checked only after the whole-lesson completion save path runs. The lesson screen calls `saveLearningLessonCompletionWithAchievements(...)`, which first saves the local Learning completion through the existing `saveLearningLessonCompletion(...)` flow, then passes the saved completion and updated completed-lesson summary to `checkAndGrantLearningHubAchievements(...)`. Individual taps, answer attempts, quiz questions, story pages, and audio replays do not award achievements.
+Achievements are checked only after the whole-lesson completion save path runs. The lesson screen awaits `saveLearningLessonCompletion(...)` for authoritative local and shared dirty progress, then starts `awardLearningLessonCompletionAchievements(...)` without awaiting it. The award helper passes the saved completion and updated completed-lesson summary to `checkAndGrantLearningHubAchievements(...)`; failures return no new notices and cannot hide completion. Individual taps, answer attempts, quiz questions, story pages, and audio replays do not award achievements.
 
-The stage-complete condition derives the currently startable lessons from `content/learningHubRepository.ts` through `getStartableLessonsForStage(...)`. The completion payload's `stageLessonIds` is only a fallback. This keeps the achievement condition aligned with the same repository/validator logic used by the Learning Hub UI and avoids hand-duplicating lesson arrays in achievement code.
+The stage-complete condition derives the currently startable lessons from `content/learningHubRepository.ts` rather than trusting the completion payload's `stageLessonIds`. This keeps stage aggregates aligned with the same repository/validator logic used by the Learning Hub UI and avoids hand-duplicating lesson arrays in progress code.
 
 Stable IDs matter:
 

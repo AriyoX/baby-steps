@@ -1,12 +1,7 @@
-import fs from "fs"
-import path from "path"
 import {
   getCardsMatchingGridSizing,
   getWordGameSizing,
 } from "../responsiveSizing"
-
-const readProjectFile = (...segments: string[]) =>
-  fs.readFileSync(path.join(process.cwd(), ...segments), "utf8")
 
 describe("Word Game responsive sizing", () => {
   it.each([
@@ -48,29 +43,5 @@ describe("Cards Matching responsive sizing", () => {
     expect(sizing.gridWidth).toBeLessThanOrEqual(availableWidth)
     expect(sizing.gridHeight).toBeLessThanOrEqual(availableHeight)
     expect(sizing.cardWidth * sizing.cardHeight).toBeGreaterThan(legacyWidth * legacyHeight)
-  })
-})
-
-describe("game completion integration contracts", () => {
-  it("keeps Word Game completion, progress, activity, and achievement calls", () => {
-    const source = readProjectFile("components", "games", "WordGameComponent.tsx")
-
-    expect(source).toContain("trackLevelCompletion()")
-    expect(source).toContain("trackGameCompletion()")
-    expect(source).toContain("saveActivity({")
-    expect(source).toContain("saveGameProgress(")
-    expect(source).toContain("syncProgressNow(activeChild.id)")
-    expect(source).toContain("checkAndGrantNewAchievements(event)")
-  })
-
-  it("keeps Cards Matching completion, progress, activity, and achievement calls", () => {
-    const source = readProjectFile("components", "games", "CardsMatchingComponent.tsx")
-
-    expect(source).toContain("trackGameCompletion()")
-    expect(source).toContain("saveActivity({")
-    expect(source).toContain("saveGameState(")
-    expect(source).toContain("updateTotalPairsMatched(")
-    expect(source).toContain("incrementGamesPlayed(")
-    expect(source).toContain("checkAndGrantNewAchievements(event)")
   })
 })

@@ -6,12 +6,10 @@ import {
   Dimensions,
   Animated,
   Alert,
-  ImageSourcePropType,
-} from "react-native";
-import {
   PanResponder,
-  GestureResponderEvent,
-  PanResponderGestureState,
+  type GestureResponderEvent,
+  type ImageSourcePropType,
+  type PanResponderGestureState,
 } from "react-native";
 import type { Audio } from "expo-av";
 import { StatusBar } from "expo-status-bar";
@@ -29,6 +27,11 @@ import {
     savePuzzleProgress 
 } from "./utils/progressManagerPuzzleGame"; // Import new progress manager
 import { audioManager } from "@/lib/audioManager";
+import {
+  completeLocallyFirst,
+  type LocalFirstCompletionResult,
+  type LocalPersistenceStatus,
+} from "@/lib/completionReliability";
 
 // Get dimensions for landscape mode
 const { width, height } = Dimensions.get("window");
@@ -137,6 +140,63 @@ const isPuzzleSolvable = (puzzle: (number | null)[][]): boolean => {
   }
 };
 
+export interface PuzzleCompletionOptions {
+  progress: PuzzleGameProgress;
+  persistProgress: () => Promise<void>;
+  revealCompletion: (
+    progress: PuzzleGameProgress,
+    persistence: LocalPersistenceStatus,
+  ) => void;
+  saveCompletionActivity: (
+    progress: PuzzleGameProgress,
+    persistence: LocalPersistenceStatus,
+  ) => Promise<unknown>;
+  evaluateAchievements: (
+    progress: PuzzleGameProgress,
+    persistence: LocalPersistenceStatus,
+  ) => Promise<void>;
+  onLocalError?: (error: unknown) => void;
+  onNetworkError?: (error: unknown) => void;
+}
+
+export const completePuzzleLocallyFirst = async ({
+  progress,
+  persistProgress,
+  revealCompletion,
+  saveCompletionActivity,
+  evaluateAchievements,
+  onLocalError,
+  onNetworkError,
+}: PuzzleCompletionOptions): Promise<LocalFirstCompletionResult<PuzzleGameProgress>> =>
+  completeLocallyFirst({
+    persistLocal: async () => {
+      await persistProgress();
+      return progress;
+    },
+    fallbackValue: progress,
+    revealCompletion,
+    runBestEffortNetworkWork: async (saved, persistence) => {
+      await Promise.all([
+        saveCompletionActivity(saved, persistence),
+        evaluateAchievements(saved, persistence),
+      ]);
+    },
+    onLocalError,
+    onNetworkError,
+  });
+
+export const runPuzzleAnimationCompletion = (
+  finished: boolean,
+  isMounted: () => boolean,
+  commitAnimatedMove: () => void,
+  checkCompletion: () => Promise<void>,
+  onError: (error: unknown) => void,
+): void => {
+  if (!finished || !isMounted()) return;
+  commitAnimatedMove();
+  void checkCompletion().catch(onError);
+};
+
 const BugandaPuzzleGame: React.FC = () => {
   const router = useRouter();
   const { activeChild } = useChild(); // Get active child from context
@@ -148,6 +208,22 @@ const BugandaPuzzleGame: React.FC = () => {
 
   const [puzzleProgress, setPuzzleProgress] = useState<PuzzleGameProgress>(DEFAULT_PUZZLE_PROGRESS);
   const gameStartTime = useRef(Date.now()); // Track when game started
+  const isCompletingRef = useRef(false);
+  const isMountedRef = useRef(true);
+  const pendingTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+
+  const clearPendingTimers = () => {
+    pendingTimersRef.current.forEach((timer) => clearTimeout(timer));
+    pendingTimersRef.current.clear();
+  };
+
+  const scheduleTimer = (callback: () => void, delayMs: number) => {
+    const timer = setTimeout(() => {
+      pendingTimersRef.current.delete(timer);
+      callback();
+    }, delayMs);
+    pendingTimersRef.current.add(timer);
+  };
 
   const puzzleImages: PuzzleImage[] = [
     {
@@ -195,9 +271,21 @@ const BugandaPuzzleGame: React.FC = () => {
   const successAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      clearPendingTimers();
+      previewAnim.stopAnimation();
+      successAnim.stopAnimation();
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
     const initPuzzleProgress = async () => {
       if (activeChild) {
         const loadedProg = await loadPuzzleProgress(activeChild.id);
+        if (cancelled || !isMountedRef.current) return;
         setPuzzleProgress(loadedProg);
 
         // Check for "First Play" achievement if this is the very first time
@@ -205,53 +293,82 @@ const BugandaPuzzleGame: React.FC = () => {
         // One way is if totalGamesPlayed was 0 and now it's being incremented.
         // Or, if we move totalGamesPlayed increment to initializePuzzle and check there.
       } else {
+        if (cancelled || !isMountedRef.current) return;
         setPuzzleProgress({ ...DEFAULT_PUZZLE_PROGRESS, childId: 'default' });
       }
     };
-    initPuzzleProgress();
+    void initPuzzleProgress().catch((error) => {
+      console.warn("Could not initialize Puzzle progress:", error);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [activeChild]);
 
   useEffect(() => {
     const loadedSounds: Audio.Sound[] = [];
+    let cancelled = false;
 
     const loadSounds = async () => {
       try {
         const tileMoveSound = await audioManager.createAppSound(require("../../assets/audio/page-turn.mp3"));
         const successSound = await audioManager.createAppSound(require("../../assets/audio/complete.mp3"));
 
-        if (tileMoveSound) {
-          loadedSounds.push(tileMoveSound);
+        const createdSounds = [tileMoveSound, successSound].filter(
+          (sound): sound is Audio.Sound => Boolean(sound),
+        );
+        if (cancelled) {
+          createdSounds.forEach((sound) => {
+            void audioManager.unloadAppSound(sound).catch((error) => {
+              console.warn("Could not unload a late Puzzle sound:", error);
+            });
+          });
+          return;
         }
-        if (successSound) {
-          loadedSounds.push(successSound);
-        }
+        loadedSounds.push(...createdSounds);
 
-        setSoundEffects({ tileMove: tileMoveSound, success: successSound });
+        if (isMountedRef.current) {
+          setSoundEffects({ tileMove: tileMoveSound, success: successSound });
+        }
       } catch (error) {
         console.error("Failed to load sounds", error);
       }
     };
-    loadSounds();
+    void loadSounds().catch((error) => {
+      console.warn("Could not initialize Puzzle sounds:", error);
+    });
     return () => {
+      cancelled = true;
       loadedSounds.forEach((loadedSound) => {
-        void audioManager.unloadAppSound(loadedSound);
+        void audioManager.unloadAppSound(loadedSound).catch((error) => {
+          console.warn("Could not unload a Puzzle sound:", error);
+        });
       });
     };
   }, []);
 
   useEffect(() => {
-    if (showPreview) {
-      setTimeout(() => {
+    if (!showPreview) return;
+
+    scheduleTimer(() => {
+      if (!isMountedRef.current) return;
         Animated.timing(previewAnim, {
           toValue: 0,
           duration: 500,
           useNativeDriver: true,
         }).start(() => {
+          if (!isMountedRef.current) return;
           setShowPreview(false);
-          initializePuzzle();
+          void initializePuzzle().catch((error) => {
+            console.warn("Could not initialize the Puzzle board:", error);
+          });
         });
-      }, 3000);
-    }
+    }, 3000);
+
+    return () => {
+      clearPendingTimers();
+      previewAnim.stopAnimation();
+    };
   }, [showPreview, currentPuzzle]); // Added currentPuzzle to re-init on puzzle change
 
   useEffect(() => {
@@ -377,6 +494,7 @@ const BugandaPuzzleGame: React.FC = () => {
     setGameStarted(true);
     setMoves(0);
     setIsComplete(false);
+    isCompletingRef.current = false;
     successAnim.setValue(0); // Reset success animation
 
      // Increment games played and save progress
@@ -398,6 +516,7 @@ const BugandaPuzzleGame: React.FC = () => {
                 puzzleGameProgress: newProgress,
             };
             const newlyEarned = await checkAndGrantNewAchievements(eventFirstPlay);
+            if (!isMountedRef.current) return;
             if (newlyEarned.length > 0) {
                 newlyEarned.forEach(ach => {
                     console.log(`PUZZLE GAME - FIRST PLAY - NEW ACHIEVEMENT: ${ach.name}`);
@@ -411,7 +530,7 @@ const BugandaPuzzleGame: React.FC = () => {
   };
   
   const moveTile = (tileId: number): void => {
-    if (isComplete || !grid.length) return;
+    if (isComplete || isCompletingRef.current || !grid.length) return;
 
     let tilePos: Position | null = null;
     for (let r = 0; r < GRID_SIZE; r++) {
@@ -436,7 +555,9 @@ const BugandaPuzzleGame: React.FC = () => {
     const isAdjacent = Math.abs(tr - er) + Math.abs(tc - ec) === 1;
 
     if (isAdjacent) {
-      void audioManager.replayAppSound(soundEffects.tileMove);
+      void audioManager.replayAppSound(soundEffects.tileMove).catch((error) => {
+        console.warn("Could not play the Puzzle move sound:", error);
+      });
 
       const newLeft = ec * (TILE_SIZE + TILE_MARGIN * 2) + PUZZLE_PADDING;
       const newTop = er * (TILE_SIZE + TILE_MARGIN * 2) + PUZZLE_PADDING;
@@ -457,33 +578,22 @@ const BugandaPuzzleGame: React.FC = () => {
           useNativeDriver: false,
         }),
       ]).start(({ finished }) => {
-        if (finished) {
-          setGrid(newGrid); // Update grid state after animation
-          setEmptySlotPosition({ row: tr, col: tc }); // Update empty slot to tile's old position
-          checkPuzzleCompletion(newGrid); // Pass the new grid for completion check
-        }
+        runPuzzleAnimationCompletion(
+          finished,
+          () => isMountedRef.current,
+          () => {
+            setGrid(newGrid); // Update grid state after animation
+            setEmptySlotPosition({ row: tr, col: tc }); // Update empty slot to tile's old position
+          },
+          () => checkPuzzleCompletion(newGrid),
+          (error) => {
+            console.warn("Could not process Puzzle completion:", error);
+            isCompletingRef.current = false;
+          },
+        );
       });
       setMoves(m => m + 1);
     }
-  };
-
-  const trackActivity = async (isCompleted: boolean = true) => {
-    if (!activeChild) return;
-
-    // Calculate duration in seconds
-    const duration = Math.round((Date.now() - gameStartTime.current) / 1000);
-
-    // Save activity to Supabase
-    await saveActivity({
-      child_id: activeChild.id,
-      activity_type: "puzzle",
-      activity_name: `${puzzleImages[currentPuzzle].name} Puzzle`,
-      score: isCompleted ? "100%" : `${Math.round((moves > 0 ? 100 / moves : 100))}%`,
-      duration,
-      completed_at: new Date().toISOString(),
-      details: `${isCompleted ? 'Completed' : 'Attempted'} the ${puzzleImages[currentPuzzle].name} puzzle in ${moves} moves`,
-      level: currentPuzzle + 1,
-    });
   };
 
   const checkPuzzleCompletion = async (currentGridToCheck: (number | null)[][]): Promise<void> => {
@@ -507,105 +617,136 @@ const BugandaPuzzleGame: React.FC = () => {
       if (!completed) break;
     }
 
-    if (completed) {
-      setIsComplete(true);
-      void audioManager.replayAppSound(soundEffects.success);
-      
-      // Track the completed activity
-      trackActivity(true);
+    if (completed && !isCompletingRef.current) {
+      isCompletingRef.current = true;
+      const completedPuzzle = puzzleImages[currentPuzzle];
+      const currentPuzzleId = completedPuzzle.id;
+      const completedMoves = moves + 1; // setMoves is asynchronous
+      const durationSeconds = Math.round((Date.now() - gameStartTime.current) / 1000);
 
-      let finalPuzzleProgress = puzzleProgress;
+      const revealPuzzleCompletion = (savedProgress: PuzzleGameProgress) => {
+        if (!isMountedRef.current) return;
+        setPuzzleProgress(savedProgress);
+        setIsComplete(true);
+        void audioManager.replayAppSound(soundEffects.success).catch((error) => {
+          console.warn("Could not play the Puzzle completion sound:", error);
+        });
 
-      if (activeChild) {
-          // Update PuzzleGameProgress: add current puzzleId to completedPuzzleIds
-          const currentPuzzleId = puzzleImages[currentPuzzle].id;
-          let updatedCompletedIds = [...puzzleProgress.completedPuzzleIds];
-          if (!updatedCompletedIds.includes(currentPuzzleId)) {
-              updatedCompletedIds.push(currentPuzzleId);
-          }
-          const newProgress: PuzzleGameProgress = {
-              ...puzzleProgress,
-              completedPuzzleIds: updatedCompletedIds,
-              childId: activeChild.id, // Ensure childId
-          };
-          setPuzzleProgress(newProgress); // Update local state
-          await savePuzzleProgress(newProgress, activeChild.id);
-          finalPuzzleProgress = newProgress; // Use this for achievement check
+        Animated.spring(successAnim, {
+          toValue: 1,
+          friction: 5,
+          tension: 40,
+          useNativeDriver: true,
+        }).start();
 
-          // --- ACHIEVEMENT CHECKING (ON PUZZLE COMPLETE) ---
-          const durationSeconds = Math.round((Date.now() - gameStartTime.current) / 1000);
-          const eventComplete: Parameters<typeof checkAndGrantNewAchievements>[0] = {
-              type: 'puzzle_game_completed_successfully',
-              gameKey: 'puzzle_game',
-              puzzleId: currentPuzzleId,
-              movesTaken: moves + 1, // +1 because setMoves is async
-              durationInSeconds: durationSeconds,
-              puzzleGameProgress: finalPuzzleProgress, // Pass the latest progress
-              totalUniquePuzzlesAvailable: puzzleImages.length,
-          };
+        scheduleTimer(() => {
+          if (!isMountedRef.current) return;
+          Alert.alert(
+            "Congratulations!",
+            `You completed the ${completedPuzzle.name} puzzle in ${completedMoves} moves!`,
+            [
+              {
+                text: "Next Puzzle",
+                onPress: () => {
+                  if (!isMountedRef.current) return;
+                  clearPendingTimers();
+                  gameStartTime.current = Date.now();
 
-          const newlyEarned = await checkAndGrantNewAchievements(eventComplete);
-          if (newlyEarned.length > 0) {
-              // No game-specific score to update with achievement points for this puzzle game.
-              // Points contribute to global child score if such a system exists.
-              newlyEarned.forEach(ach => {
-                  console.log(`PUZZLE GAME - COMPLETE - NEW ACHIEVEMENT: ${ach.name}`);
-                  enqueueAchievementUnlocked(ach);
-              });
-          }
-          // --- END ACHIEVEMENT CHECKING ---
-      }
-      
-      Animated.spring(successAnim, {
-        toValue: 1,
-        friction: 5,
-        tension: 40,
-        useNativeDriver: true,
-      }).start();
+                  let randomPuzzleIndex;
+                  do {
+                    randomPuzzleIndex = Math.floor(Math.random() * puzzleImages.length);
+                  } while (randomPuzzleIndex === currentPuzzle && puzzleImages.length > 1);
 
-      setTimeout(() => {
-        Alert.alert(
-          "Congratulations!",
-          `You completed the ${puzzleImages[currentPuzzle].name} puzzle in ${moves + 1} moves!`, // moves+1 because setMoves is async
-          [
-            {
-              text: "Next Puzzle",
-              onPress: () => {
-                // Reset gameStartTime for the next puzzle
-                gameStartTime.current = Date.now();
-                
-                // Select a random puzzle that's different from the current one
-                let randomPuzzleIndex;
-                do {
-                  randomPuzzleIndex = Math.floor(Math.random() * puzzleImages.length);
-                } while (randomPuzzleIndex === currentPuzzle && puzzleImages.length > 1);
-                
-                setCurrentPuzzle(randomPuzzleIndex);
-                setShowPreview(true);
-                previewAnim.setValue(1);
+                  setCurrentPuzzle(randomPuzzleIndex);
+                  setShowPreview(true);
+                  previewAnim.setValue(1);
+                },
               },
-            },
-          ]
-        );
-      }, 1000);
+            ]
+          );
+        }, 1000);
+      };
+
+      if (!activeChild) {
+        revealPuzzleCompletion(puzzleProgress);
+        return;
+      }
+
+      const childId = activeChild.id;
+      const updatedCompletedIds = [...puzzleProgress.completedPuzzleIds];
+      if (!updatedCompletedIds.includes(currentPuzzleId)) {
+        updatedCompletedIds.push(currentPuzzleId);
+      }
+      const newProgress: PuzzleGameProgress = {
+        ...puzzleProgress,
+        completedPuzzleIds: updatedCompletedIds,
+        childId,
+      };
+      const activity = {
+        child_id: childId,
+        activity_type: "puzzle" as const,
+        activity_name: `${completedPuzzle.name} Puzzle`,
+        score: "100%",
+        duration: durationSeconds,
+        completed_at: new Date().toISOString(),
+        details: `Completed the ${completedPuzzle.name} puzzle in ${completedMoves} moves`,
+        level: currentPuzzle + 1,
+      };
+
+      await completePuzzleLocallyFirst({
+        progress: newProgress,
+        persistProgress: () => savePuzzleProgress(newProgress, childId),
+        revealCompletion: revealPuzzleCompletion,
+        saveCompletionActivity: () => saveActivity(activity),
+        evaluateAchievements: async (savedProgress) => {
+          const eventComplete: Parameters<typeof checkAndGrantNewAchievements>[0] = {
+            type: 'puzzle_game_completed_successfully',
+            gameKey: 'puzzle_game',
+            puzzleId: currentPuzzleId,
+            movesTaken: completedMoves,
+            durationInSeconds: durationSeconds,
+            puzzleGameProgress: savedProgress,
+            totalUniquePuzzlesAvailable: puzzleImages.length,
+          };
+          const newlyEarned = await checkAndGrantNewAchievements(eventComplete);
+          if (!isMountedRef.current) return;
+          newlyEarned.forEach(ach => {
+            console.log(`PUZZLE GAME - COMPLETE - NEW ACHIEVEMENT: ${ach.name}`);
+            enqueueAchievementUnlocked(ach);
+          });
+        },
+        onLocalError: (error) => {
+          console.warn("Could not persist Puzzle completion locally:", error);
+        },
+        onNetworkError: (error) => {
+          console.warn("Could not finish background Puzzle completion work:", error);
+        },
+      });
     }
   };
 
   const handleReset = () => {
     // Reset gameStartTime
+    clearPendingTimers();
     gameStartTime.current = Date.now();
-    initializePuzzle();
+    void initializePuzzle().catch((error) => {
+      console.warn("Could not reset the Puzzle board:", error);
+    });
   };
 
   const createTilePanResponder = (tileId: number, tileRow: number, tileCol: number) => {
     return PanResponder.create({
-      onStartShouldSetPanResponder: () => !isComplete,
+      onStartShouldSetPanResponder: () => !isComplete && !isCompletingRef.current,
       onMoveShouldSetPanResponder: (
         _: GestureResponderEvent,
         gestureState: PanResponderGestureState
       ) => {
         const { dx, dy } = gestureState;
-        return !isComplete && (Math.abs(dx) > 10 || Math.abs(dy) > 10);
+        return (
+          !isComplete &&
+          !isCompletingRef.current &&
+          (Math.abs(dx) > 10 || Math.abs(dy) > 10)
+        );
       },
       onPanResponderRelease: (
         _: GestureResponderEvent,

@@ -7,10 +7,36 @@ import { useRouter } from "expo-router";
 import { SettingsRow } from "@/components/settings/SettingsRow";
 import { SettingsScaffold } from "@/components/settings/SettingsScaffold";
 import { Text } from "@/components/StyledText";
+import { useChild } from "@/context/ChildContext";
 import { supabase } from "@/lib/supabase";
+
+interface NormalSignOutOptions {
+  clearActiveChildForSignOut: () => Promise<void>;
+  signOut: () => Promise<{ error: Error | null }>;
+  replace: (path: "/login") => void;
+}
+
+export const signOutNormally = async ({
+  clearActiveChildForSignOut,
+  signOut,
+  replace,
+}: NormalSignOutOptions): Promise<{ error: Error | null }> => {
+  try {
+    await clearActiveChildForSignOut();
+  } catch (error) {
+    console.warn("Could not finish progress synchronization before sign-out:", error);
+  }
+
+  const result = await signOut();
+  if (!result.error) {
+    replace("/login");
+  }
+  return result;
+};
 
 export default function AccountManagementScreen() {
   const router = useRouter();
+  const { clearActiveChildForSignOut } = useChild();
   const [user, setUser] = React.useState<User | null>(null);
   const [loading, setLoading] = React.useState(true);
 
@@ -29,7 +55,12 @@ export default function AccountManagementScreen() {
       setLoading(false);
     };
 
-    void loadUser();
+    void loadUser().catch((error) => {
+      console.warn("Could not load user details:", error);
+      if (isMounted) {
+        setLoading(false);
+      }
+    });
 
     return () => {
       isMounted = false;
@@ -42,14 +73,19 @@ export default function AccountManagementScreen() {
       {
         text: "Sign Out",
         style: "destructive",
-        onPress: async () => {
-          const { error } = await supabase.auth.signOut();
-          if (error) {
+        onPress: () => {
+          void signOutNormally({
+            clearActiveChildForSignOut,
+            signOut: () => supabase.auth.signOut(),
+            replace: (path) => router.replace(path),
+          }).then(({ error }) => {
+            if (error) {
+              Alert.alert("Could not sign out", "Please try again.");
+            }
+          }).catch((error) => {
+            console.warn("Could not complete sign-out:", error);
             Alert.alert("Could not sign out", "Please try again.");
-            return;
-          }
-
-          router.replace("/login");
+          });
         },
       },
     ]);

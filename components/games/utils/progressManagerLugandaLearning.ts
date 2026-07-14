@@ -4,6 +4,7 @@ import type { LearningGameStage } from '@/content/contentRepository';
 import {
   ensureActivityProgressSnapshot,
   getActivityProgress,
+  hydrateActivityProgressOnLocalMiss,
   hydrateProgressFromRemote,
   markStageCompleted,
   updateActivityProgress,
@@ -276,10 +277,31 @@ export const loadGameProgress = async (
         return restored;
       }
 
-      void hydrateProgressFromRemote(childId, languageCode, {
-        activityType: LEARNING_ACTIVITY_TYPE,
-        force: true,
-      });
+      const remoteProgress = await hydrateActivityProgressOnLocalMiss(
+        childId,
+        languageCode,
+        LEARNING_ACTIVITY_TYPE,
+      );
+
+      if (remoteProgress) {
+        const restored = restoreProgressFromSnapshot(
+          remoteProgress.progress_payload,
+          fallbackStages,
+          remoteProgress.score ?? 0,
+        );
+
+        await saveGameProgress(
+          restored.totalScore,
+          restored.completedLevels,
+          restored.stages,
+          restored.userStats,
+          childId,
+          languageCode,
+          { markDirty: false },
+        );
+
+        return restored;
+      }
     }
 
     const completedLevels = completedLevelsData ? JSON.parse(completedLevelsData) : [];
@@ -294,6 +316,8 @@ export const loadGameProgress = async (
     if (hasLocalProgress) {
       void hydrateProgressFromRemote(childId, languageCode, {
         activityType: LEARNING_ACTIVITY_TYPE,
+      }).catch((error) => {
+        console.warn('Could not hydrate legacy Learning progress in the background:', error);
       });
       void persistNormalizedLearningProgress(
         childId,
@@ -303,7 +327,9 @@ export const loadGameProgress = async (
         stages,
         userStats,
         { onlyIfMissing: true },
-      );
+      ).catch((error) => {
+        console.warn('Could not normalize legacy Learning progress in the background:', error);
+      });
     }
 
     return {

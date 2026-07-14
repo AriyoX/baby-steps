@@ -13,7 +13,9 @@ import {
   signOutFromDeletionStatus,
 } from "../../account-reactivation";
 import SettingsScreen from "../settings";
-import AccountManagementScreen from "../settings/account";
+import AccountManagementScreen, {
+  signOutNormally,
+} from "../settings/account";
 import AccountDeleteScreen from "../settings/account-delete";
 import AboutBabyStepsScreen from "../settings/about";
 import ChildProfilesManagementScreen from "../settings/child-profiles";
@@ -24,6 +26,7 @@ const mockRouterBack = jest.fn();
 const mockRouterPush = jest.fn();
 const mockRouterReplace = jest.fn();
 const mockSetActiveChild = jest.fn();
+const mockClearActiveChildForSignOut: jest.Mock<() => Promise<void>> = jest.fn();
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({
@@ -66,6 +69,7 @@ jest.mock("@/lib/accountManagement", () => ({
 
 jest.mock("@/context/ChildContext", () => ({
   useChild: () => ({
+    clearActiveChildForSignOut: mockClearActiveChildForSignOut,
     setActiveChild: mockSetActiveChild,
   }),
 }));
@@ -87,9 +91,7 @@ type MockSessionResult = {
   data: { session: { user: { id: string } } };
 };
 
-type MockSignOutResult = {
-  error: null;
-};
+type MockSignOutResult = { error: Error | null };
 
 type MockUserResult = {
   data: { user: { id: string; email: string } };
@@ -110,6 +112,7 @@ const mockFetchActiveChildProfiles =
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockClearActiveChildForSignOut.mockResolvedValue(undefined);
   mockGetSession.mockResolvedValue({
     data: { session: { user: { id: "parent-1" } } },
   });
@@ -166,6 +169,40 @@ describe("settings management screens", () => {
     expect(text).toContain("parent@example.com");
     expect(text).toContain("Delete account");
     expect(text).toContain("You can come back within 30 days");
+  });
+
+  it("clears child memory before normal Supabase sign-out", async () => {
+    await signOutNormally({
+      clearActiveChildForSignOut: mockClearActiveChildForSignOut,
+      signOut: () => supabase.auth.signOut(),
+      replace: mockRouterReplace,
+    });
+
+    expect(mockClearActiveChildForSignOut).toHaveBeenCalledTimes(1);
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
+    expect(mockClearActiveChildForSignOut.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSignOut.mock.invocationCallOrder[0],
+    );
+    expect(mockRouterReplace).toHaveBeenCalledWith("/login");
+  });
+
+  it("continues normal sign-out when progress synchronization fails", async () => {
+    const warning = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    mockClearActiveChildForSignOut.mockRejectedValueOnce(new Error("offline"));
+
+    try {
+      const result = await signOutNormally({
+        clearActiveChildForSignOut: mockClearActiveChildForSignOut,
+        signOut: () => supabase.auth.signOut(),
+        replace: mockRouterReplace,
+      });
+
+      expect(result.error).toBeNull();
+      expect(mockSignOut).toHaveBeenCalledTimes(1);
+      expect(mockRouterReplace).toHaveBeenCalledWith("/login");
+    } finally {
+      warning.mockRestore();
+    }
   });
 
   it("renders Delete Account copy as a scheduled 30-day request", async () => {

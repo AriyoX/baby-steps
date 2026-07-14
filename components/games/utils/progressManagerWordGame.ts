@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ensureActivityProgressSnapshot,
   getActivityProgress,
+  hydrateActivityProgressOnLocalMiss,
   hydrateProgressFromRemote,
   markStageCompleted,
   updateActivityProgress,
@@ -212,9 +213,13 @@ export const loadGameProgress = async (
         languageCode,
         levelCount,
         { onlyIfMissing: true }
-      );
+      ).catch((error) => {
+        console.warn('Could not normalize word-game progress in the background:', error);
+      });
       void hydrateProgressFromRemote(childId, languageCode, {
         activityType: WORD_ACTIVITY_TYPE,
+      }).catch((error) => {
+        console.warn('Could not hydrate word-game progress in the background:', error);
       });
       
       return normalizedProgress;
@@ -242,10 +247,27 @@ export const loadGameProgress = async (
       return restoredProgress;
     }
 
-    void hydrateProgressFromRemote(childId, languageCode, {
-      activityType: WORD_ACTIVITY_TYPE,
-      force: true,
-    });
+    const remoteProgress = await hydrateActivityProgressOnLocalMiss(
+      childId,
+      languageCode,
+      WORD_ACTIVITY_TYPE,
+    );
+
+    if (remoteProgress) {
+      const restoredProgress = ensureUnlockedProgress(
+        {
+          ...createDefaultProgress(childId),
+          ...(remoteProgress.progress_payload as Partial<WordGameProgress>),
+          childId,
+        },
+        levelCount
+      );
+      await saveGameProgress(restoredProgress, childId, languageCode, {
+        markDirty: false,
+        levelCount,
+      });
+      return restoredProgress;
+    }
     
     console.log(`No saved progress found for child ${childId}, creating default`);
     // If no saved progress found, return default progress for this child
@@ -267,7 +289,7 @@ export const saveGameProgress = async (
 ): Promise<void> => {
   if (!childId) {
     console.warn('No child ID provided for saving progress, aborting');
-    return;
+    throw new Error('No child ID provided for saving word-game progress.');
   }
 
   try {
@@ -296,6 +318,7 @@ export const saveGameProgress = async (
     });
   } catch (error) {
     console.error('Failed to save word game progress:', error);
+    throw error;
   }
 };
 

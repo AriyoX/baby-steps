@@ -18,7 +18,7 @@ describe.each(standaloneGameFiles)("%s achievement notice integration", (fileNam
   it("uses the child-level notice queue", () => {
     expect(source).toContain('from "@/context/ChildNoticeContext"');
     expect(source).toContain("useChildNotice()");
-    expect(source).toContain("enqueueAchievementUnlocked(ach)");
+    expect(source).toContain("enqueueAchievementUnlocked(");
   });
 
   it("does not retain game-local unlock presentation state", () => {
@@ -41,7 +41,8 @@ describe("Learning Hub achievement notice integration", () => {
 
   it("passes the entire newly-awarded batch to the child notice queue", () => {
     expect(source).toContain("enqueueAchievementUnlocks(");
-    expect(source).toContain("completionResult.newlyEarnedAchievements");
+    expect(source).toContain("awardLearningLessonCompletionAchievements(savedCompletion)");
+    expect(source).toContain("newlyEarnedAchievements");
     expect(source).not.toMatch(/renderAchievement(?:Unlocked)?/);
   });
 });

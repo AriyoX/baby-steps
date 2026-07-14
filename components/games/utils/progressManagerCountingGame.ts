@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ensureActivityProgressSnapshot,
   getActivityProgress,
+  hydrateActivityProgressOnLocalMiss,
   hydrateProgressFromRemote,
   markStageCompleted,
   markStageStarted,
@@ -244,9 +245,13 @@ export const loadGameProgress = async (
         languageCode,
         availableStageIds,
         { onlyIfMissing: true }
-      );
+      ).catch((error) => {
+        console.warn('Could not normalize counting progress in the background:', error);
+      });
       void hydrateProgressFromRemote(childId, languageCode, {
         activityType: COUNTING_ACTIVITY_TYPE,
+      }).catch((error) => {
+        console.warn('Could not hydrate counting progress in the background:', error);
       });
       
       return normalizedProgress;
@@ -271,10 +276,24 @@ export const loadGameProgress = async (
       return restoredProgress;
     }
 
-    void hydrateProgressFromRemote(childId, languageCode, {
-      activityType: COUNTING_ACTIVITY_TYPE,
-      force: true,
-    });
+    const remoteProgress = await hydrateActivityProgressOnLocalMiss(
+      childId,
+      languageCode,
+      COUNTING_ACTIVITY_TYPE,
+    );
+
+    if (remoteProgress) {
+      const restoredProgress = normalizeProgressForStages(
+        remoteProgress.progress_payload as unknown as CountingGameProgress,
+        childId,
+        availableStageIds
+      );
+      await saveGameProgress(restoredProgress, childId, languageCode, {
+        markDirty: false,
+        availableStageIds,
+      });
+      return restoredProgress;
+    }
     
     // If no saved progress found, return default progress for this child
     return createDefaultProgress(childId, getAvailableStageIds(availableStageIds)[0]);
@@ -295,7 +314,7 @@ export const saveGameProgress = async (
 ): Promise<void> => {
   if (!childId) {
     console.warn('No child ID provided for saving progress, aborting');
-    return;
+    throw new Error('No child ID provided for saving counting progress.');
   }
 
   try {
@@ -321,6 +340,7 @@ export const saveGameProgress = async (
     console.log(`Saved progress for child: ${childId}`);
   } catch (error) {
     console.error('Failed to save counting game progress:', error);
+    throw error;
   }
 };
 

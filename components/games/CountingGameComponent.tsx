@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import {
   View,
   Image,
@@ -34,6 +34,10 @@ import {
 import { preloadContentBundleImages } from "@/content/imagePreloader"
 import { saveActivity } from "@/lib/utils"
 import { syncProgressNow } from "@/lib/progressRepository"
+import {
+  completeLocallyFirst,
+  type LocalFirstCompletionResult,
+} from "@/lib/completionReliability"
 import { Text } from "@/components/StyledText"
 import {
   type CountingGameProgress,
@@ -45,6 +49,7 @@ import {
   isStageUnlocked,
 } from "./utils/progressManagerCountingGame"
 import { useAchievements } from "./achievements/useAchievements" // Adjust path
+import type { AchievementDefinition } from "./achievements/achievementTypes"
 import { audioManager } from "@/lib/audioManager"
 import { useChildNotice } from "@/context/ChildNoticeContext"
 
@@ -54,6 +59,30 @@ const DEFAULT_COUNTING_ITEM: CountingGameItem = {
 }
 
 const GAME_SCREEN_OVERLAY = "rgba(2, 116, 187, 0.88)"
+
+interface CountingCompletionOrderOptions {
+  persistProgress: (progress: CountingGameProgress) => Promise<void>
+  revealCompletion: (progress: CountingGameProgress) => void
+  runBestEffortNetworkWork: (progress: CountingGameProgress) => Promise<void>
+  onLocalError?: (error: unknown) => void
+  onNetworkError?: (error: unknown) => void
+}
+
+const completeCountingProgressLocallyFirst = (
+  completedProgress: CountingGameProgress,
+  options: CountingCompletionOrderOptions,
+): Promise<LocalFirstCompletionResult<CountingGameProgress>> =>
+  completeLocallyFirst({
+    persistLocal: async () => {
+      await options.persistProgress(completedProgress)
+      return completedProgress
+    },
+    fallbackValue: completedProgress,
+    revealCompletion: (progress) => options.revealCompletion(progress),
+    runBestEffortNetworkWork: (progress) => options.runBestEffortNetworkWork(progress),
+    onLocalError: options.onLocalError,
+    onNetworkError: options.onNetworkError,
+  })
 
 const getCountingCanvasHeight = (screenHeight: number): number =>
   Math.min(224, Math.max(180, screenHeight * 0.48))
@@ -118,6 +147,18 @@ const LugandaCountingGame: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true)
   // Progress state
   const [progress, setProgress] = useState<CountingGameProgress>(DEFAULT_PROGRESS)
+  const progressRef = useRef<CountingGameProgress>(DEFAULT_PROGRESS)
+  const progressRevisionRef = useRef(0)
+  const progressOwnerRef = useRef({
+    childId: activeChild?.id,
+    languageCode,
+  })
+  const isMountedRef = useRef(false)
+  const hydrationGenerationRef = useRef(0)
+  const correctAnswerLockRef = useRef(false)
+  const stageCompletionLockRef = useRef(false)
+  const answerAdvanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [fadeAnim] = useState(new Animated.Value(0))
 
   const bounceAnim = useRef(new Animated.Value(1)).current
@@ -127,6 +168,39 @@ const LugandaCountingGame: React.FC = () => {
   const countingStageIds = countingStages.map((stage) => stage.id)
   const countingItems = countingContent?.culturalItems ?? [DEFAULT_COUNTING_ITEM]
   const currencyItems = countingContent?.currency ?? []
+
+  progressOwnerRef.current = {
+    childId: activeChild?.id,
+    languageCode,
+  }
+
+  const updateProgressState = (nextProgress: CountingGameProgress): number => {
+    progressRef.current = nextProgress
+    progressRevisionRef.current += 1
+    setProgress(nextProgress)
+    return progressRevisionRef.current
+  }
+
+  const clearGameTimers = useCallback((): void => {
+    if (answerAdvanceTimeoutRef.current) {
+      clearTimeout(answerAdvanceTimeoutRef.current)
+      answerAdvanceTimeoutRef.current = null
+    }
+    if (feedbackTimeoutRef.current) {
+      clearTimeout(feedbackTimeoutRef.current)
+      feedbackTimeoutRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    isMountedRef.current = true
+
+    return () => {
+      isMountedRef.current = false
+      hydrationGenerationRef.current += 1
+      clearGameTimers()
+    }
+  }, [clearGameTimers])
 
   const {
     definedAchievements,
@@ -181,37 +255,53 @@ const LugandaCountingGame: React.FC = () => {
 
   // Load content and saved progress when the active child or language changes.
   useEffect(() => {
-    let isMounted = true
+    const requestGeneration = ++hydrationGenerationRef.current
+    const requestedChildId = activeChild?.id
+    const requestedLanguageCode = languageCode
+    const isCurrentRequest = (): boolean => {
+      const owner = progressOwnerRef.current
+      return (
+        isMountedRef.current &&
+        hydrationGenerationRef.current === requestGeneration &&
+        owner.childId === requestedChildId &&
+        owner.languageCode === requestedLanguageCode
+      )
+    }
 
     const loadSavedProgress = async () => {
       setIsLoading(true)
 
       try {
-        const contentResult = await loadContentBundle(languageCode)
+        const contentResult = await loadContentBundle(requestedLanguageCode)
         const loadedCountingContent = contentResult.bundle?.countingGame ?? null
         if (contentResult.bundle) {
-          void preloadContentBundleImages(contentResult.bundle)
+          void preloadContentBundleImages(contentResult.bundle).catch((error) => {
+            console.warn("Could not preload Counting Game images:", error)
+          })
         }
 
-        if (!isMounted) return
+        if (!isCurrentRequest()) return
 
         setCountingContent(loadedCountingContent)
         setCurrentItem(loadedCountingContent?.culturalItems[0] ?? DEFAULT_COUNTING_ITEM)
 
-        if (activeChild) {
-          console.log(`Loading progress for child: ${activeChild.id}`)
+        if (requestedChildId) {
+          console.log(`Loading progress for child: ${requestedChildId}`)
           const savedProgress = await loadGameProgress(
-            activeChild.id,
-            languageCode,
+            requestedChildId,
+            requestedLanguageCode,
             loadedCountingContent?.stages.map((stage) => stage.id) ?? [],
           )
-          setProgress(savedProgress)
+
+          if (!isCurrentRequest()) return
+
+          updateProgressState(savedProgress)
 
           if (savedProgress.currentStage) {
             setCurrentStage(savedProgress.currentStage)
           }
         } else {
-          setProgress(DEFAULT_PROGRESS)
+          updateProgressState(DEFAULT_PROGRESS)
         }
 
         Animated.timing(fadeAnim, {
@@ -221,21 +311,30 @@ const LugandaCountingGame: React.FC = () => {
         }).start()
       } catch (error) {
         console.error("Error loading counting game content or progress:", error)
+        if (!isCurrentRequest()) return
+
         setCountingContent(null)
-        setProgress(activeChild ? { ...DEFAULT_PROGRESS, childId: activeChild.id } : DEFAULT_PROGRESS)
+        updateProgressState(requestedChildId ? { ...DEFAULT_PROGRESS, childId: requestedChildId } : DEFAULT_PROGRESS)
       } finally {
-        if (isMounted) {
+        if (isCurrentRequest()) {
           setIsLoading(isLoadingAch)
         }
       }
     }
 
-    loadSavedProgress()
+    void loadSavedProgress().catch((error) => {
+      console.warn("Could not finish Counting Game hydration:", error)
+    })
 
     return () => {
-      isMounted = false
+      if (hydrationGenerationRef.current === requestGeneration) {
+        hydrationGenerationRef.current += 1
+      }
+      clearGameTimers()
+      correctAnswerLockRef.current = false
+      stageCompletionLockRef.current = false
     }
-  }, [isLoadingAch, activeChild, languageCode])
+  }, [isLoadingAch, activeChild?.id, languageCode, clearGameTimers])
 
   useEffect(() => {
     setDimensions({
@@ -244,50 +343,138 @@ const LugandaCountingGame: React.FC = () => {
     })
   }, [landscapeWidth, landscapeHeight])
 
-  // Handle stage completion and update progress
-  const handleStageCompletion = async () => {
-    if (!activeChild) return
+  // Handle stage completion and update progress before best-effort network work.
+  const handleStageCompletion = async (completedStageScore: number) => {
+    if (stageCompletionLockRef.current) return
+    stageCompletionLockRef.current = true
 
-    // Update progress to mark this stage as completed
-    let updatedProgress = updateProgressForStageCompletion(
-      progress,
-      currentStage,
-      score + 10, // Add bonus points for completing the stage
+    if (!activeChild) {
+      stageCompletionLockRef.current = false
+      return
+    }
+
+    const completionChildId = activeChild.id
+    const completionLanguageCode = languageCode
+    const completionStageId = currentStage
+    const progressAtCompletion = progressRef.current
+    const completedProgress = updateProgressForStageCompletion(
+      {
+        ...progressAtCompletion,
+        unlockedStages: [...progressAtCompletion.unlockedStages],
+        completedStages: [...progressAtCompletion.completedStages],
+        lastPlayedLevel: { ...progressAtCompletion.lastPlayedLevel },
+        playHistory: [...progressAtCompletion.playHistory],
+      },
+      completionStageId,
+      completedStageScore,
       countingStageIds,
-      activeChild.id,
+      completionChildId,
     )
+    const achievementEvents: Parameters<typeof checkAndGrantNewAchievements>[0][] = [
+      {
+        type: "score_updated",
+        gameKey: "counting_game",
+        newTotalScore: completedStageScore,
+      },
+      {
+        type: "stage_completed",
+        gameKey: "counting_game",
+        stageId: completionStageId,
+        newTotalScore: completedProgress.totalScore,
+      },
+    ]
+    let completionRevision = 0
 
-    const event = {
-      type: "stage_completed" as const, // Explicitly type as literal type
-      gameKey: "counting_game",
-      stageId: currentStage, // for stage_completed
-      newTotalScore: updatedProgress.totalScore, // for score_updated
-      // ... any other relevant data for counting game achievements
-    }
+    await completeCountingProgressLocallyFirst(completedProgress, {
+      persistProgress: (nextProgress) =>
+        saveGameProgress(nextProgress, completionChildId, completionLanguageCode, {
+          availableStageIds: countingStageIds,
+        }),
+      revealCompletion: (savedProgress) => {
+        const owner = progressOwnerRef.current
+        if (
+          !isMountedRef.current ||
+          owner.childId !== completionChildId ||
+          owner.languageCode !== completionLanguageCode
+        ) {
+          return
+        }
 
-    // Check for achievements related to stage completion
-    const newlyEarnedFromStage = await checkAndGrantNewAchievements(event)
+        completionRevision = updateProgressState(savedProgress)
+        setStageCompleted(true)
+      },
+      runBestEffortNetworkWork: async (savedProgress) => {
+        const achievementWork = async () => {
+          const outcomes = await Promise.allSettled(
+            achievementEvents.map((event) => checkAndGrantNewAchievements(event)),
+          )
+          const newlyAwarded = new Map<string, AchievementDefinition>()
 
-    let achievementPointsEarned = 0
-    if (newlyEarnedFromStage.length > 0) {
-      newlyEarnedFromStage.forEach((ach) => {
-        achievementPointsEarned += ach.points
-        console.log(`NEW ACHIEVEMENT: ${ach.name}`)
-        enqueueAchievementUnlocked(ach)
-      })
+          outcomes.forEach((outcome) => {
+            if (outcome.status === "rejected") {
+              console.warn("Could not evaluate a Counting Game achievement:", outcome.reason)
+              return
+            }
 
-      updatedProgress = {
-        ...updatedProgress,
-        totalScore: updatedProgress.totalScore + achievementPointsEarned,
-      }
-    }
+            outcome.value.forEach((achievement) => {
+              if (!newlyAwarded.has(achievement.id)) {
+                newlyAwarded.set(achievement.id, achievement)
+              }
+            })
+          })
 
-    setProgress(updatedProgress)
-    await saveGameProgress(updatedProgress, activeChild.id, languageCode, {
-      availableStageIds: countingStageIds,
+          const awardedAchievements = [...newlyAwarded.values()]
+          const achievementPoints = awardedAchievements.reduce(
+            (total, achievement) => total + achievement.points,
+            0,
+          )
+          const owner = progressOwnerRef.current
+          if (
+            !isMountedRef.current ||
+            owner.childId !== completionChildId ||
+            owner.languageCode !== completionLanguageCode ||
+            progressRevisionRef.current !== completionRevision ||
+            progressRef.current !== savedProgress
+          ) {
+            return
+          }
+
+          awardedAchievements.forEach((achievement) => enqueueAchievementUnlocked(achievement))
+          if (achievementPoints <= 0) return
+
+          const progressWithAchievementPoints = {
+            ...savedProgress,
+            totalScore: savedProgress.totalScore + achievementPoints,
+          }
+          updateProgressState(progressWithAchievementPoints)
+          await saveGameProgress(
+            progressWithAchievementPoints,
+            completionChildId,
+            completionLanguageCode,
+            { availableStageIds: countingStageIds },
+          )
+        }
+        const outcomes = await Promise.allSettled([
+          trackActivity(true, completedStageScore),
+          achievementWork(),
+          syncProgressNow(completionChildId),
+        ])
+
+        outcomes.forEach((outcome) => {
+          if (outcome.status === "rejected") {
+            console.warn("Could not finish Counting Game best-effort network work:", outcome.reason)
+          }
+        })
+      },
+      onLocalError: (error) => {
+        console.warn("Counting Game completion was not durably saved locally:", error)
+      },
+      onNetworkError: (error) => {
+        console.warn("Could not finish Counting Game best-effort network work:", error)
+      },
     })
-    void syncProgressNow(activeChild.id)
-    console.log(`Stage ${currentStage} completed for child: ${activeChild.id}`)
+
+    console.log(`Stage ${completionStageId} completed for child: ${completionChildId}`)
   }
 
   // When game state changes to playing, initialize the stage
@@ -335,16 +522,20 @@ const LugandaCountingGame: React.FC = () => {
           currentLevel,
           activeChild.id, // Pass the child ID to ensure it's set correctly
         )
-        setProgress(updatedProgress)
-        saveGameProgress(updatedProgress, activeChild.id, languageCode, {
+        updateProgressState(updatedProgress)
+        void saveGameProgress(updatedProgress, activeChild.id, languageCode, {
           availableStageIds: countingStageIds,
+        }).catch((error) => {
+          console.warn("Could not save Counting Game level position:", error)
         })
       }
     }
 
     return () => {
       if (sound) {
-        void audioManager.unloadAppSound(sound)
+        void audioManager.unloadAppSound(sound).catch((error) => {
+          console.warn("Could not unload Counting Game sound:", error)
+        })
       }
     }
   }, [currentLevel, gameLevels, gameState, activeChild, languageCode, dimensions.width, dimensions.height])
@@ -352,6 +543,9 @@ const LugandaCountingGame: React.FC = () => {
   // Initialize a stage with randomized levels
   const initializeStage = (stageId: number): void => {
     try {
+      correctAnswerLockRef.current = false
+      stageCompletionLockRef.current = false
+
       // Get random numbers for this stage
       const randomNumbers = getRandomNumbersForStage(stageId)
 
@@ -398,6 +592,8 @@ const LugandaCountingGame: React.FC = () => {
 
   const setupLevel = (targetNum = 0, stageId = currentStage): void => {
     try {
+      correctAnswerLockRef.current = false
+
       // Choose a random item from cultural items
       const randomItemIndex = Math.floor(Math.random() * countingItems.length)
       const newItem = countingItems[randomItemIndex] ?? DEFAULT_COUNTING_ITEM
@@ -540,7 +736,13 @@ const LugandaCountingGame: React.FC = () => {
 
       try {
         const newSound = await audioManager.playAppSound(require("@/assets/sounds/correct.mp3"))
-        setSound(newSound)
+        if (isMountedRef.current) {
+          setSound(newSound)
+        } else if (newSound) {
+          void audioManager.unloadAppSound(newSound).catch((error) => {
+            console.warn("Could not unload late Counting Game sound:", error)
+          })
+        }
       } catch (audioError) {
         console.error("Error loading sound file:", audioError)
       }
@@ -549,16 +751,16 @@ const LugandaCountingGame: React.FC = () => {
     }
   }
 
-  const trackActivity = async (isStageComplete = false) => {
+  const trackActivity = async (isStageComplete = false, activityScore = score) => {
     if (!activeChild) return
 
     const duration = Math.round((Date.now() - gameStartTime.current) / 1000) // duration in seconds
 
-    await saveActivity({
+    const saved = await saveActivity({
       child_id: activeChild.id,
       activity_type: "counting",
       activity_name: isStageComplete ? `Completed Counting Stage ${currentStage}` : "Practiced Counting",
-      score: score.toString(),
+      score: activityScore.toString(),
       duration,
       completed_at: new Date().toISOString(),
       details: `${
@@ -570,14 +772,24 @@ const LugandaCountingGame: React.FC = () => {
       level: currentLevel,
       language_code: languageCode,
     })
+    if (!saved) {
+      throw new Error("Could not save Counting Game activity.")
+    }
   }
 
-  const handleNumberPress = async (number: number): Promise<void> => {
+  const handleNumberPress = (number: number): void => {
+    const isAnswerCorrect = number === targetNumber
+    if (isAnswerCorrect && correctAnswerLockRef.current) return
+    if (isAnswerCorrect) {
+      correctAnswerLockRef.current = true
+    }
+
     setSelectedCount(number)
-    playNumberSound(number)
+    void playNumberSound(number).catch((error) => {
+      console.warn("Could not play Counting Game number sound:", error)
+    })
 
     // Check if the answer is correct
-    const isAnswerCorrect = number === targetNumber
     setIsCorrect(isAnswerCorrect)
 
     // Show feedback
@@ -604,12 +816,6 @@ const LugandaCountingGame: React.FC = () => {
       const newScore = score + 10 // Calculate new score first
       setScore(newScore)
 
-      // Create a temporary progress object with the new score for checking
-      const tempProgressForAchievementCheck = {
-        ...progress,
-        totalScore: newScore, // Use the new score
-      }
-
       // Rotate animation for correct answer
       Animated.timing(rotateAnim, {
         toValue: 1,
@@ -623,53 +829,101 @@ const LugandaCountingGame: React.FC = () => {
       const scoreEvent = {
         type: "score_updated" as const,
         gameKey: "counting_game",
-        newTotalScore: tempProgressForAchievementCheck.totalScore,
-      }
-
-      const newlyEarnedFromScore = await checkAndGrantNewAchievements(scoreEvent)
-
-      let achievementPointsEarned = 0
-      let progressWithScoreAchievements = progress
-      if (newlyEarnedFromScore.length > 0) {
-        newlyEarnedFromScore.forEach((ach) => {
-          achievementPointsEarned += ach.points
-          console.log(`NEW ACHIEVEMENT (Score): ${ach.name}`)
-          enqueueAchievementUnlocked(ach)
-        })
-        progressWithScoreAchievements = {
-          ...progress,
-          totalScore: progress.totalScore + achievementPointsEarned,
-          childId: activeChild?.id || progress.childId,
-        }
-        setProgress(progressWithScoreAchievements)
+        newTotalScore: newScore,
       }
 
       // Move to next level after a delay
-      setTimeout(async () => {
-        const currentStageData = getStageById(currentStage)
-        if (!currentStageData) return
-        if (currentLevel < currentStageData.levels) {
-          await trackActivity(false)
-          if (achievementPointsEarned > 0 && activeChild) {
-            await saveGameProgress(progressWithScoreAchievements, activeChild.id, languageCode, {
-              availableStageIds: countingStageIds,
-            })
-          }
-          setCurrentLevel((prevLevel) => prevLevel + 1)
-        } else {
-          // Stage completed!
-          setStageCompleted(true)
-          await trackActivity(true)
+      if (answerAdvanceTimeoutRef.current) {
+        clearTimeout(answerAdvanceTimeoutRef.current)
+      }
+      const answerChildId = activeChild?.id
+      const answerLanguageCode = languageCode
+      answerAdvanceTimeoutRef.current = setTimeout(() => {
+        answerAdvanceTimeoutRef.current = null
+        const owner = progressOwnerRef.current
+        if (
+          !isMountedRef.current ||
+          owner.childId !== answerChildId ||
+          owner.languageCode !== answerLanguageCode
+        ) {
+          return
+        }
 
-          // Use the new stage completion handler
-          if (activeChild) {
-            await handleStageCompletion()
+        const currentStageData = getStageById(currentStage)
+        if (!currentStageData) {
+          correctAnswerLockRef.current = false
+          return
+        }
+        if (currentLevel < currentStageData.levels) {
+          setCurrentLevel((prevLevel) => prevLevel + 1)
+
+          const completionChildId = answerChildId
+          const completionLanguageCode = answerLanguageCode
+          const baselineProgress = progressRef.current
+          const baselineRevision = progressRevisionRef.current
+          void Promise.allSettled([
+            trackActivity(false, newScore),
+            checkAndGrantNewAchievements(scoreEvent).then(async (newlyAwarded) => {
+              const achievementPoints = newlyAwarded.reduce(
+                (total, achievement) => total + achievement.points,
+                0,
+              )
+              const owner = progressOwnerRef.current
+              if (
+                !completionChildId ||
+                !isMountedRef.current ||
+                owner.childId !== completionChildId ||
+                owner.languageCode !== completionLanguageCode ||
+                progressRevisionRef.current !== baselineRevision ||
+                progressRef.current !== baselineProgress
+              ) {
+                return
+              }
+
+              newlyAwarded.forEach((achievement) => enqueueAchievementUnlocked(achievement))
+              if (achievementPoints <= 0) return
+
+              const progressWithAchievementPoints = {
+                ...baselineProgress,
+                totalScore: baselineProgress.totalScore + achievementPoints,
+              }
+              updateProgressState(progressWithAchievementPoints)
+              await saveGameProgress(
+                progressWithAchievementPoints,
+                completionChildId,
+                completionLanguageCode,
+                { availableStageIds: countingStageIds },
+              )
+            }),
+          ]).then((outcomes) => {
+            outcomes.forEach((outcome) => {
+              if (outcome.status === "rejected") {
+                console.warn("Could not finish Counting Game level network work:", outcome.reason)
+              }
+            })
+          }).catch((error) => {
+            console.warn("Could not inspect Counting Game level network work:", error)
+          })
+        } else {
+          if (answerChildId) {
+            void handleStageCompletion(newScore).catch((error) => {
+              stageCompletionLockRef.current = false
+              correctAnswerLockRef.current = false
+              console.warn("Could not finish Counting Game stage completion:", error)
+            })
+          } else {
+            setStageCompleted(true)
           }
         }
       }, 1500)
     } else {
       // For incorrect answers, clear feedback after a short delay to allow another try
-      setTimeout(() => {
+      if (feedbackTimeoutRef.current) {
+        clearTimeout(feedbackTimeoutRef.current)
+      }
+      feedbackTimeoutRef.current = setTimeout(() => {
+        feedbackTimeoutRef.current = null
+        if (!isMountedRef.current) return
         setShowFeedback(false)
         setSelectedCount(null)
       }, 1500)
@@ -859,6 +1113,9 @@ const LugandaCountingGame: React.FC = () => {
 
   const selectStage = (stageId: number) => {
     if (isStageUnlocked(progress, stageId)) {
+      clearGameTimers()
+      correctAnswerLockRef.current = false
+      stageCompletionLockRef.current = false
       setCurrentStage(stageId)
 
       if (activeChild) {
@@ -868,9 +1125,11 @@ const LugandaCountingGame: React.FC = () => {
           currentStage: stageId,
           childId: activeChild.id, // Ensure child ID is set
         }
-        setProgress(updatedProgress)
-        saveGameProgress(updatedProgress, activeChild.id, languageCode, {
+        updateProgressState(updatedProgress)
+        void saveGameProgress(updatedProgress, activeChild.id, languageCode, {
           availableStageIds: countingStageIds,
+        }).catch((error) => {
+          console.warn("Could not save Counting Game stage selection:", error)
         })
         console.log(`Selected stage ${stageId} for child: ${activeChild.id}`)
       }

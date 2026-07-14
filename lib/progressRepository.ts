@@ -79,11 +79,20 @@ export interface ProgressSyncResult {
   failed: number;
 }
 
+export interface ProgressSyncOptions {
+  signal?: AbortSignal;
+}
+
 export interface HydrateProgressOptions {
   activityType?: string;
   activityTypes?: string[];
   force?: boolean;
   cooldownMs?: number;
+  signal?: AbortSignal;
+}
+
+export interface HydrateActivityProgressOnLocalMissOptions {
+  timeoutMs?: number;
 }
 
 const PROGRESS_STORAGE_PREFIX = "@BabySteps:Progress:v1";
@@ -92,10 +101,13 @@ const PROGRESS_SYNC_QUEUE_KEY = `${PROGRESS_STORAGE_PREFIX}:syncQueue`;
 const ACTIVITY_PROGRESS_STORAGE_PREFIX = `${PROGRESS_STORAGE_PREFIX}:activity:`;
 const STAGE_PROGRESS_STORAGE_PREFIX = `${PROGRESS_STORAGE_PREFIX}:stage:`;
 const DEFAULT_SYNC_DEBOUNCE_MS = 15000;
+export const PROGRESS_LOCAL_MISS_HYDRATION_TIMEOUT_MS = 2000;
 export const PROGRESS_HYDRATION_COOLDOWN_MS = 20 * 60 * 1000;
 
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
+let syncScheduleGeneration = 0;
 let queueOperationTail: Promise<void> = Promise.resolve();
+const snapshotOperationTails = new Map<string, Promise<void>>();
 
 const encodeKeyPart = (value: string): string => encodeURIComponent(value);
 
@@ -267,6 +279,29 @@ const runSerializedQueueOperation = <T>(operation: () => Promise<T>): Promise<T>
     () => undefined,
     () => undefined,
   );
+  return result;
+};
+
+const runSerializedSnapshotOperation = <T>(
+  storageKey: string,
+  operation: () => Promise<T>,
+): Promise<T> => {
+  const previous = snapshotOperationTails.get(storageKey) ?? Promise.resolve();
+  const result = previous.then(operation);
+  let tail: Promise<void>;
+  tail = result.then(
+    () => {
+      if (snapshotOperationTails.get(storageKey) === tail) {
+        snapshotOperationTails.delete(storageKey);
+      }
+    },
+    () => {
+      if (snapshotOperationTails.get(storageKey) === tail) {
+        snapshotOperationTails.delete(storageKey);
+      }
+    },
+  );
+  snapshotOperationTails.set(storageKey, tail);
   return result;
 };
 
@@ -516,17 +551,63 @@ const isRemoteNewer = (
   return Number.isFinite(remoteTime) && Number.isFinite(localTime) && remoteTime > localTime;
 };
 
-const hasSupabaseSession = async (): Promise<boolean> => {
+const getSupabaseSessionUserId = async (): Promise<string | null> => {
   const authClient = (supabase as unknown as { auth?: { getSession?: () => Promise<unknown> } }).auth;
-  if (!authClient?.getSession) return false;
+  if (!authClient?.getSession) return null;
 
   try {
     const result = (await authClient.getSession()) as {
-      data?: { session?: unknown | null };
+      data?: { session?: { user?: { id?: unknown } } | null };
     };
-    return Boolean(result.data?.session);
+    const userId = result.data?.session?.user?.id;
+    return typeof userId === "string" && userId ? userId : null;
   } catch {
-    return false;
+    return null;
+  }
+};
+
+const getOwnedChildIds = async (
+  parentId: string,
+  candidateChildIds: string[],
+  signal?: AbortSignal,
+): Promise<Set<string>> => {
+  if (candidateChildIds.length === 0) return new Set();
+
+  let query = supabase
+    .from("children")
+    .select("id")
+    .eq("parent_id", parentId)
+    .in("id", candidateChildIds);
+  if (signal) {
+    query = query.abortSignal(signal);
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+
+  const candidates = new Set(candidateChildIds);
+  return new Set(
+    (data ?? [])
+      .map((row) => (row as { id?: unknown }).id)
+      .filter(
+        (id): id is string =>
+          typeof id === "string" && candidates.has(id),
+      ),
+  );
+};
+
+const assertProgressSyncSession = async (
+  parentId: string,
+  signal?: AbortSignal,
+): Promise<void> => {
+  if (signal?.aborted) {
+    throw new Error("Progress synchronization was cancelled.");
+  }
+
+  const currentParentId = await getSupabaseSessionUserId();
+  if (signal?.aborted || currentParentId !== parentId) {
+    throw new Error("Progress synchronization session changed.");
   }
 };
 
@@ -556,6 +637,57 @@ const sanitizeStageForRemote = (
     ...remote
   } = record;
   return remote;
+};
+
+interface StoredProgressSnapshot<T> {
+  storageKey: string;
+  raw: string | null;
+  record: T | null;
+}
+
+const readLocalActivityProgressSnapshot = async (
+  childId: string,
+  languageCode: string,
+  activityType: string,
+): Promise<StoredProgressSnapshot<ChildActivityProgress>> => {
+  const storageKey = activityStorageKey(childId, languageCode, activityType);
+  const raw = await AsyncStorage.getItem(storageKey);
+  const parsed = parseActivitySnapshot(storageKey, raw);
+  const record = parsed
+    ? {
+        ...parsed,
+        progress_payload: asPayload(parsed.progress_payload),
+      }
+    : null;
+
+  return { storageKey, raw, record };
+};
+
+const readLocalStageProgressSnapshot = async (
+  childId: string,
+  languageCode: string,
+  activityType: string,
+  stageId: string,
+  levelId: string,
+): Promise<StoredProgressSnapshot<ChildStageProgress>> => {
+  const storageKey = stageStorageKey(
+    childId,
+    languageCode,
+    activityType,
+    stageId,
+    levelId,
+  );
+  const raw = await AsyncStorage.getItem(storageKey);
+  const parsed = parseStageSnapshot(storageKey, raw);
+  const record = parsed
+    ? {
+        ...parsed,
+        level_id: parsed.level_id ?? "",
+        progress_payload: asPayload(parsed.progress_payload),
+      }
+    : null;
+
+  return { storageKey, raw, record };
 };
 
 const writeLocalActivityProgress = async (
@@ -597,14 +729,123 @@ const writeLocalStageProgress = async (
   return cleanRecord;
 };
 
+const canHydrateActivitySnapshot = (
+  remote: ChildActivityProgress,
+  local: StoredProgressSnapshot<ChildActivityProgress>,
+): boolean =>
+  local.raw === null ||
+  Boolean(
+    local.record &&
+      !local.record.dirty &&
+      isRemoteNewer(remote.local_updated_at, local.record.local_updated_at),
+  );
+
+const canHydrateStageSnapshot = (
+  remote: ChildStageProgress,
+  local: StoredProgressSnapshot<ChildStageProgress>,
+): boolean =>
+  local.raw === null ||
+  Boolean(
+    local.record &&
+      !local.record.dirty &&
+      isRemoteNewer(remote.local_updated_at, local.record.local_updated_at),
+  );
+
+const writeHydratedActivityProgressIfUnchanged = async (
+  remote: ChildActivityProgress,
+  observed: StoredProgressSnapshot<ChildActivityProgress>,
+  signal?: AbortSignal,
+): Promise<boolean> => {
+  if (signal?.aborted || !canHydrateActivitySnapshot(remote, observed)) {
+    return false;
+  }
+
+  return runSerializedSnapshotOperation(observed.storageKey, async () => {
+    if (signal?.aborted) return false;
+
+    const current = await readLocalActivityProgressSnapshot(
+      remote.child_id,
+      remote.language_code,
+      remote.activity_type,
+    );
+    if (
+      signal?.aborted ||
+      current.raw !== observed.raw ||
+      !canHydrateActivitySnapshot(remote, current)
+    ) {
+      return false;
+    }
+
+    if (signal?.aborted) return false;
+    await writeLocalActivityProgress({
+      ...remote,
+      progress_payload: asPayload(remote.progress_payload),
+      dirty: false,
+    });
+    return true;
+  });
+};
+
+const writeHydratedStageProgressIfUnchanged = async (
+  remote: ChildStageProgress,
+  observed: StoredProgressSnapshot<ChildStageProgress>,
+  signal?: AbortSignal,
+): Promise<boolean> => {
+  if (signal?.aborted || !canHydrateStageSnapshot(remote, observed)) {
+    return false;
+  }
+
+  return runSerializedSnapshotOperation(observed.storageKey, async () => {
+    if (signal?.aborted) return false;
+
+    const current = await readLocalStageProgressSnapshot(
+      remote.child_id,
+      remote.language_code,
+      remote.activity_type,
+      remote.stage_id,
+      remote.level_id ?? "",
+    );
+    if (
+      signal?.aborted ||
+      current.raw !== observed.raw ||
+      !canHydrateStageSnapshot(remote, current)
+    ) {
+      return false;
+    }
+
+    if (signal?.aborted) return false;
+    await writeLocalStageProgress({
+      ...remote,
+      level_id: remote.level_id ?? "",
+      progress_payload: asPayload(remote.progress_payload),
+      dirty: false,
+    });
+    return true;
+  });
+};
+
+export const cancelScheduledProgressSync = (): void => {
+  syncScheduleGeneration += 1;
+
+  if (syncTimer) {
+    clearTimeout(syncTimer);
+    syncTimer = null;
+  }
+};
+
 export const scheduleProgressSync = (delayMs = DEFAULT_SYNC_DEBOUNCE_MS): void => {
   if (syncTimer) {
     clearTimeout(syncTimer);
   }
 
+  const scheduledGeneration = syncScheduleGeneration;
+
   syncTimer = setTimeout(() => {
     syncTimer = null;
-    void syncProgressNow();
+    if (scheduledGeneration !== syncScheduleGeneration) return;
+    void syncProgressNow().catch((error) => {
+      console.warn("Could not synchronize progress in the background:", error);
+    });
   }, delayMs);
 };
 
@@ -612,25 +853,8 @@ export const getActivityProgress = async (
   childId: string,
   languageCode: string,
   activityType: string,
-): Promise<ChildActivityProgress | null> => {
-  const parsed = safeParse<ChildActivityProgress>(
-    await AsyncStorage.getItem(activityStorageKey(childId, languageCode, activityType)),
-  );
-
-  if (
-    !parsed ||
-    parsed.child_id !== childId ||
-    parsed.language_code !== languageCode ||
-    parsed.activity_type !== activityType
-  ) {
-    return null;
-  }
-
-  return {
-    ...parsed,
-    progress_payload: asPayload(parsed.progress_payload),
-  };
-};
+): Promise<ChildActivityProgress | null> =>
+  (await readLocalActivityProgressSnapshot(childId, languageCode, activityType)).record;
 
 export const getStageProgress = async (
   childId: string,
@@ -641,34 +865,15 @@ export const getStageProgress = async (
 ): Promise<ChildStageProgress | null> => {
   const normalizedStageId = String(stageId);
   const normalizedLevelId = String(levelId);
-  const parsed = safeParse<ChildStageProgress>(
-    await AsyncStorage.getItem(
-      stageStorageKey(
-        childId,
-        languageCode,
-        activityType,
-        normalizedStageId,
-        normalizedLevelId,
-      ),
-    ),
-  );
-
-  if (
-    !parsed ||
-    parsed.child_id !== childId ||
-    parsed.language_code !== languageCode ||
-    parsed.activity_type !== activityType ||
-    parsed.stage_id !== normalizedStageId ||
-    (parsed.level_id ?? "") !== normalizedLevelId
-  ) {
-    return null;
-  }
-
-  return {
-    ...parsed,
-    level_id: parsed.level_id ?? "",
-    progress_payload: asPayload(parsed.progress_payload),
-  };
+  return (
+    await readLocalStageProgressSnapshot(
+      childId,
+      languageCode,
+      activityType,
+      normalizedStageId,
+      normalizedLevelId,
+    )
+  ).record;
 };
 
 export const updateActivityProgress = async (
@@ -678,32 +883,38 @@ export const updateActivityProgress = async (
   input: ActivityProgressInput,
   options: { markDirty?: boolean; scheduleSync?: boolean; localUpdatedAt?: string } = {},
 ): Promise<ChildActivityProgress> => {
-  const existing = await getActivityProgress(childId, languageCode, activityType);
   const shouldMarkDirty = options.markDirty ?? true;
-  const record: ChildActivityProgress = {
-    child_id: childId,
-    language_code: languageCode,
-    activity_type: activityType,
-    status: input.status ?? existing?.status ?? "in_progress",
-    score: input.score ?? existing?.score ?? null,
-    stars: input.stars ?? existing?.stars ?? null,
-    attempts: input.attempts ?? existing?.attempts ?? 0,
-    last_stage_id: input.last_stage_id ?? existing?.last_stage_id ?? null,
-    highest_unlocked_stage:
-      input.highest_unlocked_stage ?? existing?.highest_unlocked_stage ?? null,
-    completed_stage_count:
-      input.completed_stage_count ?? existing?.completed_stage_count ?? 0,
-    progress_payload:
-      input.progress_payload ?? existing?.progress_payload ?? {},
-    local_updated_at:
-      options.localUpdatedAt ?? (shouldMarkDirty ? nowIso() : existing?.local_updated_at ?? nowIso()),
-    server_updated_at: existing?.server_updated_at ?? null,
-    created_at: existing?.created_at,
-    updated_at: existing?.updated_at,
-    dirty: shouldMarkDirty ? true : existing?.dirty ?? false,
-  };
+  const storageKey = activityStorageKey(childId, languageCode, activityType);
+  const saved = await runSerializedSnapshotOperation(storageKey, async () => {
+    const existing = (
+      await readLocalActivityProgressSnapshot(childId, languageCode, activityType)
+    ).record;
+    const record: ChildActivityProgress = {
+      child_id: childId,
+      language_code: languageCode,
+      activity_type: activityType,
+      status: input.status ?? existing?.status ?? "in_progress",
+      score: input.score ?? existing?.score ?? null,
+      stars: input.stars ?? existing?.stars ?? null,
+      attempts: input.attempts ?? existing?.attempts ?? 0,
+      last_stage_id: input.last_stage_id ?? existing?.last_stage_id ?? null,
+      highest_unlocked_stage:
+        input.highest_unlocked_stage ?? existing?.highest_unlocked_stage ?? null,
+      completed_stage_count:
+        input.completed_stage_count ?? existing?.completed_stage_count ?? 0,
+      progress_payload:
+        input.progress_payload ?? existing?.progress_payload ?? {},
+      local_updated_at:
+        options.localUpdatedAt ??
+        (shouldMarkDirty ? nowIso() : existing?.local_updated_at ?? nowIso()),
+      server_updated_at: existing?.server_updated_at ?? null,
+      created_at: existing?.created_at,
+      updated_at: existing?.updated_at,
+      dirty: shouldMarkDirty ? true : existing?.dirty ?? false,
+    };
 
-  const saved = await writeLocalActivityProgress(record);
+    return writeLocalActivityProgress(record);
+  });
 
   if (shouldMarkDirty) {
     await enqueueDirty({
@@ -747,35 +958,47 @@ const updateStageProgress = async (
 ): Promise<ChildStageProgress> => {
   const normalizedStageId = String(stageId);
   const normalizedLevelId = String(levelId);
-  const existing = await getStageProgress(
+  const shouldMarkDirty = options.markDirty ?? true;
+  const storageKey = stageStorageKey(
     childId,
     languageCode,
     activityType,
     normalizedStageId,
     normalizedLevelId,
   );
-  const shouldMarkDirty = options.markDirty ?? true;
-  const record: ChildStageProgress = {
-    child_id: childId,
-    language_code: languageCode,
-    activity_type: activityType,
-    stage_id: normalizedStageId,
-    level_id: normalizedLevelId,
-    status: input.status ?? existing?.status ?? "in_progress",
-    score: input.score ?? existing?.score ?? null,
-    stars: input.stars ?? existing?.stars ?? null,
-    attempts: input.attempts ?? existing?.attempts ?? 0,
-    progress_payload: input.progress_payload ?? existing?.progress_payload ?? {},
-    completed_at: input.completed_at ?? existing?.completed_at ?? null,
-    local_updated_at:
-      options.localUpdatedAt ?? (shouldMarkDirty ? nowIso() : existing?.local_updated_at ?? nowIso()),
-    server_updated_at: existing?.server_updated_at ?? null,
-    created_at: existing?.created_at,
-    updated_at: existing?.updated_at,
-    dirty: shouldMarkDirty ? true : existing?.dirty ?? false,
-  };
+  const saved = await runSerializedSnapshotOperation(storageKey, async () => {
+    const existing = (
+      await readLocalStageProgressSnapshot(
+        childId,
+        languageCode,
+        activityType,
+        normalizedStageId,
+        normalizedLevelId,
+      )
+    ).record;
+    const record: ChildStageProgress = {
+      child_id: childId,
+      language_code: languageCode,
+      activity_type: activityType,
+      stage_id: normalizedStageId,
+      level_id: normalizedLevelId,
+      status: input.status ?? existing?.status ?? "in_progress",
+      score: input.score ?? existing?.score ?? null,
+      stars: input.stars ?? existing?.stars ?? null,
+      attempts: input.attempts ?? existing?.attempts ?? 0,
+      progress_payload: input.progress_payload ?? existing?.progress_payload ?? {},
+      completed_at: input.completed_at ?? existing?.completed_at ?? null,
+      local_updated_at:
+        options.localUpdatedAt ??
+        (shouldMarkDirty ? nowIso() : existing?.local_updated_at ?? nowIso()),
+      server_updated_at: existing?.server_updated_at ?? null,
+      created_at: existing?.created_at,
+      updated_at: existing?.updated_at,
+      dirty: shouldMarkDirty ? true : existing?.dirty ?? false,
+    };
 
-  const saved = await writeLocalStageProgress(record);
+    return writeLocalStageProgress(record);
+  });
 
   if (shouldMarkDirty) {
     await enqueueDirty({
@@ -843,6 +1066,7 @@ export const getPendingProgressSyncCount = async (
 
 const fetchRemoteActivityRows = async (
   records: Array<Pick<ChildActivityProgress, "child_id" | "language_code" | "activity_type">>,
+  signal?: AbortSignal,
 ): Promise<ChildActivityProgress[]> => {
   const childIds = [...new Set(records.map((record) => record.child_id))];
   const languageCodes = [...new Set(records.map((record) => record.language_code))];
@@ -860,6 +1084,9 @@ const fetchRemoteActivityRows = async (
   query = activityTypes.length === 1
     ? query.eq("activity_type", activityTypes[0])
     : query.in("activity_type", activityTypes);
+  if (signal) {
+    query = query.abortSignal(signal);
+  }
 
   const { data, error } = await query;
   if (error) throw error;
@@ -868,6 +1095,7 @@ const fetchRemoteActivityRows = async (
 
 const fetchRemoteStageRows = async (
   records: Array<Pick<ChildStageProgress, "child_id" | "language_code" | "activity_type">>,
+  signal?: AbortSignal,
 ): Promise<ChildStageProgress[]> => {
   const childIds = [...new Set(records.map((record) => record.child_id))];
   const languageCodes = [...new Set(records.map((record) => record.language_code))];
@@ -885,6 +1113,9 @@ const fetchRemoteStageRows = async (
   query = activityTypes.length === 1
     ? query.eq("activity_type", activityTypes[0])
     : query.in("activity_type", activityTypes);
+  if (signal) {
+    query = query.abortSignal(signal);
+  }
 
   const { data, error } = await query;
   if (error) throw error;
@@ -900,31 +1131,45 @@ const markActivityRecordsSynced = async (
   );
 
   const markedRecords = await Promise.all(
-    records.map(async (record) => {
-      const current = await getActivityProgress(
-        record.child_id,
-        record.language_code,
-        record.activity_type,
-      );
-      if (!current || current.local_updated_at !== record.local_updated_at) {
-        return null;
-      }
+    records.map((record) =>
+      runSerializedSnapshotOperation(
+        activityStorageKey(
+          record.child_id,
+          record.language_code,
+          record.activity_type,
+        ),
+        async () => {
+          const current = (
+            await readLocalActivityProgressSnapshot(
+              record.child_id,
+              record.language_code,
+              record.activity_type,
+            )
+          ).record;
+          if (!current || current.local_updated_at !== record.local_updated_at) {
+            return null;
+          }
 
-      const returned = returnedMap.get(activityIdentity(record));
-      if (current.dirty) {
-        await writeLocalActivityProgress({
-          ...current,
-          id: returned?.id ?? current.id,
-          server_updated_at:
-            returned?.server_updated_at ?? returned?.updated_at ?? current.server_updated_at ?? nowIso(),
-          updated_at: returned?.updated_at ?? current.updated_at,
-          created_at: returned?.created_at ?? current.created_at,
-          dirty: false,
-        });
-      }
+          const returned = returnedMap.get(activityIdentity(record));
+          if (current.dirty) {
+            await writeLocalActivityProgress({
+              ...current,
+              id: returned?.id ?? current.id,
+              server_updated_at:
+                returned?.server_updated_at ??
+                returned?.updated_at ??
+                current.server_updated_at ??
+                nowIso(),
+              updated_at: returned?.updated_at ?? current.updated_at,
+              created_at: returned?.created_at ?? current.created_at,
+              dirty: false,
+            });
+          }
 
-      return record;
-    }),
+          return record;
+        },
+      ),
+    ),
   );
 
   return markedRecords.filter(
@@ -941,33 +1186,49 @@ const markStageRecordsSynced = async (
   );
 
   const markedRecords = await Promise.all(
-    records.map(async (record) => {
-      const current = await getStageProgress(
-        record.child_id,
-        record.language_code,
-        record.activity_type,
-        record.stage_id,
-        record.level_id ?? "",
-      );
-      if (!current || current.local_updated_at !== record.local_updated_at) {
-        return null;
-      }
+    records.map((record) =>
+      runSerializedSnapshotOperation(
+        stageStorageKey(
+          record.child_id,
+          record.language_code,
+          record.activity_type,
+          record.stage_id,
+          record.level_id ?? "",
+        ),
+        async () => {
+          const current = (
+            await readLocalStageProgressSnapshot(
+              record.child_id,
+              record.language_code,
+              record.activity_type,
+              record.stage_id,
+              record.level_id ?? "",
+            )
+          ).record;
+          if (!current || current.local_updated_at !== record.local_updated_at) {
+            return null;
+          }
 
-      const returned = returnedMap.get(stageIdentity(record));
-      if (current.dirty) {
-        await writeLocalStageProgress({
-          ...current,
-          id: returned?.id ?? current.id,
-          server_updated_at:
-            returned?.server_updated_at ?? returned?.updated_at ?? current.server_updated_at ?? nowIso(),
-          updated_at: returned?.updated_at ?? current.updated_at,
-          created_at: returned?.created_at ?? current.created_at,
-          dirty: false,
-        });
-      }
+          const returned = returnedMap.get(stageIdentity(record));
+          if (current.dirty) {
+            await writeLocalStageProgress({
+              ...current,
+              id: returned?.id ?? current.id,
+              server_updated_at:
+                returned?.server_updated_at ??
+                returned?.updated_at ??
+                current.server_updated_at ??
+                nowIso(),
+              updated_at: returned?.updated_at ?? current.updated_at,
+              created_at: returned?.created_at ?? current.created_at,
+              dirty: false,
+            });
+          }
 
-      return record;
-    }),
+          return record;
+        },
+      ),
+    ),
   );
 
   return markedRecords.filter(
@@ -977,11 +1238,9 @@ const markStageRecordsSynced = async (
 
 export const syncProgressNow = async (
   childId?: string,
+  options: ProgressSyncOptions = {},
 ): Promise<ProgressSyncResult> => {
-  if (syncTimer) {
-    clearTimeout(syncTimer);
-    syncTimer = null;
-  }
+  cancelScheduledProgressSync();
 
   const queue = await repairProgressQueue();
   const pending = childId
@@ -992,18 +1251,43 @@ export const syncProgressNow = async (
     return { pushed: 0, skipped: 0, failed: 0 };
   }
 
-  if (!(await hasSupabaseSession())) {
+  if (options.signal?.aborted) {
     return { pushed: 0, skipped: pending.length, failed: 0 };
   }
 
-  const activityItems = pending.filter((item) => item.kind === "activity");
-  const stageItems = pending.filter((item) => item.kind === "stage");
+  const parentId = await getSupabaseSessionUserId();
+  if (!parentId || options.signal?.aborted) {
+    return { pushed: 0, skipped: pending.length, failed: 0 };
+  }
+
+  let ownedChildIds: Set<string>;
+  try {
+    ownedChildIds = await getOwnedChildIds(
+      parentId,
+      [...new Set(pending.map((item) => item.child_id))],
+      options.signal,
+    );
+    await assertProgressSyncSession(parentId, options.signal);
+  } catch {
+    return { pushed: 0, skipped: 0, failed: pending.length };
+  }
+
+  const ownedPending = pending.filter((item) => ownedChildIds.has(item.child_id));
+  const unownedPendingCount = pending.length - ownedPending.length;
+
+  if (ownedPending.length === 0) {
+    return { pushed: 0, skipped: unownedPendingCount, failed: 0 };
+  }
+
+  const activityItems = ownedPending.filter((item) => item.kind === "activity");
+  const stageItems = ownedPending.filter((item) => item.kind === "stage");
   let pushed = 0;
-  let skipped = 0;
+  let skipped = unownedPendingCount;
   let failed = 0;
   const syncedQueueItems: ProgressQueueItem[] = [];
 
   try {
+    await assertProgressSyncSession(parentId, options.signal);
     const activityRecords = (
       await Promise.all(
         activityItems.map((item) =>
@@ -1011,7 +1295,10 @@ export const syncProgressNow = async (
         ),
       )
     ).filter((record): record is ChildActivityProgress => Boolean(record?.dirty));
-    const remoteRows = await fetchRemoteActivityRows(activityRecords);
+    const remoteRows = await fetchRemoteActivityRows(
+      activityRecords,
+      options.signal,
+    );
     const remoteMap = new Map(remoteRows.map((row) => [activityIdentity(row), row]));
     const activityRecordsToPush = activityRecords.filter((record) => {
       const remote = remoteMap.get(activityIdentity(record));
@@ -1022,14 +1309,21 @@ export const syncProgressNow = async (
     });
 
     if (activityRecordsToPush.length > 0) {
-      const { data, error } = await supabase
+      await assertProgressSyncSession(parentId, options.signal);
+      let activityUpsert = supabase
         .from("child_activity_progress")
         .upsert(activityRecordsToPush.map(sanitizeActivityForRemote), {
           onConflict: "child_id,language_code,activity_type",
         })
         .select("*");
+      if (options.signal) {
+        activityUpsert = activityUpsert.abortSignal(options.signal);
+      }
+
+      const { data, error } = await activityUpsert;
 
       if (error) throw error;
+      await assertProgressSyncSession(parentId, options.signal);
 
       const syncedActivityRecords = await markActivityRecordsSynced(
         activityRecordsToPush,
@@ -1050,6 +1344,7 @@ export const syncProgressNow = async (
   }
 
   try {
+    await assertProgressSyncSession(parentId, options.signal);
     const stageRecords = (
       await Promise.all(
         stageItems.map((item) =>
@@ -1063,7 +1358,7 @@ export const syncProgressNow = async (
         ),
       )
     ).filter((record): record is ChildStageProgress => Boolean(record?.dirty));
-    const remoteRows = await fetchRemoteStageRows(stageRecords);
+    const remoteRows = await fetchRemoteStageRows(stageRecords, options.signal);
     const remoteMap = new Map(remoteRows.map((row) => [stageIdentity(row), row]));
     const stageRecordsToPush = stageRecords.filter((record) => {
       const remote = remoteMap.get(stageIdentity(record));
@@ -1074,14 +1369,21 @@ export const syncProgressNow = async (
     });
 
     if (stageRecordsToPush.length > 0) {
-      const { data, error } = await supabase
+      await assertProgressSyncSession(parentId, options.signal);
+      let stageUpsert = supabase
         .from("child_stage_progress")
         .upsert(stageRecordsToPush.map(sanitizeStageForRemote), {
           onConflict: "child_id,language_code,activity_type,stage_id,level_id",
         })
         .select("*");
+      if (options.signal) {
+        stageUpsert = stageUpsert.abortSignal(options.signal);
+      }
+
+      const { data, error } = await stageUpsert;
 
       if (error) throw error;
+      await assertProgressSyncSession(parentId, options.signal);
 
       const syncedStageRecords = await markStageRecordsSynced(
         stageRecordsToPush,
@@ -1113,7 +1415,12 @@ export const hydrateProgressFromRemote = async (
   languageCode?: string,
   options: HydrateProgressOptions = {},
 ): Promise<{ activities: number; stages: number }> => {
-  if (!childId || !(await hasSupabaseSession())) {
+  if (
+    !childId ||
+    options.signal?.aborted ||
+    !(await getSupabaseSessionUserId()) ||
+    options.signal?.aborted
+  ) {
     return { activities: 0, stages: 0 };
   }
 
@@ -1122,7 +1429,10 @@ export const hydrateProgressFromRemote = async (
     languageCode,
     options,
   );
-  if (activityTypesToFetch && activityTypesToFetch.length === 0) {
+  if (
+    options.signal?.aborted ||
+    (activityTypesToFetch && activityTypesToFetch.length === 0)
+  ) {
     return { activities: 0, stages: 0 };
   }
 
@@ -1145,23 +1455,36 @@ export const hydrateProgressFromRemote = async (
           ? activityQuery.eq("activity_type", activityTypesToFetch[0])
           : activityQuery.in("activity_type", activityTypesToFetch);
     }
+    if (options.signal) {
+      activityQuery = activityQuery.abortSignal(options.signal);
+    }
     const { data, error } = await activityQuery;
 
     if (error) throw error;
+    if (options.signal?.aborted) {
+      return { activities: 0, stages: 0 };
+    }
 
     for (const remote of (data ?? []) as ChildActivityProgress[]) {
-      const local = await getActivityProgress(
+      if (options.signal?.aborted) {
+        return { activities: 0, stages: 0 };
+      }
+      const observed = await readLocalActivityProgressSnapshot(
         remote.child_id,
         remote.language_code,
         remote.activity_type,
       );
+      if (options.signal?.aborted) {
+        return { activities: hydratedActivities, stages: 0 };
+      }
 
-      if (!local || (!local.dirty && isRemoteNewer(remote.local_updated_at, local.local_updated_at))) {
-        await writeLocalActivityProgress({
-          ...remote,
-          progress_payload: asPayload(remote.progress_payload),
-          dirty: false,
-        });
+      if (
+        await writeHydratedActivityProgressIfUnchanged(
+          remote,
+          observed,
+          options.signal,
+        )
+      ) {
         hydratedActivities += 1;
       }
     }
@@ -1184,26 +1507,38 @@ export const hydrateProgressFromRemote = async (
           ? stageQuery.eq("activity_type", activityTypesToFetch[0])
           : stageQuery.in("activity_type", activityTypesToFetch);
     }
+    if (options.signal) {
+      stageQuery = stageQuery.abortSignal(options.signal);
+    }
     const { data, error } = await stageQuery;
 
     if (error) throw error;
+    if (options.signal?.aborted) {
+      return { activities: hydratedActivities, stages: 0 };
+    }
 
     for (const remote of (data ?? []) as ChildStageProgress[]) {
-      const local = await getStageProgress(
+      if (options.signal?.aborted) {
+        return { activities: hydratedActivities, stages: 0 };
+      }
+      const observed = await readLocalStageProgressSnapshot(
         remote.child_id,
         remote.language_code,
         remote.activity_type,
         remote.stage_id,
-        remote.level_id,
+        remote.level_id ?? "",
       );
+      if (options.signal?.aborted) {
+        return { activities: hydratedActivities, stages: hydratedStages };
+      }
 
-      if (!local || (!local.dirty && isRemoteNewer(remote.local_updated_at, local.local_updated_at))) {
-        await writeLocalStageProgress({
-          ...remote,
-          level_id: remote.level_id ?? "",
-          progress_payload: asPayload(remote.progress_payload),
-          dirty: false,
-        });
+      if (
+        await writeHydratedStageProgressIfUnchanged(
+          remote,
+          observed,
+          options.signal,
+        )
+      ) {
         hydratedStages += 1;
       }
     }
@@ -1212,18 +1547,58 @@ export const hydrateProgressFromRemote = async (
     hydratedStages = 0;
   }
 
-  if (hydratedActivityQuerySucceeded && hydratedStageQuerySucceeded) {
+  if (
+    !options.signal?.aborted &&
+    hydratedActivityQuerySucceeded &&
+    hydratedStageQuerySucceeded
+  ) {
     await markHydrationComplete(childId, languageCode, activityTypesToFetch);
   }
 
   return { activities: hydratedActivities, stages: hydratedStages };
 };
 
+export const hydrateActivityProgressOnLocalMiss = async (
+  childId: string,
+  languageCode: string,
+  activityType: string,
+  options: HydrateActivityProgressOnLocalMissOptions = {},
+): Promise<ChildActivityProgress | null> => {
+  const existing = await getActivityProgress(childId, languageCode, activityType);
+  if (existing) return existing;
+
+  const timeoutMs = Math.max(
+    0,
+    options.timeoutMs ?? PROGRESS_LOCAL_MISS_HYDRATION_TIMEOUT_MS,
+  );
+  const controller = new AbortController();
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  const hydration = hydrateProgressFromRemote(childId, languageCode, {
+    activityType,
+    force: true,
+    signal: controller.signal,
+  }).then(
+    () => "hydrated" as const,
+    () => "failed" as const,
+  );
+
+  await Promise.race([
+    hydration,
+    new Promise<"timeout">((resolve) => {
+      timeout = setTimeout(() => {
+        controller.abort();
+        resolve("timeout");
+      }, timeoutMs);
+    }),
+  ]);
+
+  if (timeout) clearTimeout(timeout);
+
+  return getActivityProgress(childId, languageCode, activityType);
+};
+
 export const clearProgressRepositoryStorage = async (): Promise<void> => {
-  if (syncTimer) {
-    clearTimeout(syncTimer);
-    syncTimer = null;
-  }
+  cancelScheduledProgressSync();
 
   await runSerializedQueueOperation(async () => {
     const keys = await AsyncStorage.getAllKeys();
@@ -1242,10 +1617,7 @@ export const clearProgressRepositoryStorageForChild = async (
 ): Promise<void> => {
   if (!childId) return;
 
-  if (syncTimer) {
-    clearTimeout(syncTimer);
-    syncTimer = null;
-  }
+  cancelScheduledProgressSync();
 
   await runSerializedQueueOperation(async () => {
     const encodedChildId = encodeKeyPart(childId);

@@ -53,6 +53,7 @@ export const saveOverallStats = async (stats: CardGameOverallStats, childId: str
     await AsyncStorage.setItem(key, JSON.stringify(stats));
   } catch (error) {
     console.error('Failed to save card game overall stats:', error);
+    throw error;
   }
 };
 
@@ -62,7 +63,11 @@ export const updateTotalPairsMatched = async (pairsJustMatched: number, childId:
         ...currentStats,
         totalPairsMatched: (currentStats.totalPairsMatched || 0) + pairsJustMatched,
     };
-    await saveOverallStats(newStats, childId);
+    try {
+        await saveOverallStats(newStats, childId);
+    } catch (error) {
+        throw new CardGameStatsSaveError(newStats, error);
+    }
     return newStats;
 };
 
@@ -72,9 +77,25 @@ export const incrementGamesPlayed = async (childId: string): Promise<CardGameOve
         ...currentStats,
         gamesPlayed: (currentStats.gamesPlayed || 0) + 1,
     };
-    await saveOverallStats(newStats, childId);
+    try {
+        await saveOverallStats(newStats, childId);
+    } catch (error) {
+        throw new CardGameStatsSaveError(newStats, error);
+    }
     return newStats;
 };
+
+export class CardGameStatsSaveError extends Error {
+  readonly attemptedStats: CardGameOverallStats;
+  readonly originalError: unknown;
+
+  constructor(attemptedStats: CardGameOverallStats, originalError: unknown) {
+    super('Failed to persist card game stats');
+    this.name = 'CardGameStatsSaveError';
+    this.attemptedStats = attemptedStats;
+    this.originalError = originalError;
+  }
+}
 
 /**
  * Get the storage key for a specific child
@@ -139,6 +160,7 @@ export const saveGameState = async (
     console.log(`Saved card game state for child: ${childId}`);
   } catch (error) {
     console.error('Failed to save card game state:', error);
+    throw error;
   }
 };
 
@@ -154,5 +176,6 @@ export const clearGameState = async (childId: string): Promise<void> => {
     console.log(`Cleared card game state for child: ${childId}`);
   } catch (error) {
     console.error('Failed to clear game state:', error);
+    throw error;
   }
 };

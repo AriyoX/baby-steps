@@ -183,17 +183,19 @@ Shared repository: `lib/progressRepository.ts`.
 
 - UI continues reading existing local AsyncStorage progress first.
 - Existing game-specific managers keep their old keys and mirror snapshots to normalized progress records.
-- Existing local progress is not deleted. Legacy Luganda keys are still read as compatibility fallbacks.
+- Existing local progress is not deleted. Legacy unscoped keys are still read as compatibility fallbacks only when the requested language is Luganda (`lg`); Runyankole (`nyn`) never reads them.
 - Dirty progress is queued in AsyncStorage and pushed in batches by `syncProgressNow`.
+- Before a batch is pushed, queued child IDs are filtered through the current authenticated parent's `children` rows. Foreign rows stay dirty and discoverable for their owning account while owned rows continue independently.
 - Remote sync is triggered after meaningful completions and child/profile load, and debounced after local saves.
 - Supabase failures or missing auth sessions leave dirty local records queued and do not erase progress.
-- Hydration only writes remote progress locally if local progress is missing, or if remote is newer and the local record is not dirty.
-- Dirty local progress is never overwritten by remote hydration.
+- Hydration only writes remote progress locally if the exact child/language/activity snapshot is still absent or clean and unchanged from the raw state observed for that request, and the existing remote-newer policy allows the write.
+- Repository mutations and hydration's final check/write share a per-snapshot serializer. A local mutation that appears, becomes dirty, or changes while the remote read is pending therefore wins for that exact identity.
 - Sync completion re-reads the local snapshot before clearing `dirty`, so newer local progress made while an upsert is in flight stays dirty and queued.
 
 Final hydration and sync rules:
 
-- Game screens load local progress immediately. If local game-manager progress is missing, they return default progress and trigger remote hydration in the background instead of blocking gameplay.
+- Game screens load child/language-scoped local progress first. When both game-manager and shared local progress are absent, Counting, Word, and legacy Learning await an exact remote hydration attempt bounded to two seconds. They restore a returned remote snapshot as clean local state; auth failure, query failure, or timeout returns an unsaved default so the game still opens.
+- Timed-out hydration is aborted, and signal checks prevent the repository from starting a local snapshot write after the timeout has won. This cannot undo an `AsyncStorage` write already issued or guarantee cancellation of a Supabase request already accepted by the server.
 - A remote row that has already been hydrated into normalized local progress can be restored immediately from local storage on game load.
 - Hydration timestamps are scoped by `childId`, `languageCode`, and `activityType` with keys shaped like `progress:lastHydratedAt:{childId}:{languageCode}:{activityType}`.
 - Default hydration cooldown is 20 minutes. Within that window, opening the same game/profile does not refetch remote progress unless hydration is forced because local progress is missing or a manual sync path is added.
@@ -201,8 +203,11 @@ Final hydration and sync rules:
 - Child/profile switching starts by flushing the previous child’s dirty queue in the background, then syncs/hydrates the new child’s known activity types with cooldown checks.
 - Child/profile switching also merges hydrated Learning Hub `activity_type = "language"` rows back into the Learning Hub summary cache so the stage path can show Review/Completed after login or child switch.
 - Small progress mutations, such as stage selection or last-played level updates, save locally, mark dirty, and rely on the 15-second debounced sync.
-- Immediate `syncProgressNow(childId)` is reserved for meaningful events: learning/word level completion, counting stage completion, story read/quiz completion, artwork saved, child switch, and future manual/logout/background sync hooks.
+- Immediate `syncProgressNow(childId)` is reserved for meaningful events: learning/word level completion, counting stage completion, story read/quiz completion, artwork saved, child switch, and the short bounded normal-sign-out attempt.
+- Normal sign-out clears active-child state and invalidates pending scheduled child work before attempting that bounded sync. The sign-out flush is aborted on timeout, and sync rechecks that the same parent session remains active before each remote phase. Timeout, account change, or failure never blocks Supabase sign-out and never clears dirty records.
 - Sync reconciliation fetches only the child/language/activity slices represented by dirty records before upserting, then skips local records when the remote `local_updated_at` is newer.
+
+MVP boundary: there is no general remote/local merge. If a fresh device has no local progress, bounded hydration times out, and the child immediately starts from defaults, this pass does not guarantee reconciliation with richer remote progress. It also does not make activity inserts exactly-once, add server revisions, correct clock skew, or promise cancellation of an already-issued Supabase upsert.
 
 Integrated now:
 
@@ -221,7 +226,7 @@ Recommended steps:
 
 1. Choose a stable `activity_type`, for example `memory`, `tracing`, or `music`.
 2. Keep gameplay local-first. Store the game’s immediate state in AsyncStorage first, preferably with keys scoped like `@BabySteps:{Game}:{childId}:{languageCode}` if language-specific.
-3. On screen load, read local progress first. If local progress is missing, call `hydrateProgressFromRemote(childId, languageCode)` and then re-read the normalized activity progress.
+3. On screen load, read local progress first. If both game-specific and normalized local progress are missing, use the shared bounded local-miss hydration helper for the exact child/language/activity slice, then re-read normalized progress before deciding whether to return a default.
 4. Use `updateActivityProgress(childId, languageCode, activityType, data)` for the game summary. Put dashboard-friendly values in columns (`status`, `score`, `stars`, `attempts`, `last_stage_id`, `highest_unlocked_stage`, `completed_stage_count`) and game-specific details in `progress_payload`.
 5. Use `markStageStarted` and `markStageCompleted` only for meaningful stage/level milestones, not every tap.
 6. Trigger `syncProgressNow(childId)` after meaningful completions or screen exit. Let normal saves rely on the repository debounce.

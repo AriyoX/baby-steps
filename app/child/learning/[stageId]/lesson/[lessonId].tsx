@@ -34,10 +34,11 @@ import type { ItemResult } from "@/content/learningHubTypes";
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation";
 import {
   LEARNING_ACTIVITY_TYPE,
+  awardLearningLessonCompletionAchievements,
   buildLearningCompletionLocalId,
   getLearningLessonCompletion,
   getLearningProgressChildId,
-  saveLearningLessonCompletionWithAchievements,
+  saveLearningLessonCompletion,
 } from "@/lib/learningProgressRepository";
 
 const getRouteParam = (value: unknown): string => {
@@ -146,6 +147,10 @@ export default function LearningLessonSessionScreen() {
   const [results, setResults] = useState<ItemResult[]>([]);
   const resultsRef = useRef<ItemResult[]>([]);
   const saveCompletionInFlightRef = useRef(false);
+  const isMountedRef = useRef(true);
+  const completionScopeRef = useRef({ childId, languageCode, lessonId });
+
+  completionScopeRef.current = { childId, languageCode, lessonId };
 
   useChildLandscapeOrientation("child learning lesson");
 
@@ -182,6 +187,13 @@ export default function LearningLessonSessionScreen() {
     saveCompletionInFlightRef.current = false;
   }, [lesson?.id, stageId]);
 
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const goBackToLearning = () => {
     router.replace("/child/learning" as any);
   };
@@ -210,6 +222,7 @@ export default function LearningLessonSessionScreen() {
       }
 
       saveCompletionInFlightRef.current = true;
+      const completionScope = { childId, languageCode, lessonId };
       const completedAt = Date.now();
       const totalItems = items.length;
       const correctItems = itemResults.filter(
@@ -229,7 +242,7 @@ export default function LearningLessonSessionScreen() {
         .filter((stageLesson) => getLessonStatus(stageLesson, stage) === "startable")
         .map((stageLesson) => stageLesson.id);
 
-      const completionResult = await saveLearningLessonCompletionWithAchievements({
+      const savedCompletion = await saveLearningLessonCompletion({
         localId: buildLearningCompletionLocalId(
           childId,
           languageCode,
@@ -263,11 +276,24 @@ export default function LearningLessonSessionScreen() {
         readiness: "local_only",
       });
 
-      if (completionResult.newlyEarnedAchievements.length > 0) {
-        enqueueAchievementUnlocks(completionResult.newlyEarnedAchievements);
-      }
+      void awardLearningLessonCompletionAchievements(savedCompletion)
+        .then((newlyEarnedAchievements) => {
+          const currentScope = completionScopeRef.current;
+          if (
+            isMountedRef.current &&
+            currentScope.childId === completionScope.childId &&
+            currentScope.languageCode === completionScope.languageCode &&
+            currentScope.lessonId === completionScope.lessonId &&
+            newlyEarnedAchievements.length > 0
+          ) {
+            enqueueAchievementUnlocks(newlyEarnedAchievements);
+          }
+        })
+        .catch((error) => {
+          console.warn("Could not award Learning Hub achievements:", error);
+        });
     },
-    [childId, enqueueAchievementUnlocks, items, languageCode, lesson, stage],
+    [childId, enqueueAchievementUnlocks, items, languageCode, lesson, lessonId, stage],
   );
 
   const handleItemComplete = useCallback(

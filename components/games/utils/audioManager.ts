@@ -13,8 +13,13 @@ type AudioFiles = {
   [key: string]: any // Add index signature to allow string indexing
   // Word pronunciations
   "Oli otya": any
+  "Oli otya?": any
+  Gyendi: any
+  "Gyebale ko": any
   Bulungi: any
   Webale: any
+  Maama: any
+  Taata: any
   Ssebo: any
   Omukazi: any
   Omusajja: any
@@ -51,6 +56,11 @@ type AudioFiles = {
   "Tewali mutawaana": any
   Nkwagala: any
   Simanyi: any
+  Emu: any
+  Bbiri: any
+  Ssatu: any
+  Nnya: any
+  Ttaano: any
 
   // Game sounds
   correct: any
@@ -62,18 +72,23 @@ type AudioFiles = {
 // Audio files mapping
 export const AUDIO_FILES: AudioFiles = {
   // Word pronunciations
-  "Oli otya": require("@/assets/audio/oli-otya.m4a"),
+  "Oli otya": require("@/assets/audio/learning/lg/stage-1/oli-otya.mp3"),
+  "Oli otya?": require("@/assets/audio/learning/lg/stage-1/oli-otya.mp3"),
+  Gyendi: require("@/assets/audio/learning/lg/stage-1/gyendi.mp3"),
+  "Gyebale ko": require("@/assets/audio/learning/lg/stage-1/gyebale-ko.mp3"),
   Bulungi: require("@/assets/audio/Bulungi.mp3"),
-  Webale: require("@/assets/audio/webale.m4a"),
+  Webale: require("@/assets/audio/learning/lg/stage-1/webale.mp3"),
+  Maama: require("@/assets/audio/learning/lg/stage-2/maama.mp3"),
+  Taata: require("@/assets/audio/learning/lg/stage-2/taata.mp3"),
   Ssebo: require("@/assets/audio/ssebo.m4a"),
   Omukazi: require("@/assets/audio/omukazi.m4a"),
   Omusajja: require("@/assets/audio/omusajja.m4a"),
-  Omwana: require("@/assets/audio/omwana.m4a"),
+  Omwana: require("@/assets/audio/learning/lg/stage-2/omwana.mp3"),
   Abawala: require("@/assets/audio/abawala.m4a"),
-  Amazzi: require("@/assets/audio/Amazzi.mp3"),
+  Amazzi: require("@/assets/audio/learning/lg/stage-2/amazzi.mp3"),
   Emmere: require("@/assets/audio/Emmere.mp3"),
-  Ennyumba: require("@/assets/audio/Ennyumba.mp3"),
-  Ekitabo: require("@/assets/audio/Ekitabo.mp3"),
+  Ennyumba: require("@/assets/audio/learning/lg/stage-2/ennyumba.mp3"),
+  Ekitabo: require("@/assets/audio/learning/lg/stage-2/ekitabo.mp3"),
   Ekibuga: require("@/assets/audio/Ekibuga.mp3"),
   Ekyalo: require("@/assets/audio/Ekyalo.mp3"),
   Essomero: require("@/assets/audio/Essomero.mp3"),
@@ -101,6 +116,11 @@ export const AUDIO_FILES: AudioFiles = {
   "Tewali mutawaana": require("@/assets/audio/Tewali-mutawana.mp3"),
   Nkwagala: require("@/assets/audio/Nkwagala.mp3"),
   Simanyi: require("@/assets/audio/Simanyi.mp3"),
+  Emu: require("@/assets/audio/learning/lg/counting/emu.mp3"),
+  Bbiri: require("@/assets/audio/learning/lg/counting/bbiri.mp3"),
+  Ssatu: require("@/assets/audio/learning/lg/counting/ssatu.mp3"),
+  Nnya: require("@/assets/audio/learning/lg/counting/nnya.mp3"),
+  Ttaano: require("@/assets/audio/learning/lg/counting/ttaano.mp3"),
 
   // Game sounds
   correct: require("@/assets/audio/correct.mp3"),

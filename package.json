@@ -9,6 +9,8 @@
     "web": "expo start --web",
     "test": "jest --watchAll=false",
     "test:watch": "jest --watchAll",
+    "content:build:lg-stage-1-2": "node scripts/build-luganda-stage-1-2-content.mjs",
+    "content:validate:lg-stage-1-2": "node scripts/validate-luganda-stage-1-2-content.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint"
   },

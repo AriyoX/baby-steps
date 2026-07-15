@@ -52,6 +52,7 @@ import { useAchievements } from "./achievements/useAchievements" // Adjust path
 import type { AchievementDefinition } from "./achievements/achievementTypes"
 import { audioManager } from "@/lib/audioManager"
 import { useChildNotice } from "@/context/ChildNoticeContext"
+import { playWordAudio } from "./utils/audioManager"
 
 const GAME_SCREEN_OVERLAY = "rgba(2, 116, 187, 0.88)"
 
@@ -724,25 +725,14 @@ const LugandaCountingGame: React.FC = () => {
 
   const playNumberSound = async (number: number): Promise<void> => {
     try {
-      if (sound) {
-        await audioManager.unloadAppSound(sound)
-      }
-
-      // In a real app, you'd have actual audio files
-      // For this example, we'll just log which sound would play
-      console.log(`Playing sound for: ${getNumberLabel(number)}`)
-
-      try {
-        const newSound = await audioManager.playAppSound(require("@/assets/sounds/correct.mp3"))
-        if (isMountedRef.current) {
-          setSound(newSound)
-        } else if (newSound) {
-          void audioManager.unloadAppSound(newSound).catch((error) => {
-            console.warn("Could not unload late Counting Game sound:", error)
-          })
-        }
-      } catch (audioError) {
-        console.error("Error loading sound file:", audioError)
+      const targetText = getNumberLabel(number)
+      const newSound = await playWordAudio({ targetText }, sound ?? undefined)
+      if (isMountedRef.current) {
+        setSound(newSound ?? null)
+      } else if (newSound) {
+        void audioManager.unloadAppSound(newSound).catch((error) => {
+          console.warn("Could not unload late Counting Game sound:", error)
+        })
       }
     } catch (error) {
       console.error("Error playing sound", error)

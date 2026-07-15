@@ -48,9 +48,11 @@ Set `published_at` when publishing and increase `content_version` for every rele
 5. Increment `content_version`; set editorial, active, startable, and publication fields explicitly.
 6. Add static image/audio keys in code when the payload references new bundled media.
 7. Validate against a safe development database, then run repository/component tests, typecheck, and lint. A fresh local reset currently needs the repository's missing pre-2026 baseline schema; see [Database Notes](./database.md#local-reset-caveat).
-8. Deploy the migration through the normal Supabase migration workflow. Do not paste a divergent copy into `seed.sql`.
+8. Deploy the migration through the normal Supabase migration workflow. Do not hand-edit or paste a divergent copy into the generated Stage 1–2 `seed.sql`.
 
-The production migration chain is the canonical seed: the earlier story migration owns its story payloads, `20260714182326_database_backed_learning_content.sql` owns the Hub/game/menu payloads plus publication state, and `20260714213732_normalize_published_story_menu_order.sql` normalizes the pre-existing Stories menu to the strict ordered-card contract. Future content changes belong in later migrations, not a duplicate `seed.sql`.
+The production migration chain remains canonical for deployed environments: the earlier story migration owns its historical story payloads, `20260714182326_database_backed_learning_content.sql` owns the initial Hub/game/menu payloads plus publication state, and `20260714213732_normalize_published_story_menu_order.sql` normalizes the pre-existing Stories menu to the strict ordered-card contract. Future production changes belong in later migrations.
+
+For local curriculum replacement work, `supabase/seed.sql` is generated from `scripts/build-luganda-stage-1-2-content.mjs`. It is deliberately destructive only to Luganda `content_items` rows and must not be applied to production. Edit the generator source, regenerate, validate, and then create a separate reviewed migration when the content and media are genuinely deployable.
 
 For a reversible database-only proof, use the [Learning Hub dynamic-stage smoke test](../database/learning-hub-dynamic-stage-smoke-test.sql). It is intentionally not a migration and must not be treated as production curriculum.
 

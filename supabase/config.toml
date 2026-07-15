@@ -1,2 +1,6 @@
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
 [functions.finalize-account-deletions]
 verify_jwt = false

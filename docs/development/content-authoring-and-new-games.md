@@ -42,7 +42,9 @@ Every payload is authored independently for its row `language_code`. `learning_h
 
 ## Publishing A Change
 
-The canonical initial seed is `supabase/migrations/20260714182326_database_backed_learning_content.sql`. It contains idempotent upserts for the existing Learning Hub, menus, standalone games, and known story publication state. `20260714213732_normalize_published_story_menu_order.sql` then upgrades the older Stories menu to the strict explicit-order contract. Both are applied to the linked Baby-Steps project. The chain intentionally leaves the existing Runyankole test samples draft and non-startable. Do not duplicate these payloads in `seed.sql`.
+The canonical initial deployed content migration is `supabase/migrations/20260714182326_database_backed_learning_content.sql`. It contains idempotent upserts for the historical Learning Hub, menus, standalone games, and known story publication state. `20260714213732_normalize_published_story_menu_order.sql` then upgrades the older Stories menu to the strict explicit-order contract. Both are applied to the linked Baby-Steps project. The chain intentionally leaves the existing Runyankole test samples draft and non-startable.
+
+The Luganda Stage 1–2 development reset is generated separately into `supabase/seed.sql` from `scripts/build-luganda-stage-1-2-content.mjs`; `content/curriculum/lg-stage-1-2.json` is its generated review manifest. Do not edit either generated file by hand, and do not apply the reset seed to production. Production rollout requires approved media and review gates followed by a new content migration.
 
 For every future change:
 

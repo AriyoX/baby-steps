@@ -37,6 +37,74 @@ export const LEARNING_AUDIO_ASSETS = {
     source: LEARNING_PLACEHOLDER_SOUND,
     isPlaceholder: true,
   },
+  "lg.stage1.oli_otya": {
+    source: require("@/assets/audio/learning/lg/stage-1/oli-otya.mp3"),
+    isPlaceholder: true,
+  },
+  "lg.stage1.gyendi": {
+    source: require("@/assets/audio/learning/lg/stage-1/gyendi.mp3"),
+    isPlaceholder: true,
+  },
+  "lg.stage1.gyebale_ko": {
+    source: require("@/assets/audio/learning/lg/stage-1/gyebale-ko.mp3"),
+    isPlaceholder: true,
+  },
+  "lg.stage1.webale": {
+    source: require("@/assets/audio/learning/lg/stage-1/webale.mp3"),
+    isPlaceholder: true,
+  },
+  "lg.stage1.story.1": {
+    source: require("@/assets/audio/learning/lg/stage-1/story-greeting-1.mp3"),
+    isPlaceholder: true,
+  },
+  "lg.stage1.story.2": {
+    source: require("@/assets/audio/learning/lg/stage-1/story-greeting-2.mp3"),
+    isPlaceholder: true,
+  },
+  "lg.stage1.story.3": {
+    source: require("@/assets/audio/learning/lg/stage-1/story-greeting-3.mp3"),
+    isPlaceholder: true,
+  },
+  "lg.stage2.maama": {
+    source: require("@/assets/audio/learning/lg/stage-2/maama.mp3"),
+    isPlaceholder: true,
+  },
+  "lg.stage2.taata": {
+    source: require("@/assets/audio/learning/lg/stage-2/taata.mp3"),
+    isPlaceholder: true,
+  },
+  "lg.stage2.omwana": {
+    source: require("@/assets/audio/learning/lg/stage-2/omwana.mp3"),
+    isPlaceholder: true,
+  },
+  "lg.stage2.ennyumba": {
+    source: require("@/assets/audio/learning/lg/stage-2/ennyumba.mp3"),
+    isPlaceholder: true,
+  },
+  "lg.stage2.amazzi": {
+    source: require("@/assets/audio/learning/lg/stage-2/amazzi.mp3"),
+    isPlaceholder: true,
+  },
+  "lg.stage2.ekitabo": {
+    source: require("@/assets/audio/learning/lg/stage-2/ekitabo.mp3"),
+    isPlaceholder: true,
+  },
+  "lg.stage2.story.1": {
+    source: require("@/assets/audio/learning/lg/stage-2/story-home-1.mp3"),
+    isPlaceholder: true,
+  },
+  "lg.stage2.story.2": {
+    source: require("@/assets/audio/learning/lg/stage-2/story-home-2.mp3"),
+    isPlaceholder: true,
+  },
+  "lg.stage2.story.3": {
+    source: require("@/assets/audio/learning/lg/stage-2/story-home-3.mp3"),
+    isPlaceholder: true,
+  },
+  "lg.stage2.story.4": {
+    source: require("@/assets/audio/learning/lg/stage-2/story-home-4.mp3"),
+    isPlaceholder: true,
+  },
   amazzi: { source: require("@/assets/audio/Amazzi.mp3") },
   bulungi: { source: require("@/assets/audio/Bulungi.mp3") },
   "oli-otya": { source: require("@/assets/audio/oli-otya.m4a") },

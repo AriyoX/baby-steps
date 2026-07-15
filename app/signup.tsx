@@ -172,7 +172,7 @@ export default function SignUp() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "padding"}
-      className="flex-1 bg-secondary-50"
+      className="flex-1 bg-[#F8F6F1]"
     >
       <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
 
@@ -197,35 +197,35 @@ export default function SignUp() {
             />
           </View>
 
-          <View className="items-center mt-8 mb-4">
-            <BrandMark kind="wordmark" width={180} height={44} containerStyle={{ marginBottom: 12 }} />
+          <View className="items-center mt-7 mb-3 px-6">
+            <BrandMark kind="wordmark" width={156} height={38} containerStyle={{ marginBottom: 18 }} />
             <Animated.View style={{ transform: [{ translateY }, { scale: scaleValue }] }}>
-              <Text variant="bold" className="text-4xl text-secondary-600 pt-3 text-center">
-                Create Your Account
+              <Text variant="bold" className="text-[32px] leading-10 text-neutral-900 pt-2 text-center">
+                Grow together
               </Text>
-              <Text className="text-lg text-center text-neutral-600 mt-2">
-                {"Save your child's progress and learning history"}
+              <Text className="text-base text-center text-neutral-600 mt-2 leading-6">
+                One parent account keeps every child’s journey safe and in one place.
               </Text>
             </Animated.View>
           </View>
 
-          <View className="items-center my-6">
+          <View className="items-center my-3">
             <Animated.View
-              className="w-32 h-32 bg-white rounded-full items-center justify-center shadow-lg border-4 border-secondary-200 overflow-hidden"
+              className="w-24 h-24 bg-white rounded-[28px] items-center justify-center shadow-sm border border-secondary-100 overflow-hidden"
               style={{ transform: [{ translateY }, { scale: scaleValue }] }}
             >
-              <BrandMark kind="mascot" width={78} height={104} />
+              <BrandMark kind="mascot" width={58} height={78} />
             </Animated.View>
           </View>
 
           <Animated.View
-            className="mx-6 bg-white p-6 rounded-3xl shadow-md border-2 border-secondary-100"
+            className="mx-5 bg-white p-5 rounded-[28px] shadow-sm border border-secondary-100"
             style={{ transform: [{ scale: scaleValue }], opacity: scaleValue }}
           >
             <View className="mb-5">
-              <Text className="text-secondary-700 mb-3 text-lg">Email</Text>
-              <View className="flex-row items-center bg-secondary-50 rounded-2xl px-5 py-4 border-2 border-secondary-100">
-                <View className="bg-secondary-200 w-10 h-10 rounded-full items-center justify-center">
+              <Text variant="bold" className="text-neutral-700 mb-2 text-sm">Email address</Text>
+              <View className="flex-row items-center bg-neutral-50 rounded-2xl px-4 border border-neutral-200 min-h-[58px]">
+                <View className="bg-secondary-100 w-9 h-9 rounded-xl items-center justify-center">
                   <FontAwesome name="envelope" size={20} color={brandColors.shanaOrange} />
                 </View>
                 <TextInput
@@ -247,9 +247,9 @@ export default function SignUp() {
             </View>
 
             <View className="mb-5">
-              <Text className="text-secondary-700 mb-3 text-lg">Password</Text>
-              <View className="flex-row items-center bg-secondary-50 rounded-2xl px-5 py-4 border-2 border-secondary-100">
-                <View className="bg-secondary-200 w-10 h-10 rounded-full items-center justify-center">
+              <Text variant="bold" className="text-neutral-700 mb-2 text-sm">Password</Text>
+              <View className="flex-row items-center bg-neutral-50 rounded-2xl px-4 border border-neutral-200 min-h-[58px]">
+                <View className="bg-secondary-100 w-9 h-9 rounded-xl items-center justify-center">
                   <FontAwesome name="lock" size={20} color={brandColors.shanaOrange} />
                 </View>
                 <TextInput
@@ -278,9 +278,9 @@ export default function SignUp() {
             </View>
 
             <View className="mb-8">
-              <Text className="text-secondary-700 mb-3 text-lg">Confirm Password</Text>
-              <View className="flex-row items-center bg-secondary-50 rounded-2xl px-5 py-4 border-2 border-secondary-100">
-                <View className="bg-secondary-200 w-10 h-10 rounded-full items-center justify-center">
+              <Text variant="bold" className="text-neutral-700 mb-2 text-sm">Confirm password</Text>
+              <View className="flex-row items-center bg-neutral-50 rounded-2xl px-4 border border-neutral-200 min-h-[58px]">
+                <View className="bg-secondary-100 w-9 h-9 rounded-xl items-center justify-center">
                   <FontAwesome name="check-circle" size={20} color={brandColors.shanaOrange} />
                 </View>
                 <TextInput
@@ -302,7 +302,7 @@ export default function SignUp() {
             </View>
 
             <TouchableOpacity
-              className={`bg-secondary-500 py-4 rounded-xl items-center shadow-md ${loading ? "opacity-70" : ""}`}
+              className={`bg-secondary-500 min-h-[56px] rounded-2xl items-center justify-center shadow-sm ${loading ? "opacity-70" : ""}`}
               onPress={signUpWithEmail}
               disabled={loading}
               activeOpacity={0.84}
@@ -312,7 +312,12 @@ export default function SignUp() {
               </Text>
             </TouchableOpacity>
 
-            <View className="mt-8 items-center">
+            <View className="flex-row items-center justify-center mt-5 pt-5 border-t border-neutral-100">
+              <FontAwesome name="shield" size={14} color={brandColors.neutral[500]} />
+              <Text className="text-xs text-neutral-500 ml-2">Your child never needs an email address</Text>
+            </View>
+
+            <View className="mt-5 items-center">
               <TouchableOpacity className="flex-row items-center" onPress={() => router.replace("/login")}>
                 <FontAwesome
                   name="arrow-left"

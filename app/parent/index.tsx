@@ -12,6 +12,7 @@ import { getActivityStats } from "@/lib/utils"
 import { TranslatedText } from "@/components/translated-text"
 import { BrandMark } from "@/components/brand/BrandMark"
 import { brandColors } from "@/constants/Brand"
+import { PARENTING_TIPS } from "@/content/parentingTips"
 
 type ChildProfile = {
   id: string
@@ -172,14 +173,14 @@ const ParentDashboard = () => {
       <SafeAreaView className="flex-1 bg-background" edges={["right", "top", "left"]}>
         <View className="flex-1">
           {/* Header */}
-          <View className="flex-row justify-between items-center p-4 border-b border-muted-200 bg-white">
+          <View className="flex-row justify-between items-center px-5 py-4 border-b border-neutral-100 bg-white">
             <View className="flex-row items-center flex-1 pr-3">
-              <BrandMark kind="wordmark" tone="main" width={64} height={64} containerStyle={{ marginRight: 12 }} />
+              <BrandMark kind="wordmark" tone="main" width={58} height={58} containerStyle={{ marginRight: 12 }} />
               <View className="flex-1">
-                <TranslatedText variant="bold" className="text-neutral-800 text-2xl">
-                  Parent Dashboard
+                <TranslatedText variant="bold" className="text-neutral-900 text-2xl">
+                  Your family
                 </TranslatedText>
-                <TranslatedText className="text-neutral-500">{"Monitor your children's learning journey"}</TranslatedText>
+                <TranslatedText className="text-neutral-500">Small steps worth celebrating</TranslatedText>
               </View>
             </View>
 
@@ -201,7 +202,20 @@ const ParentDashboard = () => {
           </View>
 
           {/* Main content */}
-          <ScrollView className="flex-1 p-4 pb-8">
+          <ScrollView className="flex-1" contentContainerClassName="p-4 pb-10" showsVerticalScrollIndicator={false}>
+            <View className="bg-primary-700 rounded-[28px] p-5 mb-6 overflow-hidden">
+              <View className="absolute -right-8 -top-10 w-36 h-36 rounded-full bg-primary-500" />
+              <View className="absolute right-16 -bottom-12 w-28 h-28 rounded-full bg-accent-400 opacity-30" />
+              <View className="flex-row items-center justify-between">
+                <View className="flex-1 pr-4">
+                  <Text variant="bold" className="text-white text-xl mb-2">Ready for today’s little win?</Text>
+                  <Text className="text-primary-100 leading-5">Ten playful minutes together can be enough to build a habit.</Text>
+                </View>
+                <View className="w-14 h-14 rounded-2xl bg-white/20 items-center justify-center">
+                  <Ionicons name="sunny-outline" size={28} color={brandColors.equatorialGold} />
+                </View>
+              </View>
+            </View>
             {/* Child profiles section */}
             <View className="mb-6">
               <View className="flex-row justify-between items-center mb-3">
@@ -241,7 +255,11 @@ const ParentDashboard = () => {
                           <View className="items-center mb-2">
                             <View className="relative">
                               <View className="w-[60px] h-[60px] rounded-full bg-primary-100 items-center justify-center">
-                                <Text className="text-3xl">{child.avatar}</Text>
+                                <FontAwesome5
+                                  name={child.gender === "male" ? "child" : child.gender === "female" ? "star" : "smile"}
+                                  size={26}
+                                  color={brandColors.victoriaBlue}
+                                />
                               </View>
                               <View className="absolute -bottom-2 -right-2 bg-primary-500 rounded-full w-6 h-6 items-center justify-center shadow-sm">
                                 <Text variant="bold" className="text-xs text-white">
@@ -365,24 +383,44 @@ const ParentDashboard = () => {
 
             {/* Parenting tips */}
             <View className="mb-8">
-              <TranslatedText variant="bold" className="text-neutral-800 text-lg mb-3">
-                Parenting Tips
-              </TranslatedText>
+              <View className="flex-row items-end justify-between mb-3">
+                <View className="flex-1 pr-4">
+                  <TranslatedText variant="bold" className="text-neutral-900 text-lg">
+                    Parenting ideas that work in real life
+                  </TranslatedText>
+                  <Text className="text-sm text-neutral-500 mt-1">Specific, gentle things to try—no perfection required.</Text>
+                </View>
+                <View className="bg-secondary-50 rounded-full px-3 py-1.5">
+                  <Text variant="bold" className="text-xs text-secondary-700">6 ideas</Text>
+                </View>
+              </View>
 
-              <TouchableOpacity
-                className="bg-white rounded-xl p-4 border-l-4 border-primary-500 shadow-sm border-t border-r border-b border-muted-200"
-                activeOpacity={0.8}
-              >
-                <TranslatedText variant="medium" className="text-gray-800 mb-2">
-                  {"Supporting your child's learning at home"}
-                </TranslatedText>
-                <TranslatedText className="text-gray-600 text-sm">
-                  Create a comfortable learning environment with minimal distractions and regular routines.
-                </TranslatedText>
-                <TranslatedText variant="medium" className="text-primary-700 mt-2">
-                  Read More
-                </TranslatedText>
-              </TouchableOpacity>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-3 pr-4">
+                {PARENTING_TIPS.map((tip) => (
+                  <View
+                    key={tip.id}
+                    className="w-[290px] bg-white rounded-3xl p-5 border border-neutral-100 shadow-sm"
+                  >
+                    <View className="flex-row items-center mb-4">
+                      <View className="w-11 h-11 rounded-2xl items-center justify-center" style={{ backgroundColor: tip.tint }}>
+                        <Ionicons name={tip.icon} size={22} color={tip.color} />
+                      </View>
+                      <View className="ml-3">
+                        <Text variant="bold" className="text-xs uppercase tracking-[1px]" style={{ color: tip.color }}>
+                          {tip.category}
+                        </Text>
+                        <Text className="text-xs text-neutral-400 mt-0.5">A two-minute read</Text>
+                      </View>
+                    </View>
+                    <Text variant="bold" className="text-lg leading-6 text-neutral-900 mb-2">{tip.title}</Text>
+                    <Text className="text-sm leading-5 text-neutral-600 mb-4">{tip.tip}</Text>
+                    <View className="rounded-2xl p-3" style={{ backgroundColor: tip.tint }}>
+                      <Text variant="bold" className="text-xs mb-1" style={{ color: tip.color }}>TRY THIS TODAY</Text>
+                      <Text className="text-sm leading-5 text-neutral-700">{tip.tryThis}</Text>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
             </View>
           </ScrollView>
         </View>

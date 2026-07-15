@@ -179,7 +179,7 @@ export default function Auth() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "padding"}
-      className="flex-1 bg-primary-50"
+      className="flex-1 bg-[#F8F6F1]"
     >
       <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
 
@@ -210,35 +210,35 @@ export default function Auth() {
             />
           </View>
 
-          <View className="items-center mt-8 mb-4">
-            <BrandMark kind="wordmark" width={180} height={44} containerStyle={{ marginBottom: 12 }} />
+          <View className="items-center mt-7 mb-3 px-6">
+            <BrandMark kind="wordmark" width={156} height={38} containerStyle={{ marginBottom: 18 }} />
             <Animated.View style={{ transform: [{ translateY }, { scale: scaleValue }] }}>
-              <Text variant="bold" className="text-4xl text-primary-600 pt-3 text-center">
-                Welcome Back!
+              <Text variant="bold" className="text-[34px] leading-10 text-neutral-900 pt-2 text-center">
+                Welcome back
               </Text>
-              <Text className="text-lg text-center text-neutral-600 mt-2">
-                {"Continue your child's learning journey."}
+              <Text className="text-base text-center text-neutral-600 mt-2 leading-6">
+                Pick up where your family left off.
               </Text>
             </Animated.View>
           </View>
 
-          <View className="items-center my-6">
+          <View className="items-center my-3">
             <Animated.View
-              className="w-36 h-36 bg-white rounded-full items-center justify-center shadow-lg border-4 border-primary-200 overflow-hidden"
+              className="w-24 h-24 bg-white rounded-[28px] items-center justify-center shadow-sm border border-primary-100 overflow-hidden"
               style={{ transform: [{ translateY }, { scale: scaleValue }] }}
             >
-              <BrandMark kind="mascot" width={88} height={116} />
+              <BrandMark kind="mascot" width={58} height={78} />
             </Animated.View>
           </View>
 
           <Animated.View
-            className="mx-6 bg-white p-6 rounded-3xl shadow-md border-2 border-primary-100"
+            className="mx-5 bg-white p-5 rounded-[28px] shadow-sm border border-primary-100"
             style={{ transform: [{ scale: scaleValue }], opacity: scaleValue }}
           >
             <View className="mb-6">
-              <Text className="text-primary-700 mb-3 text-lg">Email</Text>
-              <View className="flex-row items-center bg-primary-50 rounded-2xl px-5 py-4 border-2 border-primary-100">
-                <View className="bg-primary-200 p-2 rounded-full">
+              <Text variant="bold" className="text-neutral-700 mb-2 text-sm">Email address</Text>
+              <View className="flex-row items-center bg-neutral-50 rounded-2xl px-4 border border-neutral-200 min-h-[58px]">
+                <View className="bg-primary-100 w-9 h-9 items-center justify-center rounded-xl">
                   <FontAwesome name="envelope" size={20} color={brandColors.victoriaBlue} />
                 </View>
                 <TextInput
@@ -260,9 +260,9 @@ export default function Auth() {
             </View>
 
             <View className="mb-8">
-              <Text className="text-primary-700 mb-3 text-lg">Password</Text>
-              <View className="flex-row items-center bg-primary-50 rounded-2xl px-5 py-4 border-2 border-primary-100">
-                <View className="bg-primary-200 w-10 h-10 rounded-full items-center justify-center">
+              <Text variant="bold" className="text-neutral-700 mb-2 text-sm">Password</Text>
+              <View className="flex-row items-center bg-neutral-50 rounded-2xl px-4 border border-neutral-200 min-h-[58px]">
+                <View className="bg-primary-100 w-9 h-9 rounded-xl items-center justify-center">
                   <FontAwesome name="lock" size={20} color={brandColors.victoriaBlue} />
                 </View>
                 <TextInput
@@ -291,7 +291,7 @@ export default function Auth() {
             </View>
 
             <TouchableOpacity
-              className={`bg-primary-500 py-4 rounded-xl items-center shadow-md ${loading ? "opacity-70" : ""}`}
+              className={`bg-primary-500 min-h-[56px] rounded-2xl items-center justify-center shadow-sm ${loading ? "opacity-70" : ""}`}
               onPress={signInWithEmail}
               disabled={loading}
               activeOpacity={0.84}
@@ -301,7 +301,7 @@ export default function Auth() {
               </Text>
             </TouchableOpacity>
 
-            <View className="flex-row items-center justify-between mt-6 px-2">
+            <View className="flex-row items-center justify-between mt-5 px-1">
               <TouchableOpacity onPress={() => router.replace("/forgot-password")}>
                 <Text variant="bold" className="text-secondary-600 text-base">
                   Forgot password?
@@ -313,6 +313,11 @@ export default function Auth() {
                   Create Account
                 </Text>
               </TouchableOpacity>
+            </View>
+
+            <View className="flex-row items-center justify-center mt-6 pt-5 border-t border-neutral-100">
+              <FontAwesome name="shield" size={14} color={brandColors.neutral[500]} />
+              <Text className="text-xs text-neutral-500 ml-2">Private parent account · No ads for children</Text>
             </View>
           </Animated.View>
 

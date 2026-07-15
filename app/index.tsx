@@ -20,8 +20,10 @@ import { setOnboardingCompleted } from "@/lib/onboarding";
 const onboardingData = [
   {
     id: "1",
-    title: "Baby Steps",
-    description: "Playful stories and games help your child learn language and culture.",
+    eyebrow: "LEARN THROUGH PLAY",
+    title: "Little moments, big growth",
+    description: "Playful stories and games help your child build language, confidence, and a connection to culture.",
+    outcome: "Short activities made for young attention spans",
     icon: "child",
     mascot: true,
     shapeColor: "bg-primary-300",
@@ -30,8 +32,10 @@ const onboardingData = [
   },
   {
     id: "2",
-    title: "Save Their Journey",
-    description: "A parent account keeps child profiles, progress, and learning history safe.",
+    eyebrow: "MADE FOR FAMILIES",
+    title: "Their journey stays with you",
+    description: "Create a profile for each child and see what they explore, practise, and enjoy over time.",
+    outcome: "One private parent account for the whole family",
     icon: "book-open",
     shapeColor: "bg-secondary-300",
     textColor: "text-secondary-700",
@@ -39,8 +43,10 @@ const onboardingData = [
   },
   {
     id: "3",
-    title: "Start Small",
-    description: "Add a child profile, then begin with simple activities made for little learners.",
+    eyebrow: "READY WHEN THEY ARE",
+    title: "Start with one joyful step",
+    description: "Choose a learning language and a comfortable starting point. We’ll guide you from there.",
+    outcome: "No pressure, no ads, and room to explore",
     icon: "gamepad",
     shapeColor: "bg-accent-300",
     textColor: "text-accent-800",
@@ -189,9 +195,9 @@ export default function OnboardingScreen() {
     });
 
     return (
-      <View style={{ width }} className="h-full items-center justify-center">
+      <View style={{ width }} className="h-full items-center justify-center px-6">
         <Animated.View
-          className="w-44 h-44 rounded-full items-center justify-center shadow-xl mb-10 bg-white border-4 border-white"
+          className="w-44 h-44 rounded-[48px] items-center justify-center shadow-lg mb-8 bg-white border border-white"
           style={{ transform: [{ translateY }, { rotate }, { scale: scaleValue }] }}
         >
           {item.mascot ? (
@@ -201,13 +207,26 @@ export default function OnboardingScreen() {
           )}
         </Animated.View>
 
-        <Text variant="display" className={`text-4xl pt-3 mb-4 ${item.textColor}`}>
+        <View className="bg-white/70 rounded-full px-4 py-2 mb-3">
+          <Text variant="bold" className={`text-xs tracking-[2px] ${item.textColor}`}>
+            {item.eyebrow}
+          </Text>
+        </View>
+
+        <Text variant="display" className={`text-[34px] leading-10 pt-2 mb-4 text-center ${item.textColor}`}>
           {item.title}
         </Text>
 
-        <Text className="text-xl text-center text-neutral-700 px-12 leading-7">
+        <Text className="text-lg text-center text-neutral-700 px-4 leading-7">
           {item.description}
         </Text>
+
+        <View className="flex-row items-center bg-white/75 border border-white rounded-2xl px-4 py-3 mt-5 max-w-[330px]">
+          <FontAwesome5 name="check-circle" size={17} color={brandColors.victoriaBlue} />
+          <Text variant="medium" className="text-sm text-neutral-700 ml-2 flex-1">
+            {item.outcome}
+          </Text>
+        </View>
       </View>
     );
   };
@@ -216,9 +235,9 @@ export default function OnboardingScreen() {
     if (currentIndex === onboardingData.length - 1) {
       return (
         <AppButton
-          label="Get started"
+          label="Create your family space"
           icon="arrow-forward"
-          className="w-64 rounded-full shadow-lg"
+          className="w-[310px] rounded-2xl shadow-lg"
           fullWidth={false}
           onPress={handleOnboardingComplete}
         />
@@ -229,7 +248,7 @@ export default function OnboardingScreen() {
       <AppButton
         label="Next"
         icon="arrow-forward"
-        className="w-64 rounded-full shadow-lg"
+        className="w-[310px] rounded-2xl shadow-lg"
         fullWidth={false}
         onPress={() => {
           if (currentIndex < onboardingData.length - 1) {
@@ -251,11 +270,11 @@ export default function OnboardingScreen() {
 
       <SafeAreaView className="w-full items-center pb-4">
         <BrandMark kind="wordmark" width={172} height={42} containerStyle={{ marginTop: 16 }} />
-        <Text className="text-base text-neutral-600 mt-1">Learn & Play</Text>
+        <Text className="text-sm text-neutral-500 mt-1">Play • Learn • Belong</Text>
       </SafeAreaView>
 
       <TouchableOpacity
-        className="absolute top-16 right-6 bg-white/85 py-2 px-5 rounded-full z-10 shadow-sm"
+        className="absolute top-16 right-5 bg-white/85 py-2 px-4 rounded-full z-10 shadow-sm border border-white"
         onPress={handleOnboardingComplete}
         activeOpacity={0.84}
       >

@@ -59,7 +59,7 @@ export default function ChildListScreen() {
 
     // Fetch child profiles
     fetchProfiles()
-  }, [])
+  }, [bounceValue, scaleValue])
 
   const fetchProfiles = async () => {
     try {
@@ -118,7 +118,7 @@ export default function ChildListScreen() {
   // Render a single child profile card
   const renderProfileCard = ({ item }: { item: ChildProfile }) => (
     <Animated.View
-      className="mb-4 rounded-2xl bg-white shadow-md overflow-hidden"
+      className="mb-4 rounded-3xl bg-white shadow-sm overflow-hidden border border-primary-100"
       style={{ transform: [{ scale: scaleValue }] }}
     >
       <TouchableOpacity
@@ -127,7 +127,7 @@ export default function ChildListScreen() {
         activeOpacity={0.8}
       >
         {/* Avatar with gender-based emoji */}
-        <View className="relative w-[70px] h-[70px] rounded-full bg-primary-50 justify-center items-center mr-4">
+        <View className="relative w-[70px] h-[70px] rounded-2xl bg-primary-50 justify-center items-center mr-4">
           <Text className="text-[36px]">{item.gender === "male" ? "👦" : item.gender === "female" ? "👧" : "👶"}</Text>
           {/* Level badge - using a placeholder level for now */}
           <View className="absolute -bottom-1 -right-1 bg-primary-500 rounded-xl w-6 h-6 justify-center items-center border-2 border-white">
@@ -152,8 +152,8 @@ export default function ChildListScreen() {
         </View>
 
         {/* Arrow indicator */}
-        <View className="p-2">
-          <FontAwesome5 name="chevron-right" size={18} color="#ccc" />
+        <View className="w-9 h-9 rounded-full bg-neutral-50 items-center justify-center">
+          <FontAwesome5 name="chevron-right" size={15} color={brandColors.neutral[400]} />
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -166,7 +166,7 @@ export default function ChildListScreen() {
 
       <SafeAreaView className="flex-1 bg-primary-50" edges={["top"]}>
         {/* Header with back button */}
-        <View className="px-5 py-4 bg-white border-b border-gray-200">
+        <View className="px-5 py-4 bg-white border-b border-neutral-100">
           <View className="flex-row items-center mb-2">
             <TouchableOpacity
               onPress={() => router.replace("/parent")}
@@ -174,11 +174,11 @@ export default function ChildListScreen() {
             >
               <FontAwesome5 name="arrow-left" size={16} color={brandColors.victoriaBlue} />
             </TouchableOpacity>
-            <TranslatedText variant="bold" className="text-2xl text-primary-800">
-              Child Profiles
+            <TranslatedText variant="bold" className="text-2xl text-neutral-900">
+              Your little learners
             </TranslatedText>
           </View>
-          <TranslatedText className="text-sm text-neutral-400 mt-1 ml-1">Personalized learning journeys</TranslatedText>
+          <TranslatedText className="text-sm text-neutral-500 mt-1 ml-1">Choose a profile or make a new one</TranslatedText>
         </View>
 
         {/* Main content */}
@@ -245,10 +245,10 @@ export default function ChildListScreen() {
                     👶
                   </Text>
                   <TranslatedText variant="display" className="text-3xl text-primary-700 mb-3 text-center">
-                    No Child Profiles Yet
+                    Let’s meet your learner
                   </TranslatedText>
                   <TranslatedText className="text-base text-neutral-500 text-center mb-6 leading-6">
-                    {"You haven't added any child profiles yet. Create a profile to start your child's personalized learning journey!"}
+                    Add a few details so Baby Steps can save progress and suggest a friendly place to begin.
                   </TranslatedText>
 
                   <TouchableOpacity

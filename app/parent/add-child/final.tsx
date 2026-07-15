@@ -39,8 +39,6 @@ export default function SubmitScreen() {
       setIsLoading(true)
       setError(null)
       setIsSuccess(false)
-      // Simulate a slight delay for better UX
-      await new Promise((resolve) => setTimeout(resolve, 1000))
       const child = await addChildProfile()
       setSavedChild(child)
       setIsSuccess(true)
@@ -59,7 +57,7 @@ export default function SubmitScreen() {
   }, [submitData])
 
   const handleBack = () => {
-    router.replace("/parent/add-child/mindCapacity")
+    router.replace("/parent/add-child/reason")
   }
 
   const handleStartLearning = () => {
@@ -84,9 +82,9 @@ export default function SubmitScreen() {
     <>
       <StatusBar translucent backgroundColor="white" barStyle="dark-content" />
 
-      <SafeAreaView className="flex-1 bg-primary-50">
+      <SafeAreaView className="flex-1 bg-[#F8F6F1]">
         {/* Header */}
-        <View className="flex-row items-center p-4 bg-white border-b border-gray-200">
+        <View className="flex-row items-center px-5 py-4 bg-white border-b border-neutral-100">
           {!isLoading && !isSuccess ? (
             <TouchableOpacity
               onPress={handleBack}
@@ -97,7 +95,7 @@ export default function SubmitScreen() {
           ) : (
             <View className="w-10 h-10" />
           )}
-          <TranslatedText variant="bold" className="flex-1 text-center text-2xl text-primary-800 mr-10">
+          <TranslatedText variant="bold" className="flex-1 text-center text-xl text-neutral-900 mr-10">
             {isLoading ? "Creating Profile" : isSuccess ? "Ready to Learn" : "Profile Needs Help"}
           </TranslatedText>
         </View>
@@ -109,7 +107,7 @@ export default function SubmitScreen() {
 
         {/* Main content */}
         <View className="flex-1 justify-center items-center px-6">
-          <View className="bg-white p-8 rounded-3xl shadow-md items-center w-full max-w-[340px]">
+          <View className="bg-white p-7 rounded-[28px] shadow-sm border border-primary-100 items-center w-full max-w-[360px]">
             {/* Status icon */}
             <View className="w-20 h-20 rounded-full items-center justify-center mb-6">
               {isLoading ? (
@@ -131,8 +129,8 @@ export default function SubmitScreen() {
             {isSuccess && (
               <BrandMark kind="mascot" width={70} height={94} containerStyle={{ marginTop: -8, marginBottom: 8 }} />
             )}
-            <TranslatedText variant={isSuccess ? "display" : "bold"} className="text-2xl text-center text-primary-800 mb-4">
-              {isLoading ? "Saving Profile" : isSuccess ? "Profile Saved!" : "Something Went Wrong"}
+            <TranslatedText variant={isSuccess ? "display" : "bold"} className="text-2xl text-center text-neutral-900 mb-3">
+              {isLoading ? "Saving profile" : isSuccess ? `${name} is ready!` : "Something went wrong"}
             </TranslatedText>
 
             <TranslatedText className="text-base text-center text-neutral-600 mb-8">
@@ -145,9 +143,9 @@ export default function SubmitScreen() {
 
             {/* Profile summary (only show on success) */}
             {isSuccess && (
-              <View className="bg-primary-50 p-4 rounded-xl w-full mb-6">
-                <TranslatedText variant="semibold" className="text-primary-800 mb-2">
-                  Profile Summary:
+              <View className="bg-primary-50 p-4 rounded-2xl w-full mb-6 border border-primary-100">
+                <TranslatedText variant="semibold" className="text-primary-800 mb-3">
+                  Profile summary
                 </TranslatedText>
                 <View className="flex-row mb-1">
                   <TranslatedText variant="medium" className="text-neutral-700 w-20">

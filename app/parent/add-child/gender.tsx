@@ -1,137 +1,82 @@
-"use client"
-
-import { View, TouchableOpacity, TextInput, StatusBar } from "react-native"
-import { useUser } from "@/context/UserContext"
+import { Alert, TextInput, TouchableOpacity, View } from "react-native"
+import { Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
+import { AddChildScaffold } from "@/components/parent/AddChildScaffold"
 import { Text } from "@/components/StyledText"
-import { TranslatedText } from "@/components/translated-text"
-import { FontAwesome5 } from "@expo/vector-icons"
-import { SafeAreaView } from "react-native-safe-area-context"
+import { useUser } from "@/context/UserContext"
+import { brandColors } from "@/constants/Brand"
 import { readableTextInputStyle } from "@/constants/formStyles"
+
+const profileOptions = [
+  { value: "male", label: "Boy", icon: "happy-outline" as const, tint: "bg-primary-50" },
+  { value: "female", label: "Girl", icon: "sparkles-outline" as const, tint: "bg-secondary-50" },
+  { value: "", label: "Skip", icon: "person-outline" as const, tint: "bg-neutral-50" },
+]
 
 export default function GenderScreen() {
   const { setName, setGender, name, gender } = useUser()
   const router = useRouter()
-
-  const handleBack = () => {
-    router.replace("/parent")
-  }
+  const canContinue = Boolean(name?.trim())
 
   const handleNext = () => {
-    if (gender && name?.trim()) {
-      // Navigate to the next screen in your flow
-      router.replace("/parent/add-child/age")
-    } else {
-      // You could add some validation feedback here
-      alert("Please select a gender and enter a name")
+    if (!canContinue) {
+      Alert.alert("Add a name", "Please enter the name your child would like to see in the app.")
+      return
     }
+    router.replace("/parent/add-child/age")
   }
 
   return (
-    <>
-      <StatusBar translucent backgroundColor="white" barStyle="dark-content" />
+    <AddChildScaffold
+      step={1}
+      eyebrow="Let’s make it theirs"
+      title="Who is learning?"
+      description="Create a simple profile so stories and progress feel personal. You can change these details later."
+      onBack={() => router.replace("/parent")}
+      onNext={handleNext}
+      nextDisabled={!canContinue}
+    >
+      <Text variant="bold" className="text-sm text-neutral-700 mb-2">Display name</Text>
+      <View className="flex-row items-center bg-neutral-50 rounded-2xl px-4 border border-neutral-200 min-h-[58px] mb-6">
+        <Ionicons name="person-outline" size={21} color={brandColors.victoriaBlue} />
+        <TextInput
+          className="flex-1 ml-3 text-lg text-neutral-900"
+          placeholder="e.g. Amina"
+          placeholderTextColor={brandColors.neutral[400]}
+          value={name}
+          onChangeText={setName}
+          autoCapitalize="words"
+          returnKeyType="done"
+          style={readableTextInputStyle}
+          accessibilityLabel="Child display name"
+        />
+      </View>
 
-      <SafeAreaView className="flex-1 bg-primary-50">
-        {/* Header with back button */}
-        <View className="flex-row items-center p-4 bg-white border-b border-gray-200">
-          <TouchableOpacity
-            onPress={handleBack}
-            className="w-10 h-10 rounded-full bg-primary-100 items-center justify-center"
-          >
-            <FontAwesome5 name="arrow-left" size={16} color="#3e4685" />
-          </TouchableOpacity>
-          <TranslatedText variant="bold" className="flex-1 text-center text-2xl text-primary-800 mr-10">
-            Add Child
-          </TranslatedText>
-        </View>
-
-        {/* Decorative elements */}
-        <View className="absolute w-[80px] h-[80px] rounded-full bg-primary-100/30 top-[15%] left-[5%]" />
-        <View className="absolute w-[60px] h-[60px] rounded-full bg-secondary-100/30 bottom-[20%] right-[10%]" />
-
-        {/* Main content */}
-        <View className="flex-1 justify-center items-center px-6">
-          <View className="w-full bg-white p-6 rounded-3xl shadow-md">
-            <TranslatedText variant="bold" className="text-2xl text-center text-primary-800 mb-6">
-              {"What is your child's gender and name?"}
-            </TranslatedText>
-
-            {/* Gender selection */}
-            <View className="flex-row justify-center mb-8">
-              <TouchableOpacity
-                className={`items-center p-5 mx-4 rounded-2xl border-2 ${
-                  gender === "male" ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white"
-                } shadow-sm`}
-                onPress={() => setGender("male")}
-              >
-                <Text className="text-[60px] mb-2">👦</Text>
-                <TranslatedText variant="medium" className="text-lg text-neutral-700">
-                  Boy
-                </TranslatedText>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                className={`items-center p-5 mx-4 rounded-2xl border-2 ${
-                  gender === "female" ? "border-pink-500 bg-pink-50" : "border-gray-200 bg-white"
-                } shadow-sm`}
-                onPress={() => setGender("female")}
-              >
-                <Text className="text-[60px] mb-2">👧</Text>
-                <TranslatedText variant="medium" className="text-lg text-neutral-700">
-                  Girl
-                </TranslatedText>
-              </TouchableOpacity>
-            </View>
-
-            {/* Name input */}
-            <View className="mb-6 w-full">
-              <TranslatedText variant="medium" className="text-lg text-neutral-700 mb-2">
-                {"Child's Name"}
-              </TranslatedText>
-              <View className="flex-row items-center bg-primary-50 rounded-xl px-4 py-3 border border-primary-100">
-                <FontAwesome5 name="child" size={18} color="#6366f1" />
-                <TextInput
-                  className="flex-1 ml-3 text-lg text-neutral-800"
-                  placeholder="Enter your child's name"
-                  placeholderTextColor="#9CA3AF"
-                  value={name}
-                  onChangeText={setName}
-                  autoCapitalize="words"
-                  returnKeyType="next"
-                  style={readableTextInputStyle}
-                />
-              </View>
-            </View>
-
-            {/* Prefer not to answer */}
+      <Text variant="bold" className="text-sm text-neutral-700 mb-3">How should we represent them?</Text>
+      <View className="flex-row gap-2">
+        {profileOptions.map((option) => {
+          const selected = gender === option.value
+          return (
             <TouchableOpacity
-              className="self-center mb-8"
-              onPress={() => {
-                setGender("")
-                router.replace("/parent/add-child/age")
-              }}
+              key={option.label}
+              className={`flex-1 items-center py-4 px-2 rounded-2xl border-2 ${
+                selected ? "border-primary-500 bg-primary-50" : `border-neutral-100 ${option.tint}`
+              }`}
+              onPress={() => setGender(option.value)}
+              activeOpacity={0.76}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: selected }}
             >
-              <TranslatedText variant="medium" className="text-neutral-500">
-                Prefer not to answer
-              </TranslatedText>
+              <View className={`w-11 h-11 rounded-full items-center justify-center mb-2 ${selected ? "bg-primary-500" : "bg-white"}`}>
+                <Ionicons name={option.icon} size={22} color={selected ? "#fff" : brandColors.neutral[600]} />
+              </View>
+              <Text variant={selected ? "bold" : "medium"} className={selected ? "text-primary-700" : "text-neutral-600"}>
+                {option.label}
+              </Text>
             </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Next button */}
-        <View className="p-6 bg-white border-t border-gray-200">
-          <TouchableOpacity
-            className="flex-row bg-secondary-500 py-4 rounded-full items-center justify-center shadow-md"
-            onPress={handleNext}
-            activeOpacity={0.8}
-          >
-            <TranslatedText variant="bold" className="text-white text-lg mr-2">
-              Next
-            </TranslatedText>
-            <FontAwesome5 name="arrow-right" size={16} color="white" />
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    </>
+          )
+        })}
+      </View>
+    </AddChildScaffold>
   )
 }

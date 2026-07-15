@@ -14,6 +14,7 @@ import { getLearningLanguage } from "@/content/languages"
 import { BrandMark } from "@/components/brand/BrandMark"
 import { brandColors } from "@/constants/Brand"
 import { CHILD_HOME_ROUTE } from "@/constants/ChildNavigation"
+import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network"
 
 type SavedChildProfile = {
   id: string
@@ -39,12 +40,21 @@ export default function SubmitScreen() {
       setIsLoading(true)
       setError(null)
       setIsSuccess(false)
+      if (!(await requireInternet("Saving a child profile"))) {
+        setError("Connect to the internet to save this profile, then try again.")
+        return
+      }
       const child = await addChildProfile()
       setSavedChild(child)
       setIsSuccess(true)
     } catch (err) {
       console.error("Error submitting profile:", err)
-      setError("Failed to save profile. Please try again.")
+      const networkError = await showNetworkErrorIfNeeded(err, "Saving a child profile")
+      setError(
+        networkError
+          ? "Connect to the internet to save this profile, then try again."
+          : "Failed to save profile. Please try again.",
+      )
     } finally {
       setIsLoading(false)
     }

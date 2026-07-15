@@ -28,6 +28,7 @@ import {
 } from "@/lib/authMessages";
 import { SIGNUP_EMAIL_REDIRECT_URL } from "@/lib/authRedirects";
 import { supabase } from "../lib/supabase";
+import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network";
 
 export default function SignUp() {
   const [email, setEmail] = useState("");
@@ -96,6 +97,8 @@ export default function SignUp() {
       return;
     }
 
+    if (!(await requireInternet("Creating an account"))) return;
+
     const trimmedEmail = email.trim();
     const goToCheckEmail = (flow: "signup" | "signup-existing") => {
       router.replace({
@@ -124,6 +127,7 @@ export default function SignUp() {
       });
 
       if (error) {
+        if (await showNetworkErrorIfNeeded(error, "Creating an account")) return;
         if (isExistingAccountSignUpError(error)) {
           goToCheckEmail("signup-existing");
           return;
@@ -148,6 +152,7 @@ export default function SignUp() {
       goToNotificationPermission();
     } catch (error) {
       console.error("Could not create account.");
+      if (await showNetworkErrorIfNeeded(error, "Creating an account")) return;
       Alert.alert("Could not create account", getSignUpErrorMessage(error));
     } finally {
       setLoading(false);
@@ -321,6 +326,12 @@ export default function SignUp() {
             <View className="flex-row items-center justify-center mt-5 pt-5 border-t border-neutral-100">
               <FontAwesome name="shield" size={14} color={brandColors.neutral[500]} />
               <Text className="text-xs text-neutral-500 ml-2">Your child never needs an email address</Text>
+            </View>
+            <View className="flex-row items-start mt-3 bg-accent-50 rounded-xl px-3 py-2.5">
+              <FontAwesome name="wifi" size={13} color={brandColors.gold[700]} style={{ marginTop: 2 }} />
+              <Text className="text-xs leading-4 text-neutral-600 ml-2 flex-1">
+                Creating an account and syncing family progress need internet. Some downloaded or saved activities can still work offline.
+              </Text>
             </View>
 
             <View className="mt-5 items-center">

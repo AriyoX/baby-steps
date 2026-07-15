@@ -60,10 +60,8 @@ describe("learning reminders", () => {
       .mockResolvedValueOnce({ status: "undetermined", granted: false })
       .mockResolvedValue({ status: "granted", granted: true })
     mockRequestPermissionsAsync.mockResolvedValue({ status: "granted", granted: true })
-    mockScheduleNotificationAsync
-      .mockResolvedValueOnce("tuesday-id")
-      .mockResolvedValueOnce("thursday-id")
-      .mockResolvedValueOnce("saturday-id")
+    const scheduledDays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+    scheduledDays.forEach((day) => mockScheduleNotificationAsync.mockResolvedValueOnce(`${day}-id`))
   })
 
   it("uses the intended gentle weekly schedule", () => {
@@ -72,8 +70,12 @@ describe("learning reminders", () => {
       hour: reminder.hour,
       minute: reminder.minute,
     }))).toEqual([
-      { weekday: 3, hour: 18, minute: 30 },
-      { weekday: 5, hour: 18, minute: 30 },
+      { weekday: 1, hour: 10, minute: 0 },
+      { weekday: 2, hour: 19, minute: 30 },
+      { weekday: 3, hour: 19, minute: 30 },
+      { weekday: 4, hour: 19, minute: 30 },
+      { weekday: 5, hour: 19, minute: 30 },
+      { weekday: 6, hour: 19, minute: 30 },
       { weekday: 7, hour: 10, minute: 0 },
     ])
   })
@@ -83,7 +85,7 @@ describe("learning reminders", () => {
 
     expect(mockSetNotificationChannelAsync).toHaveBeenCalled()
     expect(mockRequestPermissionsAsync).toHaveBeenCalled()
-    expect(mockScheduleNotificationAsync).toHaveBeenCalledTimes(3)
+    expect(mockScheduleNotificationAsync).toHaveBeenCalledTimes(7)
     expect(mockSetItem).toHaveBeenLastCalledWith(
       "@baby_steps_notification_preferences",
       expect.stringContaining('"enabled":true'),

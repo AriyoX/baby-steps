@@ -16,6 +16,7 @@ import {
 } from "@/lib/authMessages";
 import { SIGNUP_EMAIL_REDIRECT_URL } from "@/lib/authRedirects";
 import { supabase } from "@/lib/supabase";
+import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network";
 
 type CheckEmailFlow = "signup" | "signup-existing" | "reset" | "unverified";
 
@@ -77,6 +78,7 @@ export default function CheckEmail() {
 
   const resendConfirmationEmail = async () => {
     if (!canResendConfirmation || resending) return;
+    if (!(await requireInternet("Resending the confirmation email"))) return;
 
     try {
       setResending(true);
@@ -89,12 +91,14 @@ export default function CheckEmail() {
       });
 
       if (error) {
+        if (await showNetworkErrorIfNeeded(error, "Resending the confirmation email")) return;
         Alert.alert("Could not resend email", getResendConfirmationErrorMessage(error));
         return;
       }
 
       Alert.alert("Email sent", CONFIRMATION_EMAIL_RESENT_MESSAGE);
     } catch (error) {
+      if (await showNetworkErrorIfNeeded(error, "Resending the confirmation email")) return;
       Alert.alert("Could not resend email", getResendConfirmationErrorMessage(error));
     } finally {
       setResending(false);

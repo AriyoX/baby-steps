@@ -12,6 +12,8 @@ const mockGetSession = jest.fn();
 const mockUpdateUser = jest.fn();
 const mockSignOut = jest.fn();
 const mockGetInitialURL = jest.fn();
+const mockRequireInternet = jest.fn();
+const mockShowNetworkErrorIfNeeded = jest.fn();
 const mountedComponents: renderer.ReactTestRenderer[] = [];
 
 jest.mock("expo-router", () => ({
@@ -51,6 +53,11 @@ jest.mock("@/lib/accountManagement", () => ({
   fetchActiveChildProfiles: jest.fn(),
   getAccountDeletionState: jest.fn(),
   getPostLoginRouteForAccountState: jest.fn(() => "/parent"),
+}));
+
+jest.mock("@/lib/network", () => ({
+  requireInternet: mockRequireInternet,
+  showNetworkErrorIfNeeded: mockShowNetworkErrorIfNeeded,
 }));
 
 jest.mock("expo-linking", () => ({
@@ -132,6 +139,8 @@ beforeEach(() => {
   });
   mockResend.mockResolvedValue({ error: null });
   mockSignOut.mockResolvedValue({ error: null });
+  mockRequireInternet.mockResolvedValue(true);
+  mockShowNetworkErrorIfNeeded.mockResolvedValue(false);
 });
 
 afterEach(() => {
@@ -227,6 +236,23 @@ describe("auth screens", () => {
       pathname: "/check-email",
       params: { flow: "unverified", email: "parent@example.com" },
     });
+  });
+
+  it("does not call Supabase login while the device is offline", async () => {
+    mockRequireInternet.mockResolvedValue(false);
+    const component = await renderAuthScreen(<Login />);
+
+    act(() => {
+      findInput(component.root, "parent@email.com").props.onChangeText("parent@example.com");
+      findInput(component.root, "Your password").props.onChangeText("secret1");
+    });
+
+    await act(async () => {
+      findButtonByText(component.root, "Sign In").props.onPress();
+    });
+
+    expect(mockRequireInternet).toHaveBeenCalledWith("Signing in");
+    expect(mockSignInWithPassword).not.toHaveBeenCalled();
   });
 
   it("shows a resend action for unverified email guidance", async () => {

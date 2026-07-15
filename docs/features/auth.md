@@ -13,7 +13,7 @@ Authentication lets parents create accounts, sign in, sign out, and request pass
 1. After onboarding, unauthenticated users go to `/login`.
 2. Parents can sign in with email/password.
 3. Parents can navigate to `/signup` to create an account.
-4. Accepted new signup attempts route to `/notification-permission`, where parents can opt into the documented local reminder schedule or continue without it.
+4. Accepted new signup attempts route to `/notification-permission`, where parents can opt into gentle device-local notifications or continue without them.
 5. The permission step then routes to `/check-email` so parents know to confirm their Baby Steps account; if Supabase returns a session during signup, the app clears the local session before continuing.
 6. Parents can request a reset link from `/forgot-password`.
 7. Reset links target the app scheme route `babysteps://auth/callback`; legacy `babysteps://reset-password` links remain supported.
@@ -50,7 +50,7 @@ Authentication lets parents create accounts, sign in, sign out, and request pass
 
 ## Data And Content Used
 
-The auth screens use local component state for form fields and Supabase Auth for account/session state.
+The auth screens use local component state for form fields and Supabase Auth for account/session state. Login and signup also explain that account access and syncing require internet while some saved activities may remain usable.
 
 ## State Management And Logic Notes
 
@@ -58,6 +58,7 @@ The auth screens use local component state for form fields and Supabase Auth for
 - Supabase auth persistence uses AsyncStorage on device.
 - During static rendering, `lib/supabase.ts` uses an in-memory storage fallback so web export can complete.
 - Auth errors are mapped through `lib/authMessages.ts` before being shown to parents.
+- Offline preflight and common fetch failures are handled through `lib/network.ts` before generic auth-error mapping.
 - Unconfirmed-email login errors reuse the check-email screen instead of a transient alert.
 - Password reset and signup confirmation links are parsed in `lib/authRedirects.ts`.
 - The reset-password screen can process legacy reset-password links and validate an existing recovery session.
@@ -73,7 +74,8 @@ The auth screens use local component state for form fields and Supabase Auth for
 ## Tests
 
 - `lib/__tests__/authMessages.test.ts` covers friendly auth error mapping, resend-confirmation copy, and validation helpers.
-- `app/__tests__/authScreens.test.tsx` covers accepted signup routing through notification permission, session-returning signup routing, unconfirmed-login guidance, forgot-password check-email routing, and reset-password visibility toggles.
+- `app/__tests__/authScreens.test.tsx` covers accepted signup routing through notification permission, session-returning signup routing, offline sign-in blocking, unconfirmed-login guidance, forgot-password check-email routing, and reset-password visibility toggles.
+- `lib/__tests__/network.test.ts` covers connectivity and network-error classification helpers.
 - `lib/__tests__/accountManagement.test.ts` covers the compatibility signup error helper exported from account management.
 
 ## Known Limitations Or Bugs
@@ -102,3 +104,4 @@ The auth screens use local component state for form fields and Supabase Auth for
 - [ ] Request a password reset.
 - [ ] Open a reset link on device and confirm the reset route works.
 - [ ] Sign out from settings and confirm the app returns to the unauthenticated flow.
+- [ ] Disable connectivity and confirm sign-in, signup, reset email, confirmation resend, and password update show network-specific guidance.

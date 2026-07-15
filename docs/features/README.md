@@ -7,6 +7,7 @@ These docs describe the current Baby Steps feature set as implemented in the cod
 | App onboarding | Implemented prototype | [onboarding.md](onboarding.md) |
 | Authentication and password reset | Implemented prototype | [auth.md](auth.md) |
 | Recurring learning notifications | Implemented on native devices | [notifications.md](notifications.md) |
+| Network connectivity messaging | Implemented | [network-connectivity.md](network-connectivity.md) |
 | Child profiles and add-child flow | Implemented prototype | [child-profiles.md](child-profiles.md) |
 | Parent dashboard and settings | Partially implemented | [parent-dashboard.md](parent-dashboard.md) |
 | Child mode and navigation | Database-content-backed prototype | [navigation.md](navigation.md) |

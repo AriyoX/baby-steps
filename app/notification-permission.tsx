@@ -7,7 +7,25 @@ import { BrandMark } from "@/components/brand/BrandMark"
 import { AppButton } from "@/components/common/AppButton"
 import { Text } from "@/components/StyledText"
 import { brandColors } from "@/constants/Brand"
-import { DEFAULT_REMINDER_SCHEDULE, requestAndEnableRecurringReminders } from "@/lib/notifications"
+import { requestAndEnableRecurringReminders } from "@/lib/notifications"
+
+const REMINDER_BENEFITS = [
+  {
+    icon: "sparkles-outline" as const,
+    title: "Helpful check-ins",
+    description: "Thoughtful prompts that make it easier to return to Baby Steps.",
+  },
+  {
+    icon: "heart-outline" as const,
+    title: "Made for family life",
+    description: "Warm, encouraging messages designed to feel supportive, never demanding.",
+  },
+  {
+    icon: "options-outline" as const,
+    title: "Always in your control",
+    description: "Pause or resume notifications whenever you like from Parent Settings.",
+  },
+]
 
 export default function NotificationPermissionScreen() {
   const router = useRouter()
@@ -62,23 +80,22 @@ export default function NotificationPermissionScreen() {
           Want a gentle nudge?
         </Text>
         <Text className="text-base leading-6 text-neutral-600 text-center px-3 mb-7">
-          Baby Steps can remind your family three times a week—never late at night, and easy to pause anytime.
+          Baby Steps can send timely, encouraging messages to help your family stay connected with the app.
         </Text>
 
         <View className="bg-white rounded-[28px] p-5 border border-primary-100 shadow-sm">
-          {DEFAULT_REMINDER_SCHEDULE.map((reminder, index) => (
+          {REMINDER_BENEFITS.map((benefit, index) => (
             <View
-              key={reminder.id}
-              className={`flex-row items-center py-3 ${index < DEFAULT_REMINDER_SCHEDULE.length - 1 ? "border-b border-neutral-100" : ""}`}
+              key={benefit.title}
+              className={`flex-row items-center py-3 ${index < REMINDER_BENEFITS.length - 1 ? "border-b border-neutral-100" : ""}`}
             >
               <View className="w-10 h-10 rounded-2xl bg-primary-50 items-center justify-center">
-                <Ionicons name={index === 2 ? "book-outline" : "sparkles-outline"} size={19} color={brandColors.victoriaBlue} />
+                <Ionicons name={benefit.icon} size={19} color={brandColors.victoriaBlue} />
               </View>
               <View className="flex-1 ml-3">
-                <Text variant="bold" className="text-neutral-800">{reminder.dayLabel}</Text>
-                <Text className="text-sm text-neutral-500">{index === 2 ? "Family story moment" : "10-minute play prompt"}</Text>
+                <Text variant="bold" className="text-neutral-800">{benefit.title}</Text>
+                <Text className="text-sm leading-5 text-neutral-500 mt-0.5">{benefit.description}</Text>
               </View>
-              <Text variant="bold" className="text-sm text-primary-700">{reminder.timeLabel}</Text>
             </View>
           ))}
         </View>

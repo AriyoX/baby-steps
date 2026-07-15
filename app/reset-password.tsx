@@ -38,6 +38,7 @@ import {
   validateResetPasswordForm,
 } from "@/lib/authMessages";
 import { supabase } from "../lib/supabase";
+import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network";
 
 type RecoveryLinkStatus = "checking" | "ready" | "error";
 
@@ -204,6 +205,8 @@ export default function ResetPassword() {
       return;
     }
 
+    if (!(await requireInternet("Updating your password"))) return;
+
     try {
       setLoading(true);
       const { error } = await supabase.auth.updateUser({
@@ -223,6 +226,7 @@ export default function ResetPassword() {
       setConfirmPassword("");
       setPasswordSent(true);
     } catch (error) {
+      if (await showNetworkErrorIfNeeded(error, "Updating your password")) return;
       Alert.alert(
         "Could not reset password",
         getPasswordUpdateErrorMessage(error),

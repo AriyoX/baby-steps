@@ -30,6 +30,7 @@ import {
   validateLoginForm,
 } from "@/lib/authMessages";
 import { supabase } from "../lib/supabase";
+import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
@@ -99,6 +100,8 @@ export default function Auth() {
       return;
     }
 
+    if (!(await requireInternet("Signing in"))) return;
+
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -107,6 +110,7 @@ export default function Auth() {
       });
 
       if (error) {
+        if (await showNetworkErrorIfNeeded(error, "Signing in")) return;
         if (isEmailNotConfirmedError(error)) {
           router.replace({
             pathname: "/check-email",
@@ -132,6 +136,7 @@ export default function Auth() {
       router.replace(getPostLoginRouteForAccountState(accountState) as any);
     } catch (error) {
       console.error("Could not complete sign in.");
+      if (await showNetworkErrorIfNeeded(error, "Signing in")) return;
       await supabase.auth.signOut();
       if (isEmailNotConfirmedError(error)) {
         router.replace({
@@ -318,6 +323,12 @@ export default function Auth() {
             <View className="flex-row items-center justify-center mt-6 pt-5 border-t border-neutral-100">
               <FontAwesome name="shield" size={14} color={brandColors.neutral[500]} />
               <Text className="text-xs text-neutral-500 ml-2">Private parent account · No ads for children</Text>
+            </View>
+            <View className="flex-row items-start mt-3 bg-accent-50 rounded-xl px-3 py-2.5">
+              <FontAwesome name="wifi" size={13} color={brandColors.gold[700]} style={{ marginTop: 2 }} />
+              <Text className="text-xs leading-4 text-neutral-600 ml-2 flex-1">
+                Internet is needed to sign in, sync profiles, and load some updates. Saved activities may still work offline.
+              </Text>
             </View>
           </Animated.View>
 

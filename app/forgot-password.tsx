@@ -26,6 +26,7 @@ import {
 } from "@/lib/authMessages";
 import { PASSWORD_RESET_REDIRECT_URL } from "@/lib/authRedirects";
 import { supabase } from "../lib/supabase";
+import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -109,6 +110,8 @@ export default function ForgotPassword() {
       return;
     }
 
+    if (!(await requireInternet("Sending a password reset link"))) return;
+
     try {
       setLoading(true);
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
@@ -116,6 +119,7 @@ export default function ForgotPassword() {
       });
 
       if (error) {
+        if (await showNetworkErrorIfNeeded(error, "Sending a password reset link")) return;
         Alert.alert("Could not send reset link", getForgotPasswordErrorMessage(error));
         return;
       }
@@ -125,6 +129,7 @@ export default function ForgotPassword() {
         params: { flow: "reset" },
       } as any);
     } catch (error) {
+      if (await showNetworkErrorIfNeeded(error, "Sending a password reset link")) return;
       Alert.alert("Could not send reset link", getForgotPasswordErrorMessage(error));
     } finally {
       setLoading(false);

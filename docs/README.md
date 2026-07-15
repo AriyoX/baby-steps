@@ -18,7 +18,8 @@ This folder documents the current Baby Steps prototype and the work needed to mo
 | [Account deletion finalization](development/account-deletion-finalization.md) | Developers, release owners | Secure server-side final account deletion process and manual QA. |
 | [Deployment readiness](development/deployment.md) | Developers, release owners | Build commands, readiness status, blockers, and launch notes. |
 | [Manual QA checklist](qa/manual-qa-checklist.md) | QA, developers | Device and regression testing checklist. |
-| [Recurring notifications](features/notifications.md) | Product, QA, developers | Permission flow, weekly schedule, privacy model, native configuration, and QA. |
+| [Recurring notifications](features/notifications.md) | Product, QA, developers | Permission flow, gentle notification model, privacy, native configuration, and QA. |
+| [Network connectivity](features/network-connectivity.md) | Product, QA, developers | Internet requirements, offline alerts, guarded operations, and QA. |
 | [MVP roadmap](mvp-roadmap.md) | Product, developers | Current release priorities, risks, and out-of-scope items. |
 
 ## Existing Reports

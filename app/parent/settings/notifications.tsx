@@ -6,7 +6,6 @@ import { SettingsScaffold } from "@/components/settings/SettingsScaffold"
 import { Text } from "@/components/StyledText"
 import { brandColors } from "@/constants/Brand"
 import {
-  DEFAULT_REMINDER_SCHEDULE,
   disableRecurringReminders,
   getNotificationPermissionState,
   getNotificationPreferences,
@@ -14,6 +13,24 @@ import {
   sendTestLearningReminder,
   type NotificationPermissionState,
 } from "@/lib/notifications"
+
+const NOTIFICATION_PRINCIPLES = [
+  {
+    icon: "sparkles-outline" as const,
+    title: "Useful, timely nudges",
+    description: "Friendly messages that help your family reconnect with Baby Steps.",
+  },
+  {
+    icon: "heart-outline" as const,
+    title: "Encouragement without pressure",
+    description: "Positive prompts that celebrate small moments and keep things light.",
+  },
+  {
+    icon: "phone-portrait-outline" as const,
+    title: "Private to this device",
+    description: "Your notification preference and recurring reminders stay on this device.",
+  },
+]
 
 export default function NotificationSettingsScreen() {
   const [enabled, setEnabled] = useState(false)
@@ -103,8 +120,8 @@ export default function NotificationSettingsScreen() {
             <Ionicons name="notifications-outline" size={29} color={brandColors.equatorialGold} />
           </View>
           <View className="flex-1 ml-4">
-            <Text variant="bold" className="text-xl text-white">Gentle learning reminders</Text>
-            <Text className="text-sm leading-5 text-primary-100 mt-1">Three thoughtful prompts each week</Text>
+            <Text variant="bold" className="text-xl text-white">Gentle Baby Steps nudges</Text>
+            <Text className="text-sm leading-5 text-primary-100 mt-1">Helpful moments, thoughtfully delivered</Text>
           </View>
         </View>
       </View>
@@ -113,7 +130,7 @@ export default function NotificationSettingsScreen() {
         <View className="flex-row items-center justify-between">
           <View className="flex-1 pr-4">
             <Text variant="bold" className="text-lg text-neutral-900">Recurring reminders</Text>
-            <Text className="text-sm leading-5 text-neutral-500 mt-1">Pause or resume the whole schedule anytime.</Text>
+            <Text className="text-sm leading-5 text-neutral-500 mt-1">Choose whether Baby Steps can send occasional nudges.</Text>
           </View>
           <Switch
             value={enabled}
@@ -121,7 +138,7 @@ export default function NotificationSettingsScreen() {
             disabled={loading}
             trackColor={{ false: brandColors.neutral[200], true: brandColors.blue[200] }}
             thumbColor={enabled ? brandColors.victoriaBlue : brandColors.neutral[50]}
-            accessibilityLabel="Recurring learning reminders"
+            accessibilityLabel="Recurring Baby Steps reminders"
           />
         </View>
         <View className="flex-row items-center mt-4 pt-4 border-t border-neutral-100">
@@ -135,26 +152,25 @@ export default function NotificationSettingsScreen() {
       </View>
 
       <Text variant="bold" className="text-sm uppercase tracking-[1.5px] text-neutral-500 mt-6 mb-2 px-1">
-        Your weekly rhythm
+        What to expect
       </Text>
       <View className="bg-white rounded-3xl border border-neutral-100 px-5 shadow-sm">
-        {DEFAULT_REMINDER_SCHEDULE.map((reminder, index) => (
+        {NOTIFICATION_PRINCIPLES.map((principle, index) => (
           <View
-            key={reminder.id}
-            className={`flex-row items-center py-4 ${index < DEFAULT_REMINDER_SCHEDULE.length - 1 ? "border-b border-neutral-100" : ""}`}
+            key={principle.title}
+            className={`flex-row items-center py-4 ${index < NOTIFICATION_PRINCIPLES.length - 1 ? "border-b border-neutral-100" : ""}`}
           >
-            <View className={`w-11 h-11 rounded-2xl items-center justify-center ${index === 2 ? "bg-accent-50" : "bg-primary-50"}`}>
+            <View className="w-11 h-11 rounded-2xl items-center justify-center bg-primary-50">
               <Ionicons
-                name={index === 2 ? "book-outline" : "game-controller-outline"}
+                name={principle.icon}
                 size={21}
-                color={index === 2 ? brandColors.gold[700] : brandColors.victoriaBlue}
+                color={brandColors.victoriaBlue}
               />
             </View>
             <View className="flex-1 ml-3">
-              <Text variant="bold" className="text-neutral-800">{reminder.dayLabel}</Text>
-              <Text className="text-sm text-neutral-500">{index === 2 ? "Story and connection" : "Short play session"}</Text>
+              <Text variant="bold" className="text-neutral-800">{principle.title}</Text>
+              <Text className="text-sm leading-5 text-neutral-500 mt-0.5">{principle.description}</Text>
             </View>
-            <Text variant="bold" className="text-sm text-neutral-700">{reminder.timeLabel}</Text>
           </View>
         ))}
       </View>
@@ -164,7 +180,7 @@ export default function NotificationSettingsScreen() {
         <View className="flex-1 ml-3">
           <Text variant="bold" className="text-secondary-800">Quiet by design</Text>
           <Text className="text-sm leading-5 text-neutral-600 mt-1">
-            No early-morning or late-night prompts. Your device’s Focus, silent mode, and notification settings are always respected.
+            Baby Steps keeps nudges considerate. Your device’s Focus, silent mode, and notification settings are always respected.
           </Text>
         </View>
       </View>

@@ -27,24 +27,64 @@ export type ReminderDefinition = {
 
 export const DEFAULT_REMINDER_SCHEDULE: ReminderDefinition[] = [
   {
-    id: "tuesday-play",
+    id: "sunday-connection",
+    weekday: 1,
+    dayLabel: "Sunday",
+    timeLabel: "10:00 AM",
+    hour: 10,
+    minute: 0,
+    title: "A gentle Sunday moment ☀️",
+    body: "Open Baby Steps when your family is ready for a small moment together.",
+  },
+  {
+    id: "monday-curiosity",
+    weekday: 2,
+    dayLabel: "Monday",
+    timeLabel: "7:30 PM",
+    hour: 19,
+    minute: 30,
+    title: "A bright start to the week 🌱",
+    body: "A few playful minutes can turn today’s curiosity into something memorable.",
+  },
+  {
+    id: "tuesday-choice",
     weekday: 3,
     dayLabel: "Tuesday",
-    timeLabel: "6:30 PM",
-    hour: 18,
+    timeLabel: "7:30 PM",
+    hour: 19,
     minute: 30,
-    title: "A tiny step for a bright mind 🌱",
-    body: "Let your child choose one story or game—10 playful minutes is plenty.",
+    title: "What will your child choose today? ✨",
+    body: "Let them lead the way to a quick Baby Steps moment.",
+  },
+  {
+    id: "wednesday-wonder",
+    weekday: 4,
+    dayLabel: "Wednesday",
+    timeLabel: "7:30 PM",
+    hour: 19,
+    minute: 30,
+    title: "A little midweek wonder 💫",
+    body: "There’s always something new to notice, hear, or try together.",
   },
   {
     id: "thursday-adventure",
     weekday: 5,
     dayLabel: "Thursday",
-    timeLabel: "6:30 PM",
-    hour: 18,
+    timeLabel: "7:30 PM",
+    hour: 19,
     minute: 30,
     title: "Ready for a little adventure? ⭐",
     body: "Open Baby Steps and follow your child’s curiosity today.",
+  },
+  {
+    id: "friday-celebration",
+    weekday: 6,
+    dayLabel: "Friday",
+    timeLabel: "7:30 PM",
+    hour: 19,
+    minute: 30,
+    title: "Celebrate one small step 🎉",
+    body: "End the week with a warm Baby Steps moment at your family’s pace.",
   },
   {
     id: "saturday-story",
@@ -104,8 +144,8 @@ async function ensureLearningReminderChannel() {
   if (Platform.OS !== "android") return
 
   await Notifications.setNotificationChannelAsync(LEARNING_REMINDER_CHANNEL_ID, {
-    name: "Learning reminders",
-    description: "Gentle Baby Steps activity and family story reminders.",
+    name: "Baby Steps reminders",
+    description: "Gentle, helpful nudges from Baby Steps.",
     importance: Notifications.AndroidImportance.DEFAULT,
     lightColor: brandColors.equatorialGold,
     vibrationPattern: [0, 160, 100, 160],
@@ -275,8 +315,8 @@ export async function sendTestLearningReminder() {
   await ensureLearningReminderChannel()
   return Notifications.scheduleNotificationAsync({
     content: {
-      title: "A little Baby Steps moment 🌱",
-      body: "Your reminders are ready. Pick one story or game whenever it suits your family.",
+      title: "A gentle Baby Steps nudge 🌱",
+      body: "Your notifications are ready. Baby Steps will keep every message warm, helpful, and easy to manage.",
       sound: "default",
       data: { url: "/", kind: "test-learning-reminder" },
     },

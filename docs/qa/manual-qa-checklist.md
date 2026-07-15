@@ -55,9 +55,9 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 
 ## Notifications
 
-- [ ] New signup explains the reminder schedule before showing the native permission prompt.
+- [ ] New signup explains gentle Baby Steps notifications without promising specific notification categories or displaying a fixed timetable.
 - [ ] `Maybe later` continues signup without requesting permission.
-- [ ] Granting permission schedules Tuesday and Thursday at 6:30 PM and Saturday at 10:00 AM local time.
+- [ ] Granting permission enables the current device-local recurring schedule.
 - [ ] Denying permission does not block signup or login.
 - [ ] Dashboard bell opens notification settings.
 - [ ] Settings toggle pauses and resumes the three recurring reminders.
@@ -139,6 +139,12 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 ## Offline Or Poor Network Behavior
 
 - [ ] App opens with no network after a previous signed-in session.
+- [ ] Going offline on any route shows one themed pop-up and a persistent offline banner.
+- [ ] Launching while offline shows the pop-up after the splash animation finishes.
+- [ ] Changing connectivity while the app is backgrounded is detected when it returns to the foreground.
+- [ ] Login and signup explain which functionality requires internet.
+- [ ] Offline sign-in, signup, password recovery, confirmation resend, and child-profile save show action-specific messages.
+- [ ] Restoring connectivity removes the banner and allows the action to be retried.
 - [ ] Local-only game progress still loads.
 - [ ] Supabase-backed screens handle failed requests gracefully.
 - [ ] Activity writes fail gracefully or retry behavior is defined.

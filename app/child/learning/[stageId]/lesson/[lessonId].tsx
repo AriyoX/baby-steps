@@ -30,6 +30,7 @@ import type {
 } from "@/content/learningHubTypes";
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation";
 import { useLearningHubContent } from "@/hooks/useLearningHubContent";
+import { useLearningHubProgress } from "@/hooks/useLearningHubProgress";
 import {
   LEARNING_ACTIVITY_TYPE,
   awardLearningLessonCompletionAchievements,
@@ -38,6 +39,10 @@ import {
   getLearningProgressChildId,
   saveLearningLessonCompletion,
 } from "@/lib/learningProgressRepository";
+import {
+  getLearningLessonAccessState,
+  getLearningStageAccessState,
+} from "@/lib/learningStageAccess";
 
 const getRouteParam = (value: unknown): string => {
   if (Array.isArray(value)) {
@@ -152,6 +157,11 @@ export default function LearningLessonSessionScreen() {
   const languageContent = activeContentSnapshot?.content ?? null;
   const lessonContentVersion = activeContentSnapshot?.contentVersion;
   const languageName = getLearningLanguage(languageCode)?.name;
+  const completedLearningLessonIds = useLearningHubProgress(
+    childId,
+    languageCode,
+    Boolean(languageContent),
+  );
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [results, setResults] = useState<ItemResult[]>([]);
@@ -190,17 +200,42 @@ export default function LearningLessonSessionScreen() {
     () => stage?.lessons.find((candidate) => candidate.id === lessonId),
     [lessonId, stage],
   );
+  const stageAccess = useMemo(
+    () =>
+      languageContent
+        ? getLearningStageAccessState(
+            languageContent.stages,
+            completedLearningLessonIds,
+            stageId,
+          )
+        : undefined,
+    [completedLearningLessonIds, languageContent, stageId],
+  );
+  const lessonAccess = useMemo(
+    () =>
+      stage
+        ? getLearningLessonAccessState(
+            stage,
+            completedLearningLessonIds,
+            lessonId,
+          )
+        : undefined,
+    [completedLearningLessonIds, lessonId, stage],
+  );
   const items = useMemo(() => lesson?.items ?? [], [lesson]);
   const lessonStatus = useMemo(
-    () => getLessonStatus(lesson, stage),
-    [lesson, stage],
+    () =>
+      stageAccess?.isLocked
+        ? "locked"
+        : lessonAccess?.effectiveStatus ?? getLessonStatus(lesson, stage),
+    [lesson, lessonAccess?.effectiveStatus, stage, stageAccess?.isLocked],
   );
   const currentItem = items[currentIndex];
   const isLastItem = currentIndex === items.length - 1;
   const isCompactLessonScreen = height < 430;
   const lessonHorizontalPadding = width < 380 ? 16 : 24;
   const headerButtonSize = isCompactLessonScreen ? 44 : 48;
-  const CurrentMechanicRenderer = currentItem
+  const CurrentMechanicRenderer = currentItem && lessonStatus === "startable"
     ? getMechanicRenderer(currentItem.mechanic)
     : null;
 
@@ -417,7 +452,13 @@ export default function LearningLessonSessionScreen() {
             : "Coming soon";
     const message =
       lessonStatus === "locked"
-        ? `${stage.title} will unlock later.`
+        ? stageAccess?.isExplicitlyLocked
+          ? `${stage.title} will unlock later.`
+          : stageAccess?.isProgressLocked && stageAccess.lockedByStageTitle
+            ? `Complete ${stageAccess.lockedByStageTitle} to unlock ${stage.title}.`
+            : lessonAccess?.isProgressLocked && lessonAccess.lockedByLessonTitle
+              ? `Complete ${lessonAccess.lockedByLessonTitle} to unlock ${lesson.title}.`
+            : `${stage.title} will unlock later.`
         : lessonStatus === "empty"
           ? `${lesson.title} needs learning items before it can start.`
           : lessonStatus === "unsupported"

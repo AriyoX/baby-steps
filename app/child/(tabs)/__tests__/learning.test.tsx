@@ -1,5 +1,5 @@
 import React from "react"
-import { Animated, TouchableOpacity } from "react-native"
+import { Animated, Text, TouchableOpacity } from "react-native"
 import renderer, { act } from "react-test-renderer"
 import {
   getLearningLanguageContent,
@@ -12,6 +12,8 @@ const mockRouterPush = jest.fn()
 const mockLoadContentBundle = jest.fn()
 let mockSelectedLanguageCode = "lg"
 let mockChildId = "child-1"
+let mockChildAvatar = "👧"
+let mockChildGender = "female"
 let mockCompletedLearningLessonIds: string[] = []
 
 jest.mock("@/content/contentRepository", () => ({
@@ -78,6 +80,8 @@ jest.mock("@/context/ChildContext", () => ({
   useChild: () => ({
     activeChild: {
       age: "8",
+      avatar: mockChildAvatar,
+      gender: mockChildGender,
       id: mockChildId,
       name: "Ayo",
       selected_language_code: mockSelectedLanguageCode,
@@ -129,6 +133,8 @@ beforeEach(() => {
   jest.clearAllMocks()
   mockSelectedLanguageCode = "lg"
   mockChildId = "child-1"
+  mockChildAvatar = "👧"
+  mockChildGender = "female"
   mockCompletedLearningLessonIds = []
   mockLoadContentBundle.mockImplementation(async (languageCode: string) => {
     const content = getLearningLanguageContent(languageCode)
@@ -147,6 +153,46 @@ afterEach(() => {
 })
 
 describe("Learning tab shared African interface", () => {
+  it("shows the selected child emoji and learning language in profile stats", async () => {
+    mockSelectedLanguageCode = "nyn"
+    const tree = await renderLearningTab()
+    const text = JSON.stringify(tree.toJSON())
+    const visibleText = tree.root
+      .findAllByType(Text)
+      .map((node) => React.Children.toArray(node.props.children).join(""))
+      .join(" ")
+
+    expect(text).toContain("👧")
+    expect(text).toContain("Age 8")
+    expect(visibleText).toContain("Learning Runyankole")
+    expect(text).not.toContain("african-avatar.jpg")
+
+    act(() => tree.unmount())
+  })
+
+  it("locks later stages until every lesson in the previous stage is complete", async () => {
+    const tree = await renderLearningTab()
+    const stageButtons = tree.root.findAllByType(TouchableOpacity)
+    const firstStage = stageButtons.find((candidate) =>
+      candidate.props.accessibilityLabel?.startsWith("First Words. 0/"),
+    )
+    const nextStage = stageButtons.find((candidate) =>
+      candidate.props.accessibilityLabel?.startsWith("Family & Home. Locked."),
+    )
+
+    expect(firstStage?.props.accessibilityLabel).toContain("Current")
+    expect(firstStage?.props.disabled).toBe(false)
+    expect(nextStage?.props.disabled).toBe(true)
+    expect(nextStage?.props.accessibilityLabel).toContain(
+      "Complete First Words to unlock",
+    )
+
+    act(() => nextStage?.props.onPress?.())
+    expect(mockRouterPush).not.toHaveBeenCalled()
+
+    act(() => tree.unmount())
+  })
+
   it("renders the database stage order dynamically and keeps Practice Mix locked", async () => {
     const content = getLearningLanguageContent("lg")!
     const databaseAddedStage = {

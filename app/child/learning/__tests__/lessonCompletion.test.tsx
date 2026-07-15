@@ -5,6 +5,7 @@ import { registerLearningHubTestFixture } from "@/content/testFixtures/learningH
 import {
   getLearningContentVersion,
   getLearningLanguageContent,
+  getLessonStatus,
 } from "@/content/learningHubRepository";
 import LearningLessonSessionScreen from "../[stageId]/lesson/[lessonId]";
 
@@ -19,6 +20,7 @@ const mockGetMechanicRenderer = jest.fn();
 const mockEnqueueAchievementUnlocks = jest.fn();
 const mockLoadLearningHubLanguageContent = jest.fn();
 let mockSelectedLanguageCode = "luganda";
+let mockCompletedLearningLessonIds: string[] = [];
 
 jest.mock("@/content/learningHubLoader", () => ({
   loadLearningHubLanguageContent: (...args: unknown[]) =>
@@ -180,6 +182,10 @@ jest.mock("@/hooks/useChildLandscapeOrientation", () => ({
   useChildLandscapeOrientation: jest.fn(),
 }));
 
+jest.mock("@/hooks/useLearningHubProgress", () => ({
+  useLearningHubProgress: () => mockCompletedLearningLessonIds,
+}));
+
 jest.mock("@/lib/learningProgressRepository", () => ({
   LEARNING_ACTIVITY_TYPE: "language",
   awardLearningLessonCompletionAchievements: (...args: unknown[]) =>
@@ -236,6 +242,12 @@ beforeEach(() => {
   registerLearningHubTestFixture();
   jest.clearAllMocks();
   mockSelectedLanguageCode = "luganda";
+  mockCompletedLearningLessonIds = getLearningLanguageContent("lg")!.stages.flatMap(
+    (stage) =>
+      stage.lessons
+        .filter((lesson) => getLessonStatus(lesson, stage) === "startable")
+        .map((lesson) => lesson.id),
+  );
   mockGetMechanicRenderer.mockReturnValue(MockMechanicRenderer);
   mockRouterCanGoBack.mockReturnValue(false);
   mockUseLocalSearchParams.mockReturnValue({
@@ -291,6 +303,52 @@ describe("Learning lesson completion persistence", () => {
     expect(text).not.toContain("well-done");
     expect(mockGetMechanicRenderer).not.toHaveBeenCalled();
     expect(mockGetLearningLessonCompletion).not.toHaveBeenCalled();
+    expect(mockSaveLearningLessonCompletion).not.toHaveBeenCalled();
+  });
+
+  it("does not allow a direct lesson route to bypass sequential stage locking", async () => {
+    mockCompletedLearningLessonIds = [];
+    mockUseLocalSearchParams.mockReturnValue({
+      stageId: "family-home",
+      lessonId: "family-names-1",
+    });
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = renderer.create(<LearningLessonSessionScreen />);
+    });
+
+    if (!tree) {
+      throw new Error("LearningLessonSessionScreen did not render");
+    }
+
+    const text = JSON.stringify(tree.toJSON());
+    expect(text).toContain("Locked for now");
+    expect(text).toContain("Complete First Words to unlock Family & Home");
+    expect(mockGetMechanicRenderer).not.toHaveBeenCalled();
+    expect(mockSaveLearningLessonCompletion).not.toHaveBeenCalled();
+  });
+
+  it("does not allow a direct lesson route to bypass sequential lesson locking", async () => {
+    mockCompletedLearningLessonIds = [];
+    mockUseLocalSearchParams.mockReturnValue({
+      stageId: "first-words",
+      lessonId: "listen-greetings-1",
+    });
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = renderer.create(<LearningLessonSessionScreen />);
+    });
+
+    if (!tree) {
+      throw new Error("LearningLessonSessionScreen did not render");
+    }
+
+    const text = JSON.stringify(tree.toJSON());
+    expect(text).toContain("Locked for now");
+    expect(text).toContain("Complete Greetings to unlock Listen Practice");
+    expect(mockGetMechanicRenderer).not.toHaveBeenCalled();
     expect(mockSaveLearningLessonCompletion).not.toHaveBeenCalled();
   });
 

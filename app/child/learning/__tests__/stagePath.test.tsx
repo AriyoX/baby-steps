@@ -5,6 +5,7 @@ import { registerLearningHubTestFixture } from "@/content/testFixtures/learningH
 import {
   getLearningContentVersion,
   getLearningLanguageContent,
+  getLessonStatus,
 } from "@/content/learningHubRepository";
 import LearningStagePathScreen from "../[stageId]";
 
@@ -27,7 +28,10 @@ jest.mock("expo-router", () => ({
   Stack: {
     Screen: () => null,
   },
-  useFocusEffect: (callback: () => void | (() => void)) => callback(),
+  useFocusEffect: (callback: () => void | (() => void)) => {
+    const ReactModule = jest.requireActual("react");
+    ReactModule.useEffect(callback, [callback]);
+  },
   useLocalSearchParams: () => mockUseLocalSearchParams(),
   useRouter: () => ({
     back: mockRouterBack,
@@ -152,6 +156,26 @@ afterEach(() => {
 });
 
 describe("Learning stage path screen", () => {
+  it("blocks a direct route to the next stage until the previous stage is complete", async () => {
+    mockUseLocalSearchParams.mockReturnValue({ stageId: "family-home" });
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = renderer.create(<LearningStagePathScreen />);
+      await Promise.resolve();
+    });
+
+    if (!tree) {
+      throw new Error("LearningStagePathScreen did not render");
+    }
+
+    const text = JSON.stringify(tree.toJSON());
+    expect(text).toContain("Stage locked");
+    expect(text).toContain("Complete First Words to unlock Family & Home");
+    expect(tree.root.findAllByType(FlatList)).toHaveLength(0);
+    expect(mockRouterPush).not.toHaveBeenCalled();
+  });
+
   it("renders lesson cards in a horizontal rail", async () => {
     let tree: renderer.ReactTestRenderer | undefined;
 
@@ -165,6 +189,10 @@ describe("Learning stage path screen", () => {
 
     const text = JSON.stringify(tree.toJSON());
     const lessonRail = tree.root.findByType(FlatList);
+    const backButton = findButtonByAccessibilityLabel(
+      tree.root,
+      "Back to Learning",
+    );
 
     expect(mockHydrateLearningProgressFromRemote).toHaveBeenCalledWith(
       "child-1",
@@ -173,6 +201,9 @@ describe("Learning stage path screen", () => {
     expect(mockGetCompletedLearningLessonIds).toHaveBeenCalledWith("child-1", "lg");
     expect(lessonRail.props.horizontal).toBe(true);
     expect(lessonRail.props.showsHorizontalScrollIndicator).toBe(false);
+    expect(backButton.props.className).toContain("w-12 h-12");
+    expect(text).toContain("Choose a lesson");
+    expect(text).toContain("Stage 1");
     expect(text).toContain("Greetings");
     expect(text).toContain("Listen Practice");
     expect(text).toContain("Word Check");
@@ -185,7 +216,7 @@ describe("Learning stage path screen", () => {
     expect(text).toContain("Quick quiz");
   });
 
-  it("starts all startable First Words cards", async () => {
+  it("starts only the first incomplete First Words lesson", async () => {
     let tree: renderer.ReactTestRenderer | undefined;
 
     await act(async () => {
@@ -197,20 +228,25 @@ describe("Learning stage path screen", () => {
     }
 
     const greetingsCard = findButtonByAccessibilityLabel(tree.root, "Greetings. Start");
-    const wordCheckCard = findButtonByAccessibilityLabel(tree.root, "Word Check. Start");
+    const listenPracticeCard = findButtonByAccessibilityLabel(
+      tree.root,
+      "Listen Practice. Locked",
+    );
+    const wordCheckCard = findButtonByAccessibilityLabel(tree.root, "Word Check. Locked");
     const pictureMatchCard = findButtonByAccessibilityLabel(
       tree.root,
-      "Picture Match. Start",
+      "Picture Match. Locked",
     );
     const quickReviewCard = findButtonByAccessibilityLabel(
       tree.root,
-      "First Words Quiz. Start",
+      "First Words Quiz. Locked",
     );
 
     expect(textContent(greetingsCard)).toContain("Start");
-    expect(textContent(wordCheckCard)).toContain("Start");
-    expect(textContent(pictureMatchCard)).toContain("Start");
-    expect(textContent(quickReviewCard)).toContain("Start");
+    expect(textContent(listenPracticeCard)).toContain("Complete Greetings first");
+    expect(wordCheckCard.props.disabled).toBe(true);
+    expect(pictureMatchCard.props.disabled).toBe(true);
+    expect(quickReviewCard.props.disabled).toBe(true);
 
     await act(async () => {
       greetingsCard.props.onPress();
@@ -221,17 +257,51 @@ describe("Learning stage path screen", () => {
       params: { stageId: "first-words", lessonId: "greetings-1" },
     });
 
+    expect(mockRouterPush).toHaveBeenCalledTimes(1);
+  });
+
+  it("unlocks the next lesson after the previous lesson is completed", async () => {
+    mockGetCompletedLearningLessonIds.mockResolvedValue(["greetings-1"]);
+    let tree: renderer.ReactTestRenderer | undefined;
+
     await act(async () => {
-      pictureMatchCard.props.onPress();
+      tree = renderer.create(<LearningStagePathScreen />);
+      await Promise.resolve();
     });
 
-    expect(mockRouterPush).toHaveBeenCalledWith({
-      pathname: "/child/learning/[stageId]/lesson/[lessonId]",
-      params: { stageId: "first-words", lessonId: "first-words-picture-match" },
-    });
+    if (!tree) {
+      throw new Error("LearningStagePathScreen did not render");
+    }
+
+    const greetingsCard = findButtonByAccessibilityLabel(tree.root, "Greetings. Review");
+    const listenPracticeCard = findButtonByAccessibilityLabel(
+      tree.root,
+      "Listen Practice. Start",
+    );
+    const wordCheckCard = findButtonByAccessibilityLabel(
+      tree.root,
+      "Word Check. Locked",
+    );
+
+    expect(greetingsCard.props.disabled).toBe(false);
+    expect(listenPracticeCard.props.disabled).toBe(false);
+    expect(wordCheckCard.props.accessibilityLabel).toContain(
+      "Complete Listen Practice first",
+    );
   });
 
   it("keeps planned Culture & Stories cards disabled", async () => {
+    const stages = getLearningLanguageContent("lg")!.stages;
+    const cultureStageIndex = stages.findIndex(
+      (stage) => stage.id === "culture-stories",
+    );
+    mockGetCompletedLearningLessonIds.mockResolvedValue(
+      stages.slice(0, cultureStageIndex).flatMap((stage) =>
+        stage.lessons
+          .filter((lesson) => getLessonStatus(lesson, stage) === "startable")
+          .map((lesson) => lesson.id),
+      ),
+    );
     mockUseLocalSearchParams.mockReturnValue({ stageId: "culture-stories" });
     let tree: renderer.ReactTestRenderer | undefined;
 
@@ -281,7 +351,7 @@ describe("Learning stage path screen", () => {
     });
   });
 
-  it("shows a locally completed match-word-picture lesson as reviewable", async () => {
+  it("does not bypass lesson order for an out-of-order completion id", async () => {
     mockGetCompletedLearningLessonIds.mockResolvedValue(["first-words-picture-match"]);
     let tree: renderer.ReactTestRenderer | undefined;
 
@@ -296,12 +366,11 @@ describe("Learning stage path screen", () => {
 
     const pictureMatchCard = findButtonByAccessibilityLabel(
       tree.root,
-      "Picture Match. Review",
+      "Picture Match. Locked",
     );
 
-    expect(textContent(pictureMatchCard)).toContain("Review");
-    expect(textContent(pictureMatchCard)).toContain("Completed");
-    expect(pictureMatchCard.props.disabled).toBe(false);
+    expect(textContent(pictureMatchCard)).toContain("Locked");
+    expect(pictureMatchCard.props.disabled).toBe(true);
   });
 
   it("keeps Practice Mix locked", async () => {
@@ -317,13 +386,10 @@ describe("Learning stage path screen", () => {
       throw new Error("LearningStagePathScreen did not render");
     }
 
-    const practiceCard = findButtonByAccessibilityLabel(
-      tree.root,
-      "First Words Review. Locked",
-    );
-
-    expect(textContent(practiceCard)).toContain("Locked");
-    expect(practiceCard.props.disabled).toBe(true);
+    const text = JSON.stringify(tree.toJSON());
+    expect(text).toContain("Stage locked");
+    expect(text).toContain("Practice Mix is locked for now");
+    expect(tree.root.findAllByType(FlatList)).toHaveLength(0);
   });
 
   it("does not render Luganda lessons for a direct Runyankole stage route", async () => {

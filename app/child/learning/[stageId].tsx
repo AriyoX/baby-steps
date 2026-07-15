@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   FlatList,
   ImageBackground,
@@ -19,7 +19,6 @@ import {
   getLearningLanguage,
 } from "@/content/languages";
 import {
-  getLessonStatus,
   getMechanicLabel,
   type LearningHubLesson,
   type LearningHubStage,
@@ -27,11 +26,13 @@ import {
 import type { LessonStatus } from "@/content/learningHubTypes";
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation";
 import { useLearningHubContent } from "@/hooks/useLearningHubContent";
+import { useLearningHubProgress } from "@/hooks/useLearningHubProgress";
+import { getLearningProgressChildId } from "@/lib/learningProgressRepository";
 import {
-  getCompletedLearningLessonIds,
-  getLearningProgressChildId,
-  hydrateLearningProgressFromRemote,
-} from "@/lib/learningProgressRepository";
+  getLearningLessonAccessStates,
+  getLearningStageAccessState,
+  type LearningLessonAccessState,
+} from "@/lib/learningStageAccess";
 
 const getRouteStageId = (value: unknown): string => {
   if (Array.isArray(value)) {
@@ -115,8 +116,8 @@ const getLessonCardStatus = (
 type LessonPathCardProps = {
   stage: LearningHubStage;
   lesson: LearningHubLesson;
+  lessonAccess: LearningLessonAccessState;
   itemCount: number;
-  isCompleted: boolean;
   width: number;
   height: number;
   gap: number;
@@ -126,16 +127,22 @@ type LessonPathCardProps = {
 const LessonPathCard = ({
   stage,
   lesson,
+  lessonAccess,
   itemCount,
-  isCompleted,
   width,
   height,
   gap,
   onPress,
 }: LessonPathCardProps) => {
-  const lessonStatus = getLessonStatus(lesson, stage);
-  const status = getLessonCardStatus(lessonStatus, isCompleted);
+  const status = getLessonCardStatus(
+    lessonAccess.effectiveStatus,
+    lessonAccess.isCompleted,
+  );
   const mechanicLabel = getMechanicLabel(lesson.mechanic);
+  const progressLockLabel =
+    lessonAccess.isProgressLocked && lessonAccess.lockedByLessonTitle
+      ? `Complete ${lessonAccess.lockedByLessonTitle} first.`
+      : undefined;
 
   return (
     <TouchableOpacity
@@ -151,7 +158,7 @@ const LessonPathCard = ({
       disabled={status.disabled}
       activeOpacity={status.disabled ? 1 : 0.76}
       accessibilityRole="button"
-      accessibilityLabel={`${lesson.title}. ${status.label}. ${mechanicLabel}. ${itemCount} items.`}
+      accessibilityLabel={`${lesson.title}. ${status.label}. ${mechanicLabel}. ${itemCount} items.${progressLockLabel ? ` ${progressLockLabel}` : ""}`}
       accessibilityState={{ disabled: status.disabled }}
     >
       <View className="p-4 flex-1 justify-between">
@@ -196,11 +203,18 @@ const LessonPathCard = ({
           <Text className="text-neutral-600 text-sm leading-5" numberOfLines={2}>
             {lesson.description}
           </Text>
-          {isCompleted && !status.disabled ? (
+          {lessonAccess.isCompleted && !status.disabled ? (
             <View className="flex-row items-center mt-2">
               <Ionicons name="checkmark-done" size={14} color={brandColors.success} />
               <Text variant="bold" className="text-success text-xs ml-1" numberOfLines={1}>
                 Completed
+              </Text>
+            </View>
+          ) : progressLockLabel ? (
+            <View className="flex-row items-center mt-2">
+              <Ionicons name="lock-closed-outline" size={14} color={brandColors.neutral[600]} />
+              <Text className="text-neutral-600 text-xs ml-1" numberOfLines={1}>
+                {progressLockLabel}
               </Text>
             </View>
           ) : null}
@@ -225,23 +239,26 @@ const LessonPathCard = ({
   );
 };
 
-type MissingStageStateProps = {
+type StageStateProps = {
+  icon: keyof typeof Ionicons.glyphMap;
+  message: string;
   onBack: () => void;
+  title: string;
 };
 
-const MissingStageState = ({ onBack }: MissingStageStateProps) => (
+const StageState = ({ icon, message, onBack, title }: StageStateProps) => (
   <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
     <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
       <View className="flex-1 items-center justify-center px-8">
         <View className="bg-white rounded-2xl border-2 border-accent-500 p-6 w-full max-w-md items-center">
           <View className="w-16 h-16 rounded-full bg-primary-50 items-center justify-center mb-4">
-            <Ionicons name="search-outline" size={32} color={brandColors.victoriaBlue} />
+            <Ionicons name={icon} size={32} color={brandColors.victoriaBlue} />
           </View>
           <Text variant="bold" className="text-primary-700 text-2xl text-center mb-2">
-            Learning area not found
+            {title}
           </Text>
           <Text className="text-neutral-600 text-base text-center leading-6 mb-5">
-            This Learning path is not available right now.
+            {message}
           </Text>
           <TouchableOpacity
             className="bg-primary-600 rounded-full px-6 py-3"
@@ -275,7 +292,11 @@ export default function LearningStagePathScreen() {
     activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE,
   );
   const languageName = getLearningLanguage(languageCode)?.name;
-  const [completedLessonIds, setCompletedLessonIds] = useState<string[]>([]);
+  const completedLessonIds = useLearningHubProgress(
+    childId,
+    languageCode,
+    Boolean(languageContent),
+  );
 
   useChildLandscapeOrientation("child learning stage path");
 
@@ -283,40 +304,34 @@ export default function LearningStagePathScreen() {
     () => languageContent?.stages.find((candidate) => candidate.id === stageId),
     [languageContent, stageId],
   );
-  const lessons = stage?.lessons ?? [];
-  const completedLessonIdSet = useMemo(
-    () => new Set(completedLessonIds),
-    [completedLessonIds],
+  const stageAccess = useMemo(
+    () =>
+      languageContent
+        ? getLearningStageAccessState(
+            languageContent.stages,
+            completedLessonIds,
+            stageId,
+          )
+        : undefined,
+    [completedLessonIds, languageContent, stageId],
   );
-
-  useFocusEffect(
-    useCallback(() => {
-      if (!languageContent) {
-        return;
-      }
-
-      let isActive = true;
-
-      void (async () => {
-        await hydrateLearningProgressFromRemote(childId, languageCode);
-        return getCompletedLearningLessonIds(childId, languageCode);
-      })()
-        .then((lessonIds) => {
-          if (isActive) {
-            setCompletedLessonIds(lessonIds);
-          }
-        })
-        .catch((error) => {
-          console.warn("Could not load local Learning lesson progress:", error);
-          if (isActive) {
-            setCompletedLessonIds([]);
-          }
-        });
-
-      return () => {
-        isActive = false;
-      };
-    }, [childId, languageCode, languageContent]),
+  const lessons = stage?.lessons ?? [];
+  const lessonAccessStates = useMemo(
+    () =>
+      stage
+        ? getLearningLessonAccessStates(stage, completedLessonIds)
+        : [],
+    [completedLessonIds, stage],
+  );
+  const lessonAccessById = useMemo(
+    () =>
+      new Map(
+        lessonAccessStates.map((accessState) => [
+          accessState.lesson.id,
+          accessState,
+        ]),
+      ),
+    [lessonAccessStates],
   );
 
   const landscapeWidth = Math.max(width, height);
@@ -336,7 +351,10 @@ export default function LearningStagePathScreen() {
   };
 
   const startLesson = (lesson: LearningHubLesson) => {
-    if (!stage || getLessonStatus(lesson, stage) !== "startable") {
+    if (
+      !stage ||
+      lessonAccessById.get(lesson.id)?.effectiveStatus !== "startable"
+    ) {
       return;
     }
 
@@ -371,7 +389,33 @@ export default function LearningStagePathScreen() {
       <>
         <Stack.Screen options={{ headerShown: false, animation: "slide_from_right" }} />
         <StatusBar style="light" translucent backgroundColor="transparent" />
-        <MissingStageState onBack={goBackToLearning} />
+        <StageState
+          icon="search-outline"
+          title="Learning area not found"
+          message="This Learning path is not available right now."
+          onBack={goBackToLearning}
+        />
+      </>
+    );
+  }
+
+  if (stageAccess?.isLocked) {
+    const lockMessage = stageAccess.isExplicitlyLocked
+      ? `${stage.title} is locked for now.`
+      : stageAccess.isProgressLocked && stageAccess.lockedByStageTitle
+        ? `Complete ${stageAccess.lockedByStageTitle} to unlock ${stage.title}.`
+        : `${stage.title} is locked for now.`;
+
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false, animation: "slide_from_right" }} />
+        <StatusBar style="light" translucent backgroundColor="transparent" />
+        <StageState
+          icon="lock-closed-outline"
+          title="Stage locked"
+          message={lockMessage}
+          onBack={goBackToLearning}
+        />
       </>
     );
   }
@@ -382,10 +426,10 @@ export default function LearningStagePathScreen() {
       <StatusBar style="light" translucent backgroundColor="transparent" />
       <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
         <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
-          <View className="flex-1 px-6 pt-4 pb-4">
-            <View className="flex-row items-center justify-between mb-3">
+          <View className="flex-1 px-6 pt-6 pb-5">
+            <View className="flex-row items-center justify-between mb-4">
               <TouchableOpacity
-                className="w-11 h-11 rounded-full bg-white items-center justify-center border-2 border-accent-500"
+                className="w-12 h-12 rounded-full bg-white items-center justify-center border-2 border-accent-500"
                 onPress={goBackToLearning}
                 accessibilityRole="button"
                 accessibilityLabel="Back to Learning"
@@ -394,7 +438,7 @@ export default function LearningStagePathScreen() {
               </TouchableOpacity>
 
               <View className="flex-1 px-4">
-                <Text variant="bold" className="text-white text-2xl text-center" numberOfLines={1}>
+                <Text variant="bold" className="text-white text-3xl text-center" numberOfLines={1}>
                   {stage.title}
                 </Text>
                 <Text className="text-white/85 text-sm text-center" numberOfLines={2}>
@@ -402,21 +446,26 @@ export default function LearningStagePathScreen() {
                 </Text>
               </View>
 
-              <View className="bg-white rounded-full px-4 py-2 border-2 border-accent-500">
-                <Text variant="bold" className="text-primary-700 text-sm" numberOfLines={1}>
+              <View className="flex-row items-center bg-white rounded-full px-4 py-2 border-2 border-accent-500">
+                <Ionicons
+                  name={stage.isPractice ? "sparkles" : "map"}
+                  size={18}
+                  color={brandColors.victoriaBlue}
+                />
+                <Text variant="bold" className="text-primary-700 text-sm ml-1" numberOfLines={1}>
                   {stage.isPractice ? "Practice" : `Stage ${stage.stageNumber}`}
                 </Text>
               </View>
             </View>
 
-            <View className="bg-white/15 rounded-2xl px-4 py-2.5 mb-3">
+            <View className="bg-white/15 rounded-2xl px-4 py-3 mb-4">
               <View className="flex-row items-center justify-between">
                 <View className="flex-1 pr-4">
                   <Text variant="bold" className="text-white text-lg" numberOfLines={1}>
-                    Lesson path
+                    Choose a lesson
                   </Text>
                   <Text className="text-white/85 text-sm" numberOfLines={2}>
-                    {stage.placeholderMessage}
+                    Swipe through the lesson path and continue from saved progress.
                   </Text>
                 </View>
                 <View className="flex-row items-center">
@@ -451,8 +500,8 @@ export default function LearningStagePathScreen() {
                   <LessonPathCard
                     stage={stage}
                     lesson={lesson}
+                    lessonAccess={lessonAccessById.get(lesson.id)!}
                     itemCount={lesson.items.length}
-                    isCompleted={completedLessonIdSet.has(lesson.id)}
                     width={lessonCardWidth}
                     height={lessonCardHeight}
                     gap={cardGap}

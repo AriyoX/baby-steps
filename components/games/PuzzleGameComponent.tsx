@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Image,
   TouchableOpacity,
-  Dimensions,
+  useWindowDimensions,
   Animated,
   Alert,
   ActivityIndicator,
@@ -43,13 +43,8 @@ import {
   type LocalPersistenceStatus,
 } from "@/lib/completionReliability";
 
-// Get dimensions for landscape mode
-const { width, height } = Dimensions.get("window");
-// Use the smaller dimension for the puzzle size but make it larger (reduced the subtraction amount)
-const PUZZLE_CONTAINER_SIZE = Math.min(height - 80, width / 1.5); // Increased from (height-120, width/2)
 const GRID_SIZE = 3; // Keep the same 3x3 puzzle grid
 const PUZZLE_PADDING = 20;
-const TILE_SIZE = (PUZZLE_CONTAINER_SIZE - PUZZLE_PADDING * 2) / GRID_SIZE;
 const TILE_MARGIN = 2; // This margin seems to be applied visually by spacing animated views
 
 // Define TypeScript interfaces
@@ -85,7 +80,7 @@ interface SoundEffects {
 }
 
 // Helper to generate tile static data
-const generateTileStaticData = (): Record<number, TileStaticData> => {
+const generateTileStaticData = (tileSize: number): Record<number, TileStaticData> => {
   const data: Record<number, TileStaticData> = {};
   for (let i = 0; i < GRID_SIZE * GRID_SIZE - 1; i++) {
     const id = i + 1;
@@ -94,8 +89,8 @@ const generateTileStaticData = (): Record<number, TileStaticData> => {
     data[id] = {
       id,
       correctPosition: { row, col },
-      imageX: col * TILE_SIZE,
-      imageY: row * TILE_SIZE,
+      imageX: col * tileSize,
+      imageY: row * tileSize,
     };
   }
   return data;
@@ -244,6 +239,14 @@ export const runPuzzleAnimationCompletion = (
 
 const PuzzleGame: React.FC = () => {
   const router = useRouter();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const landscapeWidth = Math.max(windowWidth, windowHeight);
+  const landscapeHeight = Math.min(windowWidth, windowHeight);
+  const puzzleContainerSize = Math.max(
+    210,
+    Math.min(320, landscapeHeight - 90, landscapeWidth * 0.43),
+  );
+  const tileSize = (puzzleContainerSize - PUZZLE_PADDING * 2) / GRID_SIZE;
   const { activeChild } = useChild(); // Get active child from context
   const languageCode = getDbLanguageCodeForLearningLanguage(
     activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE,
@@ -283,7 +286,7 @@ const PuzzleGame: React.FC = () => {
   const [currentPuzzle, setCurrentPuzzle] = useState<number>(0);
   const [grid, setGrid] = useState<(number | null)[][]>([]);
   const [emptySlotPosition, setEmptySlotPosition] = useState<Position>({ row: GRID_SIZE -1, col: GRID_SIZE -1 });
-  const [tileStaticData, _setTileStaticData] = useState<Record<number, TileStaticData>>(generateTileStaticData());
+  const tileStaticData = useMemo(() => generateTileStaticData(tileSize), [tileSize]);
   
   const [isComplete, setIsComplete] = useState<boolean>(false);
   const [moves, setMoves] = useState<number>(0);
@@ -583,8 +586,8 @@ const PuzzleGame: React.FC = () => {
       rowItems.forEach((tileId, c) => {
         if (tileId !== null) {
           newAnimatedPositions[tileId] = {
-            left: new Animated.Value(c * (TILE_SIZE + TILE_MARGIN * 2) + PUZZLE_PADDING),
-            top: new Animated.Value(r * (TILE_SIZE + TILE_MARGIN * 2) + PUZZLE_PADDING),
+            left: new Animated.Value(c * (tileSize + TILE_MARGIN * 2) + PUZZLE_PADDING),
+            top: new Animated.Value(r * (tileSize + TILE_MARGIN * 2) + PUZZLE_PADDING),
           };
         }
       });
@@ -659,8 +662,8 @@ const PuzzleGame: React.FC = () => {
         console.warn("Could not play the Puzzle move sound:", error);
       });
 
-      const newLeft = ec * (TILE_SIZE + TILE_MARGIN * 2) + PUZZLE_PADDING;
-      const newTop = er * (TILE_SIZE + TILE_MARGIN * 2) + PUZZLE_PADDING;
+      const newLeft = ec * (tileSize + TILE_MARGIN * 2) + PUZZLE_PADDING;
+      const newTop = er * (tileSize + TILE_MARGIN * 2) + PUZZLE_PADDING;
 
       const newGrid = grid.map(r_ => [...r_]); // Deep copy grid
       newGrid[er][ec] = tileId;       // Move tile to empty slot's old position
@@ -910,8 +913,8 @@ const PuzzleGame: React.FC = () => {
             key={tileId}
             className={`absolute rounded-md overflow-hidden justify-center items-center border border-purple-700`}
             style={{
-              width: TILE_SIZE,
-              height: TILE_SIZE,
+              width: tileSize,
+              height: tileSize,
               left: animPos.left,
               top: animPos.top,
               zIndex: 1,
@@ -939,8 +942,8 @@ const PuzzleGame: React.FC = () => {
                 source={puzzleImages[currentPuzzle].source}
                 className="absolute"
                 style={{
-                  width: PUZZLE_CONTAINER_SIZE - PUZZLE_PADDING * 2,
-                  height: PUZZLE_CONTAINER_SIZE - PUZZLE_PADDING * 2,
+                  width: puzzleContainerSize - PUZZLE_PADDING * 2,
+                  height: puzzleContainerSize - PUZZLE_PADDING * 2,
                   top: -staticInfo.imageY,
                   left: -staticInfo.imageX,
                 }}
@@ -1012,7 +1015,7 @@ const PuzzleGame: React.FC = () => {
   return (
     <View className="flex-1 bg-blue-50">
       <StatusBar style="dark" />
-      <View className="flex-row items-center justify-between px-5 pt-4 pb-1">
+      <View className="flex-row items-center justify-between px-5 pt-5 pb-1">
         <TouchableOpacity
           className="w-11 h-11 rounded-full bg-white items-center justify-center shadow-md border-2 border-primary-200"
           onPress={() => {
@@ -1049,8 +1052,8 @@ const PuzzleGame: React.FC = () => {
           <View
             className="bg-white rounded-3xl overflow-hidden relative border-4 border-primary-100 shadow-lg"
             style={{
-              width: PUZZLE_CONTAINER_SIZE,
-              height: PUZZLE_CONTAINER_SIZE,
+              width: puzzleContainerSize,
+              height: puzzleContainerSize,
             }}
           >
             {showPreview && (

@@ -13,14 +13,14 @@ export function MechanicScreenFrame({
   isShortScreen,
 }: MechanicScreenFrameProps) {
   return (
-    <View className="flex-1" style={{ paddingVertical: isShortScreen ? 2 : 8 }}>
+    <View className="flex-1" style={{ paddingVertical: isShortScreen ? 0 : 4 }}>
       <ScrollView
         alwaysBounceVertical={false}
         contentContainerStyle={{
           alignItems: "center",
           flexGrow: 1,
           justifyContent: "center",
-          paddingVertical: isShortScreen ? 2 : 4,
+          paddingVertical: isShortScreen ? 0 : 3,
         }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -35,7 +35,7 @@ export function MechanicScreenFrame({
         className="items-end"
         style={{
           flexShrink: 0,
-          paddingTop: isShortScreen ? 8 : 12,
+          paddingTop: isShortScreen ? 7 : 9,
           width: "100%",
         }}
       >

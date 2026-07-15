@@ -5,7 +5,7 @@ import {
   StyleSheet,
   View,
   PanResponder,
-  Dimensions,
+  useWindowDimensions,
   TouchableOpacity,
   Text,
   ImageBackground,
@@ -68,8 +68,6 @@ const DEFAULT_COLORS = [
   "#FFFFFF", // White
 ]
 
-const { width, height } = Dimensions.get("window")
-
 // Helper function to calculate distance between two points
 const distance = (p1: Point, p2: Point): number => {
   return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2))
@@ -101,6 +99,7 @@ const smoothPath = (points: Point[]): string => {
 
 export default function ColoringGameScreen({ imageSource, pageName, colors = DEFAULT_COLORS }: ColoringGameProps) {
   const insets = useSafeAreaInsets()
+  const { width, height } = useWindowDimensions()
   const colorScheme = useColorScheme()
   const { activeChild } = useChild()
   // Modify the state to include color name feedback
@@ -461,7 +460,7 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
         </TouchableOpacity>
 
         <View style={styles.headerTitle}>
-          <Text style={styles.headerText}>{pageName}</Text>
+          <Text style={styles.headerText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}>{pageName}</Text>
         </View>
 
         <View style={styles.headerActions}>
@@ -743,14 +742,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 10,
-    height: 50,
+    paddingHorizontal: 12,
+    height: 54,
     backgroundColor: "#FF4081",
     zIndex: 110,
   },
   headerTitle: {
     flex: 1,
     alignItems: "center",
+    paddingHorizontal: 8,
   },
   headerText: {
     fontSize: 18,
@@ -767,7 +767,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
-    marginLeft: 8,
+    marginLeft: 6,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
@@ -876,6 +876,8 @@ const styles = StyleSheet.create({
   colorPalette: {
     backgroundColor: "rgba(255, 255, 255, 0.95)",
     paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
     borderTopWidth: 1,
     borderTopColor: "#EEEEEE",
     position: "absolute",
@@ -889,12 +891,12 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   colorButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     borderWidth: 2,
     borderColor: "#DDDDDD",
-    marginHorizontal: 8,
+    marginHorizontal: 6,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
@@ -908,18 +910,18 @@ const styles = StyleSheet.create({
   brushSizes: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 10,
+    marginTop: 4,
   },
   brushButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: "#F5F5F5",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
     borderColor: "#DDDDDD",
-    marginHorizontal: 8,
+    marginHorizontal: 6,
   },
   selectedBrush: {
     borderColor: "#FF4081",
@@ -1033,8 +1035,9 @@ const styles = StyleSheet.create({
     zIndex: 100,
   },
   paletteSection: {
-    marginBottom: 8,
-    paddingHorizontal: 15,
+    flex: 1,
+    marginBottom: 0,
+    paddingHorizontal: 12,
   },
   paletteSectionTitle: {
     fontSize: 16,

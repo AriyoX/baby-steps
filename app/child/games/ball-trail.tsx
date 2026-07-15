@@ -7,7 +7,7 @@ import {
   StyleSheet,
   PanResponder,
   Animated,
-  Dimensions,
+  useWindowDimensions,
   Text,
   TouchableOpacity,
   type ViewStyle,
@@ -38,7 +38,7 @@ export default function BallTrail() {
   const touchPosition = useRef({ x: 0, y: 0 })
   const velocity = useRef({ x: 0, y: 0 })
   const lastTouch = useRef({ x: 0, y: 0, time: 0 })
-  const { width, height } = Dimensions.get("window")
+  const { width, height } = useWindowDimensions()
   const [ballCount, setBallCount] = useState(40) // Increased ball count
   const [isExploding, setIsExploding] = useState(false)
 
@@ -145,7 +145,7 @@ export default function BallTrail() {
     return () => {
       cancelAnimationFrame(animationId)
     }
-  }, [ballCount])
+  }, [ballCount, height, width])
 
   // Set up pan responder to track touch with improved responsiveness
   const panResponder = useRef(
@@ -272,8 +272,8 @@ const styles = StyleSheet.create({
   },
   exitButton: {
     position: "absolute",
-    top: 15,
-    left: 25,
+    top: 24,
+    left: 24,
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -294,11 +294,12 @@ const styles = StyleSheet.create({
   },
   instructions: {
     position: "absolute",
-    bottom: 40,
+    bottom: 28,
     left: 0,
     right: 0,
     alignItems: "center",
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
   },
   instructionsText: {
     color: "rgba(255, 255, 255, 0.7)",

@@ -25,6 +25,15 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Android hardware back behavior is acceptable in child mode.
 - [ ] Settings future links are removed or handled before release.
 
+## Responsive Child UI
+
+- [ ] Check every Learning Hub mechanic at `640 x 360`, `844 x 390`, and a landscape tablet width.
+- [ ] Mechanic content normally fits without vertical scrolling; long authored copy can still scroll.
+- [ ] Lesson and game header controls sit comfortably below the top edge without safe-area changes.
+- [ ] Word, Matching, Counting, Learning, Puzzle, Ball Trail, and Coloring use the available horizontal space without clipped right-side controls.
+- [ ] Coloring palette opens as a compact horizontal panel and leaves most of the canvas visible.
+- [ ] Puzzle tiles remain aligned after entering the route at different landscape sizes.
+
 ## Onboarding
 
 - [ ] First-run onboarding appears after clearing storage.

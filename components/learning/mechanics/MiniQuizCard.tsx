@@ -49,9 +49,9 @@ export function MiniQuizCard({
   const isFinalQuizQuestion = currentQuestionIndex >= questions.length - 1;
   const canContinue = isCurrentQuestionCorrect && !isCompleting;
   const isShortScreen = height < 430;
-  const isWideLayout = width >= 680;
+  const isWideLayout = width >= 620;
   const horizontalInset = width < 380 ? 32 : 48;
-  const cardWidth = Math.min(700, Math.max(240, width - horizontalInset));
+  const cardWidth = Math.min(860, Math.max(240, width - horizontalInset));
   const optionGap = isShortScreen ? 8 : 10;
 
   useEffect(() => {
@@ -176,8 +176,8 @@ export function MiniQuizCard({
           >
             <View
               style={{
-                width: isWideLayout ? "38%" : "100%",
-                paddingRight: isWideLayout ? 16 : 0,
+                width: isWideLayout ? "35%" : "100%",
+                paddingRight: isWideLayout ? 20 : 0,
                 alignItems: "center",
                 justifyContent: "center",
               }}

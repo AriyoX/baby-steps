@@ -160,9 +160,11 @@ const LugandaLearningGame: React.FC = () => {
   // Get dimensions for responsive layout
   const { width: windowWidth, height: windowHeight } = useWindowDimensions()
   const isLandscape = windowWidth > windowHeight
+  const compactLandscape = windowHeight < 430
+  const levelCardWidth = isLandscape && windowWidth >= 720 ? "31.5%" : "48%"
   const landscapeWidth = Math.max(windowWidth, windowHeight)
   const landscapeHeight = Math.min(windowWidth, windowHeight)
-  const stageCardGap = 16
+  const stageCardGap = 8
   const stageCardWidth = Math.min(270, Math.max(230, landscapeWidth * 0.32))
   const stageCardHeight = Math.max(190, Math.min(232, landscapeHeight * 0.56))
   const stageCardImageHeight = Math.round(stageCardHeight * 0.54)
@@ -1226,8 +1228,8 @@ const LugandaLearningGame: React.FC = () => {
                       <TouchableOpacity
                         key={level.id}
                         style={{
-                          width: "48%",
-                          minHeight: 132,
+                          width: levelCardWidth,
+                          minHeight: compactLandscape ? 112 : 132,
                           marginBottom: 12,
                           borderColor: level.isLocked
                             ? brandColors.neutral[200]
@@ -1244,7 +1246,7 @@ const LugandaLearningGame: React.FC = () => {
                         accessibilityLabel={`${level.title}. ${statusLabel}. ${level.words.length} words.`}
                         accessibilityState={{ disabled: level.isLocked }}
                       >
-                        <View className="p-4 flex-1 justify-between">
+                        <View className={`${compactLandscape ? "p-3" : "p-4"} flex-1 justify-between`}>
                           <View className="flex-row items-start justify-between">
                             <View
                               className="w-12 h-12 rounded-full justify-center items-center mr-3"
@@ -1350,9 +1352,9 @@ const LugandaLearningGame: React.FC = () => {
         {layout === "landscape" ? (
           // Landscape layout
           <View className="flex-1 flex-row">
-            <View className="w-1/2 p-4 justify-center items-center">
+            <View className="w-1/2 p-3 justify-center items-center">
               <Animated.View
-                className="bg-white p-5 rounded-2xl shadow-sm w-full justify-center items-center border border-blue-100"
+                className="bg-white p-4 rounded-2xl shadow-sm w-full justify-center items-center border border-blue-100"
                 style={{ opacity: fadeAnim, minHeight: learningImageHeight + 40 }}
               >
                 <CachedImage
@@ -1365,9 +1367,9 @@ const LugandaLearningGame: React.FC = () => {
               </Animated.View>
             </View>
 
-            <View className="w-1/2 p-4">
+            <View className="w-1/2 p-3 justify-center">
               <Animated.View
-                className="bg-white p-5 rounded-2xl shadow-sm mb-4 border border-blue-100"
+                className="bg-white p-4 rounded-2xl shadow-sm mb-3 border border-blue-100"
                 style={{
                   opacity: fadeAnim,
                   transform: [
@@ -1411,7 +1413,7 @@ const LugandaLearningGame: React.FC = () => {
                   {currentLearnWord.english}
                 </Text>
 
-                <View className="bg-slate-50 p-4 rounded-xl">
+                <View className="bg-slate-50 p-3 rounded-xl">
                   <Text className="text-base text-slate-800 italic mb-2" numberOfLines={3}>
                     {`"${currentLearnWord.example ?? ""}"`}
                   </Text>
@@ -1586,7 +1588,7 @@ const LugandaLearningGame: React.FC = () => {
         </View>
 
         {/* Progress bar */}
-        <View className="px-4 mb-4">
+        <View className="px-4 mb-2">
           <View className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
             <Animated.View
               className="h-full bg-indigo-500"
@@ -1613,12 +1615,12 @@ const LugandaLearningGame: React.FC = () => {
             // Landscape layout
             <View className="flex-1 flex-row px-3">
               <View className="w-1/2 p-2 justify-center">
-                <View className="bg-white p-6 rounded-2xl shadow-sm border border-blue-100">
-                  <Text className="text-lg text-slate-600 mb-6 text-center" numberOfLines={2}>
+                <View className="bg-white p-5 rounded-2xl shadow-sm border border-blue-100">
+                  <Text className="text-lg text-slate-600 mb-4 text-center" numberOfLines={2}>
                     What is the English translation of:
                   </Text>
 
-                  <View className="items-center mb-5">
+                  <View className="items-center mb-3">
                     <View className="flex-row items-center">
                       <Text
                         variant="bold"
@@ -1646,7 +1648,7 @@ const LugandaLearningGame: React.FC = () => {
 
                   {/* Feedback */}
                   {isCorrect !== null && (
-                    <View className={`items-center my-4 rounded-full px-4 py-2 ${isCorrect ? "bg-emerald-50" : "bg-red-50"}`}>
+                    <View className={`items-center my-2 rounded-full px-4 py-2 ${isCorrect ? "bg-emerald-50" : "bg-red-50"}`}>
                       <Text className={`text-lg ${isCorrect ? "text-emerald-600" : "text-red-600"}`} variant="bold">
                         {isCorrect ? "Correct!" : "Try again!"}
                       </Text>

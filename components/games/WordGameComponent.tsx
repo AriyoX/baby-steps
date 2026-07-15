@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useCallback, useState, useEffect, useRef } from "react";
 import {
   View,
   TouchableOpacity,
@@ -39,16 +39,19 @@ import {
   loadGameProgress,
   saveGameProgress,
   updateProgressForLevelCompletion,
-  isLevelUnlocked
-} from './utils/progressManagerWordGame';
-import { useAchievements } from "./achievements/useAchievements"; 
+  isLevelUnlocked,
+} from "./utils/progressManagerWordGame";
+import { useAchievements } from "./achievements/useAchievements";
 import type { AchievementDefinition } from "./achievements/achievementTypes";
 import { audioManager } from "@/lib/audioManager";
 import { useChildNotice } from "@/context/ChildNoticeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getWordGameSizing } from "./responsiveSizing";
 
-const WORD_GAME_MODAL_ORIENTATIONS: ModalProps["supportedOrientations"] = ["landscape-left", "landscape-right"];
+const WORD_GAME_MODAL_ORIENTATIONS: ModalProps["supportedOrientations"] = [
+  "landscape-left",
+  "landscape-right",
+];
 
 interface WordCompletionOrderOptions {
   persistProgress: (progress: WordGameProgress) => Promise<void>;
@@ -69,7 +72,8 @@ const completeWordProgressLocallyFirst = (
     },
     fallbackValue: completedProgress,
     revealCompletion: (progress) => options.revealCompletion(progress),
-    runBestEffortNetworkWork: (progress) => options.runBestEffortNetworkWork(progress),
+    runBestEffortNetworkWork: (progress) =>
+      options.runBestEffortNetworkWork(progress),
     onLocalError: options.onLocalError,
     onNetworkError: options.onNetworkError,
   });
@@ -98,19 +102,29 @@ const WordGame: React.FC = () => {
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const wordGameSizing = getWordGameSizing(windowWidth, windowHeight);
-  const languageCode = activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE;
-  const { 
-    isLoadingAchievements, 
-    checkAndGrantNewAchievements 
-  } = useAchievements(activeChild?.id, 'word_game'); // Game key
+  const isCompactLandscape = windowHeight < 400;
+  const sideVisualSize = Math.min(
+    isCompactLandscape ? 92 : 112,
+    Math.max(84, windowWidth * 0.14),
+  );
+  const hintButtonSize = isCompactLandscape ? 56 : 64;
+  const previewImageSize = Math.max(
+    176,
+    Math.min(windowHeight * 0.6, windowWidth * 0.48, 360),
+  );
+  const languageCode =
+    activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE;
+  const { isLoadingAchievements, checkAndGrantNewAchievements } =
+    useAchievements(activeChild?.id, "word_game"); // Game key
   const { enqueueAchievementUnlocked } = useChildNotice();
 
-  const [hintUsedCurrentLevel, setHintUsedCurrentLevel] = useState<boolean>(false); // For no-hint achievement
+  const [hintUsedCurrentLevel, setHintUsedCurrentLevel] =
+    useState<boolean>(false); // For no-hint achievement
   const [consecutiveWins, setConsecutiveWins] = useState<number>(0);
-  
+
   // Add state to track level start time
   const levelStartTime = useRef<number>(Date.now());
-  
+
   // State variables
   const [currentLevelIndex, setCurrentLevelIndex] = useState<number>(0);
   const [gameLevels, setGameLevels] = useState<WordGameLevel[]>([]);
@@ -123,12 +137,15 @@ const WordGame: React.FC = () => {
   const [wrongSound, setWrongSound] = useState<Audio.Sound | undefined>();
   const [successSound, setSuccessSound] = useState<Audio.Sound | undefined>();
   const [animatingLetter, setAnimatingLetter] = useState<LetterPosition | null>(
-    null
+    null,
   );
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
   const [isGameCompleted, setIsGameCompleted] = useState<boolean>(false);
-  const [showLevelIntroModal, setShowLevelIntroModal] = useState<boolean>(false);
+  const [showLevelIntroModal, setShowLevelIntroModal] =
+    useState<boolean>(false);
   const [showHintModal, setShowHintModal] = useState<boolean>(false);
+  const [showHintNudge, setShowHintNudge] = useState<boolean>(false);
+  const [showImagePreview, setShowImagePreview] = useState<boolean>(false);
   const [showSubHint, setShowSubHint] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [contentRetrySequence, setContentRetrySequence] = useState(0);
@@ -144,8 +161,15 @@ const WordGame: React.FC = () => {
   const completionLockRef = useRef<Promise<void> | null>(null);
   const [showLevelSelect, setShowLevelSelect] = useState<boolean>(false);
   const [fadeAnim] = useState(new Animated.Value(1));
-  const levelIntroTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const bounceResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const levelIntroTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const bounceResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const hintNudgeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   progressOwnerRef.current = {
     childId: activeChild?.id,
@@ -173,6 +197,10 @@ const WordGame: React.FC = () => {
         clearTimeout(bounceResetTimeoutRef.current);
         bounceResetTimeoutRef.current = null;
       }
+      if (hintNudgeTimeoutRef.current) {
+        clearTimeout(hintNudgeTimeoutRef.current);
+        hintNudgeTimeoutRef.current = null;
+      }
     };
   }, []);
 
@@ -182,7 +210,7 @@ const WordGame: React.FC = () => {
 
   // For letter flying animation
   const flyingLetterPosition = useRef(
-    new Animated.ValueXY({ x: 0, y: 0 })
+    new Animated.ValueXY({ x: 0, y: 0 }),
   ).current;
   const flyingLetterOpacity = useRef(new Animated.Value(0)).current;
   const flyingLetterScale = useRef(new Animated.Value(1)).current;
@@ -193,6 +221,62 @@ const WordGame: React.FC = () => {
   const containerRef = useRef<View | null>(null);
 
   const router = useRouter();
+
+  const dismissHintNudge = useCallback(() => {
+    if (hintNudgeTimeoutRef.current) {
+      clearTimeout(hintNudgeTimeoutRef.current);
+      hintNudgeTimeoutRef.current = null;
+    }
+    setShowHintNudge(false);
+  }, []);
+
+  const restartHintNudgeTimer = useCallback(() => {
+    if (hintNudgeTimeoutRef.current) {
+      clearTimeout(hintNudgeTimeoutRef.current);
+    }
+    setShowHintNudge(false);
+    hintNudgeTimeoutRef.current = setTimeout(() => {
+      hintNudgeTimeoutRef.current = null;
+      setShowHintNudge(true);
+    }, 5000);
+  }, []);
+
+  useEffect(() => {
+    const hasBlockingOverlay =
+      showHintModal ||
+      showImagePreview ||
+      showSuccessModal ||
+      showLevelIntroModal ||
+      showLevelSelect ||
+      isGameCompleted;
+
+    if (isLoading || gameLevels.length === 0 || hasBlockingOverlay) {
+      dismissHintNudge();
+      return;
+    }
+
+    restartHintNudgeTimer();
+
+    return () => {
+      if (hintNudgeTimeoutRef.current) {
+        clearTimeout(hintNudgeTimeoutRef.current);
+        hintNudgeTimeoutRef.current = null;
+      }
+    };
+  }, [
+    currentLevelIndex,
+    currentQuestion,
+    dismissHintNudge,
+    gameLevels.length,
+    isGameCompleted,
+    isLoading,
+    restartHintNudgeTimer,
+    showHintModal,
+    showImagePreview,
+    showLevelIntroModal,
+    showLevelSelect,
+    showSuccessModal,
+  ]);
 
   // Function to generate random letters for choices
   const generateLetterChoices = (word: string): string[] => {
@@ -208,7 +292,7 @@ const WordGame: React.FC = () => {
 
     // Filter out letters that are already in uniqueLetters
     const availableLetters = alphabetLetters.filter(
-      (letter) => !uniqueLetters.includes(letter)
+      (letter) => !uniqueLetters.includes(letter),
     );
 
     // Randomly select remaining letters
@@ -225,7 +309,10 @@ const WordGame: React.FC = () => {
   };
 
   // Modified loadLevel to track level start time
-  const loadLevel = (levelIndex: number, levels: WordGameLevel[] = gameLevels) => {
+  const loadLevel = (
+    levelIndex: number,
+    levels: WordGameLevel[] = gameLevels,
+  ) => {
     if (levels.length === 0) {
       return;
     }
@@ -275,7 +362,6 @@ const WordGame: React.FC = () => {
         setShowLevelIntroModal(true);
       }
     }, 250);
-
   };
 
   // Function to handle level selection from the level select modal
@@ -295,7 +381,7 @@ const WordGame: React.FC = () => {
           console.warn("Could not save Word Game level selection:", error);
         });
       }
-      
+
       setCurrentLevelIndex(levelIndex);
       setShowLevelSelect(false);
       loadLevel(levelIndex);
@@ -348,7 +434,10 @@ const WordGame: React.FC = () => {
     const completionLanguageCode = languageCode;
     const nextLevelIdx = currentLevelIndex + 1;
     const isLastLevel = nextLevelIdx >= gameLevels.length;
-    const nextCurrentLevel = Math.min(nextLevelIdx, Math.max(0, gameLevels.length - 1));
+    const nextCurrentLevel = Math.min(
+      nextLevelIdx,
+      Math.max(0, gameLevels.length - 1),
+    );
     const currentConsecutiveWins = consecutiveWins + 1;
     const progressAtCompletion = progressRef.current;
     const progressAfterLevel = updateProgressForLevelCompletion(
@@ -401,7 +490,9 @@ const WordGame: React.FC = () => {
     }
 
     let completionRevision = 0;
-    const achievementEvents: Parameters<typeof checkAndGrantNewAchievements>[0][] = [
+    const achievementEvents: Parameters<
+      typeof checkAndGrantNewAchievements
+    >[0][] = [
       {
         type: "word_game_level_just_completed",
         gameKey: "word_game",
@@ -437,22 +528,32 @@ const WordGame: React.FC = () => {
 
     await completeWordProgressLocallyFirst(completedProgress, {
       persistProgress: (nextProgress) =>
-        saveGameProgress(nextProgress, completionChildId, completionLanguageCode, {
-          levels: gameLevels,
-        }),
+        saveGameProgress(
+          nextProgress,
+          completionChildId,
+          completionLanguageCode,
+          {
+            levels: gameLevels,
+          },
+        ),
       revealCompletion: (savedProgress) => {
         completionRevision = revealCompletion(savedProgress);
       },
       runBestEffortNetworkWork: async (savedProgress) => {
         const achievementWork = async () => {
           const outcomes = await Promise.allSettled(
-            achievementEvents.map((event) => checkAndGrantNewAchievements(event)),
+            achievementEvents.map((event) =>
+              checkAndGrantNewAchievements(event),
+            ),
           );
           const newlyAwarded = new Map<string, AchievementDefinition>();
 
           outcomes.forEach((outcome) => {
             if (outcome.status === "rejected") {
-              console.warn("Could not evaluate a Word Game achievement:", outcome.reason);
+              console.warn(
+                "Could not evaluate a Word Game achievement:",
+                outcome.reason,
+              );
               return;
             }
 
@@ -479,7 +580,9 @@ const WordGame: React.FC = () => {
             return;
           }
 
-          awardedAchievements.forEach((achievement) => enqueueAchievementUnlocked(achievement));
+          awardedAchievements.forEach((achievement) =>
+            enqueueAchievementUnlocked(achievement),
+          );
           if (achievementPoints <= 0) return;
 
           const progressWithAchievementPoints = {
@@ -506,15 +609,24 @@ const WordGame: React.FC = () => {
         const outcomes = await Promise.allSettled(networkTasks);
         outcomes.forEach((outcome) => {
           if (outcome.status === "rejected") {
-            console.warn("Could not finish Word Game best-effort network work:", outcome.reason);
+            console.warn(
+              "Could not finish Word Game best-effort network work:",
+              outcome.reason,
+            );
           }
         });
       },
       onLocalError: (error) => {
-        console.warn("Word Game completion was not durably saved locally:", error);
+        console.warn(
+          "Word Game completion was not durably saved locally:",
+          error,
+        );
       },
       onNetworkError: (error) => {
-        console.warn("Could not finish Word Game best-effort network work:", error);
+        console.warn(
+          "Could not finish Word Game best-effort network work:",
+          error,
+        );
       },
     });
   };
@@ -532,16 +644,18 @@ const WordGame: React.FC = () => {
         // Add error handling for each sound file
         try {
           const correctSoundObject = await audioManager.createAppSound(
-            require("@/assets/sounds/correct.mp3")
+            require("@/assets/sounds/correct.mp3"),
           );
           if (correctSoundObject) {
             loadedSounds.push(correctSoundObject);
             if (isMountedRef.current) {
               setCorrectSound(correctSoundObject);
             } else {
-              void audioManager.unloadAppSound(correctSoundObject).catch((error) => {
-                console.warn("Could not unload late Word Game sound:", error);
-              });
+              void audioManager
+                .unloadAppSound(correctSoundObject)
+                .catch((error) => {
+                  console.warn("Could not unload late Word Game sound:", error);
+                });
             }
           }
         } catch (error) {
@@ -550,16 +664,18 @@ const WordGame: React.FC = () => {
 
         try {
           const wrongSoundObject = await audioManager.createAppSound(
-            require("@/assets/sounds/wrong.mp3")
+            require("@/assets/sounds/wrong.mp3"),
           );
           if (wrongSoundObject) {
             loadedSounds.push(wrongSoundObject);
             if (isMountedRef.current) {
               setWrongSound(wrongSoundObject);
             } else {
-              void audioManager.unloadAppSound(wrongSoundObject).catch((error) => {
-                console.warn("Could not unload late Word Game sound:", error);
-              });
+              void audioManager
+                .unloadAppSound(wrongSoundObject)
+                .catch((error) => {
+                  console.warn("Could not unload late Word Game sound:", error);
+                });
             }
           }
         } catch (error) {
@@ -568,16 +684,18 @@ const WordGame: React.FC = () => {
 
         try {
           const successSoundObject = await audioManager.createAppSound(
-            require("@/assets/sounds/correct.mp3")
+            require("@/assets/sounds/correct.mp3"),
           );
           if (successSoundObject) {
             loadedSounds.push(successSoundObject);
             if (isMountedRef.current) {
               setSuccessSound(successSoundObject);
             } else {
-              void audioManager.unloadAppSound(successSoundObject).catch((error) => {
-                console.warn("Could not unload late Word Game sound:", error);
-              });
+              void audioManager
+                .unloadAppSound(successSoundObject)
+                .catch((error) => {
+                  console.warn("Could not unload late Word Game sound:", error);
+                });
             }
           }
         } catch (error) {
@@ -631,6 +749,8 @@ const WordGame: React.FC = () => {
         setIsGameCompleted(false);
         setShowLevelIntroModal(false);
         setShowHintModal(false);
+        setShowImagePreview(false);
+        setShowHintNudge(false);
         setShowSubHint(false);
         setSelectedLetters([]);
 
@@ -639,9 +759,11 @@ const WordGame: React.FC = () => {
         });
         const levels = contentResult.bundle?.wordGame.levels ?? [];
         if (contentResult.bundle) {
-          void preloadContentBundleImages(contentResult.bundle).catch((error) => {
-            console.warn("Could not preload Word Game images:", error);
-          });
+          void preloadContentBundleImages(contentResult.bundle).catch(
+            (error) => {
+              console.warn("Could not preload Word Game images:", error);
+            },
+          );
         }
 
         if (!isCurrentRequest()) return;
@@ -656,7 +778,9 @@ const WordGame: React.FC = () => {
 
         if (requestedChildId) {
           try {
-            console.log(`Loading word game progress for child: ${requestedChildId}`);
+            console.log(
+              `Loading word game progress for child: ${requestedChildId}`,
+            );
             const savedProgress = await loadGameProgress(
               requestedChildId,
               requestedLanguageCode,
@@ -664,19 +788,25 @@ const WordGame: React.FC = () => {
             );
             if (!isCurrentRequest()) return;
 
-            console.log('Loaded progress:', JSON.stringify(savedProgress));
+            console.log("Loaded progress:", JSON.stringify(savedProgress));
             updateProgressState(savedProgress);
             levelToLoad = savedProgress.currentLevel;
           } catch (error) {
             console.error("Error loading progress:", error);
             if (!isCurrentRequest()) return;
-            updateProgressState({ ...DEFAULT_PROGRESS, childId: requestedChildId });
+            updateProgressState({
+              ...DEFAULT_PROGRESS,
+              childId: requestedChildId,
+            });
           }
         } else {
           updateProgressState(DEFAULT_PROGRESS);
         }
 
-        const safeLevelToLoad = Math.min(Math.max(levelToLoad, 0), levels.length - 1);
+        const safeLevelToLoad = Math.min(
+          Math.max(levelToLoad, 0),
+          levels.length - 1,
+        );
         if (!isCurrentRequest()) return;
 
         console.log(`Loading level: ${safeLevelToLoad}`);
@@ -719,7 +849,7 @@ const WordGame: React.FC = () => {
   const animateLetterToWord = (
     letter: string,
     letterIndex: number,
-    destinationIndex: number
+    destinationIndex: number,
   ) => {
     const letterRef = letterRefs.current[letterIndex];
     const wordRef = wordSlotRefs.current[destinationIndex];
@@ -779,10 +909,10 @@ const WordGame: React.FC = () => {
               updateDisplayWord(letter, destinationIndex);
             });
           },
-          () => console.error("Failed to measure word slot")
+          () => console.error("Failed to measure word slot"),
         );
       },
-      () => console.error("Failed to measure letter")
+      () => console.error("Failed to measure letter"),
     );
   };
 
@@ -899,7 +1029,9 @@ const WordGame: React.FC = () => {
       <View className="flex-1 bg-primary-50 justify-center items-center">
         <StatusBar style="dark" translucent backgroundColor="transparent" />
         <ActivityIndicator size="large" color="#7b5af0" />
-        <Text variant="medium" className="text-primary-700 mt-4">Loading your progress...</Text>
+        <Text variant="medium" className="text-primary-700 mt-4">
+          Loading your progress...
+        </Text>
       </View>
     );
   }
@@ -920,10 +1052,11 @@ const WordGame: React.FC = () => {
       ref={containerRef}
       className="flex-1 bg-blue-50"
       style={{ paddingLeft: insets.left, paddingRight: insets.right }}
+      onTouchStart={restartHintNudgeTimer}
     >
       <StatusBar style="dark" translucent backgroundColor="transparent" />
       {/* Top navigation bar with all elements aligned horizontally */}
-      <View className="flex-row justify-between items-center px-5 pt-6 pb-2">
+      <View className="flex-row justify-between items-center px-5 pt-6 pb-1">
         {/* Back button */}
         <TouchableOpacity
           className="w-12 h-12 rounded-full bg-white items-center justify-center shadow-md border-2 border-primary-200"
@@ -962,22 +1095,30 @@ const WordGame: React.FC = () => {
           >
             <Ionicons name="list" size={22} color="#7b5af0" />
           </TouchableOpacity>
-          
+
           {/* Level indicator */}
           <View className="flex-row items-center bg-white px-3 py-1.5 rounded-full shadow-md border-2 border-primary-200">
             <Text variant="bold" className="text-primary-700">
-              {Math.min(currentLevelIndex + 1, gameLevels.length)}/{gameLevels.length}
+              {Math.min(currentLevelIndex + 1, gameLevels.length)}/
+              {gameLevels.length}
             </Text>
           </View>
         </View>
       </View>
 
-
       {/* Main content area */}
       <View className="flex-1 flex-row justify-between items-center px-4 pb-3 pt-1">
         {/* Left character */}
-        <View className="w-[15%] items-center justify-center">
-          <View className="w-24 h-24 bg-white rounded-3xl items-center justify-center shadow-lg border-4 border-secondary-200 overflow-hidden">
+        <View className="w-[16%] items-center justify-center">
+          <TouchableOpacity
+            className="bg-white rounded-3xl items-center justify-center shadow-lg border-4 border-secondary-200 overflow-hidden"
+            style={{ width: sideVisualSize, height: sideVisualSize }}
+            onPress={() => setShowImagePreview(true)}
+            activeOpacity={0.82}
+            accessibilityRole="button"
+            accessibilityLabel={`Enlarge ${currentLevel.question} picture`}
+            accessibilityHint="Opens a larger view of the picture"
+          >
             <CachedImage
               source={getImageSource(currentLevel.image)}
               fallbackSource={resolveImageSource("coin.png")}
@@ -985,7 +1126,10 @@ const WordGame: React.FC = () => {
               resizeMode="cover"
               accessibilityLabel={`${currentLevel.question} picture`}
             />
-          </View>
+            <View className="absolute right-1.5 bottom-1.5 w-7 h-7 rounded-full bg-black/60 items-center justify-center border border-white/80">
+              <Ionicons name="expand" size={15} color="white" />
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Center game area */}
@@ -1007,7 +1151,9 @@ const WordGame: React.FC = () => {
             {displayWord.split("").map((char, index) => (
               <View
                 key={index}
-                ref={(ref) => { wordSlotRefs.current[index] = ref; }}
+                ref={(ref) => {
+                  wordSlotRefs.current[index] = ref;
+                }}
                 className="justify-center items-center relative"
                 style={{
                   height: wordGameSizing.answerSlotHeight,
@@ -1096,17 +1242,65 @@ const WordGame: React.FC = () => {
         </View>
 
         {/* Right hint button */}
-        <View className="w-[15%] items-center justify-center">
-          <TouchableOpacity 
-            className="w-16 h-16 bg-white rounded-full justify-center items-center shadow-lg border-4 border-accent-200"
-            onPress={() => setShowHintModal(true)}
+        <View
+          className="w-[14%] items-center justify-center"
+          style={{ zIndex: showHintNudge ? 20 : 1 }}
+        >
+          {showHintNudge && (
+            <View
+              className="absolute bg-primary-700 rounded-2xl px-3 py-2.5 shadow-xl border-2 border-white"
+              style={{
+                right: hintButtonSize + 10,
+                width: isCompactLandscape ? 154 : 174,
+              }}
+              pointerEvents="none"
+              accessibilityRole="alert"
+            >
+              <Text variant="bold" className="text-white text-sm text-center">
+                Need a little help?
+              </Text>
+              <Text
+                variant="medium"
+                className="text-primary-50 text-xs text-center mt-0.5"
+              >
+                Tap the hint button.
+              </Text>
+              <View
+                className="absolute"
+                style={{
+                  right: -11,
+                  top: "50%",
+                  marginTop: -9,
+                  width: 0,
+                  height: 0,
+                  borderTopWidth: 9,
+                  borderBottomWidth: 9,
+                  borderLeftWidth: 12,
+                  borderTopColor: "transparent",
+                  borderBottomColor: "transparent",
+                  borderLeftColor: brandColors.blue[700],
+                }}
+              />
+            </View>
+          )}
+          <TouchableOpacity
+            className="bg-white rounded-full justify-center items-center shadow-lg border-4 border-accent-200"
+            style={{ width: hintButtonSize, height: hintButtonSize }}
+            onPress={() => {
+              dismissHintNudge();
+              setShowHintModal(true);
+            }}
             activeOpacity={0.8}
             accessibilityRole="button"
             accessibilityLabel="Show hint"
           >
             <Image
               source={require("@/assets/images/info.png")}
-              className="w-12 h-12 rounded-full"
+              style={{
+                width: hintButtonSize - 14,
+                height: hintButtonSize - 14,
+                borderRadius: (hintButtonSize - 14) / 2,
+              }}
               resizeMode="cover"
             />
           </TouchableOpacity>
@@ -1159,7 +1353,11 @@ const WordGame: React.FC = () => {
         <View className="flex-1 justify-center items-center bg-black/50 px-5">
           <View className="bg-white rounded-3xl p-6 pt-8 w-4/5 max-w-xl items-center shadow-xl border-4 border-primary-100">
             <View className="absolute -top-6 left-1/2 -ml-12 w-24 h-24 bg-primary-100 rounded-full items-center justify-center border-4 border-white shadow-lg">
-              <Ionicons name="sparkles" size={42} color={brandColors.equatorialGold} />
+              <Ionicons
+                name="sparkles"
+                size={42}
+                color={brandColors.equatorialGold}
+              />
             </View>
 
             {/* Title with styling matching app */}
@@ -1186,7 +1384,11 @@ const WordGame: React.FC = () => {
                     key={index}
                     className="w-10 h-10 m-1 justify-center items-center bg-white rounded-lg shadow-sm border border-primary-200"
                   >
-                    <Text variant="bold" className="text-xl text-primary-700" numberOfLines={1}>
+                    <Text
+                      variant="bold"
+                      className="text-xl text-primary-700"
+                      numberOfLines={1}
+                    >
                       {letter}
                     </Text>
                   </View>
@@ -1207,23 +1409,36 @@ const WordGame: React.FC = () => {
                   }}
                   activeOpacity={0.7}
                 >
-                  <Text variant="bold" className="text-white text-sm" numberOfLines={1}>Previous</Text>
+                  <Text
+                    variant="bold"
+                    className="text-white text-sm"
+                    numberOfLines={1}
+                  >
+                    Previous
+                  </Text>
                 </TouchableOpacity>
               ) : (
                 <View style={{ width: 100 }} />
               )}
-              
+
               {/* Next level or play again button */}
               <TouchableOpacity
                 className="bg-primary-500 py-3 px-5 rounded-full shadow-lg border-2 border-primary-400 active:scale-95 min-w-[124px] items-center"
                 onPress={() => {
                   void goToNextLevel().catch((error) => {
-                    console.warn("Could not finish Word Game level completion:", error);
+                    console.warn(
+                      "Could not finish Word Game level completion:",
+                      error,
+                    );
                   });
                 }}
                 activeOpacity={0.7}
               >
-                <Text variant="bold" className="text-white text-sm" numberOfLines={1}>
+                <Text
+                  variant="bold"
+                  className="text-white text-sm"
+                  numberOfLines={1}
+                >
                   {isGameCompleted ? "Play Again" : "Next Level"}
                 </Text>
               </TouchableOpacity>
@@ -1248,7 +1463,11 @@ const WordGame: React.FC = () => {
             <View className="bg-white rounded-3xl p-6 w-[70%] max-w-xl items-center shadow-xl border-4 border-primary-100">
               {/* Trophy decoration on top - repositioned to be more visible */}
               <View className="absolute -top-6 left-1/2 -ml-10 w-20 h-20 bg-accent-100 rounded-full items-center justify-center border-4 border-white shadow-lg">
-                <Ionicons name="trophy" size={36} color={brandColors.equatorialGold} />
+                <Ionicons
+                  name="trophy"
+                  size={36}
+                  color={brandColors.equatorialGold}
+                />
               </View>
 
               {/* Title with styling matching app */}
@@ -1326,7 +1545,7 @@ const WordGame: React.FC = () => {
             >
               <Ionicons name="close" size={20} color="#7b5af0" />
             </TouchableOpacity>
-            
+
             {/* Level title - reduced margin */}
             <Text
               variant="bold"
@@ -1356,7 +1575,7 @@ const WordGame: React.FC = () => {
                 Find the word:
               </Text>
               <Text
-                variant="bold" 
+                variant="bold"
                 className="text-base text-primary-800 text-center"
                 numberOfLines={2}
                 adjustsFontSizeToFit
@@ -1401,14 +1620,16 @@ const WordGame: React.FC = () => {
             >
               <Ionicons name="close" size={20} color="#7b5af0" />
             </TouchableOpacity>
-            
+
             {/* Title */}
             <View className="flex-row items-center mb-3">
-              <Ionicons name="bulb-outline" size={22} color="#7b5af0" style={{ marginRight: 6 }} />
-              <Text
-                variant="bold"
-                className="text-xl text-primary-600"
-              >
+              <Ionicons
+                name="bulb-outline"
+                size={22}
+                color="#7b5af0"
+                style={{ marginRight: 6 }}
+              />
+              <Text variant="bold" className="text-xl text-primary-600">
                 Hint
               </Text>
             </View>
@@ -1441,7 +1662,7 @@ const WordGame: React.FC = () => {
             {showSubHint && (
               <View className="bg-secondary-50/80 w-full rounded-xl px-3 py-2.5 mb-4 border-2 border-secondary-100">
                 <Text
-                  variant="bold" 
+                  variant="bold"
                   className="text-sm text-secondary-700 text-center mb-1"
                 >
                   Additional Hint:
@@ -1473,6 +1694,56 @@ const WordGame: React.FC = () => {
         </View>
       </Modal>
 
+      {/* Enlarged prompt image */}
+      <Modal
+        transparent={true}
+        visible={showImagePreview}
+        animationType="fade"
+        presentationStyle="overFullScreen"
+        supportedOrientations={WORD_GAME_MODAL_ORIENTATIONS}
+        onRequestClose={() => setShowImagePreview(false)}
+      >
+        <View className="flex-1 justify-center items-center bg-black/70 px-5">
+          <TouchableOpacity
+            className="absolute inset-0"
+            onPress={() => setShowImagePreview(false)}
+            activeOpacity={1}
+            accessibilityRole="button"
+            accessibilityLabel="Close enlarged picture"
+          />
+          <View className="bg-white rounded-3xl p-3 items-center shadow-2xl border-4 border-secondary-200">
+            <TouchableOpacity
+              className="absolute -top-3 -right-3 w-11 h-11 bg-white rounded-full items-center justify-center shadow-lg border-2 border-primary-300 z-10"
+              onPress={() => setShowImagePreview(false)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Close enlarged picture"
+            >
+              <Ionicons name="close" size={22} color="#7b5af0" />
+            </TouchableOpacity>
+            <View
+              className="rounded-2xl overflow-hidden bg-secondary-50"
+              style={{ width: previewImageSize, height: previewImageSize }}
+            >
+              <CachedImage
+                source={getImageSource(currentLevel.image)}
+                fallbackSource={resolveImageSource("coin.png")}
+                className="w-full h-full"
+                resizeMode="contain"
+                accessibilityLabel={`Large ${currentLevel.question} picture`}
+              />
+            </View>
+            <Text
+              variant="bold"
+              className="text-primary-700 text-base text-center mt-2 px-3"
+              numberOfLines={2}
+            >
+              {currentQuestion}
+            </Text>
+          </View>
+        </View>
+      </Modal>
+
       {/* Level Select Modal */}
       <Modal
         transparent={true}
@@ -1491,11 +1762,11 @@ const WordGame: React.FC = () => {
             >
               <Ionicons name="close" size={20} color="#7b5af0" />
             </TouchableOpacity>
-            
+
             <Text variant="bold" className="text-xl text-primary-600 mb-2">
               Select Level
             </Text>
-            
+
             <ScrollView className="w-full max-h-[260px]">
               <View className="flex-row flex-wrap justify-center">
                 {gameLevels.map((level, index) => {
@@ -1503,31 +1774,53 @@ const WordGame: React.FC = () => {
                   const isUnlocked = isLevelUnlocked(progress, index, level.id);
                   const isCompleted = progress.completedLevels.includes(index);
                   const isCurrent = index === currentLevelIndex;
-                  
+
                   return (
                     <TouchableOpacity
                       key={index}
                       className={`w-16 h-16 m-1 rounded-xl justify-center items-center shadow-md border-2
-                        ${isCurrent ? 'bg-primary-600 border-primary-300' : 
-                          isCompleted ? 'bg-green-500 border-green-300' : 
-                            isUnlocked ? 'bg-secondary-500 border-secondary-300' : 
-                              'bg-gray-300 border-gray-400 opacity-60'}`}
+                        ${
+                          isCurrent
+                            ? "bg-primary-600 border-primary-300"
+                            : isCompleted
+                              ? "bg-green-500 border-green-300"
+                              : isUnlocked
+                                ? "bg-secondary-500 border-secondary-300"
+                                : "bg-gray-300 border-gray-400 opacity-60"
+                        }`}
                       onPress={() => selectLevel(index)}
                       disabled={!isUnlocked}
                       activeOpacity={0.8}
                       accessibilityRole="button"
                       accessibilityLabel={`Level ${index + 1}${isCompleted ? ", completed" : ""}${!isUnlocked ? ", locked" : ""}`}
-                      accessibilityState={{ disabled: !isUnlocked, selected: isCurrent }}
+                      accessibilityState={{
+                        disabled: !isUnlocked,
+                        selected: isCurrent,
+                      }}
                     >
-                      <Text variant="bold" className="text-white text-lg" numberOfLines={1}>{index + 1}</Text>
+                      <Text
+                        variant="bold"
+                        className="text-white text-lg"
+                        numberOfLines={1}
+                      >
+                        {index + 1}
+                      </Text>
                       {!isUnlocked && (
                         <View className="absolute inset-0 items-center justify-center">
-                          <Ionicons name="lock-closed" size={20} color="rgba(255,255,255,0.7)" />
+                          <Ionicons
+                            name="lock-closed"
+                            size={20}
+                            color="rgba(255,255,255,0.7)"
+                          />
                         </View>
                       )}
                       {isCompleted && (
                         <View className="absolute -top-1 -right-1">
-                          <Ionicons name="checkmark-circle" size={14} color="#ffffff" />
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={14}
+                            color="#ffffff"
+                          />
                         </View>
                       )}
                     </TouchableOpacity>
@@ -1535,13 +1828,15 @@ const WordGame: React.FC = () => {
                 })}
               </View>
             </ScrollView>
-            
+
             <TouchableOpacity
               className="bg-primary-500 py-2 px-6 rounded-full shadow-lg border-2 border-primary-400 mt-3"
               onPress={() => setShowLevelSelect(false)}
               activeOpacity={0.7}
             >
-              <Text variant="bold" className="text-white text-sm">Close</Text>
+              <Text variant="bold" className="text-white text-sm">
+                Close
+              </Text>
             </TouchableOpacity>
           </View>
         </View>

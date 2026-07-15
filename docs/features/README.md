@@ -13,6 +13,7 @@ These docs describe the current Baby Steps feature set as implemented in the cod
 | Child mode and navigation | Database-content-backed prototype | [navigation.md](navigation.md) |
 | Learning hub | Database-backed MVP curriculum | [learning-hub.md](learning-hub.md) |
 | Games | Database-content-backed supplementary practice | [games.md](games.md) |
+| Responsive game and learning UI | Implemented landscape pass | [responsive-game-learning-ui.md](responsive-game-learning-ui.md) |
 | Standalone Learning game | Database-content-backed prototype mechanics | [luganda-lessons.md](luganda-lessons.md) |
 | Stories | Database-backed generic renderer | [stories.md](stories.md) |
 | Coloring | Database-menu-backed prototype with bundled canvases | [coloring.md](coloring.md) |

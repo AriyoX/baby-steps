@@ -1384,8 +1384,8 @@ const LugandaCountingGame: React.FC = () => {
     <SafeAreaView className="flex-1 bg-blue-50 pt-3">
       <StatusBar style="dark" />
 
-      {/* Header with back button and game info */}
-      <View className="flex-row justify-between items-center px-4 pt-2 pb-2">
+      {/* Compact controls; the active stage card owns the screen title. */}
+      <View className="flex-row justify-between items-center px-4 pt-3 pb-2">
         <TouchableOpacity
           className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-100"
           onPress={() => setGameState("stageSelect")}
@@ -1395,13 +1395,7 @@ const LugandaCountingGame: React.FC = () => {
           <Ionicons name="arrow-back" size={20} color="#818cf8" />
         </TouchableOpacity>
 
-        <View className="flex-1 px-4">
-          <Text variant="bold" className="text-indigo-800 text-center text-lg" numberOfLines={1}>
-            {countingContent.title}
-          </Text>
-        </View>
-
-        <View className="flex-row items-center px-4 py-2 rounded-xl">
+        <View className="flex-row items-center">
           <View className="flex-row items-center bg-amber-50 px-3 py-1 rounded-full border border-amber-200 min-w-[72px] justify-center">
             <Image source={require("@/assets/images/coin.png")} className="w-5 h-5 mr-1" resizeMode="contain" />
             <Text variant="bold" className="text-amber-500" numberOfLines={1}>
@@ -1428,7 +1422,7 @@ const LugandaCountingGame: React.FC = () => {
         }}
       >
         {/* Left section - Stage indicator */}
-        <View className="items-center justify-center" style={{ flex: 0.9 }}>
+        <View className="items-center justify-center" style={{ flex: 0.82 }}>
           <View className="bg-white rounded-2xl shadow-sm p-3 w-full border border-blue-100 min-h-[210px] justify-between">
             <View>
               <Text className="text-center text-xs text-indigo-400 uppercase" numberOfLines={1}>
@@ -1471,7 +1465,7 @@ const LugandaCountingGame: React.FC = () => {
         </View>
 
         {/* Center section - Items to count */}
-        <View className="items-center justify-center" style={{ flex: 2.4 }}>
+        <View className="items-center justify-center" style={{ flex: 2.55 }}>
           <View className="w-full items-center mb-2 bg-white px-5 py-2.5 rounded-2xl shadow-sm border border-blue-100">
             <Text variant="bold" className="text-lg text-slate-800 text-center" numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.86}>
               {getQuestionText()}
@@ -1522,7 +1516,7 @@ const LugandaCountingGame: React.FC = () => {
         </View>
 
         {/* Right section - Number options */}
-        <View className="items-center justify-center" style={{ flex: 1 }}>
+        <View className="items-center justify-center" style={{ flex: 1.03 }}>
           <View className="bg-white rounded-2xl shadow-sm p-3 w-full border border-blue-100 min-h-[210px] justify-center">
             <Text className="text-center text-sm text-indigo-400 mb-3" numberOfLines={1}>
               BALANGA EMEKA?

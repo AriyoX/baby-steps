@@ -273,6 +273,7 @@ const CardsMatchingGame: React.FC = () => {
   const contentScope = `${activeChild?.id ?? "guest"}:${languageCode}`;
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const compactHeader = windowWidth < 720;
   const { checkAndGrantNewAchievements } = useAchievements(
     activeChild?.id,
     "card_matching_game",
@@ -987,7 +988,7 @@ const CardsMatchingGame: React.FC = () => {
     >
       <StatusBar style="dark" />
       {/* Top navigation bar with all elements aligned horizontally */}
-      <View className="flex-row justify-between items-center px-5 pt-4 pb-1">
+      <View className="flex-row justify-between items-center px-4 pt-5 pb-1">
         {/* Back button */}
         <TouchableOpacity
           className="w-11 h-11 rounded-full bg-white items-center justify-center shadow-md border-2 border-primary-200"
@@ -1015,7 +1016,10 @@ const CardsMatchingGame: React.FC = () => {
         {/* Right side container for stats, reset and new game buttons */}
         <View className="flex-row items-center space-x-2">
           {/* Moves counter */}
-          <View className="bg-white px-2.5 py-1.5 rounded-xl shadow-md border-2 border-primary-200 min-w-[74px]">
+          <View
+            className="bg-white py-1.5 rounded-xl shadow-md border-2 border-primary-200"
+            style={{ minWidth: compactHeader ? 58 : 74, paddingHorizontal: compactHeader ? 6 : 10 }}
+          >
             <View className="flex-row items-center">
               <Ionicons name="swap-horizontal" size={13} color="#7b5af0" />
               <Text className="text-sm text-primary-700 ml-1" numberOfLines={1}>{moves}</Text>
@@ -1023,7 +1027,10 @@ const CardsMatchingGame: React.FC = () => {
           </View>
 
           {/* Matches counter */}
-          <View className="bg-white px-2.5 py-1.5 rounded-xl shadow-md border-2 border-primary-200 min-w-[82px]">
+          <View
+            className="bg-white py-1.5 rounded-xl shadow-md border-2 border-primary-200"
+            style={{ minWidth: compactHeader ? 64 : 82, paddingHorizontal: compactHeader ? 6 : 10 }}
+          >
             <View className="flex-row items-center">
               <Ionicons name="checkmark-circle" size={13} color="#22c55e" />
               <Text className="text-sm text-primary-700 ml-1" numberOfLines={1}>

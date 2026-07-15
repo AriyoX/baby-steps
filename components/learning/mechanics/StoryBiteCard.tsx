@@ -52,15 +52,21 @@ export function StoryBiteCard({
   const audioResolution = useMemo(
     () =>
       currentPage
-        ? resolveLearningAudioSource(currentPage.audioAsset, currentPage.audioKey)
+        ? resolveLearningAudioSource(
+            currentPage.audioAsset,
+            currentPage.audioKey,
+          )
         : null,
     [currentPage],
   );
   const isShortScreen = height < 430;
-  const isWideLayout = width >= 680;
+  const isWideLayout = width >= 620;
   const horizontalInset = width < 380 ? 32 : 48;
-  const cardWidth = Math.min(720, Math.max(240, width - horizontalInset));
-  const visualSize = Math.min(isShortScreen ? 104 : 136, Math.max(84, height * 0.24));
+  const cardWidth = Math.min(880, Math.max(240, width - horizontalInset));
+  const visualSize = Math.min(
+    isShortScreen ? 120 : 158,
+    Math.max(96, height * 0.28),
+  );
 
   useEffect(() => {
     pagesViewedRef.current = 1;
@@ -139,7 +145,9 @@ export function StoryBiteCard({
 
   const actionLabel = isFinalPage ? "I finished the story" : "Next";
   const actionIcon = isFinalPage ? "checkmark" : "chevron-forward";
-  const actionColor = isFinalPage ? brandColors.success : brandColors.shanaOrange;
+  const actionColor = isFinalPage
+    ? brandColors.success
+    : brandColors.shanaOrange;
 
   return (
     <MechanicScreenFrame
@@ -171,205 +179,208 @@ export function StoryBiteCard({
         </TouchableOpacity>
       }
     >
+      <View
+        className="bg-white rounded-2xl border-2 border-accent-500"
+        style={{ width: cardWidth, padding: isShortScreen ? 14 : 18 }}
+      >
         <View
-          className="bg-white rounded-2xl border-2 border-accent-500"
-          style={{ width: cardWidth, padding: isShortScreen ? 14 : 18 }}
+          style={{
+            flexDirection: isWideLayout ? "row" : "column",
+            alignItems: isWideLayout ? "stretch" : "center",
+          }}
         >
           <View
             style={{
-              flexDirection: isWideLayout ? "row" : "column",
-              alignItems: isWideLayout ? "stretch" : "center",
+              width: isWideLayout ? "31%" : "100%",
+              paddingRight: isWideLayout ? 22 : 0,
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
-            <View
+            <Text
+              variant="bold"
+              className="text-primary-700 text-center"
               style={{
-                width: isWideLayout ? "34%" : "100%",
-                paddingRight: isWideLayout ? 16 : 0,
-                alignItems: "center",
-                justifyContent: "center",
+                fontSize: isShortScreen ? 22 : 26,
+                lineHeight: isShortScreen ? 27 : 31,
               }}
+              numberOfLines={2}
+              adjustsFontSizeToFit
+              minimumFontScale={0.78}
             >
-              <Text
-                variant="bold"
-                className="text-primary-700 text-center"
+              Story bite
+            </Text>
+            <Text
+              className="text-neutral-500 text-center mt-1"
+              style={{ fontSize: isShortScreen ? 12 : 13 }}
+              numberOfLines={1}
+            >
+              Page {Math.min(currentPageIndex + 1, pages.length)} of{" "}
+              {pages.length}
+            </Text>
+
+            <View
+              className="rounded-2xl items-center justify-center border-2 border-primary-100"
+              style={{
+                width: visualSize,
+                height: visualSize,
+                backgroundColor: brandColors.blue[50],
+                overflow: "hidden",
+                marginTop: isShortScreen ? 8 : 12,
+              }}
+              testID="story-bite-visual"
+              accessibilityLabel={`${currentPage?.title ?? item.title} picture`}
+            >
+              {currentPage && hasPageImage(currentPage) ? (
+                <CachedImage
+                  source={resolveImageSource(
+                    currentPage.imageAsset ?? currentPage.imageKey,
+                    stageImageKey,
+                  )}
+                  fallbackSource={resolveImageSource(stageImageKey)}
+                  style={{ width: visualSize, height: visualSize }}
+                  resizeMode="cover"
+                  accessibilityLabel={`${currentPage.title ?? item.title} picture`}
+                />
+              ) : currentPage?.emoji ? (
+                <Text
+                  style={{ fontSize: isShortScreen ? 48 : 60 }}
+                  accessibilityLabel={`${currentPage.title ?? item.title} picture`}
+                >
+                  {currentPage.emoji}
+                </Text>
+              ) : (
+                <Ionicons
+                  name="book-outline"
+                  size={isShortScreen ? 42 : 54}
+                  color={brandColors.victoriaBlue}
+                  testID="story-bite-fallback-visual"
+                />
+              )}
+            </View>
+
+            {pageHasAudio ? (
+              <TouchableOpacity
+                className="rounded-full border-2 border-primary-100 flex-row items-center"
                 style={{
-                  fontSize: isShortScreen ? 22 : 26,
-                  lineHeight: isShortScreen ? 27 : 31,
+                  marginTop: isShortScreen ? 8 : 12,
+                  paddingHorizontal: 14,
+                  paddingVertical: isShortScreen ? 8 : 9,
+                  backgroundColor: audioLoadFailed
+                    ? brandColors.orange[50]
+                    : brandColors.blue[50],
                 }}
+                onPress={replayPageAudio}
+                accessibilityRole="button"
+                accessibilityLabel="Replay story audio"
+              >
+                <Ionicons
+                  name={
+                    audioLoadFailed ? "alert-circle-outline" : "volume-high"
+                  }
+                  size={17}
+                  color={brandColors.victoriaBlue}
+                />
+                <Text
+                  variant="bold"
+                  className="text-primary-700 ml-2"
+                  style={{ fontSize: isShortScreen ? 12 : 13 }}
+                  numberOfLines={1}
+                >
+                  Listen
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
+          <View
+            style={{
+              flex: isWideLayout ? 1 : undefined,
+              width: isWideLayout ? undefined : "100%",
+              marginTop: isWideLayout ? 0 : isShortScreen ? 10 : 14,
+              justifyContent: "center",
+            }}
+          >
+            <Text
+              variant="bold"
+              className="text-primary-700 text-center"
+              style={{
+                fontSize: isShortScreen ? 24 : 30,
+                lineHeight: isShortScreen ? 29 : 36,
+              }}
+              numberOfLines={3}
+              adjustsFontSizeToFit
+              minimumFontScale={0.76}
+            >
+              {currentPage?.title ?? item.title}
+            </Text>
+
+            {currentPage?.localTitle ? (
+              <Text
+                variant="medium"
+                className="text-neutral-500 text-center mt-1"
+                style={{ flexShrink: 1, fontSize: isShortScreen ? 13 : 15 }}
                 numberOfLines={2}
                 adjustsFontSizeToFit
-                minimumFontScale={0.78}
+                minimumFontScale={0.84}
               >
-                Story bite
+                {currentPage.localTitle}
               </Text>
-              <Text
-                className="text-neutral-500 text-center mt-1"
-                style={{ fontSize: isShortScreen ? 12 : 13 }}
-                numberOfLines={1}
-              >
-                Page {Math.min(currentPageIndex + 1, pages.length)} of {pages.length}
-              </Text>
+            ) : null}
 
-              <View
-                className="rounded-2xl items-center justify-center border-2 border-primary-100"
-                style={{
-                  width: visualSize,
-                  height: visualSize,
-                  backgroundColor: brandColors.blue[50],
-                  overflow: "hidden",
-                  marginTop: isShortScreen ? 8 : 12,
-                }}
-                testID="story-bite-visual"
-                accessibilityLabel={`${currentPage?.title ?? item.title} picture`}
-              >
-                {currentPage && hasPageImage(currentPage) ? (
-                  <CachedImage
-                    source={resolveImageSource(
-                      currentPage.imageAsset ?? currentPage.imageKey,
-                      stageImageKey,
-                    )}
-                    fallbackSource={resolveImageSource(stageImageKey)}
-                    style={{ width: visualSize, height: visualSize }}
-                    resizeMode="cover"
-                    accessibilityLabel={`${currentPage.title ?? item.title} picture`}
-                  />
-                ) : currentPage?.emoji ? (
-                  <Text
-                    style={{ fontSize: isShortScreen ? 48 : 60 }}
-                    accessibilityLabel={`${currentPage.title ?? item.title} picture`}
-                  >
-                    {currentPage.emoji}
-                  </Text>
-                ) : (
-                  <Ionicons
-                    name="book-outline"
-                    size={isShortScreen ? 42 : 54}
-                    color={brandColors.victoriaBlue}
-                    testID="story-bite-fallback-visual"
-                  />
-                )}
-              </View>
-
-              {pageHasAudio ? (
-                <TouchableOpacity
-                  className="rounded-full border-2 border-primary-100 flex-row items-center"
-                  style={{
-                    marginTop: isShortScreen ? 8 : 12,
-                    paddingHorizontal: 14,
-                    paddingVertical: isShortScreen ? 8 : 9,
-                    backgroundColor: audioLoadFailed
-                      ? brandColors.orange[50]
-                      : brandColors.blue[50],
-                  }}
-                  onPress={replayPageAudio}
-                  accessibilityRole="button"
-                  accessibilityLabel="Replay story audio"
-                >
-                  <Ionicons
-                    name={audioLoadFailed ? "alert-circle-outline" : "volume-high"}
-                    size={17}
-                    color={brandColors.victoriaBlue}
-                  />
-                  <Text
-                    variant="bold"
-                    className="text-primary-700 ml-2"
-                    style={{ fontSize: isShortScreen ? 12 : 13 }}
-                    numberOfLines={1}
-                  >
-                    Listen
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-
-            <View
+            <Text
+              className="text-neutral-700 text-center mt-2"
               style={{
-                flex: isWideLayout ? 1 : undefined,
-                width: isWideLayout ? undefined : "100%",
-                marginTop: isWideLayout ? 0 : isShortScreen ? 10 : 14,
-                justifyContent: "center",
+                fontSize: isShortScreen ? 16 : 18,
+                lineHeight: isShortScreen ? 21 : 24,
+                flexShrink: 1,
               }}
             >
-              <Text
-                variant="bold"
-                className="text-primary-700 text-center"
-                style={{
-                  fontSize: isShortScreen ? 24 : 30,
-                  lineHeight: isShortScreen ? 29 : 36,
-                }}
-                numberOfLines={3}
-                adjustsFontSizeToFit
-                minimumFontScale={0.76}
-              >
-                {currentPage?.title ?? item.title}
-              </Text>
+              {currentPage?.bodyText ?? "This story page is being prepared."}
+            </Text>
 
-              {currentPage?.localTitle ? (
-                <Text
-                  variant="medium"
-                  className="text-neutral-500 text-center mt-1"
-                  style={{ flexShrink: 1, fontSize: isShortScreen ? 13 : 15 }}
-                  numberOfLines={2}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.84}
-                >
-                  {currentPage.localTitle}
-                </Text>
-              ) : null}
-
-              <Text
-                className="text-neutral-700 text-center mt-2"
+            {currentPage?.localText ? (
+              <View
+                className="bg-accent-50 rounded-2xl border-2 border-accent-100 items-center"
                 style={{
-                  fontSize: isShortScreen ? 16 : 18,
-                  lineHeight: isShortScreen ? 21 : 24,
-                  flexShrink: 1,
+                  marginTop: isShortScreen ? 8 : 12,
+                  paddingHorizontal: 12,
+                  paddingVertical: isShortScreen ? 8 : 10,
                 }}
               >
-                {currentPage?.bodyText ?? "This story page is being prepared."}
-              </Text>
-
-              {currentPage?.localText ? (
-                <View
-                  className="bg-accent-50 rounded-2xl border-2 border-accent-100 items-center"
-                  style={{
-                    marginTop: isShortScreen ? 8 : 12,
-                    paddingHorizontal: 12,
-                    paddingVertical: isShortScreen ? 8 : 10,
-                  }}
-                >
-                  <Text
-                    variant="bold"
-                    className="text-primary-700 text-center"
-                    style={{
-                      flexShrink: 1,
-                      fontSize: isShortScreen ? 15 : 17,
-                      lineHeight: isShortScreen ? 19 : 21,
-                    }}
-                    numberOfLines={3}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.82}
-                  >
-                    {currentPage.localText}
-                  </Text>
-                </View>
-              ) : null}
-
-              {isFinalPage && item.reflectionPrompt ? (
                 <Text
-                  variant="medium"
-                  className="text-neutral-600 text-center mt-2"
+                  variant="bold"
+                  className="text-primary-700 text-center"
                   style={{
                     flexShrink: 1,
-                    fontSize: isShortScreen ? 13 : 15,
-                    lineHeight: isShortScreen ? 17 : 19,
+                    fontSize: isShortScreen ? 15 : 17,
+                    lineHeight: isShortScreen ? 19 : 21,
                   }}
+                  numberOfLines={3}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.82}
                 >
-                  {item.reflectionPrompt}
+                  {currentPage.localText}
                 </Text>
-              ) : null}
-            </View>
+              </View>
+            ) : null}
+
+            {isFinalPage && item.reflectionPrompt ? (
+              <Text
+                variant="medium"
+                className="text-neutral-600 text-center mt-2"
+                style={{
+                  flexShrink: 1,
+                  fontSize: isShortScreen ? 13 : 15,
+                  lineHeight: isShortScreen ? 17 : 19,
+                }}
+              >
+                {item.reflectionPrompt}
+              </Text>
+            ) : null}
           </View>
         </View>
+      </View>
     </MechanicScreenFrame>
   );
 }

@@ -16,6 +16,8 @@ The exact-language Games menu comes from `content_items` `child_menu/games`. A g
 
 The legacy Counting route name is preserved to avoid route and progress churn. Ball Trail remains an unlinked mechanics-only prototype route and has no language-content bundle.
 
+Landscape sizing and the game-by-game responsive QA matrix are documented in [Responsive Game And Learning UI](responsive-game-learning-ui.md).
+
 The published Luganda seed preserves all previous game IDs, order, locks, labels, and content configuration. Known Runyankole samples remain draft/non-startable. Cards or Puzzle must not appear for `nyn` merely because the Luganda menu and payloads exist.
 
 ## Code-Owned Mechanics

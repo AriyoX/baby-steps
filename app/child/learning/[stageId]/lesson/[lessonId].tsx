@@ -552,9 +552,9 @@ export default function LearningLessonSessionScreen() {
           <View
             className="flex-1"
             style={{
-              paddingBottom: isCompactLessonScreen ? 10 : 16,
+              paddingBottom: isCompactLessonScreen ? 10 : 14,
               paddingHorizontal: lessonHorizontalPadding,
-              paddingTop: isCompactLessonScreen ? 10 : 16,
+              paddingTop: isCompactLessonScreen ? 14 : 20,
             }}
           >
             <View className="flex-row items-center justify-between mb-2">

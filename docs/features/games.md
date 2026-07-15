@@ -1,114 +1,44 @@
 # Games
 
-## Current Status
+Games are supplementary child-facing practice. Learning Hub remains the main curriculum.
 
-Implemented prototype.
+## Dynamic Content
 
-## Purpose
+The exact-language Games menu comes from `content_items` `child_menu/games`. A game route starts only after `loadContentBundle(activeLanguage)` returns its required validated content or an exact-language cached copy.
 
-Games provide child-facing learning activities for Luganda words, counting, puzzles, and Buganda cultural knowledge.
-
-## User Flow
-
-1. Parent launches child mode for a selected child.
-2. Child lands on the Games tab.
-3. Child chooses a game card.
-4. The selected game opens in the `/child/games/` route group.
-5. Most games save local progress and write activity rows to Supabase when milestones are reached.
-
-## Main Files Involved
-
-- `components/child/AfricanThemeGameInterface.tsx`
-- `app/child/games/_layout.tsx`
-- `app/child/games/wordgame.tsx`
-- `app/child/games/cardgame.tsx`
-- `app/child/games/puzzlegame.tsx`
-- `app/child/games/learninggame.tsx`
-- `app/child/games/lugandacountinggame.tsx`
-- `app/child/games/ball-trail.tsx`
-- `components/games/WordGameComponent.tsx`
-- `components/games/CardsMatchingComponent.tsx`
-- `components/games/PuzzleGameComponent.tsx`
-- `components/games/LearningGameComponent.tsx`
-- `components/games/CountingGameComponent.tsx`
-- `components/games/utils/`
-- `content/games/`
-
-## Key Components, Screens, And Functions
-
-| Game | Route | Main component | Status notes |
+| Game | Route | Database payload | Stable identity |
 | --- | --- | --- | --- |
-| Word Game | `/child/games/wordgame` | `WordGameComponent` | 51 hardcoded word levels, local level unlocks, Supabase activity writes. |
-| Card Matching | `/child/games/cardgame` | `CardsMatchingComponent` | Buganda cultural matching pairs, local game state and stats, activity writes. |
-| Puzzle Game | `/child/games/puzzlegame` | `PuzzleGameComponent` | 3x3 sliding puzzle using 3 bundled puzzle images. |
-| Luganda Learning | `/child/games/learninggame` | `LearningGameComponent` | Stage/level Luganda lessons and quizzes. See [luganda-lessons.md](luganda-lessons.md). |
-| Luganda Counting | `/child/games/lugandacountinggame` | `CountingGameComponent` | 4 counting stages with local stage progress and Supabase activity writes. |
-| Ball Trail | `/child/games/ball-trail` | `BallTrail` | Standalone touch-trail prototype route; not linked from the current Games tab. |
+| Word | `/child/games/wordgame` | `word_game/levels` | Level ID and preserved order |
+| Card Matching | `/child/games/cardgame` | `card_game/cards` | Item ID and exact `value` |
+| Puzzle | `/child/games/puzzlegame` | `puzzle_game/puzzles` | Numeric puzzle ID |
+| Standalone Learning | `/child/games/learninggame` | `learning_game/starter` | Numeric stage/level IDs and word IDs |
+| Counting | `/child/games/lugandacountinggame` | `counting_game/stages` | Numeric stage ID plus item/currency IDs |
 
-## Data And Content Used
+The legacy Counting route name is preserved to avoid route and progress churn. Ball Trail remains an unlinked mechanics-only prototype route and has no language-content bundle.
 
-- Word game content: `content/games/wordgamewords.ts`
-- Counting content: `content/games/countingGameStages.ts`
-- Luganda lesson content: `content/games/lugandawords.ts`
-- Card matching content: hardcoded `bugandaItemsCollection` in `components/games/CardsMatchingComponent.tsx`
-- Puzzle content: hardcoded `puzzleImages` in `components/games/PuzzleGameComponent.tsx`
-- Game media and sounds: `assets/images/`, `assets/puzzles/`, `assets/audio/`, `assets/sounds/`
+The published Luganda seed preserves all previous game IDs, order, locks, labels, and content configuration. Known Runyankole samples remain draft/non-startable. Cards or Puzzle must not appear for `nyn` merely because the Luganda menu and payloads exist.
 
-## State Management And Logic Notes
+## Code-Owned Mechanics
 
-- Local progress uses AsyncStorage through game-specific progress managers.
-- Activities are saved to Supabase with `saveActivity` in `lib/utils.ts`.
-- Achievements use `useAchievements` and event payloads from game components.
-- Audio uses `expo-av`.
-- Game components are large and currently mix UI, scoring, audio, persistence, achievements, and content-specific logic.
+Components under `components/games/` still own rendering, interaction, scoring, randomization, animation, audio behavior, progress, activity writes, achievements, and completion notices. Static image and audio maps stay bundled for React Native. Database payloads contain data and media keys only; they never contain executable logic.
+
+Each game keeps its existing progress identity and local-first synchronization behavior. A content fetch failure shows the shared retry/coming-soon state and does not clear progress or achievement caches. Retired published records disappear from current play/completion totals after refresh, while historic progress IDs remain stored.
+
+Payload examples and update rules are in [Content Authoring And New Games](../development/content-authoring-and-new-games.md#migrated-menu-game-and-story-payloads). Cache behavior is in [Content Cache And Asset Loading](../development/content-cache-and-images.md).
 
 ## API Or Database Usage
 
-Games may write to the Supabase `activities` table with activity types:
-
-- `words`
-- `cultural`
-- `puzzle`
-- `language`
-- `counting`
-
-Game achievements read `achievements` and write `child_achievements`, depending on seeded achievement definitions.
+Routes read published/startable records through the shared exact-language Supabase repository/cache. Child clients do not write curriculum records. Existing progress, activity, and achievement paths are unchanged and remain separate from content authoring.
 
 ## Tests
 
-Current tests cover pure content/helper behavior only:
+Focused suites cover exact-language hydration, missing-content states, Cards and Puzzle completion, preserved progress identities, and progress hydration managers. Full touch, animation, sound, and installed-device flows still require manual QA.
 
-- `content/games/__tests__/wordgamewords.test.ts`
-- `content/games/__tests__/countingGameStages.test.ts`
-- `content/games/__tests__/lugandawords.test.ts`
+## Manual QA
 
-No tests cover full game interaction, scoring screens, audio playback, activity writes, or achievements.
-
-## Known Limitations Or Bugs
-
-- Game code is still prototype-heavy and large.
-- No UI or E2E tests cover game playthroughs.
-- `expo-av` is deprecated and still used.
-- Game content is mostly hardcoded or component-local.
-- Activity writes can fail silently from a user perspective.
-- Achievements depend on database seed data not represented in `schema.sql`.
-
-## Future MVP Improvements
-
-- Split each game into content, state, scoring, persistence, audio, and rendering modules.
-- Add game interaction tests for core completion flows.
-- Normalize activity/progress models before database content or payments.
-- Replace `expo-av`.
-- Move game content behind typed contracts before database migration.
-
-## Manual QA Checklist
-
-- [ ] Launch each game from the Games tab.
-- [ ] Confirm each game shows the active child context where expected.
-- [ ] Complete at least one level/stage in each game.
-- [ ] Confirm local progress persists after leaving and reopening the game.
-- [ ] Confirm Supabase `activities` receives expected rows.
-- [ ] Confirm achievements are awarded only when achievement definitions are seeded.
-- [ ] Test wrong-answer and success audio.
-- [ ] Rotate/reopen on Android and iOS.
-- [ ] Confirm the unlinked `ball-trail` route is either intentionally hidden or removed before MVP.
+- Launch every card exposed by the exact-language Games menu.
+- Verify no game starts before its content is loaded.
+- Confirm stable stage/level/puzzle/card progress restores after reopening.
+- Complete one meaningful unit and verify existing activity and new-award-only achievement behavior.
+- Reopen after a successful load while offline and confirm exact-language cache use.
+- Select a language with no published game payload and confirm the unavailable state, with no Luganda substitution.

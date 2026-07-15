@@ -1,3 +1,8 @@
+/**
+ * Test-only fixtures for the generic story renderer.
+ * Production story content is loaded from Supabase through contentRepository;
+ * no production module may import this file.
+ */
 import type { LocalStory } from "@/content/types";
 
 const legacyMetadata = {

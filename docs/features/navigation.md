@@ -2,7 +2,7 @@
 
 ## Current Status
 
-Implemented prototype.
+Database-content-backed prototype.
 
 ## Purpose
 
@@ -19,7 +19,7 @@ Child mode gives the active child a landscape learning area with tabs for games,
    - `/child/(tabs)/coloring`
    - `/child/(tabs)/Stories`
    - `/child/(tabs)/learning`
-6. Games, coloring, and stories render `AfricanThemeGameInterface` with different cards. Learning renders a dedicated hub with placeholder stages for the upcoming learning path.
+6. Games, Coloring, and Stories render exact-language database menu cards through `AfricanThemeGameInterface`. Learning renders the published exact-language Learning Hub path.
 7. The parent gate shows a random 3-digit PIN and returns to `/parent` after correct entry.
 
 ## Main Files Involved
@@ -44,7 +44,7 @@ Child mode gives the active child a landscape learning area with tabs for games,
 
 ## Data And Content Used
 
-Navigation cards are loaded through the content repository where available, with local fallback content for MVP readiness. The Learning hub uses `content/learningHubContent.json` through `content/learningHubRepository.ts` for its official MVP stage placeholders instead of routing children into older standalone games. Practice Mix remains locked until future lesson progress can unlock review practice.
+Navigation cards and Learning Hub stages are loaded through the exact-language database content repository and its last-known-good cache. Missing content shows the existing unavailable/coming-soon state; it does not fall back to bundled Luganda records. Learning Hub remains separate from the supplementary standalone games, and Practice Mix remains locked with no renderer.
 
 ## State Management And Logic Notes
 
@@ -56,25 +56,25 @@ Navigation cards are loaded through the content repository where available, with
 
 ## API Or Database Usage
 
-None directly. Child mode depends on a child profile selected from Supabase-backed parent screens.
+Child mode depends on a child profile selected from Supabase-backed parent screens. Games, Stories, Coloring menu cards, and Learning Hub content are read through the shared exact-language Supabase repository/cache. Direct Coloring canvases remain bundled.
 
 ## Tests
 
-No tests currently cover child mode navigation, route guards, orientation, or parent gate behavior.
+Focused tests cover child tab navigation metadata, Learning loading/unavailable states, and selected route/layout behavior. Full route-guard recovery, native orientation, and parent-gate PIN flows still require device or end-to-end coverage.
 
 ## Known Limitations Or Bugs
 
 - `activeChild` is in memory only.
 - The tab route is named `Stories` with uppercase `S`, which should be preserved when linking.
-- The legacy Museum tab route is intentionally hidden from child tab navigation during the Learning replacement. Museum routes, assets, and `react-native-webview` usage remain archived in place because the feature may return after redesign.
-- The default fallback card list still points to placeholder `tester` targets, though the normal `index` tab path maps to the real games card list.
+- The legacy Museum tab is hidden, and its deep-link routes require an exact-language published Museum menu before the archived screens can render.
+- Games, Stories, and Coloring cards come from the exact-language database bundle; there is no bundled fallback card list.
 - Orientation behavior needs device testing.
 
 ## Future MVP Improvements
 
 - Add child mode route recovery for reloads/cold starts.
 - Add parent gate tests and device QA.
-- Normalize card metadata into typed content.
+- Add schema-safe support for new menu card types only when a real route requires it.
 - Confirm route naming conventions before adding more tabs.
 
 ## Manual QA Checklist
@@ -84,7 +84,8 @@ No tests currently cover child mode navigation, route guards, orientation, or pa
 - [ ] Confirm device rotates/locks to landscape.
 - [ ] Visit Games, Coloring, Stories, and Learning tabs.
 - [ ] Tap Games, Coloring, and Stories cards and confirm they route to existing screens.
-- [ ] Tap every Learning stage and confirm it opens the friendly placeholder notice instead of an older game.
+- [ ] Open every published/startable Learning stage and lesson; confirm locked Practice Mix remains locked.
+- [ ] Select a language with no published content and confirm no Luganda menu or Learning Hub appears.
 - [ ] Press Android hardware back and confirm parent gate opens.
 - [ ] Enter wrong PIN and confirm it does not return to parent dashboard.
 - [ ] Enter displayed PIN and confirm return to `/parent`.

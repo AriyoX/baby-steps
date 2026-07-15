@@ -4,7 +4,6 @@ import { TouchableOpacity } from "react-native";
 import * as Speech from "expo-speech";
 import { GenericStoryRenderer } from "../GenericStoryRenderer";
 import { lugandaStories } from "@/content/luganda/stories";
-import { runyankoleContent } from "@/content/runyankole";
 import {
   getStageProgress,
   markStageStarted,
@@ -14,6 +13,36 @@ import {
 } from "@/lib/progressRepository";
 import { saveActivity } from "@/lib/utils";
 import type { LocalStory } from "@/content/types";
+
+const runyankoleStoryFixture: LocalStory = {
+  id: "nyn-sample-morning-greeting",
+  title: "Agandi Omuka",
+  summary: "Testing-only exact-language story fixture.",
+  languageCode: "nyn",
+  metadata: { status: "placeholder" },
+  pages: [
+    {
+      id: "nyn-sample-morning-greeting-page-1",
+      text: "Agandi? Nimarungi. A learner greets the family at home.",
+      translation: "How are you? I am fine.",
+      image: "learning-beginner.jpg",
+    },
+    {
+      id: "nyn-sample-morning-greeting-page-2",
+      text: "Webare, Mama. The learner helps at home.",
+      translation: "Thank you, Mama.",
+      image: "learning-beginner.jpg",
+    },
+  ],
+  questions: [
+    {
+      id: "nyn-sample-morning-greeting-question-1",
+      question: "Which greeting appears?",
+      options: ["Agandi", "Oli otya"],
+      correctAnswer: 0,
+    },
+  ],
+};
 
 const mockSpeakAppText = jest.fn((text: string, options: Record<string, unknown>) => {
   Speech.speak(text, options);
@@ -199,7 +228,7 @@ describe("GenericStoryRenderer", () => {
   });
 
   it("renders the Runyankole generic story with non-empty text", () => {
-    const tree = renderStory(runyankoleContent.stories[0]);
+    const tree = renderStory(runyankoleStoryFixture);
 
     expect(JSON.stringify(tree.toJSON())).toContain("Agandi");
     expect(JSON.stringify(tree.toJSON())).not.toContain("Story not ready");
@@ -215,7 +244,7 @@ describe("GenericStoryRenderer", () => {
       progress_payload: { currentPageIndex: 1 },
     };
 
-    const tree = renderStory(runyankoleContent.stories[0]);
+    const tree = renderStory(runyankoleStoryFixture);
 
     await act(async () => {
       await Promise.resolve();
@@ -412,8 +441,8 @@ describe("GenericStoryRenderer", () => {
       selected_language_code: "nyn",
     };
     const story = {
-      ...runyankoleContent.stories[0],
-      pages: [runyankoleContent.stories[0].pages[0]],
+      ...runyankoleStoryFixture,
+      pages: [runyankoleStoryFixture.pages[0]],
       questions: [],
     };
     const rejectedActivity = deferred<boolean>();
@@ -505,8 +534,8 @@ describe("GenericStoryRenderer", () => {
       selected_language_code: "nyn",
     };
     const story = {
-      ...runyankoleContent.stories[0],
-      pages: [runyankoleContent.stories[0].pages[0]],
+      ...runyankoleStoryFixture,
+      pages: [runyankoleStoryFixture.pages[0]],
       questions: [],
     };
     const localError = new Error("storage unavailable");

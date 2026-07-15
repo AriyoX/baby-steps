@@ -15,6 +15,17 @@ export interface WordGameProgress {
   unlockedLevels: number[];
   currentLevel: number;
   completedLevels: number[];
+  /**
+   * Stable content identities added when Word Game moved to database content.
+   * The positional fields above remain for backwards compatibility with existing
+   * installs and achievement code, while these IDs prevent a later reorder or
+   * retirement from reinterpreting a child's completions.
+   */
+  unlockedLevelIds?: string[];
+  currentLevelId?: string;
+  completedLevelIds?: string[];
+  legacyLevelIdSnapshot?: string[];
+  historicalCompletedLevels?: number[];
   totalScore: number;
   playHistory: {
     date: string;
@@ -48,26 +59,125 @@ const getLegacyStorageKey = (childId: string): string => {
   return `@BabySteps:WordGame:${childId}`;
 };
 
+type WordLevelIdentity = { id: string };
+type WordLevelSource = number | readonly WordLevelIdentity[];
+
+// This is a progress-migration snapshot, not runtime learning content. These IDs
+// are the immutable identities assigned to the original 50-level Luganda list.
+// Keeping the snapshot lets old positional progress survive a DB reorder/retire.
+const LEGACY_LUGANDA_WORD_LEVEL_IDS = Array.from(
+  { length: 50 },
+  (_, index) => `lg-word-game-level-${index + 1}`,
+);
+
+const uniqueNonNegativeIntegers = (value: unknown): number[] =>
+  Array.isArray(value)
+    ? [...new Set(value.filter(
+        (item): item is number => Number.isInteger(item) && item >= 0,
+      ))]
+    : [];
+
+const uniqueStrings = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? [...new Set(value.filter(
+        (item): item is string => typeof item === 'string' && item.length > 0,
+      ))]
+    : [];
+
+const getLevelContext = (
+  levelSource: WordLevelSource,
+  languageCode?: string,
+) => {
+  if (typeof levelSource === 'number') {
+    return {
+      levelCount: Math.max(0, levelSource),
+      currentLevelIds: undefined as string[] | undefined,
+      migrationSnapshot: undefined as string[] | undefined,
+    };
+  }
+
+  const currentLevelIds = levelSource.map((level) => level.id);
+  return {
+    levelCount: currentLevelIds.length,
+    currentLevelIds,
+    migrationSnapshot:
+      languageCode === 'lg'
+        ? LEGACY_LUGANDA_WORD_LEVEL_IDS
+        : currentLevelIds,
+  };
+};
+
 const ensureUnlockedProgress = (
   progress: WordGameProgress,
-  levelCount: number
+  levelSource: WordLevelSource,
+  languageCode?: string,
 ): WordGameProgress => {
+  const { levelCount, currentLevelIds, migrationSnapshot } = getLevelContext(
+    levelSource,
+    languageCode,
+  );
   const maxLevelIndex = Math.max(0, levelCount - 1);
-  const unlockedLevels = Array.isArray(progress.unlockedLevels)
-    ? progress.unlockedLevels.filter((level) => Number.isInteger(level) && level >= 0 && level <= maxLevelIndex)
-    : [0];
-  const completedLevels = Array.isArray(progress.completedLevels)
-    ? progress.completedLevels.filter((level) => Number.isInteger(level) && level >= 0 && level <= maxLevelIndex)
-    : [];
+  const sourceUnlockedLevels = uniqueNonNegativeIntegers(progress.unlockedLevels);
+  const sourceCompletedLevels = uniqueNonNegativeIntegers(progress.completedLevels);
+  const hasStableIdentity = Boolean(
+    currentLevelIds &&
+    (progress.legacyLevelIdSnapshot ||
+      progress.completedLevelIds ||
+      progress.unlockedLevelIds ||
+      progress.currentLevelId),
+  );
+  const legacyLevelIdSnapshot = currentLevelIds
+    ? progress.legacyLevelIdSnapshot ?? migrationSnapshot
+    : progress.legacyLevelIdSnapshot;
+  const historicalCompletedLevels = currentLevelIds
+    ? progress.historicalCompletedLevels ?? sourceCompletedLevels
+    : progress.historicalCompletedLevels;
+
+  let completedLevelIds = uniqueStrings(progress.completedLevelIds);
+  let unlockedLevelIds = uniqueStrings(progress.unlockedLevelIds);
+  let currentLevelId = progress.currentLevelId;
+
+  if (currentLevelIds && legacyLevelIdSnapshot && !hasStableIdentity) {
+    completedLevelIds = sourceCompletedLevels
+      .map((index) => legacyLevelIdSnapshot[index])
+      .filter((id): id is string => Boolean(id));
+    unlockedLevelIds = sourceUnlockedLevels
+      .map((index) => legacyLevelIdSnapshot[index])
+      .filter((id): id is string => Boolean(id));
+    currentLevelId = legacyLevelIdSnapshot[progress.currentLevel];
+  }
+
+  const completedLevels = currentLevelIds
+    ? completedLevelIds
+        .map((id) => currentLevelIds.indexOf(id))
+        .filter((index) => index >= 0)
+    : sourceCompletedLevels;
+  const unlockedLevels = currentLevelIds
+    ? unlockedLevelIds
+        .map((id) => currentLevelIds.indexOf(id))
+        .filter((index) => index >= 0)
+    : sourceUnlockedLevels;
   const currentLevel = Number.isInteger(progress.currentLevel)
-    ? Math.min(Math.max(progress.currentLevel, 0), maxLevelIndex)
+    ? currentLevelIds && currentLevelId
+      ? Math.max(0, currentLevelIds.indexOf(currentLevelId))
+      : Math.min(Math.max(progress.currentLevel, 0), maxLevelIndex)
     : 0;
 
-  const normalizedProgress = {
+  const normalizedProgress: WordGameProgress = {
     ...progress,
     currentLevel,
     unlockedLevels: unlockedLevels.length > 0 ? [...unlockedLevels] : [0],
     completedLevels: [...completedLevels],
+    ...(currentLevelIds
+      ? {
+          legacyLevelIdSnapshot,
+          historicalCompletedLevels,
+          completedLevelIds,
+          unlockedLevelIds,
+          currentLevelId:
+            currentLevelIds[currentLevel] ?? currentLevelId ?? currentLevelIds[0],
+        }
+      : {}),
   };
 
   normalizedProgress.completedLevels.forEach(level => {
@@ -81,6 +191,21 @@ const ensureUnlockedProgress = (
     }
   });
 
+  if (currentLevelIds) {
+    normalizedProgress.completedLevels.forEach((level) => {
+      const id = currentLevelIds[level];
+      if (id && !normalizedProgress.completedLevelIds?.includes(id)) {
+        normalizedProgress.completedLevelIds?.push(id);
+      }
+    });
+    normalizedProgress.unlockedLevels.forEach((level) => {
+      const id = currentLevelIds[level];
+      if (id && !normalizedProgress.unlockedLevelIds?.includes(id)) {
+        normalizedProgress.unlockedLevelIds?.push(id);
+      }
+    });
+  }
+
   normalizedProgress.unlockedLevels.sort((a, b) => a - b);
   return normalizedProgress;
 };
@@ -89,14 +214,21 @@ const buildActivityProgressSnapshot = (
   progress: WordGameProgress,
   levelCount: number
 ) => {
-  const completedLevelCount = progress.completedLevels.length;
+  const completedLevelCount = progress.completedLevels.filter(
+    (level) => level >= 0 && level < levelCount,
+  ).length;
   const hasCompletedAllLevels = levelCount > 0 && completedLevelCount >= levelCount;
   const hasStarted =
     progress.totalScore > 0 ||
     completedLevelCount > 0 ||
+    (progress.completedLevelIds?.length ?? 0) > 0 ||
+    (progress.historicalCompletedLevels?.length ?? 0) > 0 ||
     progress.playHistory.length > 0;
+  const availableUnlockedLevels = progress.unlockedLevels.filter(
+    (level) => level >= 0 && level < levelCount,
+  );
   const highestUnlockedLevel =
-    progress.unlockedLevels.length > 0 ? Math.max(...progress.unlockedLevels) : 0;
+    availableUnlockedLevels.length > 0 ? Math.max(...availableUnlockedLevels) : 0;
 
   return {
     status: hasCompletedAllLevels
@@ -119,13 +251,15 @@ const persistNormalizedWordProgress = async (
   progress: WordGameProgress,
   childId: string,
   languageCode: string,
-  levelCount: number,
+  levelSource: WordLevelSource,
   options: { onlyIfMissing?: boolean; markDirty?: boolean } = {}
 ) => {
   const normalizedProgress = ensureUnlockedProgress(
     { ...progress, childId },
-    levelCount
+    levelSource,
+    languageCode,
   );
+  const levelCount = getLevelContext(levelSource, languageCode).levelCount;
   const snapshot = buildActivityProgressSnapshot(normalizedProgress, levelCount);
 
   if (options.onlyIfMissing) {
@@ -169,7 +303,7 @@ const persistNormalizedWordProgress = async (
 export const loadGameProgress = async (
   childId: string,
   languageCode: string,
-  levelCount: number
+  levelSource: WordLevelSource,
 ): Promise<WordGameProgress> => {
   if (!childId) {
     console.warn('No child ID provided for loading progress, using default');
@@ -199,7 +333,17 @@ export const loadGameProgress = async (
         return createDefaultProgress(childId);
       }
       
-      const normalizedProgress = ensureUnlockedProgress(parsedProgress, levelCount);
+      const normalizedProgress = ensureUnlockedProgress(
+        parsedProgress,
+        levelSource,
+        languageCode,
+      );
+
+      // Persist the compatibility projection under the scoped key. The old
+      // Luganda key is deliberately retained so rollback/migration remains safe.
+      if (typeof levelSource !== 'number') {
+        await AsyncStorage.setItem(key, JSON.stringify(normalizedProgress));
+      }
       
       console.log(`Returning parsed progress for ${childId}:`, {
         completedLevels: normalizedProgress.completedLevels,
@@ -211,7 +355,7 @@ export const loadGameProgress = async (
         normalizedProgress,
         childId,
         languageCode,
-        levelCount,
+        levelSource,
         { onlyIfMissing: true }
       ).catch((error) => {
         console.warn('Could not normalize word-game progress in the background:', error);
@@ -238,11 +382,13 @@ export const loadGameProgress = async (
           ...(hydratedLocalProgress.progress_payload as Partial<WordGameProgress>),
           childId,
         },
-        levelCount
+        levelSource,
+        languageCode,
       );
       await saveGameProgress(restoredProgress, childId, languageCode, {
         markDirty: false,
-        levelCount,
+        levels: typeof levelSource === 'number' ? undefined : levelSource,
+        levelCount: getLevelContext(levelSource, languageCode).levelCount,
       });
       return restoredProgress;
     }
@@ -260,11 +406,13 @@ export const loadGameProgress = async (
           ...(remoteProgress.progress_payload as Partial<WordGameProgress>),
           childId,
         },
-        levelCount
+        levelSource,
+        languageCode,
       );
       await saveGameProgress(restoredProgress, childId, languageCode, {
         markDirty: false,
-        levelCount,
+        levels: typeof levelSource === 'number' ? undefined : levelSource,
+        levelCount: getLevelContext(levelSource, languageCode).levelCount,
       });
       return restoredProgress;
     }
@@ -285,7 +433,11 @@ export const saveGameProgress = async (
   progress: WordGameProgress,
   childId: string,
   languageCode: string,
-  options: { markDirty?: boolean; levelCount?: number } = {}
+  options: {
+    markDirty?: boolean;
+    levelCount?: number;
+    levels?: readonly WordLevelIdentity[];
+  } = {}
 ): Promise<void> => {
   if (!childId) {
     console.warn('No child ID provided for saving progress, aborting');
@@ -294,10 +446,20 @@ export const saveGameProgress = async (
 
   try {
     // Ensure the progress object has the correct childId
-    const updatedProgress = ensureUnlockedProgress({
-      ...progress,
-      childId // Always ensure the childId is set correctly
-    }, options.levelCount ?? Math.max(1, progress.unlockedLevels.length, progress.completedLevels.length + 1));
+    const fallbackLevelCount = Math.max(
+      1,
+      progress.unlockedLevels.length,
+      progress.completedLevels.length + 1,
+    );
+    const levelSource = options.levels ?? options.levelCount ?? fallbackLevelCount;
+    const updatedProgress = ensureUnlockedProgress(
+      {
+        ...progress,
+        childId // Always ensure the childId is set correctly
+      },
+      levelSource,
+      languageCode,
+    );
     
     const key = getStorageKey(childId, languageCode);
     await AsyncStorage.setItem(key, JSON.stringify(updatedProgress));
@@ -305,7 +467,7 @@ export const saveGameProgress = async (
       updatedProgress,
       childId,
       languageCode,
-      options.levelCount ?? Math.max(1, updatedProgress.unlockedLevels.length, updatedProgress.completedLevels.length + 1),
+      levelSource,
       { markDirty: options.markDirty }
     );
     
@@ -329,14 +491,22 @@ export const updateProgressForLevelCompletion = (
   progress: WordGameProgress, 
   levelIndex: number,
   word: string,
-  levelCount: number,
+  levelSource: WordLevelSource,
   childId?: string
 ): WordGameProgress => {
+  const { levelCount, currentLevelIds } = getLevelContext(levelSource);
   const newProgress = { ...progress };
   
   // Add to completed levels if not already there
   if (!newProgress.completedLevels.includes(levelIndex)) {
     newProgress.completedLevels.push(levelIndex);
+  }
+  const completedLevelId = currentLevelIds?.[levelIndex];
+  if (completedLevelId) {
+    newProgress.completedLevelIds = uniqueStrings([
+      ...(newProgress.completedLevelIds ?? []),
+      completedLevelId,
+    ]);
   }
   
   // Update total score (10 points per completed level)
@@ -346,6 +516,17 @@ export const updateProgressForLevelCompletion = (
   const nextLevelIndex = levelIndex + 1;
   if (nextLevelIndex < levelCount && !newProgress.unlockedLevels.includes(nextLevelIndex)) {
     newProgress.unlockedLevels.push(nextLevelIndex);
+  }
+  const nextLevelId = currentLevelIds?.[nextLevelIndex];
+  if (nextLevelId) {
+    newProgress.unlockedLevelIds = uniqueStrings([
+      ...(newProgress.unlockedLevelIds ?? []),
+      nextLevelId,
+    ]);
+  }
+  if (currentLevelIds && currentLevelIds.length > 0) {
+    newProgress.currentLevelId =
+      currentLevelIds[Math.min(nextLevelIndex, currentLevelIds.length - 1)];
   }
   
   // Update play history
@@ -366,7 +547,11 @@ export const updateProgressForLevelCompletion = (
 /**
  * Check if a level is unlocked
  */
-export const isLevelUnlocked = (progress: WordGameProgress, levelIndex: number): boolean => {
+export const isLevelUnlocked = (
+  progress: WordGameProgress,
+  levelIndex: number,
+  levelId?: string,
+): boolean => {
   // First level (index 0) is always unlocked
   if (levelIndex === 0) return true;
   
@@ -374,8 +559,9 @@ export const isLevelUnlocked = (progress: WordGameProgress, levelIndex: number):
   // 1. It's in the unlockedLevels array, OR
   // 2. It's in the completedLevels array (if you completed it, you should be able to play it again), OR
   // 3. It's less than or equal to the current level (all previous levels should be accessible)
-  return progress.unlockedLevels.includes(levelIndex) || 
-         progress.completedLevels.includes(levelIndex) || 
+  return Boolean(levelId && progress.unlockedLevelIds?.includes(levelId)) ||
+         progress.unlockedLevels.includes(levelIndex) ||
+         progress.completedLevels.includes(levelIndex) ||
          levelIndex <= progress.currentLevel;
 };
 

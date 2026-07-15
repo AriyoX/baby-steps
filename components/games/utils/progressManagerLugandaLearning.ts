@@ -59,9 +59,6 @@ const asNumberArray = (value: unknown): number[] =>
     ? value.filter((item): item is number => Number.isInteger(item))
     : [];
 
-const getAvailableLevelIds = (stages: LearningGameStage[]): Set<number> =>
-  new Set(stages.flatMap((stage) => stage.levels.map((level) => level.id)));
-
 const mergeStagesWithSavedLocks = (
   defaultStages: LearningGameStage[],
   savedStages: LearningGameStage[] | undefined,
@@ -201,10 +198,9 @@ const restoreProgressFromSnapshot = (
   defaultStages: LearningGameStage[],
   fallbackScore = 0,
 ) => {
-  const availableLevelIds = getAvailableLevelIds(defaultStages);
-  const completedLevels = asNumberArray(payload.completedLevels).filter((levelId) =>
-    availableLevelIds.has(levelId),
-  );
+  // Completed level IDs are historical records. Keep retired IDs in the payload;
+  // completion/status calculations below still consider only current stages.
+  const completedLevels = asNumberArray(payload.completedLevels);
   const savedStages = Array.isArray(payload.stages)
     ? (payload.stages as LearningGameStage[])
     : undefined;
@@ -305,9 +301,7 @@ export const loadGameProgress = async (
     }
 
     const completedLevels = completedLevelsData ? JSON.parse(completedLevelsData) : [];
-    const normalizedCompletedLevels = asNumberArray(completedLevels).filter((levelId) =>
-      getAvailableLevelIds(fallbackStages).has(levelId),
-    );
+    const normalizedCompletedLevels = asNumberArray(completedLevels);
     const savedStages = stagesData ? JSON.parse(stagesData) : undefined;
     const userStats = userStatsData ? JSON.parse(userStatsData) : { ...DEFAULT_USER_STATS };
     const totalScore = scoreData ? parseInt(scoreData) : 0;

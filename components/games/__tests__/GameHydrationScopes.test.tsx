@@ -377,8 +377,16 @@ describe("game hydration request scopes", () => {
 
     expect(JSON.stringify(tree.toJSON())).toContain("Luganda second question");
     expect(JSON.stringify(tree.toJSON())).not.toContain("Luganda first question");
-    expect(mockLoadWordProgress).toHaveBeenCalledWith("child-a", "lg", 2);
-    expect(mockLoadWordProgress).toHaveBeenCalledWith("child-b", "lg", 2);
+    expect(mockLoadWordProgress).toHaveBeenCalledWith(
+      "child-a",
+      "lg",
+      expect.arrayContaining([expect.objectContaining({ word: "APE" })]),
+    );
+    expect(mockLoadWordProgress).toHaveBeenCalledWith(
+      "child-b",
+      "lg",
+      expect.arrayContaining([expect.objectContaining({ word: "BEE" })]),
+    );
 
     act(() => tree.unmount());
   });

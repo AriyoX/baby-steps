@@ -1,6 +1,11 @@
 import React from "react";
 import { FlatList, TouchableOpacity } from "react-native";
 import renderer, { act, type ReactTestInstance } from "react-test-renderer";
+import { registerLearningHubTestFixture } from "@/content/testFixtures/learningHubTestFixture";
+import {
+  getLearningContentVersion,
+  getLearningLanguageContent,
+} from "@/content/learningHubRepository";
 import LearningStagePathScreen from "../[stageId]";
 
 const mockRouterBack = jest.fn();
@@ -10,7 +15,13 @@ const mockRouterCanGoBack = jest.fn();
 const mockUseLocalSearchParams = jest.fn();
 const mockGetCompletedLearningLessonIds = jest.fn();
 const mockHydrateLearningProgressFromRemote = jest.fn();
+const mockLoadLearningHubLanguageContent = jest.fn();
 let mockSelectedLanguageCode = "lg";
+
+jest.mock("@/content/learningHubLoader", () => ({
+  loadLearningHubLanguageContent: (...args: unknown[]) =>
+    mockLoadLearningHubLanguageContent(...args),
+}));
 
 jest.mock("expo-router", () => ({
   Stack: {
@@ -100,6 +111,7 @@ const findButtonByAccessibilityLabel = (
 };
 
 beforeEach(() => {
+  registerLearningHubTestFixture();
   jest.useFakeTimers();
   jest.clearAllMocks();
   mockRouterCanGoBack.mockReturnValue(false);
@@ -109,6 +121,27 @@ beforeEach(() => {
   mockHydrateLearningProgressFromRemote.mockResolvedValue({
     completedLessonIds: [],
   });
+  mockLoadLearningHubLanguageContent.mockImplementation(
+    async (languageCode: string) => {
+      const content = getLearningLanguageContent(languageCode);
+      const contentVersion = getLearningContentVersion(languageCode);
+      return content && contentVersion
+        ? {
+            status: "ready",
+            languageCode,
+            content,
+            contentVersion,
+            source: "database",
+            retainedPrevious: true,
+          }
+        : {
+            status: "unavailable",
+            languageCode,
+            source: "empty",
+            retainedPrevious: false,
+          };
+    },
+  );
 });
 
 afterEach(() => {

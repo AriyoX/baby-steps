@@ -46,6 +46,7 @@ const childId = "child-1";
 const stages: LearningGameStage[] = [
   {
     id: 1,
+    order: 1,
     title: "Stage one",
     description: "",
     isLocked: false,
@@ -55,6 +56,7 @@ const stages: LearningGameStage[] = [
     levels: [
       {
         id: 10,
+        order: 1,
         title: "Level ten",
         isLocked: false,
         words: [],
@@ -63,6 +65,7 @@ const stages: LearningGameStage[] = [
   },
   {
     id: 2,
+    order: 2,
     title: "Stage two",
     description: "",
     isLocked: true,
@@ -72,6 +75,7 @@ const stages: LearningGameStage[] = [
     levels: [
       {
         id: 20,
+        order: 1,
         title: "Level twenty",
         isLocked: true,
         words: [],

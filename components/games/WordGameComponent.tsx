@@ -131,6 +131,7 @@ const WordGame: React.FC = () => {
   const [showHintModal, setShowHintModal] = useState<boolean>(false);
   const [showSubHint, setShowSubHint] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [contentRetrySequence, setContentRetrySequence] = useState(0);
   const [progress, setProgress] = useState<WordGameProgress>(DEFAULT_PROGRESS);
   const progressRef = useRef<WordGameProgress>(DEFAULT_PROGRESS);
   const progressRevisionRef = useRef(0);
@@ -279,16 +280,17 @@ const WordGame: React.FC = () => {
 
   // Function to handle level selection from the level select modal
   const selectLevel = (levelIndex: number) => {
-    if (isLevelUnlocked(progress, levelIndex)) {
+    if (isLevelUnlocked(progress, levelIndex, gameLevels[levelIndex]?.id)) {
       // Update the current level in progress
       if (activeChild) {
         const updatedProgress = {
           ...progress,
-          currentLevel: levelIndex
+          currentLevel: levelIndex,
+          currentLevelId: gameLevels[levelIndex]?.id,
         };
         updateProgressState(updatedProgress);
         void saveGameProgress(updatedProgress, activeChild.id, languageCode, {
-          levelCount: gameLevels.length,
+          levels: gameLevels,
         }).catch((error) => {
           console.warn("Could not save Word Game level selection:", error);
         });
@@ -358,12 +360,13 @@ const WordGame: React.FC = () => {
       },
       currentLevelIndex,
       currentWord,
-      gameLevels.length,
+      gameLevels,
       completionChildId,
     );
     const completedProgress: WordGameProgress = {
       ...progressAfterLevel,
       currentLevel: nextCurrentLevel,
+      currentLevelId: gameLevels[nextCurrentLevel]?.id,
     };
 
     const revealCompletion = (savedProgress: WordGameProgress): number => {
@@ -435,7 +438,7 @@ const WordGame: React.FC = () => {
     await completeWordProgressLocallyFirst(completedProgress, {
       persistProgress: (nextProgress) =>
         saveGameProgress(nextProgress, completionChildId, completionLanguageCode, {
-          levelCount: gameLevels.length,
+          levels: gameLevels,
         }),
       revealCompletion: (savedProgress) => {
         completionRevision = revealCompletion(savedProgress);
@@ -488,7 +491,7 @@ const WordGame: React.FC = () => {
             progressWithAchievementPoints,
             completionChildId,
             completionLanguageCode,
-            { levelCount: gameLevels.length },
+            { levels: gameLevels },
           );
         };
         const networkTasks: Promise<unknown>[] = [
@@ -631,7 +634,9 @@ const WordGame: React.FC = () => {
         setShowSubHint(false);
         setSelectedLetters([]);
 
-        const contentResult = await loadContentBundle(requestedLanguageCode);
+        const contentResult = await loadContentBundle(requestedLanguageCode, {
+          forceRefresh: contentRetrySequence > 0,
+        });
         const levels = contentResult.bundle?.wordGame.levels ?? [];
         if (contentResult.bundle) {
           void preloadContentBundleImages(contentResult.bundle).catch((error) => {
@@ -655,7 +660,7 @@ const WordGame: React.FC = () => {
             const savedProgress = await loadGameProgress(
               requestedChildId,
               requestedLanguageCode,
-              levels.length,
+              levels,
             );
             if (!isCurrentRequest()) return;
 
@@ -708,7 +713,7 @@ const WordGame: React.FC = () => {
         levelIntroTimeoutRef.current = null;
       }
     };
-  }, [activeChild?.id, languageCode]);
+  }, [activeChild?.id, languageCode, contentRetrySequence]);
 
   // Move to next level
   const animateLetterToWord = (
@@ -900,7 +905,12 @@ const WordGame: React.FC = () => {
   }
 
   if (gameLevels.length === 0) {
-    return <ComingSoonState title="Word game coming soon" />;
+    return (
+      <ComingSoonState
+        title="Word game coming soon"
+        onRetry={() => setContentRetrySequence((current) => current + 1)}
+      />
+    );
   }
 
   const currentLevel = gameLevels[currentLevelIndex] ?? gameLevels[0];
@@ -1490,7 +1500,7 @@ const WordGame: React.FC = () => {
               <View className="flex-row flex-wrap justify-center">
                 {gameLevels.map((level, index) => {
                   // Use isLevelUnlocked which now considers current level too
-                  const isUnlocked = isLevelUnlocked(progress, index);
+                  const isUnlocked = isLevelUnlocked(progress, index, level.id);
                   const isCompleted = progress.completedLevels.includes(index);
                   const isCurrent = index === currentLevelIndex;
                   

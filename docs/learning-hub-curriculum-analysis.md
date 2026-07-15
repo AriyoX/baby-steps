@@ -1,5 +1,7 @@
 # Baby Steps Learning Hub curriculum analysis
 
+> Historical architecture note (2026-07-14): the repository findings in this analysis describe the pre-database content path. Learning Hub and reachable standalone game content now load from versioned, exact-language `content_items` bundles with last-known-good caching. Keep this document for its curriculum research, content-provider workflow, and stable-ID recommendations; use [Database-Backed Content](features/database-content.md) for current runtime architecture.
+
 **Status:** planning and documentation only
 
 **Repository snapshot:** `main` at `4dda9e0`, inspected 2026-07-10

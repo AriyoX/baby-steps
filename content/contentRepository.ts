@@ -3,56 +3,73 @@ import { supabase } from "@/lib/supabase";
 import { resolveImageSource } from "./assets";
 import {
   DEFAULT_LEARNING_LANGUAGE_CODE,
-  isSupportedLearningLanguageCode,
   normalizeLearningLanguageCode,
 } from "./languages";
-import { lugandaContent } from "./luganda";
-import { runyankoleContent } from "./runyankole";
+import {
+  clearLearningHubContentRegistry,
+  normalizeLearningHubLanguageContent,
+  registerLearningHubLanguageContent,
+} from "./learningHubRepository";
+import type { LearningLanguageContent } from "./learningHubTypes";
 import type {
-  LocalCountingContent,
-  LocalLanguageContent,
-  LocalLearningStage,
   LocalStory,
   LocalStoryPage,
   LocalStoryQuestion,
-  LocalWordGameLevel,
-  SupportedLearningLanguageCode,
 } from "./types";
 
 export type ContentItemType =
   | "child_menu"
+  | "learning_hub"
   | "learning_game"
   | "word_game"
   | "counting_game"
+  | "card_game"
+  | "puzzle_game"
   | "story";
 
-const CONTENT_ITEM_TYPES: ContentItemType[] = [
+export type ContentEditorialStatus = "draft" | "reviewed" | "published";
+
+const CONTENT_ITEM_TYPES: readonly ContentItemType[] = [
   "child_menu",
+  "learning_hub",
   "learning_game",
   "word_game",
   "counting_game",
+  "card_game",
+  "puzzle_game",
   "story",
 ];
 
-export type ContentSource =
-  | "database"
-  | "local-lg-legacy"
-  | "local-same-language-sample"
-  | "empty";
+const SINGLE_BUNDLE_CONTENT_TYPES = new Set<ContentItemType>([
+  "learning_hub",
+  "learning_game",
+  "word_game",
+  "counting_game",
+  "card_game",
+  "puzzle_game",
+]);
+
+export type ContentSource = "database" | "empty";
 
 export interface ContentItemRecord {
   id?: string;
-  language_code: SupportedLearningLanguageCode;
+  language_code: string;
   content_type: ContentItemType;
   slug: string;
   title?: string | null;
   payload: Record<string, unknown>;
   sort_order?: number;
   is_active?: boolean;
+  editorial_status?: ContentEditorialStatus;
+  is_startable?: boolean;
+  content_version?: number;
+  updated_at?: string;
+  published_at?: string | null;
 }
 
 export interface ChildMenuCard {
   id: string;
+  order: number;
   title: string;
   description: string;
   image?: string;
@@ -62,6 +79,7 @@ export interface ChildMenuCard {
 
 export interface LearningGameWord {
   id: string;
+  order: number;
   targetText: string;
   english: string;
   audio?: string;
@@ -73,6 +91,7 @@ export interface LearningGameWord {
 
 export interface LearningGameLevel {
   id: number;
+  order: number;
   title: string;
   isLocked: boolean;
   words: LearningGameWord[];
@@ -80,6 +99,7 @@ export interface LearningGameLevel {
 
 export interface LearningGameStage {
   id: number;
+  order: number;
   title: string;
   description: string;
   levels: LearningGameLevel[];
@@ -90,6 +110,8 @@ export interface LearningGameStage {
 }
 
 export interface WordGameLevel {
+  id: string;
+  order: number;
   word: string;
   question: string;
   hint: string;
@@ -100,6 +122,7 @@ export interface WordGameLevel {
 
 export interface CountingGameStage {
   id: number;
+  order: number;
   title: string;
   description: string;
   numbersRange: { min: number; max: number };
@@ -114,16 +137,21 @@ export interface CountingGameStage {
 
 export interface CountingGameNumber {
   number: number;
+  order: number;
   targetText: string;
   audio?: string;
 }
 
 export interface CountingGameItem {
+  id: string;
+  order: number;
   name: string;
   image: string;
 }
 
 export interface CountingGameCurrency {
+  id: string;
+  order: number;
   value: number;
   name: string;
   image: string;
@@ -138,10 +166,38 @@ export interface CountingGameContent {
   currency: CountingGameCurrency[];
 }
 
+export interface CardGameItem {
+  id: string;
+  order: number;
+  value: string;
+  info: string;
+  imageSymbol: string;
+}
+
+export interface CardGameContent {
+  title: string;
+  items: CardGameItem[];
+}
+
+export interface PuzzleGameDefinition {
+  id: number;
+  order: number;
+  name: string;
+  description: string;
+  image: string;
+}
+
+export interface PuzzleGameContent {
+  title: string;
+  puzzles: PuzzleGameDefinition[];
+}
+
 export interface ContentBundle {
-  languageCode: SupportedLearningLanguageCode;
-  source: ContentSource;
+  languageCode: string;
+  source: "database";
+  contentVersion: string;
   menuCardsByTab: Record<string, ChildMenuCard[]>;
+  learningHub?: LearningLanguageContent;
   learningGame: {
     title: string;
     stages: LearningGameStage[];
@@ -151,11 +207,13 @@ export interface ContentBundle {
     levels: WordGameLevel[];
   };
   countingGame: CountingGameContent;
+  cardGame: CardGameContent;
+  puzzleGame: PuzzleGameContent;
   stories: LocalStory[];
 }
 
 export interface ContentLoadResult {
-  languageCode?: SupportedLearningLanguageCode;
+  languageCode?: string;
   bundle?: ContentBundle;
   source: ContentSource;
   missingReason?: string;
@@ -169,6 +227,7 @@ export interface LoadContentBundleOptions {
 
 export interface ContentBundleCacheMetadata {
   cacheKey: string;
+  contentVersion: string;
   loadedAt: number;
   source: "memory" | "storage" | "network";
   isStale: boolean;
@@ -176,8 +235,9 @@ export interface ContentBundleCacheMetadata {
 }
 
 interface ContentItemsCacheEntry {
-  version: 1;
-  languageCode: SupportedLearningLanguageCode;
+  cacheSchemaVersion: 2;
+  languageCode: string;
+  contentVersion: string;
   loadedAt: number;
   items: ContentItemRecord[];
 }
@@ -187,504 +247,35 @@ interface CachedContentBundle {
   metadata: ContentBundleCacheMetadata;
 }
 
+interface BuildContentBundleResult {
+  bundle: ContentBundle;
+  supportedRowCount: number;
+  invalidSupportedRowCount: number;
+}
+
 export const CONTENT_BUNDLE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
-const CONTENT_BUNDLE_CACHE_VERSION = 1;
-const CONTENT_BUNDLE_CACHE_PREFIX = "@BabySteps:ContentBundle:v1";
-const contentItemsMemoryCache = new Map<
-  SupportedLearningLanguageCode,
-  ContentItemsCacheEntry
->();
-const contentItemsBackgroundRefreshes = new Map<
-  SupportedLearningLanguageCode,
-  Promise<void>
->();
-
-const LOCAL_CONTENT_BY_LANGUAGE: Record<
-  SupportedLearningLanguageCode,
-  LocalLanguageContent
-> = {
-  lg: lugandaContent,
-  nyn: runyankoleContent,
-};
-
-export const getContentBundleCacheKey = (
-  languageCode: SupportedLearningLanguageCode,
-): string => `${CONTENT_BUNDLE_CACHE_PREFIX}:${languageCode}`;
-
-const isUsableDatabaseBundle = (bundle: ContentBundle): boolean => {
-  const hasMenuCards = Object.values(bundle.menuCardsByTab).some(
-    (cards) => cards.length > 0,
-  );
-  const hasLearningContent = bundle.learningGame.stages.length > 0;
-  const hasWordContent = bundle.wordGame.levels.length > 0;
-  const hasCountingContent =
-    bundle.countingGame.stages.length > 0 &&
-    bundle.countingGame.numbers.length > 0;
-  const hasStories = bundle.stories.length > 0;
-
-  return (
-    hasMenuCards ||
-    hasLearningContent ||
-    hasWordContent ||
-    hasCountingContent ||
-    hasStories
-  );
-};
-
-const buildUsableDatabaseBundle = (
-  languageCode: SupportedLearningLanguageCode,
-  items: ContentItemRecord[],
-): ContentBundle | undefined => {
-  const databaseBundle = buildContentBundleFromItems(languageCode, items);
-
-  if (!isUsableDatabaseBundle(databaseBundle)) {
-    return undefined;
-  }
-
-  return languageCode === "lg"
-    ? mergeDatabaseBundleWithLegacyLugandaContent(databaseBundle)
-    : databaseBundle;
-};
-
-const parseCachedContentItemsEntry = (
-  value: string | null,
-  languageCode: SupportedLearningLanguageCode,
-): ContentItemsCacheEntry | undefined => {
-  if (!value) {
-    return undefined;
-  }
-
-  try {
-    const parsed = JSON.parse(value) as Partial<ContentItemsCacheEntry>;
-
-    if (
-      parsed.version !== CONTENT_BUNDLE_CACHE_VERSION ||
-      parsed.languageCode !== languageCode ||
-      !Array.isArray(parsed.items) ||
-      typeof parsed.loadedAt !== "number"
-    ) {
-      return undefined;
-    }
-
-    return parsed as ContentItemsCacheEntry;
-  } catch (error) {
-    console.warn(`Could not parse cached content for ${languageCode}.`, error);
-    return undefined;
-  }
-};
-
-const resolveCachedContentBundle = (
-  entry: ContentItemsCacheEntry | undefined,
-  languageCode: SupportedLearningLanguageCode,
-  metadata: Omit<ContentBundleCacheMetadata, "loadedAt">,
-): CachedContentBundle | undefined => {
-  if (!entry || entry.languageCode !== languageCode) {
-    return undefined;
-  }
-
-  const bundle = buildUsableDatabaseBundle(languageCode, entry.items);
-
-  if (!bundle || bundle.languageCode !== languageCode) {
-    return undefined;
-  }
-
-  return {
-    bundle,
-    metadata: {
-      ...metadata,
-      loadedAt: entry.loadedAt,
-    },
-  };
-};
-
-const readCachedContentBundle = async (
-  languageCode: SupportedLearningLanguageCode,
-  options: {
-    allowExpired: boolean;
-    maxAgeMs: number;
-    now: number;
-  },
-): Promise<CachedContentBundle | undefined> => {
-  const cacheKey = getContentBundleCacheKey(languageCode);
-  const isFresh = (entry: ContentItemsCacheEntry): boolean =>
-    options.now - entry.loadedAt <= options.maxAgeMs;
-  const buildMetadata = (
-    source: ContentBundleCacheMetadata["source"],
-    entry: ContentItemsCacheEntry,
-  ): Omit<ContentBundleCacheMetadata, "loadedAt"> => ({
-    cacheKey,
-    source,
-    isStale: !isFresh(entry),
-    maxAgeMs: options.maxAgeMs,
-  });
-
-  const memoryEntry = contentItemsMemoryCache.get(languageCode);
-  if (memoryEntry && (options.allowExpired || isFresh(memoryEntry))) {
-    const cached = resolveCachedContentBundle(
-      memoryEntry,
-      languageCode,
-      buildMetadata("memory", memoryEntry),
-    );
-
-    if (cached) {
-      return cached;
-    }
-
-    contentItemsMemoryCache.delete(languageCode);
-  }
-
-  try {
-    const storedValue = await AsyncStorage.getItem(cacheKey);
-    const storageEntry = parseCachedContentItemsEntry(storedValue, languageCode);
-
-    if (!storageEntry) {
-      return undefined;
-    }
-
-    if (!options.allowExpired && !isFresh(storageEntry)) {
-      contentItemsMemoryCache.set(languageCode, storageEntry);
-      return undefined;
-    }
-
-    const cached = resolveCachedContentBundle(
-      storageEntry,
-      languageCode,
-      buildMetadata("storage", storageEntry),
-    );
-
-    if (!cached) {
-      await AsyncStorage.removeItem(cacheKey);
-      contentItemsMemoryCache.delete(languageCode);
-      return undefined;
-    }
-
-    contentItemsMemoryCache.set(languageCode, storageEntry);
-    return cached;
-  } catch (error) {
-    console.warn(`Could not read cached content for ${languageCode}.`, error);
-    return undefined;
-  }
-};
-
-const writeCachedContentItems = async (
-  languageCode: SupportedLearningLanguageCode,
-  items: ContentItemRecord[],
-  loadedAt: number,
-): Promise<void> => {
-  const entry: ContentItemsCacheEntry = {
-    version: CONTENT_BUNDLE_CACHE_VERSION,
-    languageCode,
-    loadedAt,
-    items,
-  };
-
-  contentItemsMemoryCache.set(languageCode, entry);
-
-  try {
-    await AsyncStorage.setItem(
-      getContentBundleCacheKey(languageCode),
-      JSON.stringify(entry),
-    );
-  } catch (error) {
-    console.warn(`Could not persist cached content for ${languageCode}.`, error);
-  }
-};
-
-const loadDatabaseContentBundle = async (
-  languageCode: SupportedLearningLanguageCode,
-  maxAgeMs: number,
-): Promise<ContentLoadResult | undefined> => {
-  const { data, error } = await supabase
-    .from("content_items")
-    .select("id, language_code, content_type, slug, title, payload, sort_order, is_active")
-    .eq("language_code", languageCode)
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true });
-
-  if (error) {
-    throw error;
-  }
-
-  if (!data || data.length === 0) {
-    return undefined;
-  }
-
-  const contentItems = data as ContentItemRecord[];
-  const bundle = buildUsableDatabaseBundle(languageCode, contentItems);
-
-  if (!bundle) {
-    console.warn(
-      `Database content for ${languageCode} did not contain any usable payloads; using same-language bundled content if available.`,
-    );
-    return undefined;
-  }
-
-  const loadedAt = Date.now();
-  await writeCachedContentItems(languageCode, contentItems, loadedAt);
-
-  return {
-    languageCode,
-    source: "database",
-    bundle,
-    cache: {
-      cacheKey: getContentBundleCacheKey(languageCode),
-      loadedAt,
-      source: "network",
-      isStale: false,
-      maxAgeMs,
-    },
-  };
-};
-
-const refreshContentBundleInBackground = (
-  languageCode: SupportedLearningLanguageCode,
-  maxAgeMs: number,
-): void => {
-  if (contentItemsBackgroundRefreshes.has(languageCode)) {
-    return;
-  }
-
-  const refresh = loadDatabaseContentBundle(languageCode, maxAgeMs)
-    .catch((error) => {
-      console.warn(`Could not refresh cached content for ${languageCode}.`, error);
-    })
-    .then(() => undefined)
-    .finally(() => {
-      contentItemsBackgroundRefreshes.delete(languageCode);
-    });
-
-  contentItemsBackgroundRefreshes.set(languageCode, refresh);
-};
-
-export const clearContentBundleCache = async (
-  languageCode?: SupportedLearningLanguageCode,
-): Promise<void> => {
-  if (languageCode) {
-    contentItemsMemoryCache.delete(languageCode);
-    contentItemsBackgroundRefreshes.delete(languageCode);
-    await AsyncStorage.removeItem(getContentBundleCacheKey(languageCode));
-    return;
-  }
-
-  contentItemsMemoryCache.clear();
-  contentItemsBackgroundRefreshes.clear();
-
-  await Promise.all(
-    (Object.keys(LOCAL_CONTENT_BY_LANGUAGE) as SupportedLearningLanguageCode[]).map(
-      (code) => AsyncStorage.removeItem(getContentBundleCacheKey(code)),
-    ),
-  );
-};
-
-const LEGACY_LUGANDA_MENU_CARDS: Record<string, ChildMenuCard[]> = {
-  games: [
-    {
-      id: "words",
-      title: "Words",
-      image: "african-focus.png",
-      description: "Fill in the missing letters to complete the word",
-      targetPage: "child/games/wordgame",
-    },
-    {
-      id: "logic",
-      title: "Logic",
-      image: "african-logic.png",
-      description: "Solve puzzles inspired by popular Buganda heritage sites",
-      targetPage: "child/games/puzzlegame",
-    },
-    {
-      id: "cards",
-      title: "Cards Matching",
-      image: "cards-matching.png",
-      description: "Match the cards to learn about Buganda cultural items",
-      targetPage: "child/games/cardgame",
-    },
-    {
-      id: "learning",
-      title: "Learning",
-      image: "african-patterns.png",
-      description: "Learning common Luganda words and how they are used in sentences",
-      targetPage: "child/games/learninggame",
-    },
-    {
-      id: "numbers",
-      title: "Numbers",
-      image: "numbers.png",
-      description: "Count with Luganda number labels",
-      targetPage: "child/games/lugandacountinggame",
-    },
-  ],
-  coloring: [
-    {
-      id: "emblem",
-      title: "Buganda Emblem",
-      image: "emblem.png",
-      description: "Buganda's emblem",
-      targetPage: "child/games/coloring/emblem",
-    },
-    {
-      id: "king",
-      title: "Kings",
-      image: "king.jpg",
-      description: "King's image",
-      targetPage: "child/games/coloring/king",
-    },
-    {
-      id: "animals",
-      title: "Animals",
-      image: "cow.png",
-      description: "Color African wildlife animals",
-      targetPage: "child/games/coloring/animals",
-    },
-    {
-      id: "shapes",
-      title: "Shapes",
-      image: "shapes.jpg",
-      description: "Color different shapes",
-      targetPage: "child/games/coloring/shapes",
-    },
-    {
-      id: "masks",
-      title: "Masks",
-      image: "mask.png",
-      description: "Color traditional African masks",
-      targetPage: "child/games/coloring/mask",
-    },
-  ],
-  stories: [
-    {
-      id: "kintu",
-      title: "Kintu",
-      image: "kintu.jpg",
-      description: "Learn about Kintu, the first person on Earth according to Buganda mythology",
-      targetPage: "child/stories/kintu",
-    },
-    {
-      id: "mwanga",
-      title: "Kabaka Mwanga",
-      image: "mwanga.jpg",
-      description: "Discover the story of Kabaka Mwanga II of Buganda",
-      targetPage: "child/stories/mwanga",
-    },
-    {
-      id: "kasubi-tombs",
-      title: "Kasubi Tombs",
-      image: "kasubi.jpg",
-      description: "Explore the UNESCO World Heritage Site of Kasubi Tombs",
-      targetPage: "child/stories/kasubi-tombs",
-    },
-    {
-      id: "walumbe",
-      title: "Walumbe and Death",
-      image: "buganda-kingdom.jpg",
-      description: "Learn about the story of Walumbe and the origin of death",
-      targetPage: "child/stories/walumbe",
-    },
-    {
-      id: "ssezibwa",
-      title: "Ssezibwa Falls",
-      image: "kabaka-trail.jpg",
-      description: "Follow the historical origin of Ssezibwa Falls",
-      targetPage: "child/stories/ssezibwa",
-    },
-    {
-      id: "millet",
-      title: "Nambi and the First Millet",
-      image: "culture.jpg",
-      description: "Discover the story of Nambi and the first millet",
-      targetPage: "child/stories/millet",
-    },
-    {
-      id: "kasokambirye",
-      title: "Kasokambirye and the Moon",
-      image: "culture.jpg",
-      description: "Discover the story of Kasokambirye and the moon",
-      targetPage: "child/stories/kasokambirye",
-    },
-    {
-      id: "fig-tree",
-      title: "The Generous Fig Tree",
-      image: "culture.jpg",
-      description: "Discover the story of the generous fig tree",
-      targetPage: "child/stories/fig-tree",
-    },
-  ],
-  museum: [
-    {
-      id: "artifacts",
-      title: "Artifacts",
-      image: "artifacts.jpg",
-      description: "Explore ancient African artifacts",
-      targetPage: "child/games/museum/ArtifactsScreen",
-    },
-    {
-      id: "art",
-      title: "Art",
-      image: "art.jpg",
-      description: "Discover traditional and contemporary African art",
-      targetPage: "child/games/museum/ArtScreen",
-    },
-    {
-      id: "instruments",
-      title: "Instruments",
-      image: "drums.jpg",
-      description: "Learn about traditional African musical instruments",
-      targetPage: "child/games/museum/InstrumentsScreen",
-    },
-    {
-      id: "textiles",
-      title: "Textiles",
-      image: "textile.jpg",
-      description: "Explore the rich tradition of African textiles",
-      targetPage: "child/games/museum/TextilesScreen",
-    },
-  ],
-};
-
-const DEFAULT_RUNYANKOLE_MENU_CARDS: Record<string, ChildMenuCard[]> = {
-  games: [
-    {
-      id: "words",
-      title: "Words",
-      image: "african-focus.png",
-      description: "Practice Runyankole sample words",
-      targetPage: "child/games/wordgame",
-    },
-    {
-      id: "learning",
-      title: "Learning",
-      image: "african-patterns.png",
-      description: "Learn starter Runyankole words and examples",
-      targetPage: "child/games/learninggame",
-    },
-    {
-      id: "numbers",
-      title: "Numbers",
-      image: "numbers.png",
-      description: "Count with Runyankole sample number labels",
-      targetPage: "child/games/lugandacountinggame",
-    },
-  ],
-};
-
-const DEFAULT_COUNTING_ITEMS: CountingGameItem[] = [
-  { name: "matoke", image: "matooke.png" },
-  { name: "mangoes", image: "mango.png" },
-  { name: "goats", image: "goat.png" },
-  { name: "baskets", image: "basket.png" },
-  { name: "drums", image: "drum.png" },
-  { name: "bananas", image: "banana.png" },
-  { name: "beans", image: "bean.png" },
-  { name: "children", image: "child.png" },
-];
+const CONTENT_BUNDLE_CACHE_SCHEMA_VERSION = 2 as const;
+const CONTENT_BUNDLE_CACHE_PREFIX = "@BabySteps:ContentBundle:v2";
+const contentItemsMemoryCache = new Map<string, ContentItemsCacheEntry>();
+const contentItemsBackgroundRefreshes = new Map<string, Promise<void>>();
 
 const EMPTY_COUNTING_CONTENT: CountingGameContent = {
   title: "Counting Game",
   stages: [],
   numbers: [],
-  culturalItems: DEFAULT_COUNTING_ITEMS,
+  culturalItems: [],
   currency: [],
+};
+
+const EMPTY_CARD_GAME_CONTENT: CardGameContent = {
+  title: "Cards Matching",
+  items: [],
+};
+
+const EMPTY_PUZZLE_GAME_CONTENT: PuzzleGameContent = {
+  title: "Logic Puzzle",
+  puzzles: [],
 };
 
 const asRecord = (value: unknown): Record<string, unknown> =>
@@ -692,16 +283,89 @@ const asRecord = (value: unknown): Record<string, unknown> =>
     ? (value as Record<string, unknown>)
     : {};
 
+const isRecordValue = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
 const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
 
 const asString = (value: unknown, fallback = ""): string =>
-  typeof value === "string" ? value : fallback;
+  typeof value === "string" ? value.trim() || fallback : fallback;
 
-const asNumber = (value: unknown, fallback = 0): number =>
-  typeof value === "number" && Number.isFinite(value) ? value : fallback;
+const asOptionalString = (value: unknown): string | undefined => {
+  const normalized = asString(value);
+  return normalized || undefined;
+};
+
+const asFiniteNumber = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) ? value : undefined;
+
+const asPositiveInteger = (value: unknown): number | undefined => {
+  const number = asFiniteNumber(value);
+  if (number === undefined || number <= 0 || !Number.isInteger(number)) {
+    return undefined;
+  }
+  return number;
+};
+
+const asOrder = (value: unknown, fallback: number): number =>
+  asPositiveInteger(value) ?? fallback;
 
 const asBoolean = (value: unknown, fallback = false): boolean =>
   typeof value === "boolean" ? value : fallback;
+
+const hasRequiredString = (
+  value: Record<string, unknown>,
+  key: string,
+): boolean => Boolean(asString(value[key]));
+
+const hasRequiredBoolean = (
+  value: Record<string, unknown>,
+  key: string,
+): boolean => typeof value[key] === "boolean";
+
+const hasRequiredPositiveInteger = (
+  value: Record<string, unknown>,
+  key: string,
+): boolean => asPositiveInteger(value[key]) !== undefined;
+
+const hasRequiredNonNegativeNumber = (
+  value: Record<string, unknown>,
+  key: string,
+): boolean => {
+  const number = asFiniteNumber(value[key]);
+  return number !== undefined && number >= 0;
+};
+
+const sortByOrder = <T extends { id: string | number; order: number }>(items: T[]): T[] =>
+  [...items].sort(
+    (left, right) =>
+      left.order - right.order || String(left.id).localeCompare(String(right.id)),
+  );
+
+const normalizeContentSlug = (value: string): string => value.trim().toLowerCase();
+
+const isContentItemType = (value: string): value is ContentItemType =>
+  CONTENT_ITEM_TYPES.includes(value as ContentItemType);
+
+const parseContentItemType = (value: string): ContentItemType | undefined => {
+  const normalized = value.trim();
+  return normalized === normalized.toLowerCase() && isContentItemType(normalized)
+    ? normalized
+    : undefined;
+};
+
+const normalizeContentLanguageCode = (
+  languageCode?: string | null,
+): string | undefined => {
+  if (languageCode === undefined || languageCode === null || !languageCode.trim()) {
+    return DEFAULT_LEARNING_LANGUAGE_CODE;
+  }
+
+  return normalizeLearningLanguageCode(languageCode);
+};
+
+export const getContentBundleCacheKey = (languageCode: string): string =>
+  `${CONTENT_BUNDLE_CACHE_PREFIX}:${languageCode}`;
 
 export interface ContentPayloadValidationResult {
   isValid: boolean;
@@ -710,26 +374,14 @@ export interface ContentPayloadValidationResult {
 
 const REQUIRED_PAYLOAD_ARRAYS: Record<ContentItemType, string[]> = {
   child_menu: ["cards"],
+  learning_hub: ["stages"],
   learning_game: ["stages"],
   word_game: ["levels"],
   counting_game: ["stages", "numbers"],
+  card_game: ["items"],
+  puzzle_game: ["puzzles"],
   story: ["pages"],
 };
-
-const isContentItemType = (value: string): value is ContentItemType =>
-  CONTENT_ITEM_TYPES.includes(value as ContentItemType);
-
-const parseContentItemType = (value: string): ContentItemType | undefined => {
-  const trimmed = value.trim();
-
-  if (trimmed !== trimmed.toLowerCase()) {
-    return undefined;
-  }
-
-  return isContentItemType(trimmed) ? trimmed : undefined;
-};
-
-const normalizeContentSlug = (value: string): string => value.trim().toLowerCase();
 
 export const validateContentItemPayload = (
   contentType: ContentItemType,
@@ -740,246 +392,333 @@ export const validateContentItemPayload = (
     return !Array.isArray(value) || value.length === 0;
   });
 
-  return {
-    isValid: missingKeys.length === 0,
-    missingKeys,
-  };
+  return { isValid: missingKeys.length === 0, missingKeys };
 };
 
-const normalizeContentLanguageCode = (
-  languageCode?: string | null,
-): SupportedLearningLanguageCode | undefined => {
-  const normalized = normalizeLearningLanguageCode(languageCode);
+const mapMenuCards = (payload: Record<string, unknown>): ChildMenuCard[] =>
+  sortByOrder(
+    asArray(payload.cards)
+      .map((value, index): ChildMenuCard | undefined => {
+        const card = asRecord(value);
+        const id = asString(card.id);
+        const targetPage = asString(card.targetPage);
+        if (!id || !targetPage) return undefined;
 
-  if (!normalized) {
-    return DEFAULT_LEARNING_LANGUAGE_CODE;
-  }
+        return {
+          id,
+          order: asOrder(card.order, index + 1),
+          title: asString(card.title, id),
+          description: asString(card.description),
+          image: asOptionalString(card.image),
+          targetPage,
+          availability: asOptionalString(card.availability),
+        };
+      })
+      .filter((card): card is ChildMenuCard => Boolean(card)),
+  );
 
-  if (isSupportedLearningLanguageCode(normalized)) {
-    return normalized;
-  }
-
-  return undefined;
-};
-
-const mapMenuCards = (payload: Record<string, unknown>): ChildMenuCard[] => {
-  return asArray(payload.cards)
-    .map((item) => {
-      const card = asRecord(item);
-      const id = asString(card.id);
-      const targetPage = asString(card.targetPage);
-
-      if (!id || !targetPage) {
-        return undefined;
-      }
-
-      return {
-        id,
-        title: asString(card.title, id),
-        description: asString(card.description),
-        image: asString(card.image),
-        targetPage,
-        availability: asString(card.availability) || undefined,
-      };
-    })
-    .filter(Boolean) as ChildMenuCard[];
-};
-
-const mapLearningStages = (stages: unknown[]): LearningGameStage[] => {
-  return stages
-    .map((stageValue, stageIndex) => {
-      const stage = asRecord(stageValue);
-      const id = asNumber(stage.id, asNumber(stage.numericId, stageIndex + 1));
-      const levels = asArray(stage.levels)
-        .map((levelValue, levelIndex) => {
-          const level = asRecord(levelValue);
-          const levelId = asNumber(level.id, asNumber(level.numericId, levelIndex + 1));
-          const words = asArray(level.words)
-            .map((wordValue, wordIndex) => {
-              const word = asRecord(wordValue);
-              const targetText = asString(word.targetText);
-              const english = asString(word.english);
-
-              if (!targetText || !english) {
-                return undefined;
-              }
-
-              return {
-                id: asString(word.id, `${id}-${levelId}-${wordIndex + 1}`),
-                targetText,
-                english,
-                audio: asString(word.audio) || undefined,
-                example: asString(word.example) || undefined,
-                exampleTranslation: asString(word.exampleTranslation) || undefined,
-                image: resolveImageSource(word.image),
-                notes: asString(word.notes) || undefined,
-              };
-            })
-            .filter(Boolean) as LearningGameWord[];
-
-          if (!levelId || words.length === 0) {
-            return undefined;
-          }
-
-          return {
-            id: levelId,
-            title: asString(level.title, `Level ${levelId}`),
-            isLocked: asBoolean(level.isLocked),
-            words,
-          };
-        })
-        .filter(Boolean) as LearningGameLevel[];
-
-      if (!id || levels.length === 0) {
-        return undefined;
-      }
-
-      return {
-        id,
-        title: asString(stage.title, `Stage ${id}`),
-        description: asString(stage.description),
-        isLocked: asBoolean(stage.isLocked, id !== 1),
-        requiredScore: asNumber(stage.requiredScore),
-        image: resolveImageSource(stage.image, "coin.png"),
-        color: asString(stage.color, "#6366f1"),
-        levels,
-      };
-    })
-    .filter(Boolean) as LearningGameStage[];
-};
-
-const mapLocalLearningStages = (
-  stages: LocalLearningStage[],
-): LearningGameStage[] => {
-  return mapLearningStages(
-    stages.map((stage) => ({
-      ...stage,
-      id: stage.numericId ?? stage.id,
-      levels: stage.levels.map((level) => ({
-        ...level,
-        id: level.numericId ?? level.id,
-      })),
-    })),
+const isMenuCardPayloadValid = (value: unknown): boolean => {
+  if (!isRecordValue(value)) return false;
+  return (
+    hasRequiredString(value, "id") &&
+    hasRequiredPositiveInteger(value, "order") &&
+    hasRequiredString(value, "title") &&
+    hasRequiredString(value, "description") &&
+    hasRequiredString(value, "targetPage")
   );
 };
 
-const mapWordGameLevels = (levels: unknown[]): WordGameLevel[] => {
-  return levels
-    .map((levelValue) => {
-      const level = asRecord(levelValue);
-      const targetText = asString(level.targetText, asString(level.word)).toUpperCase();
-
-      if (!targetText) {
-        return undefined;
-      }
-
-      return {
-        word: targetText,
-        question: asString(level.question, "Find the matching word"),
-        hint: asString(level.hint),
-        subHint: asString(level.subHint),
-        firstLetter: asString(level.firstLetter) || undefined,
-        image: asString(level.image) || undefined,
-      };
-    })
-    .filter(Boolean) as WordGameLevel[];
+const isLearningWordPayloadValid = (value: unknown): boolean => {
+  if (!isRecordValue(value)) return false;
+  return (
+    hasRequiredString(value, "id") &&
+    hasRequiredPositiveInteger(value, "order") &&
+    hasRequiredString(value, "targetText") &&
+    hasRequiredString(value, "english")
+  );
 };
 
-const mapLocalWordGameLevels = (
-  levels: LocalWordGameLevel[],
-): WordGameLevel[] => mapWordGameLevels(levels);
-
-const mapCountingStages = (stages: unknown[]): CountingGameStage[] => {
-  return stages
-    .map((stageValue, stageIndex) => {
-      const stage = asRecord(stageValue);
-      const range = asRecord(stage.numbersRange);
-      const id = asNumber(stage.id, asNumber(stage.numericId, stageIndex + 1));
-
-      if (!id) {
-        return undefined;
-      }
-
-      return {
-        id,
-        title: asString(stage.title, `Stage ${id}`),
-        description: asString(stage.description),
-        numbersRange: {
-          min: asNumber(range.min, 1),
-          max: asNumber(range.max, 1),
-        },
-        levels: Math.max(1, asNumber(stage.levels, 1)),
-        useBunches: asBoolean(stage.useBunches),
-        itemsPerBunch:
-          typeof stage.itemsPerBunch === "number" ? stage.itemsPerBunch : undefined,
-        usesCurrency: asBoolean(stage.usesCurrency),
-        prompt: asString(stage.prompt) || undefined,
-        groupedPrompt: asString(stage.groupedPrompt) || undefined,
-        currencyPrompt: asString(stage.currencyPrompt) || undefined,
-      };
-    })
-    .filter(Boolean) as CountingGameStage[];
+const isLearningLevelPayloadValid = (value: unknown): boolean => {
+  if (!isRecordValue(value)) return false;
+  const words = value.words;
+  return (
+    hasRequiredPositiveInteger(value, "id") &&
+    hasRequiredPositiveInteger(value, "order") &&
+    hasRequiredString(value, "title") &&
+    hasRequiredBoolean(value, "isLocked") &&
+    Array.isArray(words) &&
+    words.length > 0 &&
+    words.every(isLearningWordPayloadValid)
+  );
 };
 
-const mapCountingNumbers = (numbers: unknown[]): CountingGameNumber[] => {
-  return numbers
-    .map((numberValue) => {
-      const item = asRecord(numberValue);
-      const number = asNumber(item.number);
-      const targetText = asString(item.targetText, asString(item.luganda));
-
-      if (!number || !targetText) {
-        return undefined;
-      }
-
-      return {
-        number,
-        targetText,
-        audio: asString(item.audio) || undefined,
-      };
-    })
-    .filter(Boolean) as CountingGameNumber[];
+const isLearningStagePayloadValid = (value: unknown): boolean => {
+  if (!isRecordValue(value)) return false;
+  const levels = value.levels;
+  return (
+    hasRequiredPositiveInteger(value, "id") &&
+    hasRequiredPositiveInteger(value, "order") &&
+    hasRequiredString(value, "title") &&
+    hasRequiredString(value, "description") &&
+    hasRequiredBoolean(value, "isLocked") &&
+    hasRequiredNonNegativeNumber(value, "requiredScore") &&
+    hasRequiredString(value, "image") &&
+    hasRequiredString(value, "color") &&
+    Array.isArray(levels) &&
+    levels.length > 0 &&
+    levels.every(isLearningLevelPayloadValid)
+  );
 };
 
-const mapCountingItems = (items: unknown[]): CountingGameItem[] => {
-  const mapped = items
-    .map((itemValue) => {
-      const item = asRecord(itemValue);
-      const name = asString(item.name);
-      const image = asString(item.image);
+const mapLearningStages = (stages: unknown[]): LearningGameStage[] =>
+  sortByOrder(
+    stages
+      .map((stageValue, stageIndex): LearningGameStage | undefined => {
+        const stage = asRecord(stageValue);
+        const stageId = asPositiveInteger(stage.id);
+        if (!stageId) return undefined;
 
-      if (!name || !image) {
-        return undefined;
-      }
+        const levels = sortByOrder(
+          asArray(stage.levels)
+            .map((levelValue, levelIndex): LearningGameLevel | undefined => {
+              const level = asRecord(levelValue);
+              const levelId = asPositiveInteger(level.id);
+              if (!levelId) return undefined;
 
-      return { name, image };
-    })
-    .filter(Boolean) as CountingGameItem[];
+              const words = sortByOrder(
+                asArray(level.words)
+                  .map((wordValue, wordIndex): LearningGameWord | undefined => {
+                    const word = asRecord(wordValue);
+                    const id = asString(word.id);
+                    const targetText = asString(word.targetText);
+                    const english = asString(word.english);
+                    if (!id || !targetText || !english) return undefined;
 
-  return mapped.length > 0 ? mapped : DEFAULT_COUNTING_ITEMS;
+                    return {
+                      id,
+                      order: asOrder(word.order, wordIndex + 1),
+                      targetText,
+                      english,
+                      audio: asOptionalString(word.audio),
+                      example: asOptionalString(word.example),
+                      exampleTranslation: asOptionalString(word.exampleTranslation),
+                      image: word.image
+                        ? resolveImageSource(word.image)
+                        : resolveImageSource("learning-beginner.jpg"),
+                      notes: asOptionalString(word.notes),
+                    };
+                  })
+                  .filter((word): word is LearningGameWord => Boolean(word)),
+              );
+
+              if (words.length === 0) return undefined;
+              return {
+                id: levelId,
+                order: asOrder(level.order, levelIndex + 1),
+                title: asString(level.title, `Level ${levelId}`),
+                isLocked: asBoolean(level.isLocked),
+                words,
+              };
+            })
+            .filter((level): level is LearningGameLevel => Boolean(level)),
+        );
+
+        if (levels.length === 0) return undefined;
+        return {
+          id: stageId,
+          order: asOrder(stage.order, stageIndex + 1),
+          title: asString(stage.title, `Stage ${stageId}`),
+          description: asString(stage.description),
+          isLocked: asBoolean(stage.isLocked, stageId !== 1),
+          requiredScore: asFiniteNumber(stage.requiredScore) ?? 0,
+          image: resolveImageSource(stage.image, "coin.png"),
+          color: asString(stage.color, "#6366f1"),
+          levels,
+        };
+      })
+      .filter((stage): stage is LearningGameStage => Boolean(stage)),
+  );
+
+const mapWordGameLevels = (levels: unknown[]): WordGameLevel[] =>
+  sortByOrder(
+    levels
+      .map((levelValue, index): WordGameLevel | undefined => {
+        const level = asRecord(levelValue);
+        const id = asString(level.id);
+        const targetText = asString(level.targetText, asString(level.word)).toUpperCase();
+        const question = asString(level.question);
+        if (!id || !targetText || !question) return undefined;
+
+        return {
+          id,
+          order: asOrder(level.order, index + 1),
+          word: targetText,
+          question,
+          hint: asString(level.hint),
+          subHint: asString(level.subHint),
+          firstLetter: asOptionalString(level.firstLetter),
+          image: asOptionalString(level.image),
+        };
+      })
+      .filter((level): level is WordGameLevel => Boolean(level)),
+  );
+
+const isWordGameLevelPayloadValid = (value: unknown): boolean => {
+  if (!isRecordValue(value)) return false;
+  return (
+    hasRequiredString(value, "id") &&
+    hasRequiredPositiveInteger(value, "order") &&
+    Boolean(asString(value.targetText, asString(value.word))) &&
+    hasRequiredString(value, "question") &&
+    hasRequiredString(value, "hint") &&
+    hasRequiredString(value, "subHint")
+  );
 };
 
-const mapCountingCurrency = (items: unknown[]): CountingGameCurrency[] => {
-  return items
-    .map((itemValue) => {
-      const item = asRecord(itemValue);
-      const value = asNumber(item.value);
-      const name = asString(item.name);
-      const image = asString(item.image);
-      const targetText = asString(item.targetText, asString(item.luganda));
+const mapCountingStages = (stages: unknown[]): CountingGameStage[] =>
+  sortByOrder(
+    stages
+      .map((stageValue, index): CountingGameStage | undefined => {
+        const stage = asRecord(stageValue);
+        const id = asPositiveInteger(stage.id);
+        const range = asRecord(stage.numbersRange);
+        const min = asPositiveInteger(range.min);
+        const max = asPositiveInteger(range.max);
+        const levels = asPositiveInteger(stage.levels);
+        if (!id || !min || !max || min > max || !levels) return undefined;
 
-      if (!value || !name || !image || !targetText) {
-        return undefined;
-      }
+        return {
+          id,
+          order: asOrder(stage.order, index + 1),
+          title: asString(stage.title, `Stage ${id}`),
+          description: asString(stage.description),
+          numbersRange: { min, max },
+          levels,
+          useBunches: asBoolean(stage.useBunches),
+          itemsPerBunch: asPositiveInteger(stage.itemsPerBunch),
+          usesCurrency: asBoolean(stage.usesCurrency),
+          prompt: asOptionalString(stage.prompt),
+          groupedPrompt: asOptionalString(stage.groupedPrompt),
+          currencyPrompt: asOptionalString(stage.currencyPrompt),
+        };
+      })
+      .filter((stage): stage is CountingGameStage => Boolean(stage)),
+  );
 
-      return { value, name, image, targetText };
-    })
-    .filter(Boolean) as CountingGameCurrency[];
+const isCountingStagePayloadValid = (value: unknown): boolean => {
+  if (!isRecordValue(value)) return false;
+  const range = value.numbersRange;
+  if (!isRecordValue(range)) return false;
+  const min = asPositiveInteger(range.min);
+  const max = asPositiveInteger(range.max);
+  const useBunches = value.useBunches;
+  return (
+    hasRequiredPositiveInteger(value, "id") &&
+    hasRequiredPositiveInteger(value, "order") &&
+    hasRequiredString(value, "title") &&
+    hasRequiredString(value, "description") &&
+    min !== undefined &&
+    max !== undefined &&
+    min <= max &&
+    hasRequiredPositiveInteger(value, "levels") &&
+    typeof useBunches === "boolean" &&
+    hasRequiredBoolean(value, "usesCurrency") &&
+    (!useBunches || hasRequiredPositiveInteger(value, "itemsPerBunch"))
+  );
+};
+
+const mapCountingNumbers = (numbers: unknown[]): CountingGameNumber[] =>
+  sortByOrder(
+    numbers
+      .map((value, index): CountingGameNumber | undefined => {
+        const item = asRecord(value);
+        const number = asPositiveInteger(item.number);
+        const targetText = asString(item.targetText, asString(item.luganda));
+        if (!number || !targetText) return undefined;
+        return {
+          number,
+          id: number,
+          order: asOrder(item.order, index + 1),
+          targetText,
+          audio: asOptionalString(item.audio),
+        } as CountingGameNumber & { id: number };
+      })
+      .filter(
+        (item): item is CountingGameNumber & { id: number } => Boolean(item),
+      ),
+  ).map(({ id: _id, ...item }) => item);
+
+const isCountingNumberPayloadValid = (value: unknown): boolean => {
+  if (!isRecordValue(value)) return false;
+  return (
+    hasRequiredPositiveInteger(value, "number") &&
+    hasRequiredPositiveInteger(value, "order") &&
+    Boolean(asString(value.targetText, asString(value.luganda)))
+  );
+};
+
+const mapCountingItems = (items: unknown[]): CountingGameItem[] =>
+  sortByOrder(
+    items
+      .map((value, index): CountingGameItem | undefined => {
+        const item = asRecord(value);
+        const id = asString(item.id);
+        const name = asString(item.name);
+        const image = asString(item.image);
+        if (!id || !name || !image) return undefined;
+        return { id, order: asOrder(item.order, index + 1), name, image };
+      })
+      .filter((item): item is CountingGameItem => Boolean(item)),
+  );
+
+const isCountingItemPayloadValid = (value: unknown): boolean => {
+  if (!isRecordValue(value)) return false;
+  return (
+    hasRequiredString(value, "id") &&
+    hasRequiredPositiveInteger(value, "order") &&
+    hasRequiredString(value, "name") &&
+    hasRequiredString(value, "image")
+  );
+};
+
+const mapCountingCurrency = (items: unknown[]): CountingGameCurrency[] =>
+  sortByOrder(
+    items
+      .map((value, index): CountingGameCurrency | undefined => {
+        const item = asRecord(value);
+        const id = asString(item.id);
+        const amount = asPositiveInteger(item.value);
+        const name = asString(item.name);
+        const image = asString(item.image);
+        const targetText = asString(item.targetText, asString(item.luganda));
+        if (!id || !amount || !name || !image || !targetText) return undefined;
+        return {
+          id,
+          order: asOrder(item.order, index + 1),
+          value: amount,
+          name,
+          image,
+          targetText,
+        };
+      })
+      .filter((item): item is CountingGameCurrency => Boolean(item)),
+  );
+
+const isCountingCurrencyPayloadValid = (value: unknown): boolean => {
+  if (!isRecordValue(value)) return false;
+  return (
+    hasRequiredString(value, "id") &&
+    hasRequiredPositiveInteger(value, "order") &&
+    hasRequiredPositiveInteger(value, "value") &&
+    hasRequiredString(value, "name") &&
+    hasRequiredString(value, "image") &&
+    Boolean(asString(value.targetText, asString(value.luganda)))
+  );
 };
 
 const mapCountingContent = (
   payload: Record<string, unknown>,
-  fallbackTitle = "Counting Game",
+  fallbackTitle: string,
 ): CountingGameContent => ({
   title: asString(payload.title, fallbackTitle),
   stages: mapCountingStages(asArray(payload.stages)),
@@ -988,82 +727,136 @@ const mapCountingContent = (
   currency: mapCountingCurrency(asArray(payload.currency)),
 });
 
-const mapLocalCountingContent = (
-  counting: LocalCountingContent,
-  title = "Counting Game",
-): CountingGameContent =>
-  mapCountingContent({
-    title,
-    stages: counting.stages.map((stage) => ({
-      ...stage,
-      id: stage.numericId ?? stage.id,
-    })),
-    numbers: counting.numbers,
-    culturalItems: DEFAULT_COUNTING_ITEMS,
-    currency: [],
-  });
+const mapCardGameItems = (items: unknown[]): CardGameItem[] =>
+  sortByOrder(
+    items
+      .map((value, index): CardGameItem | undefined => {
+        const item = asRecord(value);
+        const id = asString(item.id);
+        const cardValue = asString(item.value);
+        const info = asString(item.info);
+        const imageSymbol = asString(item.imageSymbol);
+        if (!id || !cardValue || !info || !imageSymbol) return undefined;
+        return {
+          id,
+          order: asOrder(item.order, index + 1),
+          value: cardValue,
+          info,
+          imageSymbol,
+        };
+      })
+      .filter((item): item is CardGameItem => Boolean(item)),
+  );
 
-const mapStoryPages = (
-  pages: unknown[],
-  storyId: string,
-): LocalStoryPage[] => {
-  return pages
-    .map((pageValue, pageIndex) => {
-      const page = asRecord(pageValue);
-      const text = asString(page.text).trim();
-
-      if (!text) {
-        return undefined;
-      }
-
-      const image = asString(page.image, asString(page.imageKey));
-
-      return {
-        id: asString(page.id, `${storyId}-page-${pageIndex + 1}`),
-        text,
-        translation: asString(page.translation) || undefined,
-        image: image || undefined,
-        altText: asString(page.altText) || undefined,
-      };
-    })
-    .filter(Boolean) as LocalStoryPage[];
+const isCardGameItemPayloadValid = (value: unknown): boolean => {
+  if (!isRecordValue(value)) return false;
+  return (
+    hasRequiredString(value, "id") &&
+    hasRequiredPositiveInteger(value, "order") &&
+    hasRequiredString(value, "value") &&
+    hasRequiredString(value, "info") &&
+    hasRequiredString(value, "imageSymbol")
+  );
 };
 
-const mapStoryQuestions = (
-  questions: unknown[],
-  storyId: string,
-): LocalStoryQuestion[] | undefined => {
-  const mappedQuestions = questions
-    .map((questionValue, questionIndex) => {
-      const question = asRecord(questionValue);
-      const prompt = asString(question.question).trim();
-      const options = asArray(question.options)
-        .map((option) => asString(option).trim())
-        .filter(Boolean);
-      const correctAnswer = asNumber(
-        question.correctAnswer,
-        asNumber(question.correctAnswerIndex, -1),
-      );
+const mapPuzzleGameDefinitions = (items: unknown[]): PuzzleGameDefinition[] =>
+  sortByOrder(
+    items
+      .map((value, index): PuzzleGameDefinition | undefined => {
+        const item = asRecord(value);
+        const id = asPositiveInteger(item.id);
+        const name = asString(item.name);
+        const description = asString(item.description);
+        const image = asString(item.image);
+        if (!id || !name || !description || !image) return undefined;
+        return { id, order: asOrder(item.order, index + 1), name, description, image };
+      })
+      .filter((item): item is PuzzleGameDefinition => Boolean(item)),
+  );
 
+const isPuzzleGamePayloadValid = (value: unknown): boolean => {
+  if (!isRecordValue(value)) return false;
+  return (
+    hasRequiredPositiveInteger(value, "id") &&
+    hasRequiredPositiveInteger(value, "order") &&
+    hasRequiredString(value, "name") &&
+    hasRequiredString(value, "description") &&
+    hasRequiredString(value, "image")
+  );
+};
+
+const mapStoryPages = (pages: unknown[]): LocalStoryPage[] =>
+  pages
+    .map((value, index): LocalStoryPage | undefined => {
+      const page = asRecord(value);
+      const id = asString(page.id);
+      const text = asString(page.text);
+      if (!id || !text) return undefined;
+      const image = asString(page.image, asString(page.imageKey));
+      return {
+        id,
+        text,
+        translation: asOptionalString(page.translation),
+        image: image || undefined,
+        altText: asOptionalString(page.altText),
+      };
+    })
+    .filter((page): page is LocalStoryPage => Boolean(page));
+
+const isStoryPagePayloadValid = (value: unknown): boolean => {
+  if (!isRecordValue(value)) return false;
+  return hasRequiredString(value, "id") && hasRequiredString(value, "text");
+};
+
+const isStoryQuestionPayloadValid = (value: unknown): boolean => {
+  if (!isRecordValue(value)) return false;
+  if (!hasRequiredString(value, "id") || !hasRequiredString(value, "question")) {
+    return false;
+  }
+
+  const options = value.options;
+  const correctAnswer = asFiniteNumber(
+    value.correctAnswer ?? value.correctAnswerIndex,
+  );
+  return (
+    Array.isArray(options) &&
+    options.length >= 2 &&
+    options.every((option) => typeof option === "string" && Boolean(option.trim())) &&
+    correctAnswer !== undefined &&
+    Number.isInteger(correctAnswer) &&
+    correctAnswer >= 0 &&
+    correctAnswer < options.length
+  );
+};
+
+const mapStoryQuestions = (questions: unknown[]): LocalStoryQuestion[] | undefined => {
+  const mapped = questions
+    .map((value): LocalStoryQuestion | undefined => {
+      const question = asRecord(value);
+      const id = asString(question.id);
+      const prompt = asString(question.question);
+      const options = asArray(question.options)
+        .map((option) => asString(option))
+        .filter(Boolean);
+      const correctAnswer = asFiniteNumber(
+        question.correctAnswer ?? question.correctAnswerIndex,
+      );
       if (
+        !id ||
         !prompt ||
         options.length < 2 ||
+        correctAnswer === undefined ||
+        !Number.isInteger(correctAnswer) ||
         correctAnswer < 0 ||
         correctAnswer >= options.length
       ) {
         return undefined;
       }
-
-      return {
-        id: asString(question.id, `${storyId}-question-${questionIndex + 1}`),
-        question: prompt,
-        options,
-        correctAnswer,
-      };
+      return { id, question: prompt, options, correctAnswer };
     })
-    .filter(Boolean) as LocalStoryQuestion[];
+    .filter((question): question is LocalStoryQuestion => Boolean(question));
 
-  return mappedQuestions.length > 0 ? mappedQuestions : undefined;
+  return mapped.length > 0 ? mapped : undefined;
 };
 
 const mapStoryPayload = (
@@ -1073,20 +866,16 @@ const mapStoryPayload = (
   const storyId = normalizeContentSlug(
     asString(payload.id, asString(payload.storyId, item.slug)),
   );
-  const title = asString(payload.title, item.title ?? storyId).trim();
-  const pages = mapStoryPages(asArray(payload.pages), storyId);
-
-  if (!storyId || !title || pages.length === 0) {
-    return undefined;
-  }
+  const title = asString(payload.title, item.title ?? storyId);
+  const pages = mapStoryPages(asArray(payload.pages));
+  if (!storyId || !title || pages.length === 0) return undefined;
 
   const metadata = asRecord(payload.metadata);
-
   return {
     id: storyId,
     title,
     summary: asString(payload.summary, asString(payload.description)),
-    languageCode: item.language_code,
+    languageCode: item.language_code as LocalStory["languageCode"],
     metadata: {
       status:
         metadata.status === "existing-prototype" ||
@@ -1094,193 +883,539 @@ const mapStoryPayload = (
         metadata.status === "reviewed"
           ? metadata.status
           : "placeholder",
-      notes: asString(metadata.notes) || undefined,
-      sources: asArray(metadata.sources)
-        .map((sourceValue) => {
-          const source = asRecord(sourceValue);
+      notes: asOptionalString(metadata.notes),
+      sources: asArray(metadata.sources).reduce<
+        NonNullable<LocalStory["metadata"]["sources"]>
+      >((sources, value) => {
+          const source = asRecord(value);
           const label = asString(source.label);
-          if (!label) return undefined;
-          return {
-            label,
-            url: asString(source.url) || undefined,
-          };
-        })
-        .filter(Boolean) as LocalStory["metadata"]["sources"],
+          if (!label) return sources;
+
+          const url = asOptionalString(source.url);
+          sources.push(url ? { label, url } : { label });
+          return sources;
+        }, []),
     },
     pages,
-    questions: mapStoryQuestions(asArray(payload.questions), storyId),
+    questions: mapStoryQuestions(asArray(payload.questions)),
   };
 };
 
-export const buildContentBundleFromItems = (
-  languageCode: SupportedLearningLanguageCode,
+const hasUniqueIds = <T extends { id: string | number }>(items: T[]): boolean =>
+  new Set(items.map((item) => String(item.id))).size === items.length;
+
+const hasCompleteCountingNumberLabels = (
+  stages: CountingGameStage[],
+  numbers: CountingGameNumber[],
+): boolean => {
+  const availableNumbers = new Set(numbers.map((number) => number.number));
+
+  return stages.every((stage) => {
+    if (stage.usesCurrency) return true;
+    const step = stage.useBunches ? stage.itemsPerBunch : 1;
+    if (!step) return false;
+
+    const candidateCount =
+      Math.floor((stage.numbersRange.max - stage.numbersRange.min) / step) + 1;
+    if (candidateCount > availableNumbers.size) return false;
+
+    for (
+      let candidate = stage.numbersRange.min;
+      candidate <= stage.numbersRange.max;
+      candidate += step
+    ) {
+      if (!availableNumbers.has(candidate)) return false;
+    }
+    return true;
+  });
+};
+
+const hasCompleteCountingSupportingContent = (
+  content: CountingGameContent,
+): boolean => {
+  const nonCurrencyStages = content.stages.filter((stage) => !stage.usesCurrency);
+  const currencyStages = content.stages.filter((stage) => stage.usesCurrency);
+
+  if (nonCurrencyStages.length > 0 && content.culturalItems.length === 0) {
+    return false;
+  }
+
+  if (!hasCompleteCountingNumberLabels(nonCurrencyStages, content.numbers)) {
+    return false;
+  }
+
+  return currencyStages.every(
+    (stage) =>
+      content.currency.length >= stage.levels &&
+      content.currency.every(
+        (item) =>
+          item.value >= stage.numbersRange.min &&
+          item.value <= stage.numbersRange.max,
+      ),
+  );
+};
+
+const isMappedContentValid = (
+  contentType: ContentItemType,
+  payload: Record<string, unknown>,
+  item: ContentItemRecord,
+): boolean => {
+  if (contentType === "child_menu") {
+    const rawCards = asArray(payload.cards);
+    const cards = mapMenuCards(payload);
+    return (
+      cards.length > 0 &&
+      cards.length === rawCards.length &&
+      rawCards.every(isMenuCardPayloadValid) &&
+      hasUniqueIds(cards)
+    );
+  }
+  if (contentType === "learning_hub") {
+    return Boolean(normalizeLearningHubLanguageContent(item.language_code, payload));
+  }
+  if (contentType === "learning_game") {
+    const rawStages = asArray(payload.stages);
+    const stages = mapLearningStages(rawStages);
+    const levels = stages.flatMap((stage) => stage.levels);
+    return (
+      stages.length > 0 &&
+      stages.length === rawStages.length &&
+      rawStages.every(isLearningStagePayloadValid) &&
+      hasUniqueIds(stages) &&
+      hasUniqueIds(levels) &&
+      stages.every(
+        (stage) =>
+          hasUniqueIds(stage.levels) &&
+          stage.levels.every((level) => hasUniqueIds(level.words)),
+      )
+    );
+  }
+  if (contentType === "word_game") {
+    const rawLevels = asArray(payload.levels);
+    const levels = mapWordGameLevels(rawLevels);
+    return (
+      levels.length > 0 &&
+      levels.length === rawLevels.length &&
+      rawLevels.every(isWordGameLevelPayloadValid) &&
+      hasUniqueIds(levels)
+    );
+  }
+  if (contentType === "counting_game") {
+    const rawStages = asArray(payload.stages);
+    const rawNumbers = asArray(payload.numbers);
+    const rawCulturalItems = asArray(payload.culturalItems);
+    const rawCurrency = asArray(payload.currency);
+    const content = mapCountingContent(payload, item.title ?? "Counting Game");
+    return (
+      content.stages.length > 0 &&
+      content.numbers.length > 0 &&
+      content.stages.length === rawStages.length &&
+      content.numbers.length === rawNumbers.length &&
+      content.culturalItems.length === rawCulturalItems.length &&
+      content.currency.length === rawCurrency.length &&
+      rawStages.every(isCountingStagePayloadValid) &&
+      rawNumbers.every(isCountingNumberPayloadValid) &&
+      rawCulturalItems.every(isCountingItemPayloadValid) &&
+      rawCurrency.every(isCountingCurrencyPayloadValid) &&
+      (payload.culturalItems === undefined || Array.isArray(payload.culturalItems)) &&
+      (payload.currency === undefined || Array.isArray(payload.currency)) &&
+      hasUniqueIds(content.stages) &&
+      new Set(content.numbers.map((number) => number.number)).size ===
+        content.numbers.length &&
+      hasUniqueIds(content.culturalItems) &&
+      hasUniqueIds(content.currency) &&
+      new Set(content.currency.map((item) => item.value)).size ===
+        content.currency.length &&
+      hasCompleteCountingSupportingContent(content)
+    );
+  }
+  if (contentType === "card_game") {
+    const rawCards = asArray(payload.items);
+    const cards = mapCardGameItems(rawCards);
+    return (
+      cards.length >= 8 &&
+      cards.length === rawCards.length &&
+      rawCards.every(isCardGameItemPayloadValid) &&
+      hasUniqueIds(cards) &&
+      new Set(cards.map((card) => card.value)).size === cards.length
+    );
+  }
+  if (contentType === "puzzle_game") {
+    const rawPuzzles = asArray(payload.puzzles);
+    const puzzles = mapPuzzleGameDefinitions(rawPuzzles);
+    return (
+      puzzles.length > 0 &&
+      puzzles.length === rawPuzzles.length &&
+      rawPuzzles.every(isPuzzleGamePayloadValid) &&
+      hasUniqueIds(puzzles)
+    );
+  }
+
+  const rawPages = asArray(payload.pages);
+  const rawQuestions = asArray(payload.questions);
+  const story = mapStoryPayload(payload, item);
+  const mappedQuestions = mapStoryQuestions(rawQuestions) ?? [];
+  return (
+    Boolean(story) &&
+    story?.pages.length === rawPages.length &&
+    rawPages.every(isStoryPagePayloadValid) &&
+    hasUniqueIds(story?.pages ?? []) &&
+    (payload.questions === undefined || Array.isArray(payload.questions)) &&
+    mappedQuestions.length === rawQuestions.length &&
+    rawQuestions.every(isStoryQuestionPayloadValid) &&
+    hasUniqueIds(mappedQuestions)
+  );
+};
+
+const deriveContentVersion = (items: ContentItemRecord[]): string =>
+  [...items]
+    .sort(
+      (left, right) =>
+        left.content_type.localeCompare(right.content_type) ||
+        left.slug.localeCompare(right.slug),
+    )
+    .map(
+      (item) =>
+        `${item.content_type}/${normalizeContentSlug(item.slug)}@${
+          item.content_version ?? 1
+        }:${item.updated_at ?? "unknown"}`,
+    )
+    .join("|");
+
+const buildContentBundleWithDiagnostics = (
+  languageCode: string,
   items: ContentItemRecord[],
-): ContentBundle => {
+): BuildContentBundleResult => {
   const menuCardsByTab: Record<string, ChildMenuCard[]> = {};
   let learningGame = { title: "Learning", stages: [] as LearningGameStage[] };
+  let learningHub: LearningLanguageContent | undefined;
   let wordGame = { title: "Words", levels: [] as WordGameLevel[] };
   let countingGame = { ...EMPTY_COUNTING_CONTENT };
+  let cardGame = { ...EMPTY_CARD_GAME_CONTENT };
+  let puzzleGame = { ...EMPTY_PUZZLE_GAME_CONTENT };
   const stories: LocalStory[] = [];
+  const seenSingleBundleTypes = new Set<ContentItemType>();
+  let supportedRowCount = 0;
+  let invalidSupportedRowCount = 0;
 
-  for (const item of items) {
-    if (!item.is_active && item.is_active !== undefined) {
-      continue;
-    }
+  const orderedItems = [...items].sort(
+    (left, right) =>
+      (left.sort_order ?? 0) - (right.sort_order ?? 0) ||
+      left.content_type.localeCompare(right.content_type) ||
+      left.slug.localeCompare(right.slug),
+  );
 
-    if (item.language_code !== languageCode) {
-      console.warn(
-        `Skipping ${item.content_type}/${item.slug}; row language ${item.language_code} does not match requested language ${languageCode}.`,
-      );
-      continue;
-    }
+  for (const item of orderedItems) {
+    if (item.language_code !== languageCode) continue;
+    if (item.is_active === false || item.is_startable === false) continue;
+    if (item.editorial_status && item.editorial_status !== "published") continue;
 
     const contentType = parseContentItemType(item.content_type);
-    const slug = normalizeContentSlug(item.slug);
-    const payload = asRecord(item.payload);
+    if (!contentType) continue;
+    supportedRowCount += 1;
 
-    if (!contentType) {
-      console.warn(
-        `Skipping content item with unsupported or non-lowercase content_type: ${item.content_type}`,
-      );
-      continue;
+    if (SINGLE_BUNDLE_CONTENT_TYPES.has(contentType)) {
+      if (seenSingleBundleTypes.has(contentType)) {
+        invalidSupportedRowCount += 1;
+        continue;
+      }
+      seenSingleBundleTypes.add(contentType);
     }
 
-    const validation = validateContentItemPayload(contentType, payload);
-
-    if (!validation.isValid) {
-      console.warn(
-        `Skipping ${contentType}/${slug} content for ${languageCode}; missing required payload array(s): ${validation.missingKeys.join(", ")}`,
-      );
+    const slug = normalizeContentSlug(item.slug);
+    const payload = asRecord(item.payload);
+    const topLevelValidation = validateContentItemPayload(contentType, payload);
+    if (
+      !slug ||
+      !topLevelValidation.isValid ||
+      !isMappedContentValid(contentType, payload, item)
+    ) {
+      invalidSupportedRowCount += 1;
       continue;
     }
 
     if (contentType === "child_menu") {
       menuCardsByTab[slug] = mapMenuCards(payload);
-    }
-
-    if (contentType === "learning_game") {
+    } else if (contentType === "learning_hub") {
+      learningHub =
+        normalizeLearningHubLanguageContent(languageCode, payload) ?? undefined;
+    } else if (contentType === "learning_game") {
       learningGame = {
         title: item.title ?? "Learning",
         stages: mapLearningStages(asArray(payload.stages)),
       };
-    }
-
-    if (contentType === "word_game") {
+    } else if (contentType === "word_game") {
       wordGame = {
         title: item.title ?? "Words",
         levels: mapWordGameLevels(asArray(payload.levels)),
       };
-    }
-
-    if (contentType === "counting_game") {
+    } else if (contentType === "counting_game") {
       countingGame = mapCountingContent(payload, item.title ?? "Counting Game");
-    }
-
-    if (contentType === "story") {
-      const storyLanguageCode = asString(payload.languageCode);
-
-      if (storyLanguageCode && storyLanguageCode !== languageCode) {
-        console.warn(
-          `Skipping story/${slug}; payload languageCode ${storyLanguageCode} does not match row language ${languageCode}.`,
-        );
+    } else if (contentType === "card_game") {
+      cardGame = {
+        title: item.title ?? "Cards Matching",
+        items: mapCardGameItems(asArray(payload.items)),
+      };
+    } else if (contentType === "puzzle_game") {
+      puzzleGame = {
+        title: item.title ?? "Logic Puzzle",
+        puzzles: mapPuzzleGameDefinitions(asArray(payload.puzzles)),
+      };
+    } else if (contentType === "story") {
+      const payloadLanguageCode = asString(payload.languageCode);
+      if (payloadLanguageCode && payloadLanguageCode !== languageCode) {
+        invalidSupportedRowCount += 1;
         continue;
       }
-
       const story = mapStoryPayload(payload, item);
-
-      if (!story) {
-        console.warn(
-          `Skipping story/${slug} content for ${languageCode}; story payload does not contain renderable pages.`,
-        );
-        continue;
-      }
-
-      stories.push(story);
+      if (story) stories.push(story);
     }
   }
 
+  return {
+    bundle: {
+      languageCode,
+      source: "database",
+      contentVersion: deriveContentVersion(orderedItems),
+      menuCardsByTab,
+      learningHub,
+      learningGame,
+      wordGame,
+      countingGame,
+      cardGame,
+      puzzleGame,
+      stories,
+    },
+    supportedRowCount,
+    invalidSupportedRowCount,
+  };
+};
+
+export const buildContentBundleFromItems = (
+  languageCode: string,
+  items: ContentItemRecord[],
+): ContentBundle => buildContentBundleWithDiagnostics(languageCode, items).bundle;
+
+const isUsableDatabaseBundle = (bundle: ContentBundle): boolean =>
+  Object.values(bundle.menuCardsByTab).some((cards) => cards.length > 0) ||
+  Boolean(bundle.learningHub?.stages.length) ||
+  bundle.learningGame.stages.length > 0 ||
+  bundle.wordGame.levels.length > 0 ||
+  (bundle.countingGame.stages.length > 0 && bundle.countingGame.numbers.length > 0) ||
+  bundle.cardGame.items.length > 0 ||
+  bundle.puzzleGame.puzzles.length > 0 ||
+  bundle.stories.length > 0;
+
+const buildLastKnownGoodBundle = (
+  languageCode: string,
+  items: ContentItemRecord[],
+): ContentBundle | undefined => {
+  const result = buildContentBundleWithDiagnostics(languageCode, items);
+  if (
+    result.supportedRowCount === 0 ||
+    result.invalidSupportedRowCount > 0 ||
+    !isUsableDatabaseBundle(result.bundle)
+  ) {
+    return undefined;
+  }
+  if (result.bundle.learningHub) {
+    registerLearningHubLanguageContent(
+      languageCode,
+      result.bundle.learningHub,
+      result.bundle.contentVersion,
+    );
+  }
+  return result.bundle;
+};
+
+const parseCachedContentItemsEntry = (
+  value: string | null,
+  languageCode: string,
+): ContentItemsCacheEntry | undefined => {
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(value) as Partial<ContentItemsCacheEntry>;
+    if (
+      parsed.cacheSchemaVersion !== CONTENT_BUNDLE_CACHE_SCHEMA_VERSION ||
+      parsed.languageCode !== languageCode ||
+      typeof parsed.contentVersion !== "string" ||
+      typeof parsed.loadedAt !== "number" ||
+      !Array.isArray(parsed.items)
+    ) {
+      return undefined;
+    }
+    return parsed as ContentItemsCacheEntry;
+  } catch {
+    return undefined;
+  }
+};
+
+const resolveCachedContentBundle = (
+  entry: ContentItemsCacheEntry | undefined,
+  languageCode: string,
+  source: ContentBundleCacheMetadata["source"],
+  maxAgeMs: number,
+  now: number,
+): CachedContentBundle | undefined => {
+  if (!entry || entry.languageCode !== languageCode) return undefined;
+  const bundle = buildLastKnownGoodBundle(languageCode, entry.items);
+  if (!bundle || bundle.languageCode !== languageCode) return undefined;
+  return {
+    bundle,
+    metadata: {
+      cacheKey: getContentBundleCacheKey(languageCode),
+      contentVersion: entry.contentVersion,
+      loadedAt: entry.loadedAt,
+      source,
+      isStale: now - entry.loadedAt > maxAgeMs,
+      maxAgeMs,
+    },
+  };
+};
+
+const readCachedContentBundle = async (
+  languageCode: string,
+  maxAgeMs: number,
+  now: number,
+): Promise<CachedContentBundle | undefined> => {
+  const memory = contentItemsMemoryCache.get(languageCode);
+  const memoryBundle = resolveCachedContentBundle(
+    memory,
+    languageCode,
+    "memory",
+    maxAgeMs,
+    now,
+  );
+  if (memoryBundle) return memoryBundle;
+  if (memory) contentItemsMemoryCache.delete(languageCode);
+
+  try {
+    const cacheKey = getContentBundleCacheKey(languageCode);
+    const stored = parseCachedContentItemsEntry(
+      await AsyncStorage.getItem(cacheKey),
+      languageCode,
+    );
+    const storedBundle = resolveCachedContentBundle(
+      stored,
+      languageCode,
+      "storage",
+      maxAgeMs,
+      now,
+    );
+    if (!storedBundle || !stored) {
+      if (stored) await AsyncStorage.removeItem(cacheKey);
+      return undefined;
+    }
+    contentItemsMemoryCache.set(languageCode, stored);
+    return storedBundle;
+  } catch (error) {
+    console.warn(`Could not read cached content for ${languageCode}.`, error);
+    return undefined;
+  }
+};
+
+const writeCachedContentItems = async (
+  languageCode: string,
+  items: ContentItemRecord[],
+  loadedAt: number,
+): Promise<ContentItemsCacheEntry> => {
+  const entry: ContentItemsCacheEntry = {
+    cacheSchemaVersion: CONTENT_BUNDLE_CACHE_SCHEMA_VERSION,
+    languageCode,
+    contentVersion: deriveContentVersion(items),
+    loadedAt,
+    items,
+  };
+  contentItemsMemoryCache.set(languageCode, entry);
+  try {
+    await AsyncStorage.setItem(
+      getContentBundleCacheKey(languageCode),
+      JSON.stringify(entry),
+    );
+  } catch (error) {
+    console.warn(`Could not persist cached content for ${languageCode}.`, error);
+  }
+  return entry;
+};
+
+const loadDatabaseContentBundle = async (
+  languageCode: string,
+  maxAgeMs: number,
+): Promise<ContentLoadResult | undefined> => {
+  const { data, error } = await supabase
+    .from("content_items")
+    .select(
+      "id, language_code, content_type, slug, title, payload, sort_order, is_active, editorial_status, is_startable, content_version, updated_at, published_at",
+    )
+    .eq("language_code", languageCode)
+    .eq("is_active", true)
+    .eq("editorial_status", "published")
+    .eq("is_startable", true)
+    .order("sort_order", { ascending: true });
+
+  if (error) throw error;
+  if (!data || data.length === 0) return undefined;
+
+  const items = data as ContentItemRecord[];
+  const bundle = buildLastKnownGoodBundle(languageCode, items);
+  if (!bundle) return undefined;
+
+  const loadedAt = Date.now();
+  const entry = await writeCachedContentItems(languageCode, items, loadedAt);
   return {
     languageCode,
     source: "database",
-    menuCardsByTab,
-    learningGame,
-    wordGame,
-    countingGame,
-    stories,
+    bundle,
+    cache: {
+      cacheKey: getContentBundleCacheKey(languageCode),
+      contentVersion: entry.contentVersion,
+      loadedAt,
+      source: "network",
+      isStale: false,
+      maxAgeMs,
+    },
   };
 };
 
-export const buildLocalContentBundle = (
-  languageCode: SupportedLearningLanguageCode,
-): ContentBundle => {
-  const content = LOCAL_CONTENT_BY_LANGUAGE[languageCode];
-  const menuCardsByTab =
-    languageCode === "lg"
-      ? LEGACY_LUGANDA_MENU_CARDS
-      : {
-          ...DEFAULT_RUNYANKOLE_MENU_CARDS,
-          stories: content.stories.map((story) => ({
-            id: story.id,
-            title: story.title,
-            description: story.summary,
-            image: story.pages[0]?.image ?? "learning-beginner.jpg",
-            targetPage: `child/stories/${story.id}`,
-          })),
-        };
-
-  return {
-    languageCode,
-    source:
-      languageCode === "lg" ? "local-lg-legacy" : "local-same-language-sample",
-    menuCardsByTab,
-    learningGame: {
-      title: languageCode === "lg" ? "Luganda Learning" : "Runyankole Learning",
-      stages: mapLocalLearningStages(content.lessons.stages),
-    },
-    wordGame: {
-      title: languageCode === "lg" ? "Luganda Word Game" : "Runyankole Word Game",
-      levels: mapLocalWordGameLevels(content.games.wordGameLevels),
-    },
-    countingGame: mapLocalCountingContent(
-      content.games.counting,
-      languageCode === "lg" ? "Luganda Counting Game" : "Runyankole Counting Samples",
-    ),
-    stories: content.stories,
-  };
+const refreshContentBundleInBackground = (
+  languageCode: string,
+  maxAgeMs: number,
+): void => {
+  if (contentItemsBackgroundRefreshes.has(languageCode)) return;
+  const refresh = loadDatabaseContentBundle(languageCode, maxAgeMs)
+    .then(() => undefined)
+    .catch((error) => {
+      console.warn(`Could not refresh cached content for ${languageCode}.`, error);
+    })
+    .finally(() => contentItemsBackgroundRefreshes.delete(languageCode));
+  contentItemsBackgroundRefreshes.set(languageCode, refresh);
 };
 
-export const mergeDatabaseBundleWithLegacyLugandaContent = (
-  databaseBundle: ContentBundle,
-): ContentBundle => {
-  if (databaseBundle.languageCode !== "lg") {
-    return databaseBundle;
+export const waitForContentBundleRefreshes = async (): Promise<void> => {
+  await Promise.all([...contentItemsBackgroundRefreshes.values()]);
+};
+
+export const clearContentBundleCache = async (languageCode?: string): Promise<void> => {
+  if (languageCode) {
+    const normalized = normalizeContentLanguageCode(languageCode);
+    if (!normalized) return;
+    contentItemsMemoryCache.delete(normalized);
+    contentItemsBackgroundRefreshes.delete(normalized);
+    clearLearningHubContentRegistry(normalized);
+    await AsyncStorage.removeItem(getContentBundleCacheKey(normalized));
+    return;
   }
 
-  const legacyBundle = buildLocalContentBundle("lg");
-
-  return {
-    ...databaseBundle,
-    menuCardsByTab: {
-      ...legacyBundle.menuCardsByTab,
-      ...databaseBundle.menuCardsByTab,
-    },
-    learningGame:
-      databaseBundle.learningGame.stages.length >= legacyBundle.learningGame.stages.length
-        ? databaseBundle.learningGame
-        : legacyBundle.learningGame,
-    wordGame:
-      databaseBundle.wordGame.levels.length >= legacyBundle.wordGame.levels.length
-        ? databaseBundle.wordGame
-        : legacyBundle.wordGame,
-    countingGame:
-      databaseBundle.countingGame.stages.length >= legacyBundle.countingGame.stages.length
-        ? databaseBundle.countingGame
-        : legacyBundle.countingGame,
-    stories:
-      databaseBundle.stories.length > 0
-        ? databaseBundle.stories
-        : legacyBundle.stories,
-  };
+  contentItemsMemoryCache.clear();
+  contentItemsBackgroundRefreshes.clear();
+  clearLearningHubContentRegistry();
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const contentKeys = keys.filter((key) => key.startsWith(`${CONTENT_BUNDLE_CACHE_PREFIX}:`));
+    if (contentKeys.length > 0) await AsyncStorage.multiRemove(contentKeys);
+  } catch (error) {
+    console.warn("Could not clear the content cache.", error);
+  }
 };
 
 export const loadContentBundle = async (
@@ -1288,9 +1423,6 @@ export const loadContentBundle = async (
   options: LoadContentBundleOptions = {},
 ): Promise<ContentLoadResult> => {
   const normalizedLanguageCode = normalizeContentLanguageCode(languageCode);
-  const maxAgeMs = options.maxAgeMs ?? CONTENT_BUNDLE_CACHE_TTL_MS;
-  const now = Date.now();
-
   if (!normalizedLanguageCode) {
     return {
       source: "empty",
@@ -1298,37 +1430,21 @@ export const loadContentBundle = async (
     };
   }
 
-  if (!options.forceRefresh) {
-    const cached = await readCachedContentBundle(normalizedLanguageCode, {
-      allowExpired: false,
-      maxAgeMs,
-      now,
-    });
+  const maxAgeMs = options.maxAgeMs ?? CONTENT_BUNDLE_CACHE_TTL_MS;
+  const cached = await readCachedContentBundle(
+    normalizedLanguageCode,
+    maxAgeMs,
+    Date.now(),
+  );
 
-    if (cached) {
-      return {
-        languageCode: normalizedLanguageCode,
-        source: "database",
-        bundle: cached.bundle,
-        cache: cached.metadata,
-      };
-    }
-
-    const staleCached = await readCachedContentBundle(normalizedLanguageCode, {
-      allowExpired: true,
-      maxAgeMs,
-      now,
-    });
-
-    if (staleCached) {
-      refreshContentBundleInBackground(normalizedLanguageCode, maxAgeMs);
-      return {
-        languageCode: normalizedLanguageCode,
-        source: "database",
-        bundle: staleCached.bundle,
-        cache: staleCached.metadata,
-      };
-    }
+  if (!options.forceRefresh && cached) {
+    refreshContentBundleInBackground(normalizedLanguageCode, maxAgeMs);
+    return {
+      languageCode: normalizedLanguageCode,
+      source: "database",
+      bundle: cached.bundle,
+      cache: cached.metadata,
+    };
   }
 
   try {
@@ -1336,48 +1452,27 @@ export const loadContentBundle = async (
       normalizedLanguageCode,
       maxAgeMs,
     );
-
-    if (databaseResult) {
-      return databaseResult;
-    }
+    if (databaseResult) return databaseResult;
   } catch (error) {
-    console.warn(
-      `Could not load database content for ${normalizedLanguageCode}; using same-language bundled content if available.`,
-      error,
-    );
-
-    const cached = await readCachedContentBundle(normalizedLanguageCode, {
-      allowExpired: true,
-      maxAgeMs,
-      now: Date.now(),
-    });
-
-    if (cached) {
-      return {
-        languageCode: normalizedLanguageCode,
-        source: "database",
-        bundle: cached.bundle,
-        cache: cached.metadata,
-      };
-    }
+    console.warn(`Could not load content for ${normalizedLanguageCode}.`, error);
   }
 
-  const localContent = LOCAL_CONTENT_BY_LANGUAGE[normalizedLanguageCode];
-  if (!localContent) {
+  if (cached) {
     return {
       languageCode: normalizedLanguageCode,
-      source: "empty",
-      missingReason: "No content is available for this language yet.",
+      source: "database",
+      bundle: cached.bundle,
+      cache: {
+        ...cached.metadata,
+        isStale: true,
+      },
     };
   }
 
   return {
     languageCode: normalizedLanguageCode,
-    source:
-      normalizedLanguageCode === "lg"
-        ? "local-lg-legacy"
-        : "local-same-language-sample",
-    bundle: buildLocalContentBundle(normalizedLanguageCode),
+    source: "empty",
+    missingReason: "No published content is available for this language yet.",
   };
 };
 
@@ -1385,10 +1480,10 @@ export const findStoryById = (
   bundle: ContentBundle | undefined,
   storyId?: string | string[],
 ): LocalStory | undefined => {
-  const normalizedStoryId = Array.isArray(storyId) ? storyId[0] : storyId;
-  if (!bundle || !normalizedStoryId) return undefined;
-  const storySlug = normalizeContentSlug(normalizedStoryId);
-  return bundle.stories.find((story) => normalizeContentSlug(story.id) === storySlug);
+  const id = Array.isArray(storyId) ? storyId[0] : storyId;
+  if (!bundle || !id) return undefined;
+  const slug = normalizeContentSlug(id);
+  return bundle.stories.find((story) => normalizeContentSlug(story.id) === slug);
 };
 
 export { resolveImageSource };

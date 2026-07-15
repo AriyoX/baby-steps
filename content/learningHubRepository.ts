@@ -106,7 +106,7 @@ interface RawLearningHubStage {
   lessons?: RawLearningHubLesson[];
 }
 
-interface LearningHubLanguageContent {
+interface RawLearningHubLanguageContent {
   languageCode?: unknown;
   displayName?: unknown;
   localName?: unknown;
@@ -114,13 +114,15 @@ interface LearningHubLanguageContent {
   stages?: RawLearningHubStage[];
 }
 
-interface LearningHubContentFile {
-  version?: unknown;
-  defaultLanguage?: unknown;
-  languages?: Record<string, LearningHubLanguageContent | undefined>;
+interface RegisteredLearningHubContent {
+  content: LearningLanguageContent;
+  version: string;
 }
 
-const learningHubContent = require("./learningHubContent.json") as LearningHubContentFile;
+const registeredLearningHubContent = new Map<
+  LearningLanguageCode,
+  RegisteredLearningHubContent
+>();
 
 const MECHANIC_TYPES = [
   "tap_to_learn",
@@ -249,28 +251,8 @@ const sortByOrder = <T extends { id: string; order: number }>(items: T[]): T[] =
 const uniqueMechanics = (mechanics: MechanicType[]): MechanicType[] =>
   mechanics.filter((mechanic, index) => mechanics.indexOf(mechanic) === index);
 
-const getRawLanguages = (): Record<string, LearningHubLanguageContent | undefined> =>
-  learningHubContent.languages ?? {};
-
-const hasLearningHubLanguage = (languageCode: string | undefined): boolean =>
-  Boolean(languageCode && getRawLanguages()[languageCode]);
-
-export const getDefaultLearningLanguageCode = (): LearningLanguageCode => {
-  const declaredDefault = asString(
-    learningHubContent.defaultLanguage,
-    DEFAULT_LEARNING_LANGUAGE_CODE,
-  );
-
-  if (hasLearningHubLanguage(declaredDefault)) {
-    return declaredDefault;
-  }
-
-  if (hasLearningHubLanguage(DEFAULT_LEARNING_LANGUAGE_CODE)) {
-    return DEFAULT_LEARNING_LANGUAGE_CODE;
-  }
-
-  return Object.keys(getRawLanguages())[0] ?? DEFAULT_LEARNING_LANGUAGE_CODE;
-};
+export const getDefaultLearningLanguageCode = (): LearningLanguageCode =>
+  DEFAULT_LEARNING_LANGUAGE_CODE;
 
 export const resolveLearningHubLanguageCode = (
   languageCode?: string | null,
@@ -284,7 +266,7 @@ export const resolveLearningHubLanguageCode = (
   return getDefaultLearningLanguageCode();
 };
 
-const asObjectArray = (value: unknown): Array<Record<string, unknown>> =>
+const asObjectArray = (value: unknown): Record<string, unknown>[] =>
   Array.isArray(value)
     ? value.filter(
         (item): item is Record<string, unknown> =>
@@ -292,12 +274,119 @@ const asObjectArray = (value: unknown): Array<Record<string, unknown>> =>
       )
     : [];
 
+const asRecord = (value: unknown): Record<string, unknown> | undefined =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+
+const hasExplicitStableId = (value: unknown): value is string =>
+  typeof value === "string" && value.trim().length > 0;
+
+const hasUniqueExplicitIds = (items: unknown[]): boolean => {
+  const ids = new Set<string>();
+
+  for (const value of items) {
+    const item = asRecord(value);
+    if (!item || !hasExplicitStableId(item.id)) {
+      return false;
+    }
+
+    const id = item.id.trim();
+    if (ids.has(id)) {
+      return false;
+    }
+    ids.add(id);
+  }
+
+  return true;
+};
+
+const hasStableNestedItemIds = (
+  value: unknown,
+  fallbackMechanic?: unknown,
+): boolean => {
+  const item = asRecord(value);
+  if (!item) {
+    return false;
+  }
+
+  const mechanic = item.mechanic ?? fallbackMechanic;
+  if (
+    mechanic === "listen_and_choose" ||
+    mechanic === "choose_correct_word" ||
+    mechanic === "match_word_picture"
+  ) {
+    return !Array.isArray(item.options) || hasUniqueExplicitIds(item.options);
+  }
+
+  if (mechanic === "mini_quiz") {
+    if (!Array.isArray(item.questions)) {
+      return true;
+    }
+
+    return (
+      hasUniqueExplicitIds(item.questions) &&
+      item.questions.every((questionValue) => {
+        const question = asRecord(questionValue);
+        return Boolean(
+          question &&
+            (!Array.isArray(question.options) ||
+              hasUniqueExplicitIds(question.options)),
+        );
+      })
+    );
+  }
+
+  if (mechanic === "story_bite") {
+    return !Array.isArray(item.pages) || hasUniqueExplicitIds(item.pages);
+  }
+
+  return true;
+};
+
+const hasStableLearningContentIds = (value: unknown): boolean => {
+  const content = asRecord(value);
+  if (!content || !Array.isArray(content.stages) || !hasUniqueExplicitIds(content.stages)) {
+    return false;
+  }
+
+  const globalLessonIds = new Set<string>();
+
+  return content.stages.every((stageValue) => {
+    const stage = asRecord(stageValue);
+    if (!stage || !Array.isArray(stage.lessons) || !hasUniqueExplicitIds(stage.lessons)) {
+      return false;
+    }
+
+    return stage.lessons.every((lessonValue) => {
+      const lesson = asRecord(lessonValue);
+      if (!lesson || !hasExplicitStableId(lesson.id)) {
+        return false;
+      }
+
+      const lessonId = lesson.id.trim();
+      if (globalLessonIds.has(lessonId)) {
+        return false;
+      }
+      globalLessonIds.add(lessonId);
+
+      if (!Array.isArray(lesson.items) || !hasUniqueExplicitIds(lesson.items)) {
+        return false;
+      }
+
+      return lesson.items.every((item) =>
+        hasStableNestedItemIds(item, lesson.mechanic),
+      );
+    });
+  });
+};
+
 const normalizeListenAndChooseOptions = (
   value: unknown,
 ): ListenAndChooseItem["options"] => {
   const seenOptionIds = new Set<string>();
   const options = asObjectArray(value).reduce<
-    Array<ListenAndChooseItem["options"][number] & { sourceIndex: number }>
+    (ListenAndChooseItem["options"][number] & { sourceIndex: number })[]
   >((currentOptions, option, index) => {
     const id = asOptionalString(option.id);
 
@@ -346,10 +435,10 @@ const normalizeChooseCorrectWordOptions = (
 ): ChooseCorrectWordItem["options"] => {
   const seenOptionIds = new Set<string>();
   const options = asObjectArray(value).reduce<
-    Array<ChooseCorrectWordItem["options"][number] & {
+    (ChooseCorrectWordItem["options"][number] & {
       order?: number;
       sourceIndex: number;
-    }>
+    })[]
   >((currentOptions, option, index) => {
     const id = asOptionalString(option.id);
     const localText =
@@ -394,10 +483,10 @@ const normalizeMatchWordPictureOptions = (
 ): MatchWordPictureItem["options"] => {
   const seenOptionIds = new Set<string>();
   const options = asObjectArray(value).reduce<
-    Array<MatchWordPictureItem["options"][number] & {
+    (MatchWordPictureItem["options"][number] & {
       order?: number;
       sourceIndex: number;
-    }>
+    })[]
   >((currentOptions, option, index) => {
     const id = asOptionalString(option.id);
 
@@ -448,10 +537,10 @@ const normalizeMiniQuizOptions = (
 ): MiniQuizItem["questions"][number]["options"] => {
   const seenOptionIds = new Set<string>();
   const options = asObjectArray(value).reduce<
-    Array<MiniQuizItem["questions"][number]["options"][number] & {
+    (MiniQuizItem["questions"][number]["options"][number] & {
       order?: number;
       sourceIndex: number;
-    }>
+    })[]
   >((currentOptions, option, index) => {
     const id = asOptionalString(option.id);
     const text =
@@ -529,10 +618,10 @@ const normalizeStoryBitePages = (value: unknown): StoryBiteItem["pages"] => {
   const seenPageIds = new Set<string>();
 
   return asObjectArray(value).reduce<StoryBiteItem["pages"]>(
-    (currentPages, page, index) => {
-      const id = asOptionalString(page.id) ?? `page-${index + 1}`;
+    (currentPages, page) => {
+      const id = asOptionalString(page.id);
 
-      if (seenPageIds.has(id)) {
+      if (!id || seenPageIds.has(id)) {
         return currentPages;
       }
 
@@ -573,13 +662,12 @@ const normalizeStoryBitePages = (value: unknown): StoryBiteItem["pages"] => {
 
 const normalizeLessonItem = (
   item: RawLearningHubLessonItem,
-  fallbackId: string,
   lessonMechanic: MechanicType,
   fallbackOrder: number,
 ): LearningLessonItem => {
   const mechanic = normalizeMechanic(item.mechanic, lessonMechanic);
   const base = {
-    id: asString(item.id, fallbackId),
+    id: asString(item.id),
     mechanic,
     order: asPositiveNumber(item.order, fallbackOrder),
     imageAsset: asOptionalString(item.imageAsset),
@@ -921,16 +1009,15 @@ const hasValidLessonItems = (lesson: LearningHubLesson): boolean =>
 
 const normalizeLesson = (
   lesson: RawLearningHubLesson,
-  fallbackId: string,
   fallbackOrder: number,
 ): LearningHubLesson => {
+  const lessonId = asString(lesson.id);
   const mechanic = normalizeMechanic(lesson.mechanic);
   const isLocked = asBoolean(lesson.isLocked, asBoolean(lesson.locked));
   const rawItems = Array.isArray(lesson.items) ? lesson.items : [];
   const normalizedItems = rawItems.map((item, index) =>
     normalizeLessonItem(
       item,
-      `${asString(lesson.id, fallbackId)}-item-${index + 1}`,
       mechanic,
       index + 1,
     ),
@@ -941,7 +1028,7 @@ const normalizeLesson = (
   const isStartable =
     typeof lesson.isStartable === "boolean" ? lesson.isStartable : undefined;
   const normalizedLesson: LearningHubLesson = {
-    id: asString(lesson.id, fallbackId),
+    id: lessonId,
     title: asString(lesson.title, "Learning lesson"),
     description: asString(
       lesson.description,
@@ -971,11 +1058,11 @@ const normalizeStage = (
   stage: RawLearningHubStage,
   fallbackIndex: number,
 ): LearningHubStage => {
-  const stageId = asString(stage.id, `stage-${fallbackIndex + 1}`);
+  const stageId = asString(stage.id);
   const rawLessons = Array.isArray(stage.lessons) ? stage.lessons : [];
   const lessons = sortByOrder(
     rawLessons.map((lesson, index) =>
-      normalizeLesson(lesson, `${stageId}-lesson-${index + 1}`, index + 1),
+      normalizeLesson(lesson, index + 1),
     ),
   );
   const declaredMechanics = Array.isArray(stage.mechanics)
@@ -983,7 +1070,10 @@ const normalizeStage = (
     : [];
   const lessonMechanics = lessons.map((lesson) => lesson.mechanic);
   const mechanics = uniqueMechanics([...declaredMechanics, ...lessonMechanics]);
-  const isLocked = asBoolean(stage.isLocked, asBoolean(stage.locked));
+  const isPractice = stageId === "practice-mix" || asBoolean(stage.isPractice);
+  const isLocked =
+    isPractice ||
+    asBoolean(stage.isLocked, asBoolean(stage.locked));
   const order = asPositiveNumber(stage.order, asPositiveNumber(stage.stageNumber, fallbackIndex + 1));
   const normalizedStage: LearningHubStage = {
     id: stageId,
@@ -996,7 +1086,7 @@ const normalizeStage = (
     status: asStageStatus(stage.status, isLocked),
     estimatedMinutes: asPositiveNumber(stage.estimatedMinutes, 1),
     lessonCount: lessons.length,
-    isPractice: asBoolean(stage.isPractice),
+    isPractice,
     locked: isLocked,
     isLocked,
     readiness: asContentReadiness(
@@ -1075,16 +1165,37 @@ export function isLessonStartable(
   return getLessonStatus(lesson, stage) === "startable";
 }
 
-const normalizeLanguageContent = (
-  content: LearningHubLanguageContent | undefined,
-  fallbackLanguageCode: string,
-): LearningLanguageContent => {
-  const languageCode = asString(content?.languageCode, fallbackLanguageCode);
+export const normalizeLearningHubLanguageContent = (
+  expectedLanguageCode: string,
+  value: unknown,
+): LearningLanguageContent | null => {
+  const content = asRecord(value) as RawLearningHubLanguageContent | undefined;
+  const normalizedExpectedLanguageCode = normalizeLearningLanguageCode(
+    expectedLanguageCode,
+  );
+  const declaredLanguageCode = normalizeLearningLanguageCode(
+    asOptionalString(content?.languageCode),
+  );
+
+  if (
+    !content ||
+    !normalizedExpectedLanguageCode ||
+    declaredLanguageCode !== normalizedExpectedLanguageCode ||
+    !hasStableLearningContentIds(content)
+  ) {
+    return null;
+  }
+
+  const languageCode = normalizedExpectedLanguageCode;
   const language = getLearningLanguage(languageCode);
   const rawStages = Array.isArray(content?.stages) ? content.stages : [];
   const stages = rawStages
     .map((stage, index) => normalizeStage(stage, index))
     .sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
+
+  if (stages.length === 0) {
+    return null;
+  }
 
   return {
     languageCode,
@@ -1095,26 +1206,74 @@ const normalizeLanguageContent = (
   };
 };
 
-export const getLearningContentBundle = (): LearningContentBundle => {
+export const registerLearningHubLanguageContent = (
+  languageCode: string,
+  value: unknown,
+  version: string,
+): LearningLanguageContent | null => {
+  const resolvedLanguageCode = resolveLearningHubLanguageCode(languageCode);
+  const normalizedVersion = asString(version);
+  const content = normalizeLearningHubLanguageContent(
+    resolvedLanguageCode,
+    value,
+  );
+
+  if (!content || !normalizedVersion) {
+    return null;
+  }
+
+  registeredLearningHubContent.set(resolvedLanguageCode, {
+    content,
+    version: normalizedVersion,
+  });
+
+  return content;
+};
+
+export const clearLearningHubContentRegistry = (
+  languageCode?: string | null,
+): void => {
+  if (languageCode) {
+    registeredLearningHubContent.delete(
+      resolveLearningHubLanguageCode(languageCode),
+    );
+    return;
+  }
+
+  registeredLearningHubContent.clear();
+};
+
+export const getLearningContentVersion = (
+  languageCode?: string | null,
+): string | undefined =>
+  registeredLearningHubContent.get(
+    resolveLearningHubLanguageCode(languageCode),
+  )?.version;
+
+export const getLearningContentBundle = (
+  languageCode?: string | null,
+): LearningContentBundle => {
   const languages = Object.fromEntries(
-    Object.entries(getRawLanguages()).map(([languageCode, content]) => [
-      languageCode,
-      normalizeLanguageContent(content, languageCode),
+    [...registeredLearningHubContent.entries()].map(([code, entry]) => [
+      code,
+      entry.content,
     ]),
   ) as Record<LearningLanguageCode, LearningLanguageContent>;
+  const resolvedLanguageCode = resolveLearningHubLanguageCode(languageCode);
 
   return {
-    version: asString(learningHubContent.version, "1"),
+    version:
+      registeredLearningHubContent.get(resolvedLanguageCode)?.version ?? "",
     defaultLanguage: getDefaultLearningLanguageCode(),
     languages,
   };
 };
 
-export const getAvailableLearningLanguages = (): Array<{
+export const getAvailableLearningLanguages = (): {
   languageCode: LearningLanguageCode;
   displayName: string;
   localName?: string;
-}> =>
+}[] =>
   Object.values(getLearningContentBundle().languages).map((content) => ({
     languageCode: content.languageCode,
     displayName: content.displayName,
@@ -1124,14 +1283,10 @@ export const getAvailableLearningLanguages = (): Array<{
 export const getLearningLanguageContent = (
   languageCode?: string | null,
 ): LearningLanguageContent | null => {
-  const bundle = getLearningContentBundle();
   const resolvedLanguageCode = resolveLearningHubLanguageCode(languageCode);
 
-  return bundle.languages[resolvedLanguageCode] ?? null;
+  return registeredLearningHubContent.get(resolvedLanguageCode)?.content ?? null;
 };
-
-// TODO: Replace or augment this local JSON source with Supabase content_items
-// once reviewed lesson payloads and renderer contracts are production-ready.
 export const getLearningHubStages = (
   languageCode?: string | null,
 ): LearningHubStage[] => getLearningLanguageContent(languageCode)?.stages ?? [];

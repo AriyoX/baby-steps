@@ -1,101 +1,31 @@
-# Luganda Lessons
+# Standalone Learning Game
 
 ## Current Status
 
-Implemented prototype.
+The supplementary standalone Learning game keeps its existing stage/level/card/quiz mechanics and progress identity, but loads its language-specific stages, levels, words, copy, image keys, and audio references from the published `content_items` `learning_game` bundle.
 
-## Purpose
+Learning Hub remains the main curriculum. This game is reachable supplementary practice.
 
-The Luganda Learning game teaches common Luganda words through stages, levels, audio playback, and quiz-style practice.
+## Runtime
 
-## User Flow
+- Route: `app/child/games/learninggame.tsx`
+- Renderer/mechanics: `components/games/LearningGameComponent.tsx`
+- Content validation/cache: `content/contentRepository.ts`
+- Progress: `components/games/utils/progressManagerLugandaLearning.ts` and the shared progress repository
+- Bundled audio mechanics/map: `components/games/utils/audioManager.ts`
 
-1. Child opens the Games tab.
-2. Child selects `Learning`.
-3. The app shows stage selection.
-4. Child selects an unlocked stage and level.
-5. The learning screen presents Luganda words, English meanings, images, and audio.
-6. The quiz portion tracks correct/wrong answers.
-7. Completing levels updates local progress, writes Supabase activity, and checks achievements.
+The screen calls `loadContentBundle` for the active child's exact language and uses `bundle.learningGame.stages`. It does not import the former Luganda stage array. Missing, malformed, or unavailable content blocks game start and shows the shared retry/coming-soon state; `nyn` never substitutes the `lg` bundle.
 
-## Main Files Involved
+The canonical `lg` seed preserves the previous five stage IDs, ten globally unique level IDs, forty word IDs, order, locks, and scoring configuration. Rendering, stage/level unlock rules, quiz behavior, score calculation, audio playback, progress, activities, and achievements remain code-owned.
 
-- `app/child/games/learninggame.tsx`
-- `components/games/LearningGameComponent.tsx`
-- `content/games/lugandawords.ts`
-- `components/games/utils/progressManagerLugandaLearning.ts`
-- `components/games/utils/audioManager.ts`
-- `content/games/__tests__/lugandawords.test.ts`
+Stable numeric stage/level IDs and word IDs must never be renamed or reused. Progress is local-first and language-scoped, then mirrored through the existing shared progress synchronization path. Content-fetch failures do not erase progress or achievement caches.
 
-## Key Components, Screens, And Functions
+Payload and migration instructions are in [Content Authoring And New Games](../development/content-authoring-and-new-games.md#learning_game).
 
-- `LugandaLearningGame`
-- `LUGANDA_STAGES`
-- `getWordsForLevel`
-- `unlockNextLevel`
-- `unlockNextStage`
-- `isStageCompleted`
-- `loadGameProgress`
-- `saveGameProgress`
-- `playWordAudio`
+## Manual QA
 
-## Data And Content Used
-
-`content/games/lugandawords.ts` defines:
-
-- 5 stages: Beginner, Elementary, Intermediate, Advanced, Expert
-- 10 total levels
-- 40 Luganda word items
-- stage unlock score thresholds
-- image references for lesson items
-
-Bundled pronunciation audio is mapped in `components/games/utils/audioManager.ts`.
-
-## State Management And Logic Notes
-
-- Progress is stored in AsyncStorage with child-specific keys.
-- Progress includes total score, completed levels, stage lock state, and user stats.
-- Level completion can unlock the next level and, when conditions are met, the next stage.
-- Achievement checks run after level/stage/score updates.
-
-## API Or Database Usage
-
-- Writes Supabase `activities` rows with `activity_type: "language"`.
-- Reads achievement definitions and writes child achievements through the shared achievement system.
-- Lesson content itself is not database-backed.
-
-## Tests
-
-`content/games/__tests__/lugandawords.test.ts` covers:
-
-- selecting words and levels by ID,
-- returning all configured words,
-- handling unknown IDs,
-- stage completion checks,
-- non-mutating stage/level unlock helpers.
-
-## Known Limitations Or Bugs
-
-- Lesson content and media are bundled in code/assets.
-- Audio coverage depends on the static audio map.
-- Progress is local-first and not normalized in Supabase.
-- No interaction tests cover the full lesson/quiz flow.
-
-## Future MVP Improvements
-
-- Define a typed lesson content contract.
-- Move lesson content behind an API/database layer only after preserving bundled fallback behavior.
-- Add tests for quiz completion, progress persistence, and activity writes.
-- Validate Luganda content and pronunciation with language reviewers.
-
-## Manual QA Checklist
-
-- [ ] Open Learning from the Games tab.
-- [ ] Confirm locked and unlocked stage states.
-- [ ] Open the first stage and first level.
-- [ ] Play pronunciation audio for each visible word.
-- [ ] Complete a level quiz with correct and wrong answers.
-- [ ] Confirm score and completed-level state update.
-- [ ] Leave and reopen the game to confirm local progress persists.
-- [ ] Confirm a language activity row is saved.
-- [ ] Confirm achievement behavior with seeded achievement definitions.
+- Open Learning from a child whose language has a published bundle.
+- Confirm stage/level order, locks, cards, images, and pronunciation playback.
+- Complete a quiz and confirm existing score, progress, activity, and achievement behavior.
+- Reopen the game offline after one successful load and confirm cached content and progress restore.
+- Select a language without a published bundle and confirm the game does not start or display Luganda.

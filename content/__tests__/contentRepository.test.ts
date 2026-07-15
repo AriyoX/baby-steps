@@ -1,7 +1,5 @@
 jest.mock("@/lib/supabase", () => ({
-  supabase: {
-    from: jest.fn(),
-  },
+  supabase: { from: jest.fn() },
 }));
 
 jest.mock("@react-native-async-storage/async-storage", () =>
@@ -12,41 +10,59 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import {
   buildContentBundleFromItems,
-  buildLocalContentBundle,
   clearContentBundleCache,
   findStoryById,
+  getContentBundleCacheKey,
   loadContentBundle,
-  mergeDatabaseBundleWithLegacyLugandaContent,
   validateContentItemPayload,
+  waitForContentBundleRefreshes,
   type ContentItemRecord,
 } from "../contentRepository";
-import { lugandaStories } from "../luganda/stories";
 
-const createContentItemsQuery = (
-  result: { data: ContentItemRecord[] | null; error: unknown },
-) => {
-  const query = {
-    select: jest.fn().mockReturnThis(),
-    eq: jest.fn().mockReturnThis(),
-    order: jest.fn().mockResolvedValue(result),
-  };
+type QueryResult = { data: ContentItemRecord[] | null; error: unknown };
 
-  return query;
+const createContentItemsQuery = (result: QueryResult) => ({
+  select: jest.fn().mockReturnThis(),
+  eq: jest.fn().mockReturnThis(),
+  order: jest.fn().mockResolvedValue(result),
+});
+
+const mockSupabaseResults = (...results: QueryResult[]) => {
+  const queries: ReturnType<typeof createContentItemsQuery>[] = [];
+  let index = 0;
+  (supabase.from as jest.Mock).mockImplementation(() => {
+    const result = results[Math.min(index, results.length - 1)] ?? {
+      data: null,
+      error: new Error("No mock result"),
+    };
+    index += 1;
+    const query = createContentItemsQuery(result);
+    queries.push(query);
+    return query;
+  });
+  return queries;
 };
 
 const menuItem = (
-  languageCode: ContentItemRecord["language_code"],
+  languageCode: string,
   cardId: string,
+  version = 1,
+  extras: Partial<ContentItemRecord> = {},
 ): ContentItemRecord => ({
   language_code: languageCode,
   content_type: "child_menu",
   slug: "games",
   title: "Games",
   is_active: true,
+  editorial_status: "published",
+  is_startable: true,
+  content_version: version,
+  updated_at: `2026-07-${String(version).padStart(2, "0")}T00:00:00.000Z`,
   payload: {
     cards: [
       {
         id: cardId,
+        order: 1,
         title: cardId,
         description: `${cardId} card`,
         image: "african-focus.png",
@@ -54,508 +70,792 @@ const menuItem = (
       },
     ],
   },
+  ...extras,
 });
 
+const published = (
+  contentType: ContentItemRecord["content_type"],
+  slug: string,
+  payload: Record<string, unknown>,
+  sortOrder = 1,
+): ContentItemRecord => ({
+  language_code: "lg",
+  content_type: contentType,
+  slug,
+  payload,
+  sort_order: sortOrder,
+  is_active: true,
+  editorial_status: "published",
+  is_startable: true,
+  content_version: 1,
+  updated_at: "2026-07-14T00:00:00.000Z",
+});
+
+const validLearningGameItem = (): ContentItemRecord =>
+  published("learning_game", "starter", {
+    stages: [
+      {
+        id: 1,
+        order: 1,
+        title: "Starter",
+        description: "Starter words",
+        isLocked: false,
+        requiredScore: 0,
+        image: "learning-beginner.jpg",
+        color: "#123456",
+        levels: [
+          {
+            id: 1,
+            order: 1,
+            title: "First words",
+            isLocked: false,
+            words: [
+              {
+                id: "learning-word-1",
+                order: 1,
+                targetText: "Oli otya",
+                english: "How are you",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+const validWordGameItem = (): ContentItemRecord =>
+  published("word_game", "levels", {
+    levels: [
+      {
+        id: "word-level-1",
+        order: 1,
+        targetText: "AMAZZI",
+        question: "What do you drink?",
+        hint: "It is water.",
+        subHint: "It starts with A.",
+      },
+    ],
+  });
+
+const validCountingGameItem = (): ContentItemRecord =>
+  published("counting_game", "stages", {
+    title: "Counting",
+    stages: [
+      {
+        id: 1,
+        order: 1,
+        title: "One and two",
+        description: "Count individual items",
+        numbersRange: { min: 1, max: 2 },
+        levels: 2,
+        useBunches: false,
+        usesCurrency: false,
+      },
+      {
+        id: 2,
+        order: 2,
+        title: "Money",
+        description: "Recognize currency",
+        numbersRange: { min: 500, max: 1000 },
+        levels: 2,
+        useBunches: false,
+        usesCurrency: true,
+      },
+    ],
+    numbers: [
+      { number: 1, order: 1, targetText: "Emu" },
+      { number: 2, order: 2, targetText: "Bbiri" },
+    ],
+    culturalItems: [
+      { id: "counting-item-1", order: 1, name: "beans", image: "bean.png" },
+    ],
+    currency: [
+      {
+        id: "ugx-500",
+        order: 1,
+        value: 500,
+        name: "Shs 500 coin",
+        image: "500.png",
+        targetText: "Bitaano",
+      },
+      {
+        id: "ugx-1000",
+        order: 2,
+        value: 1000,
+        name: "Shs 1,000 note",
+        image: "1000.jpeg",
+        targetText: "Lukumi",
+      },
+    ],
+  });
+
+const validCardGameItem = (): ContentItemRecord =>
+  published("card_game", "cards", {
+    items: Array.from({ length: 8 }, (_, index) => ({
+      id: `card-${index + 1}`,
+      order: index + 1,
+      value: `value-${index + 1}`,
+      info: `info-${index + 1}`,
+      imageSymbol: "★",
+    })),
+  });
+
+const validPuzzleGameItem = (): ContentItemRecord =>
+  published("puzzle_game", "puzzles", {
+    puzzles: [
+      {
+        id: 1,
+        order: 1,
+        name: "Kasubi Tombs",
+        description: "Restore the picture",
+        image: "puzzles/kasubi-tombs.jpg",
+      },
+    ],
+  });
+
+const validStoryItem = (): ContentItemRecord =>
+  published("story", "kintu", {
+    id: "kintu",
+    languageCode: "lg",
+    title: "Kintu",
+    pages: [{ id: "page-1", text: "Olugero lutandika." }],
+    questions: [
+      {
+        id: "question-1",
+        question: "Who is in the story?",
+        options: ["Kintu", "No one"],
+        correctAnswer: 0,
+      },
+    ],
+  });
+
+const cloneContentItem = (item: ContentItemRecord): ContentItemRecord =>
+  JSON.parse(JSON.stringify(item)) as ContentItemRecord;
+
+const asPayloadRecords = (
+  payload: Record<string, unknown>,
+  key: string,
+): Record<string, unknown>[] => payload[key] as Record<string, unknown>[];
+
+const malformedNestedPayloadCases: {
+  name: string;
+  validItem: () => ContentItemRecord;
+  mutate: (payload: Record<string, unknown>) => void;
+}[] = [
+  {
+    name: "menu card",
+    validItem: () => menuItem("lg", "words"),
+    mutate: (payload) => {
+      asPayloadRecords(payload, "cards").push({
+        id: "broken-card",
+        order: 2,
+        title: "Broken",
+        description: "Missing a route",
+      });
+    },
+  },
+  {
+    name: "learning stage",
+    validItem: validLearningGameItem,
+    mutate: (payload) => {
+      asPayloadRecords(payload, "stages").push({
+        id: 2,
+        order: 2,
+        title: "Broken stage",
+      });
+    },
+  },
+  {
+    name: "learning level",
+    validItem: validLearningGameItem,
+    mutate: (payload) => {
+      const stage = asPayloadRecords(payload, "stages")[0];
+      asPayloadRecords(stage, "levels").push({
+        id: 2,
+        order: 2,
+        title: "Broken level",
+        isLocked: true,
+        words: [],
+      });
+    },
+  },
+  {
+    name: "learning word",
+    validItem: validLearningGameItem,
+    mutate: (payload) => {
+      const stage = asPayloadRecords(payload, "stages")[0];
+      const level = asPayloadRecords(stage, "levels")[0];
+      asPayloadRecords(level, "words").push({
+        id: "broken-word",
+        order: 2,
+        targetText: "",
+        english: "Broken",
+      });
+    },
+  },
+  {
+    name: "word-game level",
+    validItem: validWordGameItem,
+    mutate: (payload) => {
+      asPayloadRecords(payload, "levels").push({
+        id: "broken-level",
+        order: 2,
+        targetText: "BROKEN",
+        question: "Broken",
+        hint: "Missing a sub-hint",
+      });
+    },
+  },
+  {
+    name: "counting stage",
+    validItem: validCountingGameItem,
+    mutate: (payload) => {
+      asPayloadRecords(payload, "stages").push({
+        id: 3,
+        order: 3,
+        title: "Broken stage",
+        description: "Missing a range",
+        levels: 1,
+        useBunches: false,
+        usesCurrency: false,
+      });
+    },
+  },
+  {
+    name: "counting number",
+    validItem: validCountingGameItem,
+    mutate: (payload) => {
+      asPayloadRecords(payload, "numbers").push({ number: 3, order: 3 });
+    },
+  },
+  {
+    name: "counting cultural item",
+    validItem: validCountingGameItem,
+    mutate: (payload) => {
+      asPayloadRecords(payload, "culturalItems").push({
+        id: "broken-item",
+        order: 2,
+        name: "broken",
+      });
+    },
+  },
+  {
+    name: "counting currency item",
+    validItem: validCountingGameItem,
+    mutate: (payload) => {
+      asPayloadRecords(payload, "currency").push({
+        id: "ugx-750",
+        order: 3,
+        value: 750,
+        name: "Shs 750",
+        image: "750.png",
+      });
+    },
+  },
+  {
+    name: "matching card",
+    validItem: validCardGameItem,
+    mutate: (payload) => {
+      asPayloadRecords(payload, "items").push({
+        id: "broken-card",
+        order: 9,
+        value: "broken",
+        imageSymbol: "★",
+      });
+    },
+  },
+  {
+    name: "puzzle",
+    validItem: validPuzzleGameItem,
+    mutate: (payload) => {
+      asPayloadRecords(payload, "puzzles").push({
+        id: 2,
+        order: 2,
+        name: "Broken puzzle",
+        image: "broken.jpg",
+      });
+    },
+  },
+  {
+    name: "story page",
+    validItem: validStoryItem,
+    mutate: (payload) => {
+      asPayloadRecords(payload, "pages").push({ id: "page-2" });
+    },
+  },
+  {
+    name: "story question",
+    validItem: validStoryItem,
+    mutate: (payload) => {
+      asPayloadRecords(payload, "questions").push({
+        id: "question-2",
+        question: "Broken question",
+        options: ["A", "B"],
+      });
+    },
+  },
+  {
+    name: "story option",
+    validItem: validStoryItem,
+    mutate: (payload) => {
+      const question = asPayloadRecords(payload, "questions")[0];
+      question.options = ["Kintu", ""];
+    },
+  },
+];
+
+let warnSpy: jest.SpyInstance;
+
 beforeEach(async () => {
+  warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
   jest.clearAllMocks();
   await clearContentBundleCache();
   await AsyncStorage.clear();
 });
 
-describe("content repository mapping", () => {
-  it("builds DB-backed menu, learning, word, counting, and story content", () => {
-    const items: ContentItemRecord[] = [
-      {
-        language_code: "nyn",
-        content_type: "child_menu",
-        slug: "Games",
-        title: "Games",
-        payload: {
-          cards: [
-            {
-              id: "words",
-              title: "Words",
-              description: "Practice words",
-              image: "african-focus.png",
-              targetPage: "child/games/wordgame",
-            },
-          ],
-        },
-      },
-      {
-        language_code: "nyn",
-        content_type: "learning_game",
-        slug: "starter",
-        title: "Starter",
-        payload: {
-          stages: [
-            {
-              id: 1,
-              title: "Stage",
-              description: "Sample stage",
-              isLocked: false,
-              requiredScore: 0,
-              levels: [
-                {
-                  id: 1,
-                  title: "Greetings",
-                  isLocked: false,
-                  words: [
-                    {
-                      id: "nyn-agandi",
-                      targetText: "Agandi",
-                      english: "How are you?",
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      },
-      {
-        language_code: "nyn",
-        content_type: "word_game",
-        slug: "levels",
-        title: "Words",
-        payload: {
-          levels: [
-            {
-              targetText: "AGANDI",
-              question: "A greeting",
-              hint: "Greeting",
-              subHint: "How are you?",
-            },
-          ],
-        },
-      },
-      {
-        language_code: "nyn",
-        content_type: "counting_game",
-        slug: "stages",
-        title: "Counting",
-        payload: {
-          stages: [
-            {
-              id: 1,
-              title: "One to five",
-              numbersRange: { min: 1, max: 5 },
-              levels: 5,
-            },
-          ],
-          numbers: [{ number: 1, targetText: "Emwe" }],
-          culturalItems: [{ name: "beans", image: "bean.png" }],
-        },
-      },
-      {
-        language_code: "nyn",
-        content_type: "story",
-        slug: "story",
-        title: "Story",
-        payload: {
-          id: "nyn-story",
-          title: "Story",
-          summary: "A story",
-          languageCode: "nyn",
-          metadata: { status: "placeholder" },
-          pages: [{ id: "page-1", text: "Agandi" }],
-        },
-      },
-    ];
+afterEach(async () => {
+  await waitForContentBundleRefreshes();
+  warnSpy.mockRestore();
+});
 
-    const bundle = buildContentBundleFromItems("nyn", items);
-
-    expect(bundle.source).toBe("database");
-    expect(bundle.menuCardsByTab.games[0].targetPage).toBe("child/games/wordgame");
-    expect(bundle.learningGame.stages[0].levels[0].words[0].targetText).toBe("Agandi");
-    expect(bundle.wordGame.levels[0].word).toBe("AGANDI");
-    expect(bundle.countingGame.numbers[0].targetText).toBe("Emwe");
-    expect(bundle.stories[0].languageCode).toBe("nyn");
-  });
-
-  it("validates the required payload arrays by content type", () => {
+describe("content payload mapping and publication gates", () => {
+  it("validates every supported content type's required top-level arrays", () => {
     expect(validateContentItemPayload("child_menu", { cards: [{}] }).isValid).toBe(true);
+    expect(validateContentItemPayload("learning_hub", { stages: [{}] }).isValid).toBe(true);
     expect(validateContentItemPayload("learning_game", { stages: [{}] }).isValid).toBe(true);
     expect(validateContentItemPayload("word_game", { levels: [{}] }).isValid).toBe(true);
-    expect(validateContentItemPayload("counting_game", { stages: [{}], numbers: [{}] }).isValid).toBe(true);
+    expect(
+      validateContentItemPayload("counting_game", { stages: [{}], numbers: [{}] })
+        .isValid,
+    ).toBe(true);
+    expect(validateContentItemPayload("card_game", { items: [{}] }).isValid).toBe(true);
+    expect(validateContentItemPayload("puzzle_game", { puzzles: [{}] }).isValid).toBe(true);
     expect(validateContentItemPayload("story", { pages: [{}] }).isValid).toBe(true);
 
-    expect(validateContentItemPayload("child_menu", {}).missingKeys).toEqual(["cards"]);
-    expect(validateContentItemPayload("learning_game", {}).missingKeys).toEqual(["stages"]);
-    expect(validateContentItemPayload("word_game", {}).missingKeys).toEqual(["levels"]);
-    expect(validateContentItemPayload("counting_game", { stages: [{}] }).missingKeys).toEqual(["numbers"]);
-    expect(validateContentItemPayload("story", {}).missingKeys).toEqual(["pages"]);
+    expect(validateContentItemPayload("learning_hub", {}).missingKeys).toEqual(["stages"]);
+    expect(validateContentItemPayload("counting_game", { stages: [{}] }).missingKeys).toEqual([
+      "numbers",
+    ]);
+    expect(validateContentItemPayload("puzzle_game", {}).missingKeys).toEqual(["puzzles"]);
   });
 
-  it("skips malformed DB content instead of filling it with another language", () => {
-    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+  it("accepts complete payloads for every migrated repository content type", () => {
+    const bundle = buildContentBundleFromItems("lg", [
+      menuItem("lg", "words"),
+      validLearningGameItem(),
+      validWordGameItem(),
+      validCountingGameItem(),
+      validCardGameItem(),
+      validPuzzleGameItem(),
+      validStoryItem(),
+    ]);
 
-    const bundle = buildContentBundleFromItems("nyn", [
+    expect(bundle.menuCardsByTab.games).toHaveLength(1);
+    expect(bundle.learningGame.stages[0].levels[0].words).toHaveLength(1);
+    expect(bundle.wordGame.levels).toHaveLength(1);
+    expect(bundle.countingGame).toEqual(
+      expect.objectContaining({
+        stages: expect.arrayContaining([
+          expect.objectContaining({ id: 1, usesCurrency: false }),
+          expect.objectContaining({ id: 2, usesCurrency: true }),
+        ]),
+        culturalItems: expect.arrayContaining([
+          expect.objectContaining({ id: "counting-item-1" }),
+        ]),
+        currency: expect.arrayContaining([
+          expect.objectContaining({ id: "ugx-500" }),
+          expect.objectContaining({ id: "ugx-1000" }),
+        ]),
+      }),
+    );
+    expect(bundle.cardGame.items).toHaveLength(8);
+    expect(bundle.puzzleGame.puzzles).toHaveLength(1);
+    expect(bundle.stories[0].questions?.[0].options).toEqual(["Kintu", "No one"]);
+  });
+
+  it("rejects globally duplicated legacy Learning level IDs", () => {
+    const item = validLearningGameItem();
+    const stages = asPayloadRecords(item.payload, "stages");
+    const duplicateStage = cloneContentItem(item).payload.stages as Record<
+      string,
+      unknown
+    >[];
+    duplicateStage[0].id = 2;
+    duplicateStage[0].order = 2;
+    duplicateStage[0].title = "Second stage";
+    const duplicateLevel = asPayloadRecords(duplicateStage[0], "levels")[0];
+    duplicateLevel.words = [
       {
-        language_code: "nyn",
-        content_type: "child_menu",
-        slug: "stories",
-        title: "Stories",
+        id: "learning-word-2",
+        order: 1,
+        targetText: "Bulungi",
+        english: "Fine",
+      },
+    ];
+    stages.push(duplicateStage[0]);
+
+    const bundle = buildContentBundleFromItems("lg", [item]);
+
+    expect(bundle.learningGame.stages).toEqual([]);
+  });
+
+  it.each([
+    {
+      name: "non-currency stages without cultural items",
+      mutate: (payload: Record<string, unknown>) => {
+        payload.culturalItems = [];
+      },
+    },
+    {
+      name: "non-currency candidates without exact-language number labels",
+      mutate: (payload: Record<string, unknown>) => {
+        payload.numbers = asPayloadRecords(payload, "numbers").slice(0, 1);
+      },
+    },
+    {
+      name: "currency stages without enough complete candidates",
+      mutate: (payload: Record<string, unknown>) => {
+        payload.currency = asPayloadRecords(payload, "currency").slice(0, 1);
+      },
+    },
+  ])("rejects Counting content with $name", ({ mutate }) => {
+    const item = validCountingGameItem();
+    mutate(item.payload);
+
+    const bundle = buildContentBundleFromItems("lg", [item]);
+
+    expect(bundle.countingGame.stages).toEqual([]);
+  });
+
+  it("filters draft, inactive, non-startable, malformed, and wrong-language rows", () => {
+    const bundle = buildContentBundleFromItems("nyn", [
+      menuItem("nyn", "published"),
+      menuItem("nyn", "draft", 1, { slug: "draft", editorial_status: "draft" }),
+      menuItem("nyn", "locked", 1, { slug: "locked", is_startable: false }),
+      menuItem("nyn", "inactive", 1, { slug: "inactive", is_active: false }),
+      menuItem("lg", "wrong-language"),
+      {
+        ...menuItem("nyn", "malformed"),
+        slug: "malformed",
         payload: {},
       },
-      {
-        language_code: "nyn",
-        content_type: "learning_game",
-        slug: "starter",
-        title: "Starter",
-        payload: { levels: [] },
-      },
-      {
-        language_code: "nyn",
-        content_type: "story",
-        slug: "luganda-story",
-        title: "Wrong language",
-        payload: {
-          id: "luganda-story",
-          title: "Wrong language",
-          summary: "Should not render for Runyankole",
-          languageCode: "lg",
-          pages: [{ id: "page-1", text: "Oli otya" }],
-        },
-      },
-      {
-        language_code: "nyn",
-        content_type: "Word_Game" as ContentItemRecord["content_type"],
-        slug: "levels",
-        title: "Words",
-        payload: { levels: [{ targetText: "AGANDI" }] },
-      },
     ]);
 
-    expect(bundle.menuCardsByTab.stories).toBeUndefined();
-    expect(bundle.learningGame.stages).toEqual([]);
-    expect(bundle.wordGame.levels).toEqual([]);
-    expect(bundle.stories).toEqual([]);
-
-    warnSpy.mockRestore();
+    expect(bundle.menuCardsByTab.games.map((card) => card.id)).toEqual(["published"]);
+    expect(bundle.menuCardsByTab.draft).toBeUndefined();
+    expect(bundle.menuCardsByTab.locked).toBeUndefined();
+    expect(bundle.menuCardsByTab.inactive).toBeUndefined();
+    expect(bundle.menuCardsByTab.malformed).toBeUndefined();
   });
 
-  it("does not use Luganda content for Runyankole local fallback", () => {
-    const bundle = buildLocalContentBundle("nyn");
+  it("treats duplicate singleton game bundles as invalid instead of choosing one", async () => {
+    mockSupabaseResults({
+      data: [
+        published("word_game", "levels-a", {
+          levels: [{ id: "a", order: 1, word: "A", question: "A" }],
+        }),
+        published("word_game", "levels-b", {
+          levels: [{ id: "b", order: 1, word: "B", question: "B" }],
+        }),
+      ],
+      error: null,
+    });
 
-    expect(bundle.source).toBe("local-same-language-sample");
-    expect(bundle.languageCode).toBe("nyn");
-    expect(bundle.wordGame.levels.map((level) => level.word)).toContain("AGANDI");
-    expect(bundle.wordGame.levels.map((level) => level.word)).not.toContain("OLUGANDA");
-    expect(bundle.menuCardsByTab.games.map((card) => card.id)).not.toContain("logic");
-    expect(bundle.menuCardsByTab.stories[0].targetPage).toBe(
-      "child/stories/nyn-sample-morning-greeting",
-    );
+    const result = await loadContentBundle("lg", { forceRefresh: true });
+
+    expect(result.source).toBe("empty");
+    expect(result.bundle).toBeUndefined();
   });
 
-  it("loads migrated Luganda stories from content_items with generic menu routes", () => {
-    const items: ContentItemRecord[] = [
-      {
-        language_code: "lg",
-        content_type: "child_menu",
-        slug: "stories",
-        title: "Stories",
-        payload: {
-          cards: lugandaStories.map((story) => ({
-            id: story.id,
-            title: story.title,
-            description: story.summary,
-            image: story.pages[0]?.image,
-            targetPage: `child/stories/${story.id}`,
-          })),
-        },
-      },
-      ...lugandaStories.map((story, index): ContentItemRecord => ({
-        language_code: "lg",
-        content_type: "story",
-        slug: story.id,
-        title: story.title,
-        sort_order: 60 + index,
-        is_active: true,
-        payload: story as unknown as Record<string, unknown>,
-      })),
-    ];
+  it("orders stages, levels, words, standalone levels, cards, and puzzles explicitly", () => {
+    const cards = Array.from({ length: 8 }, (_, index) => ({
+      id: `card-${index + 1}`,
+      order: 8 - index,
+      value: `value-${index + 1}`,
+      info: `info-${index + 1}`,
+      imageSymbol: "★",
+    }));
+    const bundle = buildContentBundleFromItems("lg", [
+      published("learning_game", "starter", {
+        stages: [
+          {
+            id: 2,
+            order: 2,
+            title: "Second",
+            description: "Second",
+            isLocked: true,
+            requiredScore: 10,
+            image: "coin.png",
+            color: "#222222",
+            levels: [
+              {
+                id: 2,
+                order: 2,
+                title: "Later",
+                isLocked: true,
+                words: [{ id: "word-b", order: 2, targetText: "B", english: "B" }],
+              },
+              {
+                id: 1,
+                order: 1,
+                title: "Earlier",
+                isLocked: false,
+                words: [
+                  { id: "word-2", order: 2, targetText: "Two", english: "Two" },
+                  { id: "word-1", order: 1, targetText: "One", english: "One" },
+                ],
+              },
+            ],
+          },
+          {
+            id: 1,
+            order: 1,
+            title: "First",
+            description: "First",
+            isLocked: false,
+            requiredScore: 0,
+            image: "coin.png",
+            color: "#111111",
+            levels: [
+              {
+                id: 3,
+                order: 1,
+                title: "Only",
+                isLocked: false,
+                words: [{ id: "word-c", order: 1, targetText: "C", english: "C" }],
+              },
+            ],
+          },
+        ],
+      }),
+      published("word_game", "levels", {
+        levels: [
+          {
+            id: "word-level-2",
+            order: 2,
+            word: "B",
+            question: "B",
+            hint: "B hint",
+            subHint: "B sub-hint",
+          },
+          {
+            id: "word-level-1",
+            order: 1,
+            word: "A",
+            question: "A",
+            hint: "A hint",
+            subHint: "A sub-hint",
+          },
+        ],
+      }),
+      published("card_game", "cards", { items: cards }),
+      published("puzzle_game", "puzzles", {
+        puzzles: [
+          { id: 2, order: 2, name: "Two", description: "Two", image: "two.jpg" },
+          { id: 1, order: 1, name: "One", description: "One", image: "one.jpg" },
+        ],
+      }),
+    ]);
 
-    const bundle = buildContentBundleFromItems("lg", items);
-    const kintu = findStoryById(bundle, "kintu");
-    const figTree = findStoryById(bundle, "fig-tree");
-
-    expect(bundle.stories).toHaveLength(lugandaStories.length);
-    expect(bundle.menuCardsByTab.stories.map((card) => card.targetPage)).toEqual(
-      lugandaStories.map((story) => `child/stories/${story.id}`),
-    );
-    expect(kintu?.pages[0].text).toContain("Long ago, Kintu was the first person");
-    expect(kintu?.pages[0].image).toBe("story/kintu/kintu-cow.jpeg");
-    expect(figTree?.questions?.[0].options).toContain(
-      "It produced bark cloth precious to the Baganda",
-    );
-    expect(figTree?.questions?.[0].correctAnswer).toBe(1);
+    expect(bundle.learningGame.stages.map((stage) => stage.id)).toEqual([1, 2]);
+    expect(bundle.learningGame.stages[1].levels.map((level) => level.id)).toEqual([1, 2]);
+    expect(bundle.learningGame.stages[1].levels[0].words.map((word) => word.id)).toEqual([
+      "word-1",
+      "word-2",
+    ]);
+    expect(bundle.wordGame.levels.map((level) => level.id)).toEqual([
+      "word-level-1",
+      "word-level-2",
+    ]);
+    expect(bundle.cardGame.items.map((card) => card.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(bundle.puzzleGame.puzzles.map((puzzle) => puzzle.id)).toEqual([1, 2]);
   });
 
-  it("normalizes DB-backed story payloads and skips stories with empty pages", () => {
-    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
-
+  it("maps generic stories dynamically and rejects a payload language mismatch", () => {
     const bundle = buildContentBundleFromItems("nyn", [
       {
-        language_code: "nyn",
-        content_type: "story",
-        slug: "nyn-normalized-story",
-        title: "Normalized Story",
-        payload: {
+        ...published("story", "new-story", {
+          id: "new-story",
           languageCode: "nyn",
-          pages: [
-            { text: "  " },
-            {
-              text: "Agandi",
-              imageKey: "learning-beginner.jpg",
-            },
-          ],
-          questions: [
-            {
-              question: "Which greeting appears?",
-              options: ["Agandi", "Oli otya"],
-              correctAnswer: 0,
-            },
-          ],
-        },
+          title: "A new story",
+          pages: [{ id: "page-1", text: "Agandi" }],
+        }),
+        language_code: "nyn",
       },
       {
+        ...published("story", "wrong", {
+          id: "wrong",
+          languageCode: "lg",
+          title: "Wrong",
+          pages: [{ id: "page-1", text: "Wrong language" }],
+        }),
         language_code: "nyn",
-        content_type: "story",
-        slug: "empty-story",
-        title: "Empty Story",
-        payload: {
-          languageCode: "nyn",
-          pages: [{ text: "" }],
-        },
       },
     ]);
 
-    expect(bundle.stories).toHaveLength(1);
-    expect(bundle.stories[0]).toEqual(
-      expect.objectContaining({
-        id: "nyn-normalized-story",
-        title: "Normalized Story",
-        languageCode: "nyn",
-      }),
-    );
-    expect(bundle.stories[0].pages[0]).toEqual(
-      expect.objectContaining({
-        id: "nyn-normalized-story-page-2",
-        text: "Agandi",
-        image: "learning-beginner.jpg",
-      }),
-    );
-    expect(bundle.stories[0].questions?.[0].id).toBe(
-      "nyn-normalized-story-question-1",
-    );
-
-    warnSpy.mockRestore();
-  });
-
-  it("keeps local Luganda story fallback on generic story routes", () => {
-    const bundle = buildLocalContentBundle("lg");
-
-    expect(bundle.stories).toHaveLength(lugandaStories.length);
-    expect(bundle.stories.every((story) => story.pages.length > 0)).toBe(true);
-    expect(bundle.menuCardsByTab.stories.map((card) => card.targetPage)).toEqual([
-      "child/stories/kintu",
-      "child/stories/mwanga",
-      "child/stories/kasubi-tombs",
-      "child/stories/walumbe",
-      "child/stories/ssezibwa",
-      "child/stories/millet",
-      "child/stories/kasokambirye",
-      "child/stories/fig-tree",
-    ]);
-  });
-
-  it("renders seeded Runyankole stories as non-empty generic story payloads", () => {
-    const bundle = buildLocalContentBundle("nyn");
-    const story = findStoryById(bundle, "nyn-sample-morning-greeting");
-
-    expect(story?.pages.length).toBeGreaterThan(0);
-    expect(story?.pages[0].text).toContain("Agandi");
-    expect(story?.questions?.[0].options.length).toBeGreaterThan(1);
-  });
-
-  it("keeps full legacy Luganda game content when DB Luganda payloads are only partial samples", () => {
-    const partialDatabaseBundle = buildContentBundleFromItems("lg", [
-      {
-        language_code: "lg",
-        content_type: "word_game",
-        slug: "levels",
-        title: "Sample",
-        payload: {
-          levels: [
-            {
-              targetText: "AMAZZI",
-              question: "Water",
-              hint: "Water",
-              subHint: "Water",
-            },
-          ],
-        },
-      },
-    ]);
-    const legacyBundle = buildLocalContentBundle("lg");
-
-    const mergedBundle = mergeDatabaseBundleWithLegacyLugandaContent(partialDatabaseBundle);
-
-    expect(mergedBundle.wordGame.levels.length).toBe(legacyBundle.wordGame.levels.length);
-    expect(mergedBundle.learningGame.stages.length).toBe(legacyBundle.learningGame.stages.length);
-    expect(mergedBundle.countingGame.stages.length).toBe(legacyBundle.countingGame.stages.length);
+    expect(bundle.stories.map((story) => story.id)).toEqual(["new-story"]);
+    expect(findStoryById(bundle, "new-story")?.pages[0].text).toBe("Agandi");
   });
 });
 
-describe("loadContentBundle cache behavior", () => {
-  it("keeps content cache keys language-specific", async () => {
-    const fromMock = supabase.from as jest.Mock;
-    fromMock
-      .mockReturnValueOnce(
-        createContentItemsQuery({ data: [menuItem("lg", "lg-menu")], error: null }),
-      )
-      .mockReturnValueOnce(
-        createContentItemsQuery({ data: [menuItem("nyn", "nyn-menu")], error: null }),
-      );
-
-    const luganda = await loadContentBundle("lg");
-    const runyankole = await loadContentBundle("nyn");
-    const cachedLuganda = await loadContentBundle("lg");
-
-    expect(luganda.bundle?.languageCode).toBe("lg");
-    expect(runyankole.bundle?.languageCode).toBe("nyn");
-    expect(cachedLuganda.bundle?.menuCardsByTab.games[0].id).toBe("lg-menu");
-    expect(cachedLuganda.cache?.source).toBe("memory");
-    expect(fromMock).toHaveBeenCalledTimes(2);
-  });
-
-  it("bypasses cached DB content when forceRefresh is true", async () => {
-    const fromMock = supabase.from as jest.Mock;
-    fromMock
-      .mockReturnValueOnce(
-        createContentItemsQuery({ data: [menuItem("nyn", "first-menu")], error: null }),
-      )
-      .mockReturnValueOnce(
-        createContentItemsQuery({ data: [menuItem("nyn", "refreshed-menu")], error: null }),
-      );
-
-    const first = await loadContentBundle("nyn");
-    const cached = await loadContentBundle("nyn");
-    const refreshed = await loadContentBundle("nyn", { forceRefresh: true });
-
-    expect(first.bundle?.menuCardsByTab.games[0].id).toBe("first-menu");
-    expect(cached.bundle?.menuCardsByTab.games[0].id).toBe("first-menu");
-    expect(refreshed.bundle?.menuCardsByTab.games[0].id).toBe("refreshed-menu");
-    expect(fromMock).toHaveBeenCalledTimes(2);
-  });
-
-  it("returns stale cached DB content while refreshing in the background", async () => {
-    const nowSpy = jest.spyOn(Date, "now");
-    let now = 1000;
-    nowSpy.mockImplementation(() => now);
-
-    const fromMock = supabase.from as jest.Mock;
-    fromMock
-      .mockReturnValueOnce(
-        createContentItemsQuery({ data: [menuItem("nyn", "cached-menu")], error: null }),
-      )
-      .mockReturnValueOnce(
-        createContentItemsQuery({ data: [menuItem("nyn", "refreshed-menu")], error: null }),
-      );
-
-    await loadContentBundle("nyn", { maxAgeMs: 100 });
-    now = 1200;
-    const stale = await loadContentBundle("nyn", { maxAgeMs: 100 });
-
-    expect(stale.bundle?.menuCardsByTab.games[0].id).toBe("cached-menu");
-    expect(stale.cache?.isStale).toBe(true);
-    expect(fromMock).toHaveBeenCalledTimes(2);
-
-    await Promise.resolve();
-    await Promise.resolve();
-
-    nowSpy.mockRestore();
-  });
-
-  it("never serves cached Luganda content to a Runyankole request", async () => {
-    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
-    const fromMock = supabase.from as jest.Mock;
-    fromMock
-      .mockReturnValueOnce(
-        createContentItemsQuery({ data: [menuItem("lg", "lg-only")], error: null }),
-      )
-      .mockReturnValueOnce(
-        createContentItemsQuery({ data: null, error: new Error("offline") }),
-      );
-
-    await loadContentBundle("lg");
-    const runyankole = await loadContentBundle("nyn");
-
-    expect(runyankole.languageCode).toBe("nyn");
-    expect(runyankole.source).toBe("local-same-language-sample");
-    expect(runyankole.bundle?.languageCode).toBe("nyn");
-    expect(runyankole.bundle?.menuCardsByTab.games.map((card) => card.id)).not.toContain(
-      "lg-only",
+describe("exact-language stale-while-revalidate cache", () => {
+  it("queries only published, startable records for the exact requested language", async () => {
+    const queries = mockSupabaseResults(
+      { data: [menuItem("lg", "lg-menu")], error: null },
+      { data: [menuItem("nyn", "nyn-menu")], error: null },
     );
 
-    warnSpy.mockRestore();
+    const luganda = await loadContentBundle("lg", { forceRefresh: true });
+    const runyankole = await loadContentBundle("nyn", { forceRefresh: true });
+
+    expect(luganda.bundle?.menuCardsByTab.games[0].id).toBe("lg-menu");
+    expect(runyankole.bundle?.menuCardsByTab.games[0].id).toBe("nyn-menu");
+    expect(queries[0].eq.mock.calls).toEqual(
+      expect.arrayContaining([
+        ["language_code", "lg"],
+        ["is_active", true],
+        ["editorial_status", "published"],
+        ["is_startable", true],
+      ]),
+    );
+    expect(queries[1].eq).toHaveBeenCalledWith("language_code", "nyn");
   });
 
-  it("does not cache invalid DB payloads as usable database content", async () => {
-    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
-    const fromMock = supabase.from as jest.Mock;
-    fromMock
-      .mockReturnValueOnce(
-        createContentItemsQuery({
-          data: [
-            {
-              language_code: "nyn",
-              content_type: "child_menu",
-              slug: "games",
-              title: "Broken",
-              is_active: true,
-              payload: {},
-            },
-          ],
-          error: null,
-        }),
-      )
-      .mockReturnValueOnce(
-        createContentItemsQuery({ data: null, error: new Error("offline") }),
+  it.each(malformedNestedPayloadCases)(
+    "retains the last valid row when a $name is malformed",
+    async ({ validItem, mutate }) => {
+      const valid = validItem();
+      const malformed = cloneContentItem(valid);
+      malformed.content_version = 2;
+      malformed.updated_at = "2026-07-15T00:00:00.000Z";
+      mutate(malformed.payload);
+      mockSupabaseResults(
+        { data: [valid], error: null },
+        { data: [malformed], error: null },
       );
 
-    const first = await loadContentBundle("nyn");
-    const afterFailure = await loadContentBundle("nyn");
+      const first = await loadContentBundle("lg", { forceRefresh: true });
+      const afterMalformed = await loadContentBundle("lg", { forceRefresh: true });
 
-    expect(first.source).toBe("local-same-language-sample");
-    expect(afterFailure.source).toBe("local-same-language-sample");
-    expect(afterFailure.cache).toBeUndefined();
-    expect(fromMock).toHaveBeenCalledTimes(2);
+      expect(first.bundle).toBeDefined();
+      expect(afterMalformed.bundle?.contentVersion).toBe(first.bundle?.contentVersion);
+      expect(afterMalformed.bundle?.contentVersion).toContain("@1:");
+      expect(afterMalformed.cache?.isStale).toBe(true);
+    },
+  );
 
-    warnSpy.mockRestore();
+  it("never serves or stores Luganda under a Runyankole cache key", async () => {
+    mockSupabaseResults(
+      { data: [menuItem("lg", "lg-only")], error: null },
+      { data: null, error: new Error("offline") },
+    );
+
+    await loadContentBundle("lg", { forceRefresh: true });
+    const runyankole = await loadContentBundle("nyn", { forceRefresh: true });
+
+    expect(runyankole).toEqual(
+      expect.objectContaining({ languageCode: "nyn", source: "empty" }),
+    );
+    expect(runyankole.bundle).toBeUndefined();
+    expect(await AsyncStorage.getItem(getContentBundleCacheKey("nyn"))).toBeNull();
+    expect(await AsyncStorage.getItem(getContentBundleCacheKey("lg"))).not.toBeNull();
   });
 
-  it("uses same-language cached DB content when a forced DB refresh fails", async () => {
-    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
-    const fromMock = supabase.from as jest.Mock;
-    fromMock
-      .mockReturnValueOnce(
-        createContentItemsQuery({ data: [menuItem("nyn", "cached-nyn")], error: null }),
-      )
-      .mockReturnValueOnce(
-        createContentItemsQuery({ data: null, error: new Error("offline") }),
-      );
+  it("returns a cache hit promptly, refreshes in the background, and adopts a newer version", async () => {
+    mockSupabaseResults(
+      { data: [menuItem("lg", "version-1", 1)], error: null },
+      { data: [menuItem("lg", "version-2", 2)], error: null },
+      { data: [menuItem("lg", "version-2", 2)], error: null },
+    );
 
-    await loadContentBundle("nyn");
-    const afterFailure = await loadContentBundle("nyn", { forceRefresh: true });
+    const first = await loadContentBundle("lg", { forceRefresh: true });
+    const cached = await loadContentBundle("lg");
 
-    expect(afterFailure.source).toBe("database");
-    expect(afterFailure.bundle?.languageCode).toBe("nyn");
-    expect(afterFailure.bundle?.menuCardsByTab.games[0].id).toBe("cached-nyn");
-    expect(afterFailure.cache?.source).toBe("memory");
-    expect(fromMock).toHaveBeenCalledTimes(2);
+    expect(first.bundle?.menuCardsByTab.games[0].id).toBe("version-1");
+    expect(cached.bundle?.menuCardsByTab.games[0].id).toBe("version-1");
+    expect(cached.cache?.source).toBe("memory");
 
-    warnSpy.mockRestore();
+    await waitForContentBundleRefreshes();
+    const updated = await loadContentBundle("lg");
+    expect(updated.bundle?.menuCardsByTab.games[0].id).toBe("version-2");
+    expect(updated.bundle?.contentVersion).toContain("@2:");
+  });
+
+  it("adopts newly published records and drops retired records without app changes", async () => {
+    const gamesV1 = menuItem("lg", "games-v1", 1);
+    const gamesV2 = menuItem("lg", "games-v2", 2);
+    const coloringV2 = menuItem("lg", "coloring-v2", 2, {
+      slug: "coloring",
+      sort_order: 2,
+    });
+    mockSupabaseResults(
+      { data: [gamesV1], error: null },
+      { data: [gamesV2, coloringV2], error: null },
+      { data: [gamesV2], error: null },
+      { data: [gamesV2], error: null },
+    );
+
+    await loadContentBundle("lg", { forceRefresh: true });
+    await loadContentBundle("lg");
+    await waitForContentBundleRefreshes();
+
+    const withNewRecord = await loadContentBundle("lg");
+    expect(withNewRecord.bundle?.menuCardsByTab.coloring[0].id).toBe("coloring-v2");
+
+    await waitForContentBundleRefreshes();
+    const afterRetirement = await loadContentBundle("lg");
+    expect(afterRetirement.bundle?.menuCardsByTab.games[0].id).toBe("games-v2");
+    expect(afterRetirement.bundle?.menuCardsByTab.coloring).toBeUndefined();
+  });
+
+  it("uses an exact-language persisted cache offline", async () => {
+    const cachedItem = menuItem("nyn", "offline-nyn", 7);
+    await AsyncStorage.setItem(
+      getContentBundleCacheKey("nyn"),
+      JSON.stringify({
+        cacheSchemaVersion: 2,
+        languageCode: "nyn",
+        contentVersion: "child_menu/games@7:cached",
+        loadedAt: Date.now(),
+        items: [cachedItem],
+      }),
+    );
+    mockSupabaseResults({ data: null, error: new Error("offline") });
+
+    const result = await loadContentBundle("nyn");
+
+    expect(result.source).toBe("database");
+    expect(result.cache?.source).toBe("storage");
+    expect(result.bundle?.menuCardsByTab.games[0].id).toBe("offline-nyn");
+  });
+
+  it("retains the last valid cache when a forced response is malformed or empty", async () => {
+    const malformed: ContentItemRecord = {
+      ...menuItem("lg", "broken", 2),
+      payload: {},
+    };
+    mockSupabaseResults(
+      { data: [menuItem("lg", "last-good", 1)], error: null },
+      { data: [malformed], error: null },
+      { data: [], error: null },
+    );
+
+    await loadContentBundle("lg", { forceRefresh: true });
+    const afterMalformed = await loadContentBundle("lg", { forceRefresh: true });
+    const afterEmpty = await loadContentBundle("lg", { forceRefresh: true });
+
+    expect(afterMalformed.bundle?.menuCardsByTab.games[0].id).toBe("last-good");
+    expect(afterEmpty.bundle?.menuCardsByTab.games[0].id).toBe("last-good");
+    expect(afterEmpty.cache?.isStale).toBe(true);
+  });
+
+  it("returns a friendly empty result when the cache is empty and Supabase is offline", async () => {
+    mockSupabaseResults({ data: null, error: new Error("offline") });
+
+    const result = await loadContentBundle("nyn", { forceRefresh: true });
+
+    expect(result.source).toBe("empty");
+    expect(result.bundle).toBeUndefined();
+    expect(result.missingReason).toContain("No published content");
   });
 });

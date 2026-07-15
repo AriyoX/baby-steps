@@ -1,5 +1,7 @@
 # Language Content MVP Audit
 
+> Historical audit: the fallback and partial-merge findings below describe the earlier transition state. They are not current implementation instructions. The production runtime has no bundled learning-content fallback; see [Database-Backed Content](features/database-content.md).
+
 This audit documents the controlled vertical slice that moves language-specific content into `content_items` while keeping app/game logic in React Native.
 
 ## Refactored Entry Points

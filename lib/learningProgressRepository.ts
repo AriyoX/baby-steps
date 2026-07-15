@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { AchievementDefinition } from "@/components/games/achievements/achievementTypes";
 import { getDbLanguageCodeForLearningLanguage } from "@/content/languages";
+import { ensureLearningHubLanguageContent } from "@/content/learningHubLoader";
 import {
   getLearningHubStages,
   getLessonStatus,
@@ -209,15 +210,6 @@ export const calculateLearningProgressAggregate = (
     completedStageCount,
   };
 };
-
-const getCurrentLearningAggregate = (
-  languageCode: string,
-  completedLessonIds: string[],
-): Pick<LearningProgressSummary, "status" | "completedStageCount"> =>
-  calculateLearningProgressAggregate(
-    getLearningHubStages(languageCode),
-    completedLessonIds,
-  );
 
 const getCompletionStageStartableLessonIds = (
   completion: LearningLessonCompletion,
@@ -671,10 +663,21 @@ const sanitizeSummary = (
   const lastCompletion = completedLessonIds
     .map((lessonId) => completedByLessonId[lessonId])
     .sort((first, second) => second.completedAt - first.completedAt)[0];
-  const aggregate = getCurrentLearningAggregate(
-    normalizedLanguageCode,
-    completedLessonIds,
-  );
+  const currentStages = getLearningHubStages(normalizedLanguageCode);
+  const preservedStatus: LearningProgressSummary["status"] =
+    record.status === "completed" || record.status === "in_progress"
+      ? record.status
+      : "not_started";
+  const aggregate: Pick<
+    LearningProgressSummary,
+    "status" | "completedStageCount"
+  > =
+    currentStages.length > 0
+      ? calculateLearningProgressAggregate(currentStages, completedLessonIds)
+      : {
+          status: preservedStatus,
+          completedStageCount: asNonNegativeInteger(record.completedStageCount),
+        };
 
   return {
     childId: normalizedChildId,
@@ -1020,6 +1023,7 @@ export const hydrateLearningProgressFromSharedProgress = async (
 ): Promise<LearningProgressSummary> => {
   const normalizedChildId = normalizeChildId(childId);
   const normalizedLanguageCode = normalizeLanguageCode(languageCode);
+  await ensureLearningHubLanguageContent(normalizedLanguageCode);
   const summary = await getLearningProgressSummary(
     normalizedChildId,
     normalizedLanguageCode,

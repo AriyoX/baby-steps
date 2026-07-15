@@ -2,7 +2,7 @@
 
 ## Current Status
 
-Implemented prototype.
+Database-menu-backed prototype with bundled canvases.
 
 ## Purpose
 
@@ -39,6 +39,8 @@ Coloring gives children a drawing surface over bundled templates, with brush, er
 
 ## Data And Content Used
 
+The exact-language Coloring menu is dynamic through the `content_items` `child_menu/coloring` row. It contains stable card IDs, order, copy, image keys, and route targets. The five currently published Luganda cards point to bundled template routes:
+
 Active templates:
 
 - Buganda Emblem: `assets/images/emblem.png`
@@ -47,7 +49,7 @@ Active templates:
 - Shapes: `assets/images/shapes.jpg`
 - Mask: `assets/images/mask.png`
 
-Each route provides its own palette. The shared coloring base also has default colors.
+Each route still provides its own bundled template and palette. Those static assets and drawing configuration remain code-owned because the renderer and React Native asset bundler require them. Direct Coloring routes render their bundled canvas without waiting for database content; the database controls menu discovery, not the drawing mechanic. A language with no published Coloring menu receives no Luganda cards.
 
 ## State Management And Logic Notes
 
@@ -61,24 +63,24 @@ Each route provides its own palette. The shared coloring base also has default c
 
 ## API Or Database Usage
 
-No Supabase usage. Coloring does not currently write activities or achievements.
+The menu is read through the shared exact-language content repository/cache. Saving artwork updates existing Coloring progress/activity behavior; the drawing surface does not edit database content.
 
 ## Tests
 
-No tests currently cover coloring, drawing, save, share, or media permissions.
+`app/child/games/coloring/__tests__/bundledColoringRoutes.test.tsx` verifies that all five direct Coloring routes render their bundled canvas without waiting for database content. Drawing gestures, undo/redo, saving, sharing, and native media permissions still require device coverage.
 
 ## Known Limitations Or Bugs
 
 - `components/child/AfricanColoringGame.tsx` appears to be an older fully commented prototype, not the active implementation.
 - Media-library permission behavior must be verified on native Android/iOS builds.
 - `app.json` blocks some Android media read permissions, so save/share needs device QA.
-- Coloring progress is not persisted if the screen closes.
+- In-progress drawing paths are not restored after the screen closes. Saving artwork still uses the existing progress/activity behavior.
 
 ## Future MVP Improvements
 
-- Decide whether coloring completions should write activities.
 - Add save/share permission testing.
-- Add template metadata in a typed content file.
+- Consider restoring an unsaved drawing session if pilot feedback requires it.
+- Consider a generic template payload only if future Coloring content outgrows the current route/asset map.
 - Remove or archive the commented prototype file if no longer needed.
 
 ## Manual QA Checklist

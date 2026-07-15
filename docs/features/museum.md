@@ -11,7 +11,7 @@ Museum screens present Buganda cultural artifacts, artwork, instruments, and tex
 ## User Flow
 
 1. Museum is not shown in the current child tab bar.
-2. A developer can still open the legacy Museum route directly for redesign or regression work.
+2. Direct legacy Museum routes are gated by an exact-language published `child_menu/museum` row. No such row is seeded, so child deep links show an unavailable/retry state instead of the archived Buganda galleries.
 3. Child selects one of four museum cards.
 4. The selected category screen opens.
 5. Child taps gallery items to view details.
@@ -56,7 +56,7 @@ Museum content is hardcoded in screen-local arrays:
 
 ## API Or Database Usage
 
-No Supabase usage. Museum activity logging is not currently wired, even though `schema.sql` allows an `activity_type` of `museum`.
+The route layout uses the shared Supabase content repository only as an exact-language publication gate. The archived gallery arrays remain code-owned and cannot render until a future migration deliberately publishes a Museum menu. Museum activity logging is not currently wired, even though `schema.sql` allows an `activity_type` of `museum`.
 
 ## Tests
 

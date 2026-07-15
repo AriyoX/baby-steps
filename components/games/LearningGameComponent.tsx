@@ -179,6 +179,7 @@ const LugandaLearningGame: React.FC = () => {
   const [currentLearningIndex, setCurrentLearningIndex] = useState<number>(0)
   const [currentWords, setCurrentWords] = useState<LearningGameWord[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
+  const [contentRetrySequence, setContentRetrySequence] = useState(0)
 
   // Game progress state
   const [totalScore, setTotalScore] = useState<number>(0)
@@ -291,7 +292,9 @@ const LugandaLearningGame: React.FC = () => {
       completionRevisionRef.current += 1
 
       try {
-        const contentResult = await loadContentBundle(requestedLanguageCode)
+        const contentResult = await loadContentBundle(requestedLanguageCode, {
+          forceRefresh: contentRetrySequence > 0,
+        })
         const contentStages = contentResult.bundle?.learningGame.stages ?? []
         if (contentResult.bundle) {
           void preloadContentBundleImages(contentResult.bundle).catch((error) => {
@@ -347,7 +350,7 @@ const LugandaLearningGame: React.FC = () => {
       answerLockRef.current = false
       completionLockRef.current = false
     }
-  }, [activeChild?.id, languageCode, clearGameTimers])
+  }, [activeChild?.id, languageCode, clearGameTimers, contentRetrySequence])
 
   // Setup when selecting a level
   useEffect(() => {
@@ -1924,7 +1927,12 @@ const LugandaLearningGame: React.FC = () => {
   }
 
   if (stages.length === 0) {
-    return <ComingSoonState title="Learning coming soon" />
+    return (
+      <ComingSoonState
+        title="Learning coming soon"
+        onRetry={() => setContentRetrySequence((current) => current + 1)}
+      />
+    )
   }
 
   // Main render function that switches between game states

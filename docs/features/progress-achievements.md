@@ -119,10 +119,10 @@ Implemented on 2026-06-29 as a local-first MVP sync layer.
 
 Current local progress handling:
 
-- Learning game: `components/games/utils/progressManagerLugandaLearning.ts` stores `totalScore`, `completedLevels`, saved stage/level lock state, and `userStats` in AsyncStorage. Keys are scoped by `childId` and `languageCode`, with explicit legacy Luganda fallback keys. The screen reads progress in `LearningGameComponent` after loading `content_items`/local content and updates it on level completion.
-- Learning Hub: `lib/learningProgressRepository.ts` stores a local lesson-completion summary under `@BabySteps:LearningProgress:v1:summary:{childId}:{languageCode}:language`, mirrors whole-lesson completions into `child_activity_progress` and `child_stage_progress`, and rebuilds that local summary from hydrated shared progress rows. Learning Hub content remains local JSON.
+- Learning game: `components/games/utils/progressManagerLugandaLearning.ts` stores `totalScore`, `completedLevels`, saved stage/level lock state, and `userStats` in AsyncStorage. Keys are scoped by `childId` and `languageCode`, with explicit legacy Luganda progress-key reads. The screen reads progress in `LearningGameComponent` after loading exact-language `content_items` and updates it on level completion.
+- Learning Hub: `lib/learningProgressRepository.ts` stores a local lesson-completion summary under `@BabySteps:LearningProgress:v1:summary:{childId}:{languageCode}:language`, mirrors whole-lesson completions into `child_activity_progress` and `child_stage_progress`, and rebuilds that local summary from hydrated shared progress rows. Curriculum content comes from the exact-language `learning_hub` database bundle/cache.
 - Counting game: `components/games/utils/progressManagerCountingGame.ts` stores `unlockedStages`, `currentStage`, `totalScore`, `lastPlayedLevel`, `completedStages`, `playHistory`, and `childId` in AsyncStorage. Keys are scoped by `childId` and `languageCode`, with a legacy Luganda fallback. `CountingGameComponent` reads on child/language load and saves on stage selection, level changes, score achievements, and stage completion.
-- Word game: `components/games/utils/progressManagerWordGame.ts` stores unlocked/current/completed level indexes, score, play history, and `childId`. Keys are scoped by `childId` and `languageCode`, with legacy fallback. Completion saves now mirror into normalized progress.
+- Word game: `components/games/utils/progressManagerWordGame.ts` keeps the legacy unlocked/current/completed indexes for compatibility and also stores stable level IDs, the immutable Luganda migration snapshot, score, play history, and `childId`. Keys are scoped by `childId` and `languageCode`; old Luganda positional progress is projected onto current published IDs without deleting the legacy key.
 - Stories: legacy story components use `StoryProgress`; DB-backed stories use `GenericStoryRenderer`. They wrote `activities` rows on read/quiz completion and now also write normalized story progress only on completion.
 - Coloring: drawing state is in component memory and completed artwork is saved to the device/gallery. A normalized coloring progress row is now written only when artwork is saved.
 - Card and puzzle games have child-scoped AsyncStorage managers but are not language-scoped yet. They were left out of the first remote-sync pass except as future work.
@@ -136,17 +136,17 @@ Per-child/language safety:
 
 Stage expansion findings:
 
-- Learning and counting stages are loaded from `loadContentBundle(languageCode)`, which reads `content_items` with same-language local fallback.
+- Learning and counting stages are loaded from `loadContentBundle(languageCode)`, which reads published/startable exact-language `content_items` with last-known-good offline cache and no bundled content fallback.
 - Learning now merges saved lock state onto the current content stages, so newly added DB/content stages are not hidden by an old saved `stages` array.
 - Learning next-stage unlock now follows loaded stage order instead of `stageId + 1`.
 - Counting now passes loaded stage IDs into the progress manager, so unlocks follow content order instead of only `1..stageCount`.
-- Remaining expansion risks: learning completed levels are numeric-only, content payload validation is intentionally minimal, and old local Luganda helper files still represent legacy fallback content.
+- Remaining expansion risk: standalone Learning completed levels are numeric-only, so published level IDs must remain globally unique and stable.
 
 Supabase usage found:
 
 - `lib/utils.ts`: inserts/fetches `activities`, fetches `children` names, and computes activity stats.
 - `components/games/achievements/achievementManager.ts`: fetches `achievements`, fetches/inserts `child_achievements`.
-- `content/contentRepository.ts`: fetches `content_items` and already caches usable same-language content in memory and AsyncStorage.
+- `content/contentRepository.ts`: fetches, validates, and stale-while-revalidate caches exact-language `content_items` in memory and AsyncStorage.
 - Parent dashboard/screens fetch `children`, `activities`, `achievements`, and `child_achievements`; some dashboard progress values are still placeholders.
 
 ## Remote Progress Schema
@@ -260,7 +260,7 @@ await updateActivityProgress(childId, languageCode, "memory", {
 | `achievements` | `achievementManager.fetchAllDefinedAchievements` | Yes; definitions change rarely | `@BabySteps:Achievements:v1:{gameKeyOrAll}` | TTL plus manual clear after seed changes | High |
 | `child_achievements` | `fetchChildEarnedAchievements`, child detail, all achievements | Yes per child | `@BabySteps:ChildAchievements:v1:{childId}` | Refresh after award, profile load, and short TTL | High |
 | `activities` | `getChildActivities`, `getActivityStats`, parent dashboard/activity screen | Yes for recent lists/stats | `@BabySteps:Activities:v1:{childId}` | Refresh after `saveActivity`, realtime event, pull-to-refresh, short TTL | Medium |
-| `content_items` | `contentRepository.loadContentBundle` | Already cached | `@BabySteps:ContentBundle:v1:{languageCode}` | Existing TTL/force refresh; future content revision key | Done/Medium |
+| `content_items` | `contentRepository.loadContentBundle` | Already cached | `@BabySteps:ContentBundle:v2:{languageCode}` | 6-hour stale-while-revalidate plus row `content_version`/`updated_at`; malformed refresh retention | Done |
 | Game metadata/menus | Derived from `content_items` | Yes through content bundle cache | same as content bundle | Same as content bundle | Medium |
 | Parent child list | Parent screens query `children` | Yes per parent session | `@BabySteps:Children:v1:{parentId}` | Add/edit child, app foreground, short TTL | Medium |
 

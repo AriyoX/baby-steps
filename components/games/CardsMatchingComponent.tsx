@@ -12,6 +12,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Text } from "@/components/StyledText";
 import { useChild } from "@/context/ChildContext";  
+import {
+  DEFAULT_LEARNING_LANGUAGE_CODE,
+  getDbLanguageCodeForLearningLanguage,
+} from "@/content/languages";
+import {
+  loadContentBundle,
+  type CardGameContent,
+  type CardGameItem,
+} from "@/content/contentRepository";
 import { saveActivity } from "@/lib/utils";
 import { 
   loadGameState, 
@@ -46,250 +55,54 @@ interface Card {
   imageSymbol: string;
 }
 
-// Define expanded Buganda cultural items data
-const bugandaItemsCollection = [
-  // Original 8 items
-  {
-    value: "Kabaka",
-    info: "The King of Buganda, one of the most powerful traditional monarchs in Uganda.",
-    imageSymbol: "👑",
-  },
-  {
-    value: "Lubiri",
-    info: "The royal palace of the Kabaka of Buganda located in Mengo, Kampala.",
-    imageSymbol: "🏰",
-  },
-  {
-    value: "Matoke",
-    info: "Steamed green bananas, a staple food in Buganda cuisine.",
-    imageSymbol: "🍌",
-  },
-  {
-    value: "Kanzu",
-    info: "Traditional white robe worn by Baganda men, especially during ceremonies.",
-    imageSymbol: "👘",
-  },
-  {
-    value: "Gomesi",
-    info: "A colorful floor-length dress worn by Baganda women during ceremonies.",
-    imageSymbol: "👗",
-  },
-  {
-    value: "Engoma",
-    info: "Traditional drums used in Kiganda music and royal ceremonies.",
-    imageSymbol: "🥁",
-  },
-  {
-    value: "Lukiiko",
-    info: "The parliament or council of the Buganda Kingdom.",
-    imageSymbol: "🏛️",
-  },
-  {
-    value: "Olugero",
-    info: "Traditional fables and stories that teach moral lessons in Buganda culture.",
-    imageSymbol: "📚",
-  },
-  
-  // Additional items to expand the collection to ~40
-  {
-    value: "Bakisimba",
-    info: "A traditional Baganda dance performed at cultural celebrations.",
-    imageSymbol: "💃",
-  },
-  {
-    value: "Mweso",
-    info: "A traditional board game played throughout Uganda, especially in Buganda.",
-    imageSymbol: "🎮",
-  },
-  {
-    value: "Endere",
-    info: "A traditional flute used in Kiganda music.",
-    imageSymbol: "🎵",
-  },
-  {
-    value: "Amadinda",
-    info: "A xylophone-like instrument with wooden keys used in traditional music.",
-    imageSymbol: "🎹",
-  },
-  {
-    value: "Ensi",
-    info: "The traditional territories or counties of Buganda Kingdom.",
-    imageSymbol: "🗺️",
-  },
-  {
-    value: "Namasole",
-    info: "The title given to the mother of the Kabaka (King) of Buganda.",
-    imageSymbol: "👸",
-  },
-  {
-    value: "Katikkiro",
-    info: "The prime minister or chief minister of the Buganda Kingdom.",
-    imageSymbol: "👔",
-  },
-  {
-    value: "Ssabasajja",
-    info: "An honorific title for the Kabaka, meaning 'Chief of Men'.",
-    imageSymbol: "🤴",
-  },
-  {
-    value: "Kasubi",
-    info: "The royal burial grounds where Buganda kings are laid to rest.",
-    imageSymbol: "⚱️",
-  },
-  {
-    value: "Bulungi Bwansi",
-    info: "Traditional community service practice in Buganda culture.",
-    imageSymbol: "🌱",
-  },
-  {
-    value: "Empagi",
-    info: "The traditional pillars that support the Buganda social structure.",
-    imageSymbol: "🏗️",
-  },
-  {
-    value: "Akendo",
-    info: "Traditional walking stick symbolizing authority in Buganda culture.",
-    imageSymbol: "🦯",
-  },
-  {
-    value: "Omuziro",
-    info: "Clan totems that are sacred and respected in Buganda tradition.",
-    imageSymbol: "🐘",
-  },
-  {
-    value: "Ddamula",
-    info: "The royal scepter, a symbol of the Kabaka's authority.",
-    imageSymbol: "🔱",
-  },
-  {
-    value: "Luwombo",
-    info: "A traditional Buganda dish of meat stewed in banana leaves.",
-    imageSymbol: "🍲",
-  },
-  {
-    value: "Entebbe",
-    info: "A historic location in Buganda that means 'seat' or 'chair' in Luganda.",
-    imageSymbol: "🪑",
-  },
-  {
-    value: "Embaga",
-    info: "Traditional festivities or celebrations in Buganda culture.",
-    imageSymbol: "🎉",
-  },
-  {
-    value: "Enkula",
-    info: "Special beads worn by members of the royal family.",
-    imageSymbol: "📿",
-  },
-  {
-    value: "Enseenene",
-    info: "Grasshoppers, a traditional delicacy in Buganda cuisine.",
-    imageSymbol: "🦗",
-  },
-  {
-    value: "Muganda",
-    info: "A person belonging to the Baganda ethnic group.",
-    imageSymbol: "👨",
-  },
-  {
-    value: "Ssaabasajja",
-    info: "Royal title for the Kabaka meaning 'Chief of Chiefs'.",
-    imageSymbol: "👑",
-  },
-  {
-    value: "Namulondo",
-    info: "The royal throne of the Buganda Kingdom.",
-    imageSymbol: "👑",
-  },
-  {
-    value: "Kyabazinga",
-    info: "A royal title in some kingdoms neighboring Buganda.",
-    imageSymbol: "👑",
-  },
-  {
-    value: "Oluganda",
-    info: "The Luganda language, spoken by the Baganda people.",
-    imageSymbol: "🗣️",
-  },
-  {
-    value: "Barkcloth",
-    info: "Traditional fabric made from the Mutuba tree, used for ceremonies.",
-    imageSymbol: "🧵",
-  },
-  {
-    value: "Okukyala",
-    info: "Traditional visiting practices in Buganda culture.",
-    imageSymbol: "🚶",
-  },
-  {
-    value: "Nankere",
-    info: "A small drum in the ensemble of Kiganda music.",
-    imageSymbol: "🪘",
-  },
-  {
-    value: "Masiro",
-    info: "Royal tombs or burial places for Buganda royalty.",
-    imageSymbol: "🏛️",
-  },
-  {
-    value: "Ekyoto",
-    info: "The traditional fireplace where families gather for stories.",
-    imageSymbol: "🔥",
-  },
-  {
-    value: "Entamu",
-    info: "Traditional ceremonial spears used in Buganda rituals.",
-    imageSymbol: "🗡️",
-  },
-  {
-    value: "Okuggya Omwana",
-    info: "Baby naming ceremony in Buganda culture.",
-    imageSymbol: "👶",
-  },
-  {
-    value: "Okwanjula",
-    info: "Traditional introduction ceremony before marriage in Buganda.",
-    imageSymbol: "💍",
-  },
-  {
-    value: "Kaggwa",
-    info: "A legendary figure in Buganda history and culture.",
-    imageSymbol: "🦸",
-  },
-  {
-    value: "Musambwa",
-    info: "Ancestral spirits venerated in traditional Buganda beliefs.",
-    imageSymbol: "👻",
-  },
-  {
-    value: "Kawulugumo",
-    info: "A mythical creature in Buganda folklore.",
-    imageSymbol: "🐲",
-  },
-  {
-    value: "Ekitiibwa",
-    info: "Honor and respect, a core value in Buganda culture.",
-    imageSymbol: "🙏",
-  },
-  {
-    value: "Akasiimo",
-    info: "Traditional gift-giving practice in Buganda.",
-    imageSymbol: "🎁",
-  },
-  {
-    value: "Obusinga",
-    info: "Royal clan lineages in Buganda Kingdom.",
-    imageSymbol: "👪",
-  },
-  {
-    value: "Ensimbi",
-    info: "Traditional cowrie shells once used as currency.",
-    imageSymbol: "🐚",
-  },
-];
-
 // Number of card pairs to use in each game (adjust as needed)
 const PAIRS_PER_GAME = 8;
+
+export const getPlayableCardGameContent = (
+  content: CardGameContent | undefined,
+): CardGameContent | undefined => {
+  if (
+    !content ||
+    typeof content.title !== "string" ||
+    !content.title.trim() ||
+    !Array.isArray(content.items) ||
+    content.items.length < PAIRS_PER_GAME
+  ) {
+    return undefined;
+  }
+
+  const ids = new Set<string>();
+  const values = new Set<string>();
+  const orders = new Set<number>();
+
+  for (const item of content.items) {
+    if (
+      typeof item.id !== "string" ||
+      !item.id.trim() ||
+      typeof item.value !== "string" ||
+      !item.value.trim() ||
+      typeof item.info !== "string" ||
+      !item.info.trim() ||
+      typeof item.imageSymbol !== "string" ||
+      !item.imageSymbol.trim() ||
+      !Number.isFinite(item.order) ||
+      ids.has(item.id) ||
+      values.has(item.value) ||
+      orders.has(item.order)
+    ) {
+      return undefined;
+    }
+
+    ids.add(item.id);
+    values.add(item.value);
+    orders.add(item.order);
+  }
+
+  return {
+    ...content,
+    items: [...content.items].sort((left, right) => left.order - right.order),
+  };
+};
 
 // Card gradient colors for backside based on position
 const cardGradients: string[][] = [
@@ -423,6 +236,7 @@ export const buildCardsMatchingCompletionData = (
   completedMoves: number,
   duration: number,
   completedAt: string,
+  gameTitle = "Cards",
 ) => {
   const perfectMoves = PAIRS_PER_GAME;
   const efficiency = Math.max(
@@ -444,23 +258,25 @@ export const buildCardsMatchingCompletionData = (
       score: `${efficiency}%`,
       duration,
       completed_at: completedAt,
-      details: `Completed Buganda Cultural Cards matching game in ${completedMoves} moves and ${duration} seconds`,
+      details: `Completed ${gameTitle} matching game in ${completedMoves} moves and ${duration} seconds`,
     },
     efficiency,
   };
 };
 
-const BugandaMatchingGame: React.FC = () => {
+const CardsMatchingGame: React.FC = () => {
   const router = useRouter();
   const { activeChild } = useChild();
+  const languageCode = getDbLanguageCodeForLearningLanguage(
+    activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE,
+  );
+  const contentScope = `${activeChild?.id ?? "guest"}:${languageCode}`;
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const { 
-    // definedAchievements, 
-    // earnedChildAchievements, 
-    isLoadingAchievements, 
-    checkAndGrantNewAchievements 
-  } = useAchievements(activeChild?.id, 'card_matching_game'); // Game key
+  const { checkAndGrantNewAchievements } = useAchievements(
+    activeChild?.id,
+    "card_matching_game",
+  );
   const { enqueueAchievementUnlocked } = useChildNotice();
 
   const [matchStreak, setMatchStreak] = useState(0); // For match streak achievement
@@ -471,6 +287,11 @@ const BugandaMatchingGame: React.FC = () => {
   const [moves, setMoves] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [contentUnavailable, setContentUnavailable] = useState(false);
+  const [contentRetryVersion, setContentRetryVersion] = useState(0);
+  const [hydratedScope, setHydratedScope] = useState<string | null>(null);
+  const [gameTitle, setGameTitle] = useState("Cards Matching");
+  const [cardItems, setCardItems] = useState<CardGameItem[]>([]);
   const [gameState, setGameState] = useState<CardGameState | null>(null);
   const [infoModal, setInfoModal] = useState<{
     show: boolean;
@@ -532,43 +353,72 @@ const BugandaMatchingGame: React.FC = () => {
   // Initialize game
   useEffect(() => {
     let cancelled = false;
+    const requestedChildId = activeChild?.id;
+    const requestedLanguageCode = languageCode;
+    const requestedScope = `${requestedChildId ?? "guest"}:${requestedLanguageCode}`;
     clearPendingTimers();
     resetCompletionLocks();
+    setIsLoading(true);
+    setContentUnavailable(false);
+    setHydratedScope(null);
+    setCards([]);
 
-    // Load saved game state if available
-    const loadSavedState = async () => {
-      if (activeChild) {
-        try {
-          const savedState = await loadGameState(activeChild.id);
-          if (cancelled || !isMountedRef.current) return;
-          
-          if (savedState && savedState.matchedValues.length > 0) {
-            console.log("Loading saved game state:", savedState);
-            setGameState(savedState);
-            // Initialize game with saved state
-            initGameWithSavedState(savedState);
-          } else {
-            // No valid saved state, initialize a new game
-            initGame();
-          }
-        } catch (error) {
-          console.error("Error loading game state:", error);
-          if (!cancelled && isMountedRef.current) {
-            initGame(); // Fallback to new game
-          }
-        } finally {
-          if (!cancelled && isMountedRef.current) {
-            setIsLoading(false);
-          }
-        }
-      } else {
+    const loadContentAndSavedState = async () => {
+      try {
+        const result = await loadContentBundle(requestedLanguageCode, {
+          forceRefresh: contentRetryVersion > 0,
+        });
         if (cancelled || !isMountedRef.current) return;
-        initGame();
-        setIsLoading(false);
+
+        const playableContent =
+          result.bundle?.languageCode === requestedLanguageCode
+            ? getPlayableCardGameContent(result.bundle.cardGame)
+            : undefined;
+
+        if (!playableContent) {
+          setCardItems([]);
+          setContentUnavailable(true);
+          return;
+        }
+
+        setCardItems(playableContent.items);
+        setGameTitle(playableContent.title);
+
+        if (requestedChildId) {
+          try {
+            const savedState = await loadGameState(requestedChildId);
+            if (cancelled || !isMountedRef.current) return;
+
+            if (savedState && savedState.matchedValues.length > 0) {
+              console.log("Loading saved game state:", savedState);
+              initGameWithSavedState(savedState, playableContent.items, requestedChildId);
+            } else {
+              initGame(playableContent.items, requestedChildId);
+            }
+          } catch (error) {
+            console.warn("Could not restore Cards Matching progress; starting safely:", error);
+            if (!cancelled && isMountedRef.current) {
+              initGame(playableContent.items, requestedChildId);
+            }
+          }
+        } else {
+          initGame(playableContent.items);
+        }
+      } catch (error) {
+        console.error("Error loading Cards Matching content or progress:", error);
+        if (!cancelled && isMountedRef.current) {
+          setCardItems([]);
+          setContentUnavailable(true);
+        }
+      } finally {
+        if (!cancelled && isMountedRef.current) {
+          setHydratedScope(requestedScope);
+          setIsLoading(false);
+        }
       }
     };
 
-    void loadSavedState().catch((error) => {
+    void loadContentAndSavedState().catch((error) => {
       console.warn("Could not initialize Cards Matching state:", error);
     });
 
@@ -590,32 +440,39 @@ const BugandaMatchingGame: React.FC = () => {
       cancelled = true;
       clearPendingTimers();
     };
-  }, [activeChild]);
+  }, [activeChild?.id, contentRetryVersion, languageCode]);
 
   // Function to initialize game with saved state
-  const initGameWithSavedState = (savedState: CardGameState) => {
-    // Determine how many new pairs to select
-    const matchedValues = savedState.matchedValues || [];
+  const initGameWithSavedState = (
+    savedState: CardGameState,
+    availableItems: CardGameItem[] = cardItems,
+    childId = activeChild?.id,
+  ) => {
+    const availableValues = new Set(availableItems.map((item) => item.value));
+    const matchedValues = [...new Set(savedState.matchedValues || [])].filter((value) =>
+      availableValues.has(value),
+    );
     const matchedCount = matchedValues.length;
+    const normalizedSavedState = { ...savedState, matchedValues };
     
     // If all pairs are matched, just start a new game
     if (matchedCount >= PAIRS_PER_GAME) {
-      initGame();
+      initGame(availableItems, childId);
       return;
     }
     
     // Otherwise, include matched values and add new random ones
-    const matchedItems = bugandaItemsCollection.filter(
+    const matchedItems = availableItems.filter(
       item => matchedValues.includes(item.value)
     );
     
     // We need more random items to fill up to PAIRS_PER_GAME
-    const unmatchedPool = bugandaItemsCollection.filter(
+    const unmatchedPool = availableItems.filter(
       item => !matchedValues.includes(item.value)
     );
     
     const shuffledUnmatched = shuffleCards([...unmatchedPool]);
-    const additionalItems = shuffledUnmatched.slice(0, PAIRS_PER_GAME - matchedCount);
+    const additionalItems = shuffledUnmatched.slice(0, PAIRS_PER_GAME - matchedItems.length);
     
     // Combine to get our final selection of items
     const selectedItems = [...matchedItems, ...additionalItems];
@@ -653,7 +510,8 @@ const BugandaMatchingGame: React.FC = () => {
     matchStreakRef.current = 0;
     setGameOver(false);
     setInfoModal({ show: false, info: "", value: "", symbol: "" });
-    gameStateRef.current = savedState;
+    setGameState(normalizedSavedState);
+    gameStateRef.current = normalizedSavedState;
     
     // Reset game start time from saved state
     gameStartTime.current = savedState.gameStartTime || Date.now();
@@ -670,19 +528,24 @@ const BugandaMatchingGame: React.FC = () => {
   };
 
   // Start a new game, clearing any saved state
-  const initGame = () => {
+  const initGame = (
+    availableItems: CardGameItem[] = cardItems,
+    childId = activeChild?.id,
+  ) => {
+    if (availableItems.length < PAIRS_PER_GAME) return;
+
     clearPendingTimers();
     resetCompletionLocks();
 
     // Clear saved state if there's an active child
-    if (activeChild) {
-      void clearGameState(activeChild.id).catch((error) => {
+    if (childId) {
+      void clearGameState(childId).catch((error) => {
         console.warn("Could not clear the previous Cards Matching game:", error);
       });
     }
 
     // Select random items from the collection for this game
-    const randomItems = shuffleCards([...bugandaItemsCollection])
+    const randomItems = shuffleCards([...availableItems])
       .slice(0, PAIRS_PER_GAME);
     
     // Create pairs of cards
@@ -716,7 +579,7 @@ const BugandaMatchingGame: React.FC = () => {
       matchedValues: [],
       moves: 0,
       gameStartTime: Date.now(),
-      childId: activeChild?.id || 'default'
+      childId: childId || 'default'
     };
     setGameState(newGameState);
     gameStateRef.current = newGameState;
@@ -786,6 +649,7 @@ const BugandaMatchingGame: React.FC = () => {
         completedMoves,
         duration,
         new Date().toISOString(),
+        gameTitle,
       );
 
       await completeCardsMatchingGameLocallyFirst({
@@ -1053,13 +917,46 @@ const BugandaMatchingGame: React.FC = () => {
     setInfoModal({ ...infoModal, show: false });
   };
 
-  // Show loading screen while fetching saved state
-  if (isLoading) {
+  // Never render content or progress hydrated for a different child/language.
+  if (isLoading || hydratedScope !== contentScope) {
     return (
       <View className="flex-1 bg-primary-50 justify-center items-center">
         <StatusBar style="dark" />
         <ActivityIndicator size="large" color="#7b5af0" />
-        <Text className="text-primary-700 mt-4" variant="medium">Loading your progress...</Text>
+        <Text className="text-primary-700 mt-4" variant="medium">Loading matching cards...</Text>
+      </View>
+    );
+  }
+
+  if (contentUnavailable || cardItems.length < PAIRS_PER_GAME) {
+    return (
+      <View className="flex-1 bg-primary-50 justify-center items-center px-8">
+        <StatusBar style="dark" />
+        <Ionicons name="cloud-offline-outline" size={52} color="#7b5af0" />
+        <Text className="text-primary-700 text-2xl mt-4 text-center" variant="bold">
+          Cards Matching is unavailable
+        </Text>
+        <Text className="text-neutral-600 mt-2 text-center">
+          This activity is not ready for your learning language yet. Check your connection and try again.
+        </Text>
+        <View className="flex-row mt-6">
+          <TouchableOpacity
+            className="bg-white border-2 border-primary-200 rounded-xl px-5 py-3 mr-3"
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Back to Games"
+          >
+            <Text className="text-primary-700" variant="bold">Back</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            className="bg-primary-600 rounded-xl px-5 py-3"
+            onPress={() => setContentRetryVersion((version) => version + 1)}
+            accessibilityRole="button"
+            accessibilityLabel="Retry Cards Matching content"
+          >
+            <Text className="text-white" variant="bold">Retry</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -1111,7 +1008,7 @@ const BugandaMatchingGame: React.FC = () => {
             adjustsFontSizeToFit
             minimumFontScale={0.84}
           >
-            Buganda Cultural Cards
+            {gameTitle}
           </Text>
         </View>
 
@@ -1149,7 +1046,7 @@ const BugandaMatchingGame: React.FC = () => {
           {/* New Game button */}
           <TouchableOpacity
             className="bg-white w-11 h-11 rounded-full shadow-md border-2 border-secondary-200 items-center justify-center"
-            onPress={initGame}
+            onPress={() => initGame()}
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel="Start a new matching game"
@@ -1332,7 +1229,7 @@ const BugandaMatchingGame: React.FC = () => {
 
             <TouchableOpacity
               className="bg-primary-500 py-4 px-8 rounded-full shadow-md border-2 border-primary-400 min-w-[164px] items-center"
-              onPress={initGame}
+              onPress={() => initGame()}
               activeOpacity={0.78}
               accessibilityRole="button"
               accessibilityLabel="Play matching game again"
@@ -1346,4 +1243,4 @@ const BugandaMatchingGame: React.FC = () => {
   );
 };
 
-export default BugandaMatchingGame;
+export default CardsMatchingGame;

@@ -1,94 +1,61 @@
 # Content Management
 
-## Current Status
+Baby Steps has migration-managed, database-backed content, not an admin CMS. Content authors prepare reviewed JSON payloads; a developer validates and ships them through an idempotent Supabase migration. The child and parent apps have no authoring or publishing capability.
 
-Content is mixed. Baby Steps has an MVP `content_items` table for language-specific menu/game/story payloads, but it does not have CMS tooling, admin publishing, creator workflows, or full remote content management.
+For payload contracts and the update procedure, see [Content Authoring And New Games](./content-authoring-and-new-games.md). For educator, linguist, cultural-reviewer, and content-provider responsibilities, use [Learning Hub curriculum analysis](../learning-hub-curriculum-analysis.md#19-content-production-and-approval-workflow) rather than duplicating that guidance here.
 
-For the practical process of adding DB-backed content or planning a new activity, see [Content Authoring And New Games](./content-authoring-and-new-games.md).
+## Ownership Boundary
 
-## Where Content Lives
-
-| Content type | Current location |
+| Stored in `content_items` | Remains in application code |
 | --- | --- |
-| Child menu cards | `content_items` through `content/contentRepository.ts`, with explicit Luganda legacy local fallback |
-| Learning hub stages and placeholder lessons | `content/learningHubContent.json` through `content/learningHubRepository.ts` |
-| Word game levels | `content_items` through `content/contentRepository.ts`, with same-language local samples |
-| Learning lesson stages/levels/words | `content_items` through `content/contentRepository.ts`, with same-language local samples |
-| Counting stages and labels | `content_items` through `content/contentRepository.ts`, with same-language local samples |
-| Card matching items | `components/games/CardsMatchingComponent.tsx` |
-| Puzzle definitions | `components/games/PuzzleGameComponent.tsx` |
-| Stories and quizzes | Generic story payloads in `content_items`; legacy Luganda stories still in `components/stories/*Story.tsx` |
-| Museum content | `app/child/games/museum/*.tsx` |
-| Coloring templates | `app/child/games/coloring/*.tsx` and card list in `components/child/AfricanThemeGameInterface.tsx` |
-| UI translations | `lib/translations.ts` |
-| Lesson audio map | `components/games/utils/audioManager.ts` |
-| Images/audio/sounds | `assets/` |
+| Exact-language display copy | React Native renderers and routes |
+| Learning Hub stages, lessons, ordering, and mechanic payloads | Mechanic registry and interaction behavior |
+| Standalone Learning/Word/Counting/Card/Puzzle records | Scoring, randomization, animation, and unlock algorithms |
+| Menu cards and generic Stories | Progress synchronization and achievement evaluation |
+| Image/audio keys and optional URIs | Static image/audio resolver maps and bundled binaries |
+| Editorial status, startability, and content version | Payload types, normalization, and validation |
 
-## How Stories Are Structured
+## Current Dynamic Areas
 
-DB-backed stories use `content_items` story payloads and `components/stories/GenericStoryRenderer.tsx`. The migrated Luganda stories and the Runyankole sample story follow that generic model.
+| Area | Database type | Notes |
+| --- | --- | --- |
+| Learning Hub | `learning_hub` | Main curriculum; exact-language bundle registered with `learningHubRepository` |
+| Games menu | `child_menu/games` | Determines which game routes are exposed for that language |
+| Coloring menu | `child_menu/coloring` | Menu metadata is dynamic; drawing templates, palettes, and interaction remain bundled |
+| Stories menu and stories | `child_menu/stories`, `story` | Generic renderer handles any valid number of rows/pages/questions |
+| Standalone Learning | `learning_game` | Stages, levels, words, images, and audio references |
+| Word | `word_game` | Ordered levels; existing progress order is preserved |
+| Counting | `counting_game` | Stages, number labels, items, and currency |
+| Cards | `card_game` | Stable matching items and exact values |
+| Puzzle | `puzzle_game` | Stable numeric puzzle IDs and image references |
 
-Deprecated legacy Luganda story components still define their own:
+Museum content and the drawing mechanics/assets inside individual Coloring routes remain code-owned. Achievement definitions, UI translations, and static media maps are not curriculum rows.
 
-- `storyPages`
-- `storyQuestions`
-- current page state
-- highlight state
-- quiz state
-- page-turn audio
-- Supabase activity writes
-- story UI layout
+## Editorial Lifecycle
 
-Those legacy components are compatibility code and do not define the current shared story content contract.
+- `draft`: incomplete, placeholder, or not yet reviewed; not child-readable.
+- `reviewed`: editorial review recorded, but not yet published; not child-readable.
+- `published`: eligible for RLS reads when active; the app also requires `is_startable = true`.
 
-## How Games Are Structured
+Set `published_at` when publishing and increase `content_version` for every released payload/order/startability revision. `is_active = false` retires a row. A Learning Hub bundle can be published while individual lessons/items honestly remain `draft` or `placeholder`; internal readiness and lock rules still control what can launch. Do not publish the known Runyankole sample rows as real curriculum.
 
-Game content is mixed:
+## Safe Change Process
 
-- Some pure content moved to `content/games/`.
-- Some content remains inside game components.
-- Progress managers live under `components/games/utils/`.
-- Achievement logic lives under `components/games/achievements/`.
+1. Start from the current published payload and retain every shipped stable ID.
+2. Obtain the language/curriculum/cultural review appropriate to the change.
+3. Create a migration with `supabase migration new <descriptive_name>`.
+4. Add an `INSERT ... ON CONFLICT (language_code, content_type, slug) DO UPDATE` upsert. Do not edit an applied migration.
+5. Increment `content_version`; set editorial, active, startable, and publication fields explicitly.
+6. Add static image/audio keys in code when the payload references new bundled media.
+7. Validate against a safe development database, then run repository/component tests, typecheck, and lint. A fresh local reset currently needs the repository's missing pre-2026 baseline schema; see [Database Notes](./database.md#local-reset-caveat).
+8. Deploy the migration through the normal Supabase migration workflow. Do not paste a divergent copy into `seed.sql`.
 
-## How Lessons Are Structured
+The production migration chain is the canonical seed: the earlier story migration owns its story payloads, `20260714182326_database_backed_learning_content.sql` owns the Hub/game/menu payloads plus publication state, and `20260714213732_normalize_published_story_menu_order.sql` normalizes the pre-existing Stories menu to the strict ordered-card contract. Future content changes belong in later migrations, not a duplicate `seed.sql`.
 
-The Learning tab hub is separate from the older lesson game. Hub stage and placeholder lesson metadata lives in `content/learningHubContent.json`, and `content/learningHubRepository.ts` provides language fallback plus child-friendly mechanic labels.
+For a reversible database-only proof, use the [Learning Hub dynamic-stage smoke test](../database/learning-hub-dynamic-stage-smoke-test.sql). It is intentionally not a migration and must not be treated as production curriculum.
 
-`content/games/lugandawords.ts` defines the older standalone Luganda learning game stages, levels, words, images, translations, lock state, and helper functions. `LearningGameComponent` consumes that content and manages the lesson/quiz flow.
+Stable IDs are permanent progress identities. Retiring current content may change current completion percentages, but it must not delete or rewrite historic progress/achievement records. Never reuse an old ID for different content.
 
-## How To Add Or Update Content Safely
+## Out Of Scope
 
-1. Identify the current source file for the content type.
-2. Keep existing IDs and route targets stable unless you update every reference.
-3. Add or update bundled media in `assets/`.
-4. Update tests if the content has helper tests under `content/games/__tests__/`.
-5. Manually test the affected screen on at least one native target.
-6. If changing tracked activities, confirm Supabase activity rows still satisfy `schema.sql`.
-
-## Current Limitations
-
-- No content IDs for cross-feature tracking.
-- No content versioning.
-- No localization content model.
-- No media metadata, attribution, alt-text database, or CDN layer.
-- No draft/review/publish workflow.
-- No role-based creator/admin tools.
-
-## MVP Database Content Direction
-
-Before expanding beyond the MVP `content_items` slice:
-
-- Keep game/app logic in React Native code.
-- Keep payload contracts documented in `docs/development/mvp-content-items.md`.
-- Add stable IDs.
-- Migrate one content type at a time.
-- Connect activity/progress records to content IDs.
-- Add content versioning only when CMS/admin tooling is needed.
-
-Recommended first candidates:
-
-- Completing reviewed Luganda and Runyankole lesson payloads.
-- Completing reviewed Runyankole word and counting payloads.
-- Extending reviewed story payloads for future languages through the generic story renderer.
-
-Additional story migrations should still account for page content, quiz data, audio, highlighting, and UI behavior that older components bundled together.
+This MVP does not add a visual editor, app-side content mutation, service-role credentials, media uploads, approval dashboards, scheduled publishing, or executable logic in JSON. Those should be considered only when the migration-based workflow is no longer practical.

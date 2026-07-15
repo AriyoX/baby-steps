@@ -26,12 +26,11 @@ import {
   getLearningLanguage,
 } from "@/content/languages"
 import {
-  getLearningLanguageContent,
-  resolveLearningHubLanguageCode,
   type LearningHubStage,
 } from "@/content/learningHubRepository"
 import { resolveImageSource } from "@/content/assets"
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation"
+import { useLearningHubContent } from "@/hooks/useLearningHubContent"
 import { audioManager } from "@/lib/audioManager"
 import {
   getChildInterfaceCardLayout,
@@ -161,12 +160,13 @@ export default function LearningHubScreen() {
     toggleBackgroundMusicMuted,
     toggleAppSoundsMuted,
   } = useAudio()
-  const languageCode = resolveLearningHubLanguageCode(
+  const {
+    languageCode,
+    languageContent,
+    status: contentStatus,
+    retry,
+  } = useLearningHubContent(
     activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE,
-  )
-  const languageContent = useMemo(
-    () => getLearningLanguageContent(languageCode),
-    [languageCode],
   )
   const languageName = getLearningLanguage(languageCode)?.name
   const cards = useMemo(
@@ -245,13 +245,31 @@ export default function LearningHubScreen() {
   }
 
   if (!languageContent) {
+    const isLoading = contentStatus === "loading"
+
     return (
       <>
         <StatusBar style="light" translucent backgroundColor="transparent" />
         <LearningLanguageUnavailableState
           languageName={languageName}
-          actionLabel="Back to Games"
-          onAction={() => router.replace(CHILD_GAMES_ROUTE as any)}
+          title={isLoading ? "Getting lessons ready…" : undefined}
+          message={
+            isLoading
+              ? "We are loading this Learning Hub now."
+              : undefined
+          }
+          actionLabel={isLoading ? "Back to Games" : "Try again"}
+          onAction={
+            isLoading
+              ? () => router.replace(CHILD_GAMES_ROUTE as any)
+              : retry
+          }
+          secondaryActionLabel={isLoading ? undefined : "Back to Games"}
+          onSecondaryAction={
+            isLoading
+              ? undefined
+              : () => router.replace(CHILD_GAMES_ROUTE as any)
+          }
           bottomClearance={CHILD_TAB_BAR_CLEARANCE}
         />
       </>

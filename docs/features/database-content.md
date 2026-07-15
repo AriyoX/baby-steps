@@ -1,55 +1,73 @@
 # Database-Backed Content
 
-## Current Status
+## Architecture
 
-Implemented as a controlled MVP vertical slice using one flexible `content_items` table. This is not a CMS.
+Baby Steps uses `public.content_items` as a small, versioned bundle store. It is deliberately not a CMS. One row contains one exact-language JSON payload, and React Native code still owns routes, renderers, game mechanics, scoring, progress, achievements, and static asset resolution.
 
-The app now loads language-specific menu cards and the primary language gameplay payloads for:
+The runtime path is:
 
-- child home/menu cards,
-- learning game stages,
-- word game levels,
-- counting game stages and number labels,
-- generic DB/local JSON stories.
+1. `content/contentRepository.ts` queries active, published, startable rows for one exact `language_code`.
+2. Type-specific validators normalize the rows and reject malformed or duplicate bundles.
+3. The repository returns one ordered `ContentBundle` and registers its Learning Hub payload with `content/learningHubRepository.ts`.
+4. Screens start only when their required content exists; otherwise they show a retry/coming-soon state.
+5. Raw validated rows are cached in memory and AsyncStorage through the existing stale-while-revalidate cache.
 
-Game rules, route definitions, rendering, scoring, progress, achievements, and fallback decisions remain in React Native code.
+The supported `content_type` values are:
 
-For content authoring examples, progress rules, and new-game checklists, see [Content Authoring And New Games](../development/content-authoring-and-new-games.md).
+| Type | Payload role | Cardinality per language |
+| --- | --- | --- |
+| `child_menu` | Cards for a menu tab such as `games`, `stories`, or `coloring` | One row per tab slug |
+| `learning_hub` | Main curriculum stages, lessons, and mechanic items | One published/startable row |
+| `learning_game` | Standalone legacy Learning stages, levels, and words | One published/startable row |
+| `word_game` | Ordered Word levels | One published/startable row |
+| `counting_game` | Counting stages, labels, objects, and currency | One published/startable row |
+| `card_game` | Matching-card learning items | One published/startable row |
+| `puzzle_game` | Ordered puzzle definitions | One published/startable row |
+| `story` | One generic story and optional quiz | Many rows, one per story slug |
 
-## Main Files
+Learning Hub is the curriculum. The standalone games remain supplementary practice.
 
-- `supabase/migrations/20260619001000_add_mvp_content_items.sql`
-- `content/contentRepository.ts`
-- `components/child/AfricanThemeGameInterface.tsx`
-- `components/games/LearningGameComponent.tsx`
-- `components/games/WordGameComponent.tsx`
-- `components/games/CountingGameComponent.tsx`
-- `components/stories/GenericStoryRenderer.tsx`
-- `app/child/stories/[storyId].tsx`
-- `docs/development/mvp-content-items.md`
-- `docs/database/content-items-inspection.sql`
+## Schema, Publication, And Security
 
-## Rules
+The base table was introduced by `20260619001000_add_mvp_content_items.sql`. The deployed content phase is in `20260714182326_database_backed_learning_content.sql`, which adds:
 
-- `content_type` and `slug` values are lowercase.
-- `nyn` content never silently falls back to `lg`.
-- Luganda can use the explicit `local-lg-legacy` fallback while existing prototype behavior is preserved.
-- Malformed DB payloads are skipped by the repository and should surface as coming-soon states.
-- Legacy route names such as `Stories` and `lugandacountinggame` are kept for now, but their screens can render language-aware content.
+- `editorial_status`: `draft`, `reviewed`, or `published`;
+- `is_startable`: whether the app may launch the row;
+- `content_version`: a positive, monotonically increasing bundle revision;
+- `published_at`: publication timestamp;
+- a published-language/order index, RLS policy, and explicit Data API grants.
 
-See [MVP Content Items](../development/mvp-content-items.md) for payload contracts and future normalization guidance.
+`language_code`, `content_type`, `slug`, `payload`, `sort_order`, and `is_active` remain required storage fields. `(language_code, content_type, slug)` is unique.
 
-## Remaining Hardcoded Areas
+RLS allows `anon` and `authenticated` to select only active, published rows. The app query further requires `is_startable = true`. Data API privileges grant those roles `SELECT` only; they cannot insert, update, publish, or delete content. Authoring is performed through reviewed SQL migrations with a trusted server/admin role. Never put a service-role key in the Expo app.
 
-- Legacy Luganda story components under `components/stories/*Story.tsx`.
-- Buganda-focused card matching and puzzle content.
-- Museum and coloring content.
-- Some achievement labels and legacy achievement game keys.
+`20260714213732_normalize_published_story_menu_order.sql` is the follow-up compatibility migration. The older Stories menu predated required explicit card ordering; this migration preserves its array order, adds missing `order` values, and bumps `content_version`. Without that correction, the repository's atomic validation correctly rejects the malformed row and retains last-known-good content, but a first install has no cache to retain.
 
-## Manual QA
+Row publication and payload readiness are separate. A published MVP bundle may still contain lessons or items honestly marked `draft` or `placeholder`; those values must not be changed to `production` merely to make the bundle readable. Locked or unsupported content remains non-startable through payload validation and mechanic rules. Practice Mix is always locked and has no renderer.
 
-- Log in as a Luganda child and verify Games, Stories, Learning, Words, and Counting still render.
-- Log in as a Runyankole child and verify only Runyankole menu cards or coming-soon states appear.
-- Open the Runyankole story card and confirm the generic story renderer is used.
-- Complete one learning, word, and counting activity for each language and inspect `activities.language_code`.
-- Run the inspection queries in `docs/database/content-items-inspection.sql`.
+## Language Isolation And Identity
+
+Every query and cache key is scoped to the exact normalized language code. `lg` is Luganda and `nyn` is Runyankole. An explicit `nyn` or other-language request never substitutes `lg`, another database row, or a bundled legacy array. Missing content produces the friendly unavailable/retry state.
+
+Stable IDs are compatibility keys, not display copy. Do not rename or reuse shipped row slugs, stage IDs, lesson IDs, item IDs, game level IDs, card values, or puzzle IDs. Existing progress and achievements continue to resolve those IDs even when later bundles remove content. Current completion percentages use only current published/startable content; historic completion records are not deleted.
+
+## Seed And Updates
+
+`20260714182326_database_backed_learning_content.sql` is the canonical initial deployed seed for the current Learning Hub, menus, standalone games, and publication state of the already-migrated stories. The later Stories-order migration is part of the canonical migration chain. The seed uses idempotent upserts and deliberately keeps the known Runyankole test/sample rows draft and non-startable. There is no duplicate `seed.sql` copy to drift from production.
+
+Do not edit an applied migration. Create a new migration with `supabase migration new <descriptive_name>`, upsert the changed exact-language row, preserve all stable IDs and ordering, and increment `content_version`. Linked/deployed environments receive the same data through the migration chain. Fresh local resets will do the same after the repository's pre-existing [base-schema migration gap](../development/database.md#local-reset-caveat) is restored.
+
+## Verified Deployment State
+
+As of 2026-07-15, the repository and linked Baby-Steps project migration histories match through `20260714213732`. An anonymous Data API query can read 17 active/published/startable Luganda rows: three menus, Learning Hub, five standalone game bundles, and eight Stories. There are zero published/startable Runyankole rows. `anon` and `authenticated` cannot insert or update `content_items`.
+
+The reversible [Learning Hub dynamic-stage smoke test](../database/learning-hub-dynamic-stage-smoke-test.sql) demonstrates that a new valid stage appears after a database-only payload/version update. It is a test helper, not a production migration; use its separate cleanup SQL after verification.
+
+Payload examples, the language-addition checklist, and validation commands are in [Content Authoring And New Games](../development/content-authoring-and-new-games.md). Cache and asset details are in [Content Cache and Image Loading](../development/content-cache-and-images.md). Educational review and content-provider responsibilities remain in [Learning Hub curriculum analysis](../learning-hub-curriculum-analysis.md#19-content-production-and-approval-workflow); this document describes only the technical delivery path.
+
+## Official Supabase References
+
+- [Securing your data](https://supabase.com/docs/guides/database/secure-data): combine RLS with the minimum database privileges required by each role.
+- [Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security): exposed client tables require enabled RLS and appropriate policies.
+- [Database migrations](https://supabase.com/docs/guides/deployment/database-migrations): create and deploy tracked migration files instead of making untracked remote edits.
+- [Data API exposure breaking change](https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically): Data API grants remain a separate requirement from RLS.

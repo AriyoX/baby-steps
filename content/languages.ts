@@ -50,23 +50,15 @@ export const normalizeLearningLanguageCode = (
   return LEARNING_LANGUAGE_CODE_ALIASES[normalized] ?? normalized;
 };
 
-// Temporary bridge while bundled Learning Hub content and DB rows converge on
-// canonical language codes from public.languages.code.
 export const getDbLanguageCodeForLearningLanguage = (
   languageCode?: string | null,
-): SupportedLearningLanguageCode => {
-  const normalized = normalizeLearningLanguageCode(languageCode);
-
-  if (isSupportedLearningLanguageCode(normalized)) {
-    return normalized;
-  }
-
-  return DEFAULT_LEARNING_LANGUAGE_CODE;
-};
+): string =>
+  normalizeLearningLanguageCode(languageCode) ??
+  DEFAULT_LEARNING_LANGUAGE_CODE;
 
 export const getLearningLanguageFromDbCode = (
   dbCode?: string | null,
-): SupportedLearningLanguageCode => getDbLanguageCodeForLearningLanguage(dbCode);
+): string => getDbLanguageCodeForLearningLanguage(dbCode);
 
 export const getLearningLanguage = (
   languageCode?: string | null,

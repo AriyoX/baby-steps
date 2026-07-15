@@ -1,6 +1,6 @@
 # Progress, Content, and Read Cache Audit
 
-Last updated: 2026-07-14
+Last updated: 2026-07-15
 
 ## Progress Sync
 
@@ -22,27 +22,24 @@ The current progress system is local-first and MVP-safe.
 
 ## Active Content Flows
 
-Repository-backed through `content/contentRepository.ts` and Supabase `content_items` when usable:
+Repository-backed through `content/contentRepository.ts` and Supabase `content_items`:
 
-- Child menu/activity menu: `AfricanThemeGameInterface` loads `child_menu` cards by language. Luganda `games` and `stories` have DB rows, while Luganda `coloring` and `museum` still come from the legacy merged local menu. Runyankole currently has DB-backed `games` and `stories` menu rows.
-- Learning game: `LearningGameComponent` loads `learning_game` through the repository. Runyankole uses the DB seed when available. Luganda keeps the fuller legacy local payload until DB content is at least as complete as the existing bundled stages.
-- Counting game: `CountingGameComponent` loads `counting_game` through the repository. Runyankole uses the DB seed when available. Luganda keeps the fuller legacy local payload while the DB seed is partial.
-- Word game: `WordGameComponent` loads `word_game` through the repository. Runyankole uses the DB seed when available. Luganda keeps the fuller legacy local payload while the DB seed is partial.
-- Dynamic story renderer: `app/child/stories/[storyId].tsx` renders stories from the loaded bundle. It is active for the Runyankole seeded story and the migrated Luganda story rows in `content_items`.
+- `AfricanThemeGameInterface` loads exact-language `games`, `stories`, and `coloring` menu rows. Missing `nyn` content does not merge or fall back to Luganda.
+- Learning Hub loads its exact-language `learning_hub/curriculum` bundle and performs mechanic-specific normalization before rendering.
+- Word, Counting, standalone Learning, Cards, and Puzzle load their published/startable game payloads through the same repository/cache.
+- `app/child/stories/[storyId].tsx` renders the eight published Luganda story rows through the generic renderer without a fixed record count.
 
-Local/static or legacy flows still present:
+Intentional code/static flows:
 
-- Luganda and Runyankole story menu payloads use the generic DB/content-repository story route.
-- Deprecated Luganda story components and old route files still exist as compatibility code, but they are no longer the menu-backed story flow.
-- Puzzle, card matching, museum, and coloring content remain code/local-asset backed. Coloring writes progress when artwork is saved but the templates are route-local assets.
+- Coloring discovery is database-backed, but its five direct canvases, palettes, and bundled template resolver map remain code-owned and do not require a database gate to render.
+- Museum is archived/hidden; its gallery arrays remain code-owned behind an exact-language publication gate and no Museum menu is currently published.
+- Deprecated Luganda story components and old route files remain compatibility code, not the menu-backed production content source.
 - `app/parent/child-progress.tsx` still contains hardcoded sample dashboard data.
-- Story completion/progress logic is duplicated between the generic renderer and legacy `StoryProgress` wrapper. This remains acceptable while deprecated Luganda components exist, but can be removed when the legacy story components are deleted.
-
-Luganda story migration status: Luganda story rows have been seeded in `content_items`, and Luganda story menu `targetPage` values now point to `child/stories/{storyId}` so the generic renderer is the active flow.
+- Mechanics, scoring, progress, achievements, test fixtures, seed SQL, and static asset maps remain in code by design.
 
 ## Read Caches
 
-- `content_items`: `@BabySteps:ContentBundle:v1:{languageCode}`, TTL 6 hours. Fresh cache returns immediately; stale cache returns immediately and refreshes in the background. Forced refresh bypasses cache and falls back to same-language cached DB content if Supabase fails.
+- `content_items`: `@BabySteps:ContentBundle:v2:{languageCode}`, TTL 6 hours. Fresh or stale valid exact-language data returns immediately and revalidates in the background. A forced refresh queries the database while retaining the last valid exact-language cache on failure. The derived version includes ordered row identity, `content_version`, and `updated_at`; malformed or empty responses never replace a valid cache.
 - `achievements`: `cache:achievements:definitions`, TTL 24 hours. Definitions are cached globally and filtered in memory by game key.
 - `child_achievements`: `cache:child_achievements:{childId}`, TTL 15 minutes. Cache is child-scoped and updated after successful award writes. Awarding also checks the exact remote child/achievement pair before insert, and the `20260701000000_add_child_achievements_unique_constraint.sql` migration enforces one row per child/achievement at the database level.
 - Recent `activities`: `cache:activities:recent:{childId}` or `cache:activities:recent:{childId}:{languageCode}`, TTL 10 minutes, default limit 50. Activity writes invalidate both child-wide and language-scoped recent caches. Parent activity realtime refreshes bypass cache, and parent dashboard stats use the bounded recent-activity reader instead of fetching all history rows.
@@ -60,6 +57,7 @@ Hydration cancellation has a deliberately narrow boundary. Abort and timeout are
 
 ## Remaining MVP TODOs
 
-1. Decide when to delete the deprecated Luganda story components and legacy route files after the generic story flow has enough compatibility runway.
-2. Replace hardcoded/sample parent dashboard progress in `app/parent/child-progress.tsx` and the random progress placeholders on the parent index.
-3. Review whether puzzle, card matching, museum, and coloring should stay code/local-asset backed for MVP or move later into a content strategy.
+1. Decide when to delete deprecated story compatibility components after the generic story flow has enough runway.
+2. Replace hardcoded/sample parent dashboard progress and random parent-index progress placeholders.
+3. Keep Museum archived until its content and route behavior are deliberately reviewed and published.
+4. Close the pre-existing base-migration gap so a clean local reset can validate the entire schema.

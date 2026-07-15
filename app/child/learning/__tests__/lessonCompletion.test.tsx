@@ -1,6 +1,11 @@
 import React from "react";
 import { Text, TouchableOpacity } from "react-native";
 import renderer, { act, type ReactTestInstance } from "react-test-renderer";
+import { registerLearningHubTestFixture } from "@/content/testFixtures/learningHubTestFixture";
+import {
+  getLearningContentVersion,
+  getLearningLanguageContent,
+} from "@/content/learningHubRepository";
 import LearningLessonSessionScreen from "../[stageId]/lesson/[lessonId]";
 
 const mockRouterBack = jest.fn();
@@ -12,7 +17,13 @@ const mockAwardLearningLessonCompletionAchievements = jest.fn();
 const mockGetLearningLessonCompletion = jest.fn();
 const mockGetMechanicRenderer = jest.fn();
 const mockEnqueueAchievementUnlocks = jest.fn();
+const mockLoadLearningHubLanguageContent = jest.fn();
 let mockSelectedLanguageCode = "luganda";
+
+jest.mock("@/content/learningHubLoader", () => ({
+  loadLearningHubLanguageContent: (...args: unknown[]) =>
+    mockLoadLearningHubLanguageContent(...args),
+}));
 
 const deferred = <T = void>() => {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -222,6 +233,7 @@ const completeRenderedItem = async (
 };
 
 beforeEach(() => {
+  registerLearningHubTestFixture();
   jest.clearAllMocks();
   mockSelectedLanguageCode = "luganda";
   mockGetMechanicRenderer.mockReturnValue(MockMechanicRenderer);
@@ -236,6 +248,27 @@ beforeEach(() => {
     Promise.resolve(completion),
   );
   mockAwardLearningLessonCompletionAchievements.mockResolvedValue([]);
+  mockLoadLearningHubLanguageContent.mockImplementation(
+    async (languageCode: string) => {
+      const content = getLearningLanguageContent(languageCode);
+      const contentVersion = getLearningContentVersion(languageCode);
+      return content && contentVersion
+        ? {
+            status: "ready",
+            languageCode,
+            content,
+            contentVersion,
+            source: "database",
+            retainedPrevious: true,
+          }
+        : {
+            status: "unavailable",
+            languageCode,
+            source: "empty",
+            retainedPrevious: false,
+          };
+    },
+  );
 });
 
 describe("Learning lesson completion persistence", () => {

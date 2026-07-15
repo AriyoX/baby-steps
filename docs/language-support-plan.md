@@ -1,5 +1,7 @@
 # Language Support Plan
 
+> Historical rollout plan: the database-backed content phase described as future work below is now implemented. Do not use the bundled fallback instructions in this plan operationally. Use [Database-Backed Content](features/database-content.md) and [Content Authoring And New Games](development/content-authoring-and-new-games.md#adding-a-language) for current runtime and language-addition rules.
+
 ## Current State
 
 Baby Steps is language-aware only in a limited UI-label sense. `context/language-context.tsx` stores a global `isLuganda` boolean in AsyncStorage, and `components/translated-text.tsx` uses exact-string lookups from `lib/translations.ts`. That does not choose learning content for a child.

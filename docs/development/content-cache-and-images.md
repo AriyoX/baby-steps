@@ -1,90 +1,67 @@
-# Content Cache and Image Loading
+# Content Cache And Asset Loading
 
-This is an MVP code-side cache and loading layer. It does not create a CMS, admin tooling, or new database tables.
+`content/contentRepository.ts` is the single general content-loading and caching layer. Learning Hub, menus, Stories, and reachable standalone games reuse it; do not add a second cache for a new content type.
 
-## Language Flow Verification
+## Exact-Language Stale-While-Revalidate
 
-- `children.selected_language_code` exists in `schema.sql` and the Supabase language migration.
-- Child creation writes `selected_language_code` in `context/UserContext.tsx`.
-- Parent child detail fetches `selected_language_code`, sets the active child in `ChildContext`, and launches child mode.
-- Child menu, learning game, word game, counting game, and generic story route call `loadContentBundle` with the active child's selected language.
-- Luganda (`lg`) and Runyankole (`nyn`) paths remain separate. A Runyankole request must not use Luganda DB rows or cached Luganda content.
+`loadContentBundle(languageCode, options)` normalizes the requested code and queries `content_items` with all of these predicates:
 
-## Audit
+- exact `language_code`;
+- `is_active = true`;
+- `editorial_status = 'published'`;
+- `is_startable = true`.
 
-DB content fetch entry points:
+An explicit language is never replaced by the default language. A missing language selection defaults to `lg`, but `nyn`, an unsupported code, and any future code keep separate query and cache namespaces.
 
-- `components/child/AfricanThemeGameInterface.tsx`: child menu cards.
-- `components/games/LearningGameComponent.tsx`: learning stages, levels, and words.
-- `components/games/WordGameComponent.tsx`: word game levels.
-- `components/games/CountingGameComponent.tsx`: counting stages, labels, item images, and currency.
-- `app/child/stories/[storyId].tsx`: generic DB-backed story lookup.
-- `content/contentRepository.ts`: Supabase `content_items` query and local same-language fallback.
+Cache behavior:
 
-Important image render points:
+- Key: `@BabySteps:ContentBundle:v2:<language_code>`.
+- Storage: in-memory map plus AsyncStorage.
+- Default freshness window: six hours (`CONTENT_BUNDLE_CACHE_TTL_MS`).
+- Value: exact-language raw rows, schema version, derived content version, and load timestamp.
+- A valid cache is returned immediately, whether fresh or stale, and a single background refresh is started for that language.
+- `{ forceRefresh: true }` tries the network first and falls back to the valid exact-language cache on failure.
+- `clearContentBundleCache(languageCode?)` clears one language or every v2 entry.
+- `waitForContentBundleRefreshes()` is available for deterministic tests.
 
-- Migrated to `CachedImage`: child menu cards and avatar, generic story page image, learning game stage/word images, word game level image, counting game item/currency images.
-- Still direct bundled images: static score coins, `ImageBackground` screen backgrounds, parent-gate images, puzzle/museum/coloring screens, and legacy hand-built story components.
+The bundle version is derived from each ordered row's `content_type`, `slug`, `content_version`, and `updated_at`. A valid refresh with a newer or otherwise changed row set replaces the cache without an application release. Learning Hub foreground-refreshes a registered cached bundle and can update the mounted screen. Generic menu/game consumers may first render stale content while their background refresh runs; remount the screen or use its retry action to consume the refreshed cache.
 
-Existing fallbacks:
+The last-known-good rule is intentionally strict. A response is not cached if it is empty, has no usable supported content, contains a malformed supported row, declares the wrong payload language, or contains more than one published/startable row for a single-bundle type. A failed refresh never overwrites a valid cache. Cached rows are revalidated when read, so corrupt or cross-language AsyncStorage data is discarded. With no valid cache and no usable database response, callers receive `source: "empty"` and show the existing unavailable/retry UI; they do not load legacy Luganda arrays.
 
-- `buildLocalContentBundle("lg")` uses legacy bundled Luganda content.
-- `buildLocalContentBundle("nyn")` uses same-language Runyankole sample content.
-- `ComingSoonState` is used when a child-facing activity has no content.
-- `resolveImageSource` falls back to bundled placeholder assets for unknown local image names.
+## Images
 
-High-priority migration status:
+Database payloads store image references, not dynamically imported binaries. React Native still needs static `require(...)` calls at bundle time, so `content/assets.ts` remains code-owned.
 
-- Child menu: content cache, image loading, and bundle image preloading added.
-- Generic story renderer: image loading and story image preloading added.
-- Learning game: content cache path, bundle image preloading, and main content image loading added.
-- Word game: content cache path, bundle image preloading, and level image loading added.
-- Counting game: content cache path, bundle image preloading, and item/currency image loading added.
+Use one of these references:
 
-## Content Cache Behavior
+- a stable key registered in `IMAGE_ASSETS`, such as `rain.jpg` or `puzzles/kasubi-tombs.jpg`;
+- an existing React Native image module;
+- a supported `https://`, `file://`, or `data:image/` URI.
 
-`loadContentBundle(languageCode, options)` caches DB-backed `content_items` rows in memory and AsyncStorage.
+`resolveImageSource(reference, fallbackKey)` maps these references and supplies a safe bundled fallback for an unknown key. To add a bundled image:
 
-- Cache key: `@BabySteps:ContentBundle:v1:<language_code>`.
-- TTL: `CONTENT_BUNDLE_CACHE_TTL_MS`, currently 6 hours.
-- Force refresh: call `loadContentBundle(languageCode, { forceRefresh: true })`.
-- Test/helper invalidation: `clearContentBundleCache(languageCode?)`.
-- Cache entries store raw DB rows, not fully resolved app objects, so payload validation and image resolution run again before cached content is returned.
-- Only usable, validated same-language DB content is cached.
-- Invalid DB payloads are skipped and are not cached as usable DB content.
-- A fresh same-language cache hit avoids a Supabase fetch.
-- If Supabase fails, the repository may return same-language cached DB content, including stale cache, before falling back to bundled local content.
-- If there is no usable same-language cache, existing local fallback behavior applies.
-- `nyn` never falls back to cached `lg`. A mismatched cached entry or DB row is ignored.
+1. Add the binary under `assets/`.
+2. Add one static entry to `IMAGE_ASSETS` in `content/assets.ts`.
+3. Store that exact key in the content payload.
+4. Add useful `altText` to story pages and test the relevant screen.
 
-## Image Loading
+`content/imagePreloader.ts` performs best-effort, non-blocking preloading for menu, story, Learning, Word, and Counting images. Bundled assets use Expo Asset and HTTP(S) images use `Image.prefetch`. A preload failure must not block content or progress.
 
-Use `components/common/CachedImage.tsx` for child-facing content images:
+## Audio
 
-```tsx
-<CachedImage
-  source={resolveImageSource(card.image, "african-focus.png")}
-  fallbackSource={resolveImageSource("african-focus.png")}
-  className="w-full h-40"
-  resizeMode="cover"
-  accessibilityLabel={card.title}
-/>
-```
+Audio references also stay declarative in database payloads, while bundled resolver maps remain in code:
 
-Supported image references:
+- Learning Hub uses logical `audioKey` and optional bundled `audioAsset`, resolved by `lib/audioAssets.ts`.
+- Standalone Learning/Counting playback continues through the existing maps and mechanics in `components/games/utils/audioManager.ts`.
 
-- Bundled asset names registered in `content/assets.ts`, such as `coin.png`.
-- Existing static `require(...)` image modules.
-- Future URI strings such as `https://...`, `file://...`, or `data:image/...`.
+Add a reviewed bundled recording to the appropriate static resolver before using its key in a payload. Do not infer a file path or use a dynamic `require`. Placeholder audio must remain marked placeholder in content readiness metadata.
 
-Preloading helpers live in `content/imagePreloader.ts`.
+## Failure Checklist
 
-- `preloadContentBundleImages(bundle)` collects menu, story, learning, word, and counting images.
-- `preloadStoryImages(story)` preloads a story's page images.
-- Bundled assets use `expo-asset`.
-- Remote HTTP(S) URIs use `Image.prefetch`.
-- Preloading is best-effort and non-blocking. Failures are logged only in development and must not block gameplay.
-
-## Later CDN/CMS Improvements
-
-If a real CDN or CMS is introduced later, add signed/public CDN URL conventions, stronger payload versioning, cache eviction by content revision, image dimensions in payloads, low-resolution placeholders, and optional offline content packs. Keep language-specific cache keys and the no silent `nyn` to `lg` fallback rule.
+- Wrong language appears: inspect the requested code, row `language_code`, and v2 cache key; never repair this with fallback.
+- New content does not appear: confirm it is active, published, startable, has a bumped `content_version`, and passes every type validator.
+- Valid old content remains after refresh: check for one invalid supported row or a duplicate single-bundle type; either causes last-known-good retention.
+- Every area is unavailable on a first install: inspect the Supabase error before changing fallback behavior. A missing metadata-column error such as PostgreSQL `42703` means the content migrations have not been applied; an empty first cache cannot mask a schema failure.
+- One valid area is blocked by another row: the published response is atomic. Fix the malformed supported row instead of partially caching the response. `20260714213732_normalize_published_story_menu_order.sql` is the concrete compatibility example.
+- Image shows the generic fallback: register the exact key in `content/assets.ts` or provide a supported URI.
+- Offline first launch is unavailable: expected when the exact-language cache has never been populated.

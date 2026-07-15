@@ -48,7 +48,7 @@ Audio and language features support child-friendly feedback, Luganda learning, a
 - Hardcoded UI translations in `lib/translations.ts`.
 - Bundled word audio in `assets/audio/`.
 - Bundled game/museum/story sounds in `assets/sounds/` and `assets/audio/`.
-- Tap-to-learn audio keys in `content/learningHubContent.json`, resolved through `lib/audioAssets.ts`.
+- Tap-to-learn audio keys in the exact-language `learning_hub` database payload, resolved through the bundled map in `lib/audioAssets.ts`.
 - Disabled prototype Sunbird helper functions.
 
 ## State Management And Logic Notes

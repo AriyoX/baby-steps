@@ -1,8 +1,10 @@
 import {
   buildCardsMatchingCompletionData,
   completeCardsMatchingGameLocallyFirst,
+  getPlayableCardGameContent,
   persistCardsMatchingPairLocallyFirst,
 } from "../CardsMatchingComponent";
+import type { CardGameContent } from "@/content/contentRepository";
 import { runCompletionOnce } from "@/lib/completionReliability";
 import {
   CardGameStatsSaveError,
@@ -15,6 +17,10 @@ jest.mock("@react-native-async-storage/async-storage", () =>
     "@react-native-async-storage/async-storage/jest/async-storage-mock",
   ),
 );
+
+jest.mock("@/content/contentRepository", () => ({
+  loadContentBundle: jest.fn(),
+}));
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ back: jest.fn() }),
@@ -67,6 +73,43 @@ const overallStats: CardGameOverallStats = {
   gamesPlayed: 2,
   totalPairsMatched: 9,
 };
+
+const cardContent = (): CardGameContent => ({
+  title: "Database Cards",
+  items: Array.from({ length: 8 }, (_, index) => ({
+    id: `card-${index + 1}`,
+    imageSymbol: "⭐",
+    info: `Card ${index + 1} information`,
+    order: 8 - index,
+    value: `Value ${index + 1}`,
+  })),
+});
+
+describe("Cards Matching database payload validation", () => {
+  it("orders valid database items without changing their stable values", () => {
+    const content = cardContent();
+
+    const playable = getPlayableCardGameContent(content);
+
+    expect(playable?.title).toBe("Database Cards");
+    expect(playable?.items.map((item) => item.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(new Set(playable?.items.map((item) => item.value)).size).toBe(8);
+    expect(content.items[0].order).toBe(8);
+  });
+
+  it("rejects undersized and duplicate-value payloads before a game starts", () => {
+    const tooSmall = cardContent();
+    tooSmall.items.pop();
+    expect(getPlayableCardGameContent(tooSmall)).toBeUndefined();
+
+    const duplicated = cardContent();
+    duplicated.items[1] = {
+      ...duplicated.items[1],
+      value: duplicated.items[0].value,
+    };
+    expect(getPlayableCardGameContent(duplicated)).toBeUndefined();
+  });
+});
 
 describe("Cards Matching local-first completion", () => {
   it("persists pair stats and resumable state before delayed achievement work", async () => {
@@ -227,6 +270,7 @@ describe("Cards Matching local-first completion", () => {
       12,
       31,
       "2026-07-14T10:00:00.000Z",
+      "Buganda Cultural Cards",
     );
 
     expect(completed.efficiency).toBe(75);

@@ -2,7 +2,7 @@
 
 ## Current Status
 
-MVP JSON-backed Learning hub with a DB-ready local content contract, a two-step learning-area path, mechanic-driven lesson renderers for tap-to-learn, listen-and-choose practice, choose-correct-word practice, match-word-picture practice, mini-quiz review, cultural cards, story bites, and local-first lesson completion tracking.
+Supabase-backed Learning Hub with exact-language stale-while-revalidate caching, a two-step learning-area path, mechanic-driven renderers for tap-to-learn, listen-and-choose practice, choose-correct-word practice, match-word-picture practice, mini-quiz review, cultural cards, story bites, and local-first lesson completion tracking.
 
 ## Purpose
 
@@ -14,32 +14,22 @@ The Learning hub does not route stage cards into the older standalone Luganda le
 
 ## Content Source
 
-Learning hub content is local JSON-backed for now:
+Learning Hub content is a `content_items` row with `content_type = "learning_hub"` and an exact `language_code`. The implemented files are:
 
-- `content/learningHubContent.json`
-- `content/learningHubRepository.ts`
-- `content/learningHubTypes.ts`
+- `content/contentRepository.ts`: Supabase query, validation, versioned cache, and bundle registration;
+- `content/learningHubRepository.ts`: mechanic-specific normalization, ordering, stable-ID validation, status rules, and synchronous selectors over the registered last-known-good bundle;
+- `content/learningHubTypes.ts`: public content contracts;
+- `hooks/useLearningHubContent.ts`: route loading/retry state.
 
-The JSON models a versioned content bundle with languages, stages, lessons, lesson items, mechanics, order, lock state, readiness, and startable state. This shape is intended to stay close to future DB-backed content while keeping the current MVP offline-safe.
+UI and renderer components consume normalized repository objects, never raw database JSON. The adapter validates explicit stage, globally unique lesson, item, option, question, and page IDs; preserves ordered mechanic payloads; supports legacy `word` / `translation` aliases; carries logical `audioKey` / `imageKey` references and bundled `audioAsset` / `imageAsset` references; and filters invalid implemented items.
 
-Learning Hub content is currently available locally only when a language has an explicit bundle in `content/learningHubContent.json`. Missing or unsupported languages never fall back to another language's Learning Hub bundle. This is intentionally separate from the generic DB-backed content system, which already keeps Luganda and Runyankole content distinct.
+The current default language is Luganda (`lg`) only when a child has no selected language. Every explicit language request is exact. If a child selects Runyankole (`nyn`) or another language without a valid published/startable Learning Hub row or exact-language cache, the Learning tab and direct stage/lesson routes show a language-specific unavailable/retry state. They do not load Luganda stages, lessons, mechanics, or progress into that language namespace, and they do not change the selected language.
 
-`content/learningHubRepository.ts` is the content adapter. UI and renderer components should consume normalized repository objects instead of raw JSON. The adapter handles:
+The initial Luganda payload is seeded by `20260714182326_database_backed_learning_content.sql`. The known Runyankole samples remain draft and non-startable; they are not a production curriculum. Any legacy JSON file retained for migration history is not imported by production runtime code.
 
-- explicit local-bundle language resolution with no cross-language fallback
-- stage, lesson, and item ordering
-- mechanic-specific item normalization
-- legacy `word` / `translation` compatibility
-- logical `audioKey` / `imageKey` asset references
-- local `audioAsset` / `imageAsset` fallbacks
-- lesson status rules
-- implemented mechanic checks
+To prove a database-only update without changing application code, use the reversible development-only [dynamic-stage smoke test](../database/learning-hub-dynamic-stage-smoke-test.sql). It adds a clearly marked Luganda stage, increments the bundle version, and includes separate cleanup SQL. Do not run it against production.
 
-The current default language is Luganda (`lg`) when a child has no selected language. Luganda continues to load its explicit local bundle normally. If a child selects Runyankole (`nyn`), or any other language without an explicit Learning Hub bundle, the Learning tab and direct stage/lesson routes show a language-specific unavailable state and do not load Luganda stages, lessons, mechanics, or progress in that language namespace. The selected language is not changed automatically.
-
-Runyankole should remain in this unavailable/coming-soon state until its DB-backed Learning Hub bundle is introduced. This is a temporary safety behavior before the planned Supabase content migration; it does not add placeholder Runyankole lessons and does not change the separate generic content registry.
-
-The current DB language code for Luganda is `lg`, matching `children.selected_language_code`. Temporary bridge helpers map legacy labels such as `luganda` / `oluganda` to `lg` and Runyankole / Runyankore labels to `nyn` so local progress uses DB-style language codes without breaking bundled content lookup.
+The database language code for Luganda is `lg`, matching `children.selected_language_code`. Compatibility helpers normalize legacy labels such as `luganda` / `oluganda` to `lg` and Runyankole / Runyankore labels to `nyn`, while preserving exact-language repository queries and progress namespaces.
 
 TODO: Replace placeholder vocabulary/audio with reviewed curriculum content and native-speaker recordings before production.
 
@@ -240,7 +230,7 @@ Each `LearningLessonCompletion` maps cleanly to a `child_stage_progress` row:
 - `status`, `score`, `stars`, `attempts`, `completedAt`
 - `progressPayload` -> `child_stage_progress.progress_payload`
 
-`progressPayload` stores `source: "learning_hub"`, the lesson ID again for clarity, stage/lesson titles, mechanic types, summarized item-level `ItemResult[]`, total item count, correct item count, completion time, and the local content version when available.
+`progressPayload` stores `source: "learning_hub"`, the lesson ID again for clarity, stage/lesson titles, mechanic types, summarized item-level `ItemResult[]`, total item count, correct item count, completion time, and the registered database content version when available.
 
 `LearningProgressSummary` is shaped like a `child_activity_progress` aggregate for `activity_type = "language"`: status, attempts, last stage ID, completed stage count, completed lesson IDs, and a local lookup by lesson ID. `completedStageCount` counts fully completed stages, where every currently startable lesson in the stage is complete. Curriculum status becomes `completed` only when every currently startable lesson in every currently startable stage is complete. Locked Practice Mix and non-startable content do not contribute to the totals. Historic completion IDs remain stored but unknown IDs do not affect current aggregate status or stage counts.
 
@@ -264,7 +254,7 @@ Learning Hub achievements reuse the existing Baby Steps achievement system inste
 
 - Achievement definitions are global/static badge definitions: ID, name, description, icon, `activity_type`, points, optional `trigger_value`, and `game_key`.
 - Child achievement records are child-specific earned rows in `child_achievements`, keyed by `child_id` and `achievement_id`.
-- Learning Hub content provides context only, such as `stageId`, `lessonId`, `mechanic`, and `languageCode`. Achievement state is not stored in `content/learningHubContent.json`.
+- Learning Hub content provides context only, such as `stageId`, `lessonId`, `mechanic`, and `languageCode`. Achievement definitions and earned state are not stored in `content_items.payload`.
 
 The first Learning Hub badges are built into the achievement manager with stable UUIDs and `game_key = "learning_hub"`:
 
@@ -305,7 +295,7 @@ The child completion screen shows a lightweight in-app unlock modal only for new
 
 Learning audio is resolved through `lib/audioAssets.ts`.
 
-`audioKey` is the logical future DB/CDN content key, for example `luganda.first_words.greetings.gyebale_ko`. `audioAsset` is the current local bundled fallback key, for example `placeholder_learning_cue` or `webale`.
+`audioKey` is the logical database content key, for example `luganda.first_words.greetings.gyebale_ko`. `audioAsset` is the optional local bundled key, for example `placeholder_learning_cue` or `webale`.
 
 Placeholder audio is only for MVP mechanic testing. The current placeholder cue resolves to an existing bundled spoken file so playback is audible offline, but it must not be treated as reviewed production pronunciation. Real native-speaker recordings are required before production.
 
@@ -340,16 +330,20 @@ Current MVP stages:
 
 First Words currently has startable `tap_to_learn`, `listen_and_choose`, `choose_correct_word`, `match_word_picture`, and placeholder `mini_quiz` lessons. Family & Home currently has startable `tap_to_learn`, placeholder `match_word_picture`, placeholder `choose_correct_word`, placeholder `mini_quiz`, placeholder `cultural_card`, and placeholder `story_bite` lessons. Everyday Things currently has short placeholder `choose_correct_word`, `match_word_picture`, and `mini_quiz` lessons for familiar food, animal, water, and object words using existing bundled images or emoji fallbacks. Culture & Stories remains planned placeholder content. Practice Mix is marked as practice content and remains locked until a future pass has enough reviewed completion history and runtime review logic.
 
-## Future DB Mapping
+## Database And Cache Mapping
 
-No migrations have been added for Learning Hub progress. Content remains local JSON but DB-ready. The current completion logging uses the existing child progress schema:
+The exact-language curriculum is stored as one versioned `learning_hub/curriculum` JSON bundle. The repository validates the complete remote bundle before replacing the cached version. It does not cache malformed or empty responses and never uses another language's cache. A valid memory/AsyncStorage cache returns immediately while Supabase refreshes in the background.
 
-- Learning content can map through `content_items` using content types such as `learning_stage`, `learning_lesson`, or `learning_bundle`, with stable IDs in `slug`, ordered rows through `sort_order`, and stage/lesson/item data in `payload jsonb`.
-- Lesson completion can map to `child_stage_progress`, with the top-level Learning area in `stage_id`, lesson ID in `level_id`, and item-level details in `progress_payload`.
-- Aggregate Learning summary can map to `child_activity_progress` with `activity_type = "language"`.
-- Append-only activity feed entries map to `activities` with `activity_type = "language"` and `language_code = "lg"` or another DB language code.
+Learning progress still uses the existing reliability architecture; content migration did not change its identity:
 
-`audioKey` and `imageKey` should become logical content asset references. `audioAsset` and `imageAsset` remain local bundled fallback references for now. Current match-word-picture content uses existing bundled images where clearly suitable, keeps emoji fallback visuals for placeholder options, and remains local JSON, but its option shape is DB-ready for future image records or CDN references. Current mini-quiz content is also local JSON, with nested question/option payloads that can map cleanly into future `content_items.payload` JSON. Current cultural-card content is local JSON with simple text fields and optional visual fields that can map cleanly into future `content_items.payload` JSON. Current story-bite content is local JSON with ordered page payloads that can map cleanly into future `content_items.payload` JSON.
+- lesson completion maps to `child_stage_progress`, with stage ID in `stage_id`, lesson ID in `level_id`, and item results in `progress_payload`;
+- aggregate Learning summary maps to `child_activity_progress` with `activity_type = "language"`;
+- append-only feed entries use `activities.activity_type = "language"` and the exact language code;
+- historical IDs stay stored when a later published bundle retires content, while current completion totals use current startable lessons.
+
+`audioKey` and `imageKey` are database content references. `audioAsset` and `imageAsset` remain optional bundled compatibility references resolved by static code maps; media binaries were not moved to Supabase Storage.
+
+See [Database-Backed Content](./database-content.md), [Content Authoring And New Games](../development/content-authoring-and-new-games.md), and [Content Cache And Asset Loading](../development/content-cache-and-images.md) for publication, payload, seed, cache, and language-addition rules.
 
 ## Future Passes
 
@@ -359,16 +353,7 @@ Intentionally deferred:
 - Practice Mix runtime recommendations
 - Practice Mix runtime logic
 - AI recommendations
-- Supabase content fetching for Learning Hub
 - Supabase progress syncing beyond the existing progress repository path
-- Learning Hub content/progress schema migrations
 - full recommendation algorithm
 
 Museum remains archived and hidden for possible future redesign. No Museum routes or WebView surfaces are re-enabled by Learning Hub work.
-
-## TODO: DB Migration Planning
-
-- Decide canonical language codes for Luganda, Runyankole / Runyankore, and future Ugandan languages.
-- Define reviewed asset records for `audioKey` and `imageKey`.
-- Map readiness and lesson status rules into server-side content validation.
-- Add content/progress schema migrations only after the local contract and implemented mechanics are stable.

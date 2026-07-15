@@ -5,15 +5,23 @@ import { Text } from "@/components/StyledText";
 
 type LearningLanguageUnavailableStateProps = {
   languageName?: string;
+  title?: string;
+  message?: string;
   actionLabel: string;
   onAction: () => void;
+  secondaryActionLabel?: string;
+  onSecondaryAction?: () => void;
   bottomClearance?: number;
 };
 
 export function LearningLanguageUnavailableState({
   languageName,
+  title,
+  message,
   actionLabel,
   onAction,
+  secondaryActionLabel,
+  onSecondaryAction,
   bottomClearance = 0,
 }: LearningLanguageUnavailableStateProps) {
   const subject = languageName ? `${languageName} lessons` : "Lessons for your language";
@@ -46,21 +54,36 @@ export function LearningLanguageUnavailableState({
               <BrandMark kind="mascot" width={48} height={66} />
             </View>
             <Text variant="bold" className="text-primary-700 text-2xl text-center mb-2">
-              {subject} are coming soon!
+              {title ?? `${subject} are coming soon!`}
             </Text>
             <Text className="text-neutral-600 text-base text-center leading-6 mb-5">
-              We are getting these Learning Hub lessons ready for you. Please come back soon.
+              {message ??
+                "We are getting these Learning Hub lessons ready for you. Please come back soon."}
             </Text>
-            <TouchableOpacity
-              className="bg-primary-600 rounded-full px-6 py-3"
-              onPress={onAction}
-              accessibilityRole="button"
-              accessibilityLabel={actionLabel}
-            >
-              <Text variant="bold" className="text-white text-base">
-                {actionLabel}
-              </Text>
-            </TouchableOpacity>
+            <View className="flex-row items-center justify-center flex-wrap">
+              <TouchableOpacity
+                className="bg-primary-600 rounded-full px-6 py-3 m-1"
+                onPress={onAction}
+                accessibilityRole="button"
+                accessibilityLabel={actionLabel}
+              >
+                <Text variant="bold" className="text-white text-base">
+                  {actionLabel}
+                </Text>
+              </TouchableOpacity>
+              {secondaryActionLabel && onSecondaryAction ? (
+                <TouchableOpacity
+                  className="bg-white border-2 border-primary-600 rounded-full px-6 py-3 m-1"
+                  onPress={onSecondaryAction}
+                  accessibilityRole="button"
+                  accessibilityLabel={secondaryActionLabel}
+                >
+                  <Text variant="bold" className="text-primary-700 text-base">
+                    {secondaryActionLabel}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
         </ScrollView>
       </SafeAreaView>

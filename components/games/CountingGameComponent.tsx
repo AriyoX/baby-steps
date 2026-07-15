@@ -53,11 +53,6 @@ import type { AchievementDefinition } from "./achievements/achievementTypes"
 import { audioManager } from "@/lib/audioManager"
 import { useChildNotice } from "@/context/ChildNoticeContext"
 
-const DEFAULT_COUNTING_ITEM: CountingGameItem = {
-  name: "items",
-  image: "coin.png",
-}
-
 const GAME_SCREEN_OVERLAY = "rgba(2, 116, 187, 0.88)"
 
 interface CountingCompletionOrderOptions {
@@ -129,7 +124,7 @@ const LugandaCountingGame: React.FC = () => {
   const [currentStage, setCurrentStage] = useState<number>(1)
   const [currentLevel, setCurrentLevel] = useState<number>(1)
   const [countingContent, setCountingContent] = useState<CountingGameContent | null>(null)
-  const [currentItem, setCurrentItem] = useState<CountingGameItem>(DEFAULT_COUNTING_ITEM)
+  const [currentItem, setCurrentItem] = useState<CountingGameItem | null>(null)
   const [itemsToCount, setItemsToCount] = useState<CountItem[]>([])
   const [selectedCount, setSelectedCount] = useState<number | null>(null)
   const [showFeedback, setShowFeedback] = useState<boolean>(false)
@@ -145,6 +140,7 @@ const LugandaCountingGame: React.FC = () => {
   const [gameLevels, setGameLevels] = useState<number[]>([])
   const [stageCompleted, setStageCompleted] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState<boolean>(true)
+  const [contentRetrySequence, setContentRetrySequence] = useState(0)
   // Progress state
   const [progress, setProgress] = useState<CountingGameProgress>(DEFAULT_PROGRESS)
   const progressRef = useRef<CountingGameProgress>(DEFAULT_PROGRESS)
@@ -166,7 +162,7 @@ const LugandaCountingGame: React.FC = () => {
   const gameStartTime = useRef(Date.now())
   const countingStages = countingContent?.stages ?? []
   const countingStageIds = countingStages.map((stage) => stage.id)
-  const countingItems = countingContent?.culturalItems ?? [DEFAULT_COUNTING_ITEM]
+  const countingItems = countingContent?.culturalItems ?? []
   const currencyItems = countingContent?.currency ?? []
 
   progressOwnerRef.current = {
@@ -219,7 +215,7 @@ const LugandaCountingGame: React.FC = () => {
       return currencyItem.targetText
     }
 
-    return countingContent?.numbers.find((item) => item.number === number)?.targetText ?? `${number}`
+    return countingContent?.numbers.find((item) => item.number === number)?.targetText ?? ""
   }
 
   const getRandomNumbersForStage = (stageId: number): number[] => {
@@ -272,7 +268,9 @@ const LugandaCountingGame: React.FC = () => {
       setIsLoading(true)
 
       try {
-        const contentResult = await loadContentBundle(requestedLanguageCode)
+        const contentResult = await loadContentBundle(requestedLanguageCode, {
+          forceRefresh: contentRetrySequence > 0,
+        })
         const loadedCountingContent = contentResult.bundle?.countingGame ?? null
         if (contentResult.bundle) {
           void preloadContentBundleImages(contentResult.bundle).catch((error) => {
@@ -283,7 +281,7 @@ const LugandaCountingGame: React.FC = () => {
         if (!isCurrentRequest()) return
 
         setCountingContent(loadedCountingContent)
-        setCurrentItem(loadedCountingContent?.culturalItems[0] ?? DEFAULT_COUNTING_ITEM)
+        setCurrentItem(loadedCountingContent?.culturalItems[0] ?? null)
 
         if (requestedChildId) {
           console.log(`Loading progress for child: ${requestedChildId}`)
@@ -334,7 +332,7 @@ const LugandaCountingGame: React.FC = () => {
       correctAnswerLockRef.current = false
       stageCompletionLockRef.current = false
     }
-  }, [isLoadingAch, activeChild?.id, languageCode, clearGameTimers])
+  }, [isLoadingAch, activeChild?.id, languageCode, clearGameTimers, contentRetrySequence])
 
   useEffect(() => {
     setDimensions({
@@ -552,10 +550,7 @@ const LugandaCountingGame: React.FC = () => {
       // Verify we have numbers before proceeding
       if (randomNumbers.length === 0) {
         console.error(`No numbers generated for stage ${stageId}`)
-        // Default to some fallback numbers based on stage
-        const stage = getStageById(stageId)
-        const min = stage?.numbersRange.min ?? 1
-        setGameLevels([min, min + 1, min + 2, min + 3])
+        setGameLevels([])
       } else {
         console.log(`Stage ${stageId} initialized with levels:`, randomNumbers)
         setGameLevels(randomNumbers)
@@ -585,8 +580,7 @@ const LugandaCountingGame: React.FC = () => {
       setSelectedCount(null)
     } catch (error) {
       console.error("Error initializing stage:", error)
-      // Set some default game levels to prevent the game from breaking
-      setGameLevels([1, 2, 3, 4, 5])
+      setGameLevels([])
     }
   }
 
@@ -594,13 +588,17 @@ const LugandaCountingGame: React.FC = () => {
     try {
       correctAnswerLockRef.current = false
 
-      // Choose a random item from cultural items
-      const randomItemIndex = Math.floor(Math.random() * countingItems.length)
-      const newItem = countingItems[randomItemIndex] ?? DEFAULT_COUNTING_ITEM
-
       // Get the current stage
       const stage = getStageById(stageId)
       if (!stage) {
+        setItemsToCount([])
+        setNumberOptions([])
+        return
+      }
+
+      const randomItemIndex = Math.floor(Math.random() * countingItems.length)
+      const newItem = countingItems[randomItemIndex]
+      if (!stage.usesCurrency && !newItem) {
         setItemsToCount([])
         setNumberOptions([])
         return
@@ -711,7 +709,7 @@ const LugandaCountingGame: React.FC = () => {
       // Shuffle the options
       options.sort(() => Math.random() - 0.5)
 
-      setCurrentItem(newItem)
+      setCurrentItem(newItem ?? null)
       setItemsToCount(newItemsToCount)
       setSelectedCount(null)
       setShowFeedback(false)
@@ -957,7 +955,9 @@ const LugandaCountingGame: React.FC = () => {
 
   // Update the getImageSource function to return the appropriate image based on the current item
   const getImageSource = () => {
-    return resolveImageSource(currentItem?.image, "african-logic.png") as any
+    return currentItem
+      ? (resolveImageSource(currentItem.image, "african-logic.png") as any)
+      : null
   }
 
   // Update the renderItemsToCount function to handle currency items better
@@ -971,21 +971,7 @@ const LugandaCountingGame: React.FC = () => {
 
       if (!currencyItem) {
         console.warn(`No currency item found for value ${targetNumber}`)
-        // Display a fallback
-        return [
-          <View
-            key="currency-fallback"
-            className="items-center justify-center absolute"
-            style={{
-              left: dimensions.width * 0.3,
-              top: dimensions.height * 0.3,
-            }}
-          >
-            <Text variant="bold" className="text-xl text-primary-800">
-              {`Shs ${targetNumber}`}
-            </Text>
-          </View>,
-        ]
+        return []
       }
 
       const currencyImageSource = resolveImageSource(currencyItem.image, "coin.png") as any
@@ -1059,11 +1045,11 @@ const LugandaCountingGame: React.FC = () => {
               fallbackSource={resolveImageSource("african-logic.png")}
               className="w-16 h-16"
               resizeMode="contain"
-              accessibilityLabel={currentItem.name}
+              accessibilityLabel={currentItem?.name ?? "Counting item"}
             />
           </Animated.View>
           <Text variant="bold" className="text-xs bg-white/80 px-2 py-1 rounded mt-1">
-            {item.bunch} {currentItem.name}
+            {item.bunch} {currentItem?.name}
           </Text>
         </View>
       ))
@@ -1085,7 +1071,7 @@ const LugandaCountingGame: React.FC = () => {
           fallbackSource={resolveImageSource("african-logic.png")}
           className="w-16 h-16"
           resizeMode="contain"
-          accessibilityLabel={currentItem.name}
+          accessibilityLabel={currentItem?.name ?? "Counting item"}
         />
       </Animated.View>
     ))
@@ -1105,10 +1091,13 @@ const LugandaCountingGame: React.FC = () => {
         "Each bunch has {itemsPerBunch} {item}. How many {item} are there in total?"
       return template
         .replace(/\{itemsPerBunch\}/g, `${stage.itemsPerBunch ?? 10}`)
-        .replace(/\{item\}/g, currentItem.name)
+        .replace(/\{item\}/g, currentItem?.name ?? "")
     }
 
-    return (stage.prompt ?? "How many {item} do you see?").replace(/\{item\}/g, currentItem.name)
+    return (stage.prompt ?? "How many {item} do you see?").replace(
+      /\{item\}/g,
+      currentItem?.name ?? "",
+    )
   }
 
   const selectStage = (stageId: number) => {
@@ -1375,7 +1364,12 @@ const LugandaCountingGame: React.FC = () => {
   }
 
   if (!countingContent || countingStages.length === 0) {
-    return <ComingSoonState title="Counting game coming soon" />
+    return (
+      <ComingSoonState
+        title="Counting game coming soon"
+        onRetry={() => setContentRetrySequence((current) => current + 1)}
+      />
+    )
   }
 
   // Render the appropriate screen based on game state

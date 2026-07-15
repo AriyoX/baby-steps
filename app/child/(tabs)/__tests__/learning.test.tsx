@@ -1,13 +1,24 @@
 import React from "react";
 import { Animated, TouchableOpacity } from "react-native";
 import renderer, { act } from "react-test-renderer";
+import { registerLearningHubTestFixture } from "@/content/testFixtures/learningHubTestFixture";
+import {
+  getLearningContentVersion,
+  getLearningLanguageContent,
+} from "@/content/learningHubRepository";
 import LearningHubScreen from "../learning";
 
 const mockRouterPush = jest.fn();
 const mockRouterReplace = jest.fn();
 const mockToggleBackgroundMusicMuted = jest.fn();
 const mockToggleAppSoundsMuted = jest.fn();
+const mockLoadLearningHubLanguageContent = jest.fn();
 let mockSelectedLanguageCode = "lg";
+
+jest.mock("@/content/learningHubLoader", () => ({
+  loadLearningHubLanguageContent: (...args: unknown[]) =>
+    mockLoadLearningHubLanguageContent(...args),
+}));
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({
@@ -75,8 +86,30 @@ jest.mock("@/lib/audioManager", () => ({
 }));
 
 beforeEach(() => {
+  registerLearningHubTestFixture();
   jest.clearAllMocks();
   mockSelectedLanguageCode = "lg";
+  mockLoadLearningHubLanguageContent.mockImplementation(
+    async (languageCode: string) => {
+      const content = getLearningLanguageContent(languageCode);
+      const contentVersion = getLearningContentVersion(languageCode);
+      return content && contentVersion
+        ? {
+            status: "ready",
+            languageCode,
+            content,
+            contentVersion,
+            source: "database",
+            retainedPrevious: true,
+          }
+        : {
+            status: "unavailable",
+            languageCode,
+            source: "empty",
+            retainedPrevious: false,
+          };
+    },
+  );
   jest.spyOn(Animated, "loop").mockReturnValue({
     start: jest.fn(),
     stop: jest.fn(),
@@ -142,6 +175,31 @@ describe("Learning tab", () => {
     expect(text).toContain("Culture & Stories");
     expect(text).toContain("Practice Mix");
     expect(text).not.toContain("lessons are coming soon");
+
+    act(() => {
+      tree?.unmount();
+    });
+  });
+
+  it("removes Luganda immediately when the selected language changes", async () => {
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await act(async () => {
+      tree = renderer.create(<LearningHubScreen />);
+    });
+    if (!tree) throw new Error("LearningHubScreen did not render");
+
+    mockLoadLearningHubLanguageContent.mockReturnValue(new Promise(() => undefined));
+    mockSelectedLanguageCode = "nyn";
+
+    act(() => {
+      tree?.update(<LearningHubScreen />);
+    });
+
+    const text = JSON.stringify(tree.toJSON());
+    expect(text).toContain("Getting lessons ready");
+    expect(text).not.toContain("First Words");
+    expect(text).not.toContain("Practice Mix");
 
     act(() => {
       tree?.unmount();

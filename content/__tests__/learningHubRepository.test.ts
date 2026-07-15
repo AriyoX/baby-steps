@@ -18,6 +18,7 @@ import {
   isLessonLocked,
   isLessonStartable,
   isMechanicImplemented,
+  normalizeLearningHubLanguageContent,
   resolveLearningHubLanguageCode,
   stageHasMechanicContent,
 } from "../learningHubRepository";
@@ -30,6 +31,10 @@ import type {
   MiniQuizItem,
   StoryBiteItem,
 } from "../learningHubTypes";
+import {
+  getLearningHubSeedFixture,
+  registerLearningHubTestFixture,
+} from "../testFixtures/learningHubTestFixture";
 
 const REQUIRED_STAGE_IDS = [
   "first-words",
@@ -38,6 +43,10 @@ const REQUIRED_STAGE_IDS = [
   "culture-stories",
   "practice-mix",
 ];
+
+beforeEach(() => {
+  registerLearningHubTestFixture();
+});
 
 describe("learning hub repository", () => {
   it("loads a versioned DB-ready content bundle with a default language", () => {
@@ -859,6 +868,74 @@ describe("learning hub repository", () => {
     expect(
       getLearningStageById(requestedLanguageCode, "first-words"),
     ).toBeUndefined();
+  });
+
+  it("rejects remote content with missing nested stable ids", () => {
+    const rawContent = JSON.parse(
+      JSON.stringify(getLearningHubSeedFixture().languages.lg),
+    ) as {
+      stages: {
+        lessons: { items: { id?: string }[] }[];
+      }[];
+    };
+    delete rawContent.stages[0].lessons[0].items[0].id;
+
+    expect(normalizeLearningHubLanguageContent("lg", rawContent)).toBeNull();
+
+    const rawOptionContent = JSON.parse(
+      JSON.stringify(getLearningHubSeedFixture().languages.lg),
+    ) as {
+      stages: {
+        lessons: {
+          items: { options?: { id?: string }[] }[];
+        }[];
+      }[];
+    };
+    const itemWithOptions = rawOptionContent.stages
+      .flatMap((stage) => stage.lessons)
+      .flatMap((lesson) => lesson.items)
+      .find((item) => item.options && item.options.length > 0);
+    if (!itemWithOptions?.options) {
+      throw new Error("Missing option fixture.");
+    }
+    delete itemWithOptions.options[0].id;
+
+    expect(
+      normalizeLearningHubLanguageContent("lg", rawOptionContent),
+    ).toBeNull();
+  });
+
+  it("forces Practice Mix locked even if remote flags try to start it", () => {
+    const rawContent = JSON.parse(
+      JSON.stringify(getLearningHubSeedFixture().languages.lg),
+    ) as {
+      stages: {
+        id: string;
+        isLocked?: boolean;
+        locked?: boolean;
+        status?: string;
+      }[];
+    };
+    const practiceMix = rawContent.stages.find(
+      (stage) => stage.id === "practice-mix",
+    );
+    if (!practiceMix) throw new Error("Missing Practice Mix fixture.");
+    practiceMix.isLocked = false;
+    practiceMix.locked = false;
+    practiceMix.status = "preview";
+
+    const normalized = normalizeLearningHubLanguageContent("lg", rawContent);
+    const normalizedPractice = normalized?.stages.find(
+      (stage) => stage.id === "practice-mix",
+    );
+
+    expect(normalizedPractice).toEqual(
+      expect.objectContaining({
+        isPractice: true,
+        isLocked: true,
+        status: "locked",
+      }),
+    );
   });
 
   it("keeps Practice Mix locked and not startable", () => {

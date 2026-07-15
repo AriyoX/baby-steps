@@ -21,17 +21,15 @@ import {
   getLearningLanguage,
 } from "@/content/languages";
 import {
-  getLearningContentBundle,
-  getLearningLanguageContent,
-  getLearningStageById,
-  getLessonById,
-  getLessonItemsForLesson,
   getLessonStatus,
   getMechanicLabel,
-  resolveLearningHubLanguageCode,
 } from "@/content/learningHubRepository";
-import type { ItemResult } from "@/content/learningHubTypes";
+import type {
+  ItemResult,
+  LearningLanguageContent,
+} from "@/content/learningHubTypes";
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation";
+import { useLearningHubContent } from "@/hooks/useLearningHubContent";
 import {
   LEARNING_ACTIVITY_TYPE,
   awardLearningLessonCompletionAchievements,
@@ -134,13 +132,25 @@ export default function LearningLessonSessionScreen() {
   const stageId = getRouteParam(params.stageId);
   const lessonId = getRouteParam(params.lessonId);
   const childId = getLearningProgressChildId(activeChild?.id);
-  const languageCode = resolveLearningHubLanguageCode(
+  const {
+    languageCode,
+    languageContent: loadedLanguageContent,
+    contentVersion: loadedContentVersion,
+    status: contentStatus,
+    retry,
+  } = useLearningHubContent(
     activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE,
   );
-  const languageContent = useMemo(
-    () => getLearningLanguageContent(languageCode),
-    [languageCode],
-  );
+  const contentScopeKey = `${languageCode}:${stageId}:${lessonId}`;
+  const [contentSnapshot, setContentSnapshot] = useState<{
+    scopeKey: string;
+    content: LearningLanguageContent;
+    contentVersion: string;
+  } | null>(null);
+  const activeContentSnapshot =
+    contentSnapshot?.scopeKey === contentScopeKey ? contentSnapshot : null;
+  const languageContent = activeContentSnapshot?.content ?? null;
+  const lessonContentVersion = activeContentSnapshot?.contentVersion;
   const languageName = getLearningLanguage(languageCode)?.name;
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
@@ -154,18 +164,33 @@ export default function LearningLessonSessionScreen() {
 
   useChildLandscapeOrientation("child learning lesson");
 
+  useEffect(() => {
+    setContentSnapshot((currentSnapshot) => {
+      if (currentSnapshot?.scopeKey === contentScopeKey) {
+        return currentSnapshot;
+      }
+
+      if (!loadedLanguageContent || !loadedContentVersion) {
+        return null;
+      }
+
+      return {
+        scopeKey: contentScopeKey,
+        content: loadedLanguageContent,
+        contentVersion: loadedContentVersion,
+      };
+    });
+  }, [contentScopeKey, loadedContentVersion, loadedLanguageContent]);
+
   const stage = useMemo(
-    () => getLearningStageById(languageCode, stageId),
-    [languageCode, stageId],
+    () => languageContent?.stages.find((candidate) => candidate.id === stageId),
+    [languageContent, stageId],
   );
   const lesson = useMemo(
-    () => getLessonById(languageCode, stageId, lessonId),
-    [languageCode, lessonId, stageId],
+    () => stage?.lessons.find((candidate) => candidate.id === lessonId),
+    [lessonId, stage],
   );
-  const items = useMemo(
-    () => getLessonItemsForLesson(languageCode, stageId, lessonId),
-    [languageCode, lessonId, stageId],
-  );
+  const items = useMemo(() => lesson?.items ?? [], [lesson]);
   const lessonStatus = useMemo(
     () => getLessonStatus(lesson, stage),
     [lesson, stage],
@@ -271,7 +296,7 @@ export default function LearningLessonSessionScreen() {
           totalItems,
           correctItems,
           completedAt,
-          contentVersion: getLearningContentBundle().version,
+          contentVersion: lessonContentVersion,
         },
         readiness: "local_only",
       });
@@ -293,7 +318,16 @@ export default function LearningLessonSessionScreen() {
           console.warn("Could not award Learning Hub achievements:", error);
         });
     },
-    [childId, enqueueAchievementUnlocks, items, languageCode, lesson, lessonId, stage],
+    [
+      childId,
+      enqueueAchievementUnlocks,
+      items,
+      languageCode,
+      lesson,
+      lessonContentVersion,
+      lessonId,
+      stage,
+    ],
   );
 
   const handleItemComplete = useCallback(
@@ -321,14 +355,20 @@ export default function LearningLessonSessionScreen() {
   );
 
   if (!languageContent) {
+    const isLoading = contentStatus === "loading" || Boolean(loadedLanguageContent);
+
     return (
       <>
         <Stack.Screen options={{ headerShown: false, animation: "slide_from_right" }} />
         <StatusBar style="light" translucent backgroundColor="transparent" />
         <LearningLanguageUnavailableState
           languageName={languageName}
-          actionLabel="Back to Learning"
-          onAction={goBackToLearning}
+          title={isLoading ? "Getting lesson ready…" : undefined}
+          message={isLoading ? "We are loading this lesson now." : undefined}
+          actionLabel={isLoading ? "Back to Learning" : "Try again"}
+          onAction={isLoading ? goBackToLearning : retry}
+          secondaryActionLabel={isLoading ? undefined : "Back to Learning"}
+          onSecondaryAction={isLoading ? undefined : goBackToLearning}
         />
       </>
     );

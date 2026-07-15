@@ -70,16 +70,14 @@ const normalizeProgressForStages = (
   const sourceCompletedStages = Array.isArray(progress.completedStages)
     ? progress.completedStages
     : [];
-  const unlockedStages = sourceUnlockedStages.filter((stageId) =>
-    stageIdSet.has(stageId)
-  );
-  const completedStages = sourceCompletedStages.filter((stageId) =>
-    stageIdSet.has(stageId)
-  );
+  // Keep retired IDs in the persisted history. Current availability is derived
+  // separately from stageIdSet, so removing DB records never erases progress.
+  const unlockedStages = [...new Set(sourceUnlockedStages.filter(Number.isInteger))];
+  const completedStages = [...new Set(sourceCompletedStages.filter(Number.isInteger))];
   const lastPlayedLevel = Object.entries(progress.lastPlayedLevel ?? {}).reduce(
     (result, [stageId, level]) => {
       const numericStageId = Number(stageId);
-      if (stageIdSet.has(numericStageId)) {
+      if (Number.isInteger(numericStageId) && typeof level === 'number') {
         result[numericStageId] = level;
       }
       return result;
@@ -95,7 +93,9 @@ const normalizeProgressForStages = (
     childId,
     currentStage,
     totalScore: typeof progress.totalScore === 'number' ? progress.totalScore : 0,
-    unlockedStages: unlockedStages.length > 0 ? unlockedStages : [firstStageId],
+    unlockedStages: unlockedStages.includes(firstStageId)
+      ? unlockedStages
+      : [firstStageId, ...unlockedStages],
     completedStages,
     lastPlayedLevel: {
       [firstStageId]: 1,
@@ -110,11 +110,18 @@ const buildActivityProgressSnapshot = (
   availableStageIds?: number[]
 ) => {
   const stageIds = getAvailableStageIds(availableStageIds);
+  const stageIdSet = new Set(stageIds);
+  const completedCurrentStageIds = progress.completedStages.filter((stageId) =>
+    stageIdSet.has(stageId)
+  );
   const hasCompletedAllStages =
     stageIds.length > 0 &&
-    stageIds.every((stageId) => progress.completedStages.includes(stageId));
+    stageIds.every((stageId) => completedCurrentStageIds.includes(stageId));
+  const currentUnlockedStages = progress.unlockedStages.filter((stageId) =>
+    stageIdSet.has(stageId)
+  );
   const highestUnlockedStage =
-    progress.unlockedStages.length > 0 ? Math.max(...progress.unlockedStages) : null;
+    currentUnlockedStages.length > 0 ? Math.max(...currentUnlockedStages) : null;
   const hasStarted =
     progress.totalScore > 0 ||
     progress.completedStages.length > 0 ||
@@ -129,7 +136,7 @@ const buildActivityProgressSnapshot = (
     score: progress.totalScore,
     last_stage_id: String(progress.currentStage),
     highest_unlocked_stage: highestUnlockedStage,
-    completed_stage_count: progress.completedStages.length,
+    completed_stage_count: completedCurrentStageIds.length,
     progress_payload: {
       ...progress,
       availableStageIds: stageIds,

@@ -1,199 +1,388 @@
 # Content Authoring And New Games
 
-This guide explains how to add DB-backed Baby Steps content today, and what to decide before building a new game or activity. It reflects the current Expo React Native implementation, not a future CMS design.
+This is the technical authoring guide for the migration-managed MVP. It does not replace curriculum, language, cultural, accessibility, or child-safety review. Use [Learning Hub curriculum analysis](../learning-hub-curriculum-analysis.md#19-content-production-and-approval-workflow) for content-provider responsibilities and [Progress and Achievements](../features/progress-achievements.md) for reliability behavior.
 
-Related docs:
+## Content Row Contract
 
-- [MVP Content Items](./mvp-content-items.md)
-- [Content Management](./content-management.md)
-- [Database-Backed Content](../features/database-content.md)
-- [Progress, Content, and Read Cache Audit](./progress-content-cache-audit.md)
+`public.content_items` stores exact-language JSON bundles. Required database fields are:
 
-## Current Implementation Audit
+| Field | Rule |
+| --- | --- |
+| `language_code` | Exact code from `public.languages`, for example `lg` or `nyn` |
+| `content_type` | Lowercase supported type |
+| `slug` | Stable lowercase row key; unique with language and type |
+| `payload` | JSON object matching the type-specific contract below |
+| `sort_order` | Deterministic order between rows |
+| `is_active` | `false` retires the row |
+| `editorial_status` | `draft`, `reviewed`, or `published` |
+| `is_startable` | Whether the app may fetch/launch the row |
+| `content_version` | Positive monotonic revision; increment for each released change |
+| `published_at` | Publication time; normally null until published |
 
-The current content path is:
+`title` is optional. `id`, `created_at`, and `updated_at` are database-managed. The child roles have read-only access to active, published rows; the app query also requires startable rows.
 
-1. `content/contentRepository.ts` loads active Supabase `content_items` rows for one `language_code`.
-2. The repository validates and maps rows into a `ContentBundle`.
-3. Screens read the bundle through `loadContentBundle(activeChild?.selected_language_code)`.
-4. Menu images and content images are resolved through `content/assets.ts` and preloaded by `content/imagePreloader.ts`.
-5. Progress is local-first through AsyncStorage and `lib/progressRepository.ts`, then synced to Supabase progress tables.
-6. Completed activities are appended through `saveActivity` in `lib/utils.ts`.
-7. Achievements are checked through `components/games/achievements/achievementManager.ts`.
+There may be multiple `child_menu` and `story` rows per language. There must be at most one published/startable row per language for each of `learning_hub`, `learning_game`, `word_game`, `counting_game`, `card_game`, and `puzzle_game`. A duplicate single-bundle type invalidates the complete refresh, even when the slugs differ.
 
-Current DB-backed or repository-backed areas:
+## Stable IDs, Ordering, And Languages
 
-| Area | Current source | Notes |
+IDs are progress identities. Once shipped:
+
+- never rename, recycle, or change the meaning of a row slug, stage ID, lesson ID, item ID, level ID, story/page/question ID, card ID/value, or puzzle ID;
+- require explicit positive `order` values for ordered nested records, even where the normalizer can derive a fallback;
+- keep Learning Hub lesson IDs unique across the whole language bundle, not only within a stage;
+- keep item IDs unique within a lesson and nested option/question/page IDs unique within their parent;
+- preserve the Word game's original order and stable level IDs; legacy positional
+  progress is migrated through the immutable 50-level Luganda ID snapshot, while
+  new saves also retain stable IDs so later retirement does not erase history;
+- preserve numeric standalone Learning stage/level IDs, Counting stage IDs, exact Card `value` strings, and numeric Puzzle IDs.
+
+To retire content, remove it from a later bundle or set its row inactive/draft/non-startable. Do not delete historic progress. Current percentages are calculated from the current published/startable IDs, while old completion records remain stored.
+
+Every payload is authored independently for its row `language_code`. `learning_hub.payload.languageCode` and `story.payload.languageCode`, when present, must match the row exactly. Never copy `lg` into `nyn`, fall back across languages, or publish machine-invented translations. Missing exact-language content should remain draft/non-startable and produce Coming soon.
+
+## Publishing A Change
+
+The canonical initial seed is `supabase/migrations/20260714182326_database_backed_learning_content.sql`. It contains idempotent upserts for the existing Learning Hub, menus, standalone games, and known story publication state. `20260714213732_normalize_published_story_menu_order.sql` then upgrades the older Stories menu to the strict explicit-order contract. Both are applied to the linked Baby-Steps project. The chain intentionally leaves the existing Runyankole test samples draft and non-startable. Do not duplicate these payloads in `seed.sql`.
+
+For every future change:
+
+1. Start from the latest payload and preserve stable IDs and order.
+2. Complete the required language/curriculum/cultural review.
+3. Run `supabase migration new <descriptive_name>`; never invent a filename or edit an applied migration.
+4. Upsert on `(language_code, content_type, slug)` and explicitly set title, payload, sort order, active/editorial/startable state, version, and publication time.
+5. Increment `content_version` whenever published payload, ordering, or launch state changes.
+6. Add any bundled media to the static resolver maps before referencing it.
+7. Validate on a safe development database, then deploy through the normal migration workflow (`supabase db push` for the linked target). A brand-new local reset currently requires the missing pre-2026 baseline schema described in [Database Notes](./database.md#local-reset-caveat).
+
+Use this shape in a new migration:
+
+```sql
+INSERT INTO public.content_items (
+  language_code, content_type, slug, title, payload, sort_order,
+  is_active, editorial_status, is_startable, content_version, published_at
+)
+VALUES (
+  'lg', 'word_game', 'levels', 'Words',
+  $content${ "levels": [/* reviewed records */] }$content$::jsonb,
+  40, true, 'published', true, 2, timezone('utc', now())
+)
+ON CONFLICT (language_code, content_type, slug) DO UPDATE
+SET title = EXCLUDED.title,
+    payload = EXCLUDED.payload,
+    sort_order = EXCLUDED.sort_order,
+    is_active = EXCLUDED.is_active,
+    editorial_status = EXCLUDED.editorial_status,
+    is_startable = EXCLUDED.is_startable,
+    content_version = EXCLUDED.content_version,
+    published_at = EXCLUDED.published_at;
+```
+
+Use `draft`, `is_startable = false`, and `published_at = NULL` while a payload is incomplete. A row-level `published` value does not make nested Learning Hub `placeholder` items production-ready; preserve their honest readiness.
+
+### Reversible Dynamic-Stage Smoke Test
+
+For a reversible end-to-end check that a new Learning Hub stage appears without
+an application code change, use
+[`learning-hub-dynamic-stage-smoke-test.sql`](../database/learning-hub-dynamic-stage-smoke-test.sql).
+It appends one test-only Luganda stage idempotently, bumps `content_version`,
+and includes separate cleanup SQL. Run it only against a development target or
+an explicitly approved test project; it directly updates the selected database.
+Do not copy the smoke-test IDs into real curriculum content.
+
+```text
+npx supabase@2.109.1 db query --linked --file docs/database/learning-hub-dynamic-stage-smoke-test.sql
+```
+
+The query result should report `test_stage_present = true`. For a child using
+`lg`, reopen Learning Hub or navigate away and back; the startable **Database
+Content Test** stage should appear at order 99 without rebuilding the app. The
+same seed must not appear for `nyn`. Run the commented cleanup block separately
+after the visual check.
+
+## Learning Hub Bundle
+
+The `learning_hub` row is the main curriculum. Its payload envelope is:
+
+```json
+{
+  "languageCode": "lg",
+  "displayName": "Luganda",
+  "localName": "Oluganda",
+  "pathTitle": "Luganda Learning Path",
+  "stages": [
+    {
+      "id": "first-words",
+      "order": 1,
+      "stageNumber": 1,
+      "title": "First Words",
+      "description": "Start with useful everyday words.",
+      "imageKey": "learning-beginner.jpg",
+      "status": "preview",
+      "estimatedMinutes": 4,
+      "isPractice": false,
+      "isLocked": false,
+      "readiness": "draft",
+      "mechanics": ["tap_to_learn"],
+      "learningGoals": ["Hear and recognize useful words"],
+      "placeholderMessage": "More lessons are being prepared.",
+      "lessons": [
+        {
+          "id": "greetings-1",
+          "order": 1,
+          "title": "Greetings",
+          "description": "Tap each card to learn the word.",
+          "mechanic": "tap_to_learn",
+          "isStartable": true,
+          "isLocked": false,
+          "readiness": "draft",
+          "items": [
+            {
+              "id": "thank-you",
+              "order": 1,
+              "mechanic": "tap_to_learn",
+              "localText": "Webale",
+              "englishText": "Thank you",
+              "audioKey": "webale",
+              "audioAsset": "webale",
+              "readiness": "draft"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+The repository orders stages, lessons, and items, validates all explicit IDs, removes invalid implemented items, and derives each lesson's `startable`, `coming_soon`, `locked`, `unsupported`, or `empty` status. UI code consumes only normalized repository objects.
+
+To extend the path, add a stage at a new explicit order, add globally unique lesson IDs inside it, and add uniquely identified items whose mechanic matches their lesson. Mark incomplete work `placeholder`/`draft` and `isStartable: false`; publish only the surrounding bundle version that is safe to deliver. To add an item to a shipped lesson, append a new ID/order without renumbering existing items, then bump the row `content_version` in a new migration.
+
+### Mechanic Item Examples
+
+These snippets belong in `stages[].lessons[].items[]`. The enclosing lesson's `mechanic` must match the item mechanic.
+
+`tap_to_learn` requires local and English text:
+
+```json
+{
+  "id": "thank-you",
+  "order": 1,
+  "mechanic": "tap_to_learn",
+  "localText": "Webale",
+  "englishText": "Thank you",
+  "imageKey": "learning-beginner.jpg",
+  "audioKey": "webale",
+  "audioAsset": "webale",
+  "readiness": "draft"
+}
+```
+
+`listen_and_choose` requires two to four usable options and a matching correct ID. Provide resolvable audio:
+
+```json
+{
+  "id": "listen-webale",
+  "order": 1,
+  "mechanic": "listen_and_choose",
+  "promptText": "Tap the word you hear",
+  "audioKey": "webale",
+  "audioAsset": "webale",
+  "correctOptionId": "webale",
+  "options": [
+    { "id": "webale", "order": 1, "localText": "Webale", "englishText": "Thank you" },
+    { "id": "amazzi", "order": 2, "localText": "Amazzi", "englishText": "Water" }
+  ],
+  "readiness": "placeholder"
+}
+```
+
+`choose_correct_word` requires a prompt, two to four unique options with local text, and a matching correct ID:
+
+```json
+{
+  "id": "choose-water",
+  "order": 1,
+  "mechanic": "choose_correct_word",
+  "promptText": "Which word means Water?",
+  "questionText": "Water",
+  "correctOptionId": "amazzi",
+  "options": [
+    { "id": "amazzi", "localText": "Amazzi", "englishText": "Water" },
+    { "id": "webale", "localText": "Webale", "englishText": "Thank you" }
+  ],
+  "readiness": "placeholder"
+}
+```
+
+`match_word_picture` requires a target, two to four unique options, and a matching correct ID. Images or emoji are presentation references, not correctness keys:
+
+```json
+{
+  "id": "match-water",
+  "order": 1,
+  "mechanic": "match_word_picture",
+  "promptText": "Tap the picture that matches",
+  "targetText": "Amazzi",
+  "targetEnglishText": "Water",
+  "correctOptionId": "water",
+  "options": [
+    { "id": "water", "localText": "Amazzi", "englishText": "Water", "imageKey": "rain.jpg" },
+    { "id": "child", "localText": "Omwana", "englishText": "Child", "imageKey": "child.png" }
+  ],
+  "readiness": "placeholder"
+}
+```
+
+`mini_quiz` requires one to five questions; each has two to four options and its own correct ID:
+
+```json
+{
+  "id": "first-words-review",
+  "order": 1,
+  "mechanic": "mini_quiz",
+  "title": "First Words Review",
+  "instructions": "Choose the best answer.",
+  "questions": [
+    {
+      "id": "thank-you-word",
+      "promptText": "Which word means Thank you?",
+      "correctOptionId": "webale",
+      "options": [
+        { "id": "webale", "text": "Webale", "englishText": "Thank you" },
+        { "id": "amazzi", "text": "Amazzi", "englishText": "Water" }
+      ],
+      "explanationText": "Webale means Thank you."
+    }
+  ],
+  "readiness": "placeholder"
+}
+```
+
+`cultural_card` is non-graded and requires a title and body:
+
+```json
+{
+  "id": "home-greeting",
+  "order": 1,
+  "mechanic": "cultural_card",
+  "title": "A Greeting At Home",
+  "bodyText": "Placeholder cultural guidance awaiting review.",
+  "reflectionPrompt": "Who do you greet at home?",
+  "imageKey": "african-focus.png",
+  "readiness": "placeholder"
+}
+```
+
+`story_bite` is non-graded and requires one to five uniquely identified pages with body text:
+
+```json
+{
+  "id": "thank-you-at-home",
+  "order": 1,
+  "mechanic": "story_bite",
+  "title": "Thank You At Home",
+  "instructions": "Read each short page.",
+  "pages": [
+    {
+      "id": "thank-you-at-home-1",
+      "title": "Helping",
+      "bodyText": "A child helps at home.",
+      "imageKey": "child.png"
+    }
+  ],
+  "readiness": "placeholder"
+}
+```
+
+`practice_mix` has no renderer. Keep the stage and lesson locked and non-startable; its placeholder item must never be used to unlock a session:
+
+```json
+{
+  "id": "practice-mix",
+  "order": 5,
+  "stageNumber": 5,
+  "title": "Practice Mix",
+  "description": "Mixed review is planned.",
+  "status": "locked",
+  "isPractice": true,
+  "isLocked": true,
+  "readiness": "placeholder",
+  "estimatedMinutes": 1,
+  "mechanics": ["practice_mix"],
+  "learningGoals": [],
+  "placeholderMessage": "Practice Mix is coming soon.",
+  "lessons": [
+    {
+      "id": "review-first-words",
+      "order": 1,
+      "title": "Review First Words",
+      "description": "Planned mixed practice.",
+      "mechanic": "practice_mix",
+      "isStartable": false,
+      "isLocked": true,
+      "readiness": "placeholder",
+      "items": [
+        {
+          "id": "review-first-words-placeholder",
+          "order": 1,
+          "mechanic": "practice_mix",
+          "prompt": "Coming soon",
+          "readiness": "placeholder"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Migrated Menu, Game, And Story Payloads
+
+Every ordered record should include a stable ID and `order`.
+
+| Type | Required payload data | Optional data |
 | --- | --- | --- |
-| Child menu cards | `content_items` `child_menu` rows, merged with Luganda legacy local menu where needed | Tabs use slugs such as `games`, `stories`, `coloring`, and `museum`. |
-| Stories | `content_items` `story` rows via `app/child/stories/[storyId].tsx` and `GenericStoryRenderer` | Luganda stories and Runyankole sample stories use this route. Deprecated Luganda route files redirect to the generic route. |
-| Learning game | `content_items` `learning_game` rows via `LearningGameComponent` | Luganda can fall back to the fuller local legacy payload while DB rows are partial. |
-| Counting game | `content_items` `counting_game` rows via `CountingGameComponent` | The route is still named `lugandacountinggame`, but the screen loads the active child language. |
-| Word game | `content_items` `word_game` rows via `WordGameComponent` | Luganda can fall back to the fuller local legacy payload while DB rows are partial. |
-| Coloring | Local routes/templates | Saves completion/progress when artwork is saved. Not currently `content_items` backed. |
-| Puzzle | Local component data and local puzzle progress | Not currently `content_items` backed. |
-| Card matching | Local component data | Activity logging is completion-level, not every matched pair. Not currently `content_items` backed. |
-| Museum | Local route files under `app/child/games/museum` | Not currently `content_items` backed. |
+| `child_menu` | Non-empty `cards`; each usable card has `id` and `targetPage` | Card title, description, image, availability |
+| `learning_game` | Non-empty stages with positive IDs, non-empty levels with positive IDs, and words with `id`, `targetText`, and `english` | Display copy, locks, score threshold, color, images, audio, examples, notes |
+| `word_game` | Non-empty levels with `id`, `targetText` (or legacy `word`), and `question` | Hint, sub-hint, first letter, image |
+| `counting_game` | Non-empty stages and numbers; each stage has positive ID/range/level count; each number has a positive value and target text | Title, prompts, bunch settings, cultural items, currency, audio |
+| `card_game` | At least eight items with unique `id`/`value` and non-empty `info`/`imageSymbol` | Row title |
+| `puzzle_game` | Non-empty puzzles with positive `id`, name, description, and image | Row title |
+| `story` | Non-empty pages with explicit `id` and text | Summary, exact language declaration, metadata, translation, image/alt text, valid quiz questions |
 
-Do not edit historical migrations to add content. Add a new migration that upserts the new rows.
+For Learning Hub, the row needs an exact `languageCode` and non-empty `stages`; every stage, lesson, item, and nested answer/question/page needs an explicit stable ID and its required mechanic fields. Display/local names, media references, metadata, examples, explanations, and reflection prompts are optional unless a mechanic section below says otherwise.
 
-## Current Content Model
+### `child_menu`
 
-`content_items` is MVP storage for language-specific app data. It is not a CMS and does not own game rules, screen layout, scoring, routes, progress, achievements, review workflow, or publishing.
-
-Expected columns:
-
-- `language_code`: learning language code such as `lg` or `nyn`.
-- `content_type`: lowercase app content key. Current supported values are `child_menu`, `learning_game`, `word_game`, `counting_game`, and `story`.
-- `slug`: lowercase key within the content type, such as `games`, `stories`, `starter`, `levels`, or a story id.
-- `title`: optional display/grouping title.
-- `payload`: JSON object. Required arrays depend on `content_type`.
-- `sort_order`: ordering hint for query and menus.
-- `is_active`: inactive rows are ignored by the repository query.
-
-The database enforces a unique row per `(language_code, content_type, slug)`.
-
-Required payload arrays:
-
-| `content_type` | Required array(s) | Used by |
-| --- | --- | --- |
-| `child_menu` | `cards` | `AfricanThemeGameInterface` |
-| `learning_game` | `stages` | `LearningGameComponent` |
-| `word_game` | `levels` | `WordGameComponent` |
-| `counting_game` | `stages`, `numbers` | `CountingGameComponent` |
-| `story` | `pages` | `GenericStoryRenderer` |
-
-Rows with unsupported or non-lowercase `content_type`, missing required arrays, mismatched language, or unrenderable story pages are skipped.
-
-## Loading, Caching, And Fallback
-
-`loadContentBundle(languageCode)` reads `content_items` for one language and builds one `ContentBundle`.
-
-Content cache behavior:
-
-- Cache key: `@BabySteps:ContentBundle:v1:{languageCode}`.
-- Cache storage: memory plus AsyncStorage.
-- Default TTL: 6 hours.
-- Fresh cache returns immediately.
-- Stale cache can return immediately while a background refresh runs.
-- `forceRefresh` bypasses fresh-cache reads.
-- If Supabase fails, a same-language cached DB bundle can still be used.
-
-Language rules:
-
-- Runyankole (`nyn`) never silently falls back to Luganda.
-- Unsupported language codes return an empty result.
-- Luganda (`lg`) has an explicit `local-lg-legacy` fallback for compatibility.
-- Runyankole can use same-language bundled sample content if DB content is unavailable.
-- Luganda DB bundles are merged with the legacy local bundle. Menus can come from DB, but learning, word, and counting content keep the fuller legacy payload until DB rows are at least as complete as the local bundle. Stories use DB rows when DB stories are present.
-
-Fallback is acceptable for compatibility and offline MVP resilience. Avoid fallback when it would show another language's content, hide missing curriculum, or make a child appear to progress through content they did not select.
-
-## Child Menu And Activity Menu
-
-Menu cards live in `content_items` rows with `content_type = 'child_menu'`. The `slug` maps to the child tab content area:
-
-- `games`
-- `stories`
-- `coloring`
-- `museum`
-
-Payload shape:
+The row slug names the tab (`games`, `stories`, or `coloring`). Routes omit the leading slash.
 
 ```json
 {
   "cards": [
     {
-      "id": "kintu",
-      "title": "Kintu",
-      "description": "Learn about Kintu",
-      "image": "kintu.jpg",
-      "targetPage": "child/stories/kintu"
+      "id": "words",
+      "order": 1,
+      "title": "Words",
+      "description": "Fill in the missing letters to complete the word",
+      "image": "african-focus.png",
+      "targetPage": "child/games/wordgame"
     }
   ]
 }
 ```
 
-Rules:
+Menu presence controls language exposure. Do not add a Cards or Puzzle menu card for `nyn` until its corresponding reviewed `nyn` bundle exists.
 
-- Use stable `id` values. For story cards, make the card id match the story id when possible.
-- `targetPage` is stored without a leading slash. The menu pushes `/${targetPage}`.
-- Generic story cards should use `child/stories/{storyId}`.
-- Current game routes are `child/games/learninggame`, `child/games/wordgame`, and `child/games/lugandacountinggame`.
-- `image` should be a key registered in `content/assets.ts`, or a supported URI.
-- Keep card text age-appropriate and language-appropriate for the selected `language_code`.
+### `learning_game`
 
-## Stories
-
-Stories are the cleanest current DB-backed content type. Add a `story` row, then make sure the language's `child_menu/stories` row includes a card pointing to the generic route.
-
-Story row rules:
-
-- `content_type = 'story'`.
-- `slug` should be the story id.
-- `payload.id` should match the slug.
-- `payload.languageCode`, if present, must match the row `language_code`.
-- `pages` must contain at least one page with non-empty `text`.
-- `questions` are optional, but if present every question needs at least two options and a valid zero-based `correctAnswer`.
-
-Expected story payload shape:
-
-```json
-{
-  "id": "new-story",
-  "title": "New Story",
-  "summary": "Short card and loading summary",
-  "languageCode": "lg",
-  "metadata": {
-    "status": "reviewed",
-    "notes": "Reviewed by curriculum team"
-  },
-  "pages": [
-    {
-      "id": "new-story-page-1",
-      "text": "First page text.",
-      "image": "story/new-story/page-1.jpg",
-      "altText": "Child-friendly description of the page image"
-    }
-  ],
-  "questions": [
-    {
-      "id": "new-story-question-1",
-      "question": "What happened first?",
-      "options": ["Answer A", "Answer B", "Answer C"],
-      "correctAnswer": 0
-    }
-  ]
-}
-```
-
-How the renderer works:
-
-- `app/child/stories/[storyId].tsx` loads the active child language bundle.
-- `findStoryById` matches the route `storyId` to `bundle.stories`.
-- `GenericStoryRenderer` renders pages, images, optional translations, and optional quiz questions.
-- If the story is missing or malformed, the screen shows a coming-soon state.
-
-Story progress and activity behavior:
-
-- Progress scope is `childId + languageCode + activityType("stories") + storyId`.
-- Reopening a completed story should not duplicate completion activity or downgrade progress.
-- `markStageStarted` tracks in-progress reading and can restore `currentPageIndex`.
-- Completion waits until the final page, and if a quiz exists, all questions must be answered.
-- Completion writes one `activities` row with `activity_type: "stories"` and `language_code`.
-- Completion updates both activity progress and story stage progress, then calls `syncProgressNow(childId)`.
-
-## Learning Game
-
-`LearningGameComponent` loads `bundle.learningGame.stages`. The repository maps DB payloads to `LearningGameStage`.
-
-Payload shape:
+Numeric stage and level IDs are historic progress identities. Words need stable string IDs plus local and English text.
 
 ```json
 {
   "stages": [
     {
       "id": 1,
+      "order": 1,
       "title": "Beginner",
       "description": "Learn starter words",
       "isLocked": false,
@@ -203,15 +392,15 @@ Payload shape:
       "levels": [
         {
           "id": 1,
+          "order": 1,
           "title": "Greetings",
           "isLocked": false,
           "words": [
             {
-              "id": "lg-webale",
+              "id": "learning-word-webale",
+              "order": 1,
               "targetText": "Webale",
               "english": "Thank you",
-              "example": "Webale nnyo.",
-              "exampleTranslation": "Thank you very much.",
               "audio": "webale.m4a",
               "image": "learning-beginner.jpg"
             }
@@ -223,91 +412,16 @@ Payload shape:
 }
 ```
 
-Current behavior:
+### `word_game`
 
-- A stage without valid levels is skipped.
-- A level without valid words is skipped.
-- A word needs `targetText` and `english`.
-- Stage and word images go through `resolveImageSource`.
-- Audio names are carried in the payload, but playback support depends on the existing audio manager/assets.
-- Progress uses activity type `learning`; append-only activity history currently uses `activity_type: "language"` for completed learning levels/stages.
-- Existing compatibility progress keys are language-scoped, with explicit old Luganda key reads for `lg`.
-- Stage and level unlock logic still lives in React Native code.
-
-When adding learning content:
-
-- Keep numeric stage and level ids stable.
-- Do not reuse ids for different content after children may have progress.
-- Add image keys to `content/assets.ts`.
-- Add audio assets and mappings only if the current audio path can resolve them.
-- Test progress restore when the number of stages or levels differs by language.
-
-## Counting Game
-
-`CountingGameComponent` loads `bundle.countingGame`. The repository maps DB payloads to stages, numbers, cultural items, and currency.
-
-Payload shape:
-
-```json
-{
-  "title": "Luganda Counting Game",
-  "stages": [
-    {
-      "id": 1,
-      "title": "Basic Counting",
-      "description": "Count items from 1 to 10",
-      "numbersRange": { "min": 1, "max": 10 },
-      "levels": 5,
-      "useBunches": false,
-      "usesCurrency": false,
-      "prompt": "How many {item} do you see?"
-    }
-  ],
-  "numbers": [
-    { "number": 1, "targetText": "Emu", "audio": "correct.mp3" }
-  ],
-  "culturalItems": [
-    { "name": "matoke", "image": "matooke.png" }
-  ],
-  "currency": [
-    {
-      "value": 500,
-      "name": "500 shillings",
-      "image": "500.png",
-      "targetText": "Bikumi bitaano"
-    }
-  ]
-}
-```
-
-Current behavior:
-
-- `stages` and `numbers` are required arrays.
-- `numbersRange.min` and `numbersRange.max` define generated target numbers.
-- `levels` controls how many prompts are played in a stage.
-- `useBunches`, `itemsPerBunch`, and `usesCurrency` change the interaction mode.
-- `culturalItems` falls back to built-in default items if none are valid.
-- Progress uses activity type `counting`.
-- Completion is tracked at stage level and synced after meaningful completion.
-
-When adding counting content:
-
-- Keep stage ids stable and numeric.
-- Include enough `numbers` to cover every range and currency value a stage can generate.
-- Register every item and currency image key.
-- Test languages with fewer stages than Luganda; progress normalization filters unavailable stage ids.
-
-## Word Game
-
-`WordGameComponent` loads `bundle.wordGame.levels`. The repository maps DB payloads to `WordGameLevel`.
-
-Payload shape:
+`targetText` (or legacy `word`) and `question` are required. Preserve both IDs and exact order; the target is normalized to uppercase at runtime.
 
 ```json
 {
   "levels": [
     {
-      "id": "lg-word-amazzi",
+      "id": "word-lg-001",
+      "order": 1,
       "targetText": "AMAZZI",
       "question": "Essential liquid that falls from the sky",
       "hint": "You drink this every day",
@@ -319,462 +433,191 @@ Payload shape:
 }
 ```
 
-Current behavior:
+### `counting_game`
 
-- `targetText` is preferred; `word` is accepted as a fallback.
-- The target word is normalized to uppercase.
-- `question`, `hint`, `subHint`, `firstLetter`, and `image` drive the existing UI.
-- Progress uses activity type `words`.
-- Progress is child and language scoped, with explicit old Luganda key reads for `lg`.
-- Completed level indexes are filtered against the current level count.
+`stages` and `numbers` are required and non-empty. Each stage needs a valid positive range and level count. Include all number labels and image records required by the ranges/mechanics.
 
-When adding word content:
-
-- Keep level order stable because progress tracks level indexes.
-- Add a clear prompt and hint for each level.
-- Use words appropriate to the selected language and age range.
-- Test all-level completion because achievements can depend on the total number of levels.
-
-## Coloring, Puzzle, Card Matching, And Museum
-
-These areas are not fully DB-backed today.
-
-Coloring:
-
-- Current source: route files under `app/child/games/coloring`.
-- Menu cards may come from Luganda legacy local menu or `child_menu` rows, but templates are local route assets.
-- Saving artwork updates progress with activity type `coloring`, marks the page as completed, and syncs.
-- Future direction: store template metadata, image keys, difficulty, cultural notes, and route target or generic template id in `content_items`.
-
-Puzzle:
-
-- Current source: `components/games/PuzzleGameComponent.tsx`.
-- Progress is local AsyncStorage through `progressManagerPuzzleGame`, scoped by child but not currently language.
-- Completion writes `activity_type: "puzzle"`.
-- Future direction: store puzzle definitions, image keys, tile/grid settings, cultural text, and reviewed language metadata in `content_items`.
-
-Card matching:
-
-- Current source: `components/games/CardsMatchingComponent.tsx`.
-- Activity rows are completion-level, not one row per matched pair.
-- Achievement events can use match-level facts internally, but append-only activity history should stay meaningful.
-- Future direction: store card pairs, localized labels, explanations, image keys, and difficulty settings in `content_items`.
-
-Museum:
-
-- Current source: route files under `app/child/games/museum`.
-- Menu cards can be DB-backed, but artifact/content pages are local/static.
-- Future direction: store artifact categories, item copy, media keys, alt text, source notes, and language metadata in `content_items`.
-
-If one of these areas moves into `content_items`, first add a repository mapper and validation for the payload. Do not add a new `content_type` only in SQL; `ContentItemType`, validation, bundle shape, screen loading, and tests must also change.
-
-## SQL Examples
-
-Use short, idempotent migrations. These examples are intentionally small.
-
-Story row:
-
-```sql
-INSERT INTO public.content_items (
-  language_code,
-  content_type,
-  slug,
-  title,
-  payload,
-  sort_order,
-  is_active
-)
-VALUES (
-  'lg',
-  'story',
-  'new-story',
-  'New Story',
-  $json$
-  {
-    "id": "new-story",
-    "title": "New Story",
-    "summary": "A short reviewed story.",
-    "languageCode": "lg",
-    "metadata": { "status": "reviewed" },
-    "pages": [
-      {
-        "id": "new-story-page-1",
-        "text": "First page text.",
-        "image": "story/new-story/page-1.jpg",
-        "altText": "A child listening to a story"
-      }
-    ],
-    "questions": [
-      {
-        "id": "new-story-question-1",
-        "question": "What happens first?",
-        "options": ["The story begins", "The story ends"],
-        "correctAnswer": 0
-      }
-    ]
-  }
-  $json$::jsonb,
-  100,
-  true
-)
-ON CONFLICT (language_code, content_type, slug) DO UPDATE
-SET
-  title = EXCLUDED.title,
-  payload = EXCLUDED.payload,
-  sort_order = EXCLUDED.sort_order,
-  is_active = EXCLUDED.is_active,
-  updated_at = timezone('utc'::text, now());
+```json
+{
+  "title": "Luganda Counting Game",
+  "stages": [
+    {
+      "id": 1,
+      "order": 1,
+      "title": "Basic Counting",
+      "description": "Count from 1 to 10",
+      "numbersRange": { "min": 1, "max": 10 },
+      "levels": 5,
+      "useBunches": false,
+      "usesCurrency": false,
+      "prompt": "How many {item} do you see?"
+    }
+  ],
+  "numbers": [
+    { "number": 1, "order": 1, "targetText": "Emu" }
+  ],
+  "culturalItems": [
+    { "id": "counting-item-matooke", "order": 1, "name": "matoke", "image": "matooke.png" }
+  ],
+  "currency": [
+    {
+      "id": "currency-500",
+      "order": 1,
+      "value": 500,
+      "name": "500 shillings",
+      "image": "500.png",
+      "targetText": "Bikumi bitaano"
+    }
+  ]
+}
 ```
 
-Stories menu row, preserving existing cards:
+The example is structural; a released stage must contain every reviewed number label it can generate, not only `1`.
 
-```sql
-WITH new_card AS (
-  SELECT jsonb_build_object(
-    'id', 'new-story',
-    'title', 'New Story',
-    'description', 'A short reviewed story.',
-    'image', 'story/new-story/card.jpg',
-    'targetPage', 'child/stories/new-story'
-  ) AS card
-),
-existing_menu AS (
-  SELECT payload
-  FROM public.content_items
-  WHERE language_code = 'lg'
-    AND content_type = 'child_menu'
-    AND slug = 'stories'
-),
-merged_menu AS (
-  SELECT jsonb_build_object(
-    'cards',
-    COALESCE(
-      (
-        SELECT jsonb_agg(card)
-        FROM (
-          SELECT existing_card.card
-          FROM jsonb_array_elements(
-            COALESCE((SELECT payload->'cards' FROM existing_menu), '[]'::jsonb)
-          ) AS existing_card(card)
-          WHERE existing_card.card->>'id' <> 'new-story'
-          UNION ALL
-          SELECT card FROM new_card
-        ) AS cards
-      ),
-      '[]'::jsonb
-    )
-  ) AS payload
-)
-INSERT INTO public.content_items (
-  language_code,
-  content_type,
-  slug,
-  title,
-  payload,
-  sort_order,
-  is_active
-)
-SELECT
-  'lg',
-  'child_menu',
-  'stories',
-  'Stories',
-  payload,
-  20,
-  true
-FROM merged_menu
-ON CONFLICT (language_code, content_type, slug) DO UPDATE
-SET
-  title = EXCLUDED.title,
-  payload = EXCLUDED.payload,
-  sort_order = EXCLUDED.sort_order,
-  is_active = EXCLUDED.is_active,
-  updated_at = timezone('utc'::text, now());
+### `card_game`
+
+At least eight items are required. IDs and exact `value` strings must be unique; matched-value progress depends on those values.
+
+```json
+{
+  "items": [
+    { "id": "card-lg-001", "order": 1, "value": "Kabaka", "info": "The King of Buganda.", "imageSymbol": "👑" },
+    { "id": "card-lg-002", "order": 2, "value": "Lubiri", "info": "The royal palace of the Kabaka.", "imageSymbol": "🏰" },
+    { "id": "card-lg-003", "order": 3, "value": "Matoke", "info": "Steamed green bananas.", "imageSymbol": "🍌" },
+    { "id": "card-lg-004", "order": 4, "value": "Kanzu", "info": "A traditional ceremonial robe.", "imageSymbol": "👘" },
+    { "id": "card-lg-005", "order": 5, "value": "Gomesi", "info": "A traditional ceremonial dress.", "imageSymbol": "👗" },
+    { "id": "card-lg-006", "order": 6, "value": "Engoma", "info": "Traditional drums.", "imageSymbol": "🥁" },
+    { "id": "card-lg-007", "order": 7, "value": "Lukiiko", "info": "The Buganda council.", "imageSymbol": "🏛️" },
+    { "id": "card-lg-008", "order": 8, "value": "Olugero", "info": "A traditional story.", "imageSymbol": "📚" }
+  ]
+}
 ```
 
-Learning row:
+Use the reviewed canonical wording from the latest migration when editing real records; the shortened descriptions above illustrate the validator shape only.
 
-```sql
-INSERT INTO public.content_items (
-  language_code, content_type, slug, title, payload, sort_order, is_active
-)
-VALUES (
-  'nyn',
-  'learning_game',
-  'starter',
-  'Runyankole Starter Learning',
-  $json$
-  {
-    "stages": [
-      {
-        "id": 1,
-        "title": "Greetings",
-        "description": "Starter greetings",
-        "isLocked": false,
-        "requiredScore": 0,
-        "image": "learning-beginner.jpg",
-        "levels": [
-          {
-            "id": 1,
-            "title": "Hello",
-            "words": [
-              { "id": "nyn-agandi", "targetText": "Agandi", "english": "Hello" }
-            ]
-          }
-        ]
-      }
-    ]
-  }
-  $json$::jsonb,
-  30,
-  true
-)
-ON CONFLICT (language_code, content_type, slug) DO UPDATE
-SET payload = EXCLUDED.payload, title = EXCLUDED.title, updated_at = timezone('utc'::text, now());
+### `puzzle_game`
+
+Puzzle IDs are positive numeric progress identities. Image keys must resolve from the static map.
+
+```json
+{
+  "puzzles": [
+    {
+      "id": 1,
+      "order": 1,
+      "name": "Kasubi Tombs",
+      "description": "A UNESCO World Heritage site and burial ground of Buganda kings",
+      "image": "puzzles/kasubi-tombs.jpg"
+    }
+  ]
+}
 ```
 
-Counting row:
+### `story`
 
-```sql
-INSERT INTO public.content_items (
-  language_code, content_type, slug, title, payload, sort_order, is_active
-)
-VALUES (
-  'nyn',
-  'counting_game',
-  'stages',
-  'Runyankole Counting',
-  $json$
-  {
-    "stages": [
-      {
-        "id": 1,
-        "title": "One To Five",
-        "description": "Count familiar items",
-        "numbersRange": { "min": 1, "max": 5 },
-        "levels": 5,
-        "useBunches": false,
-        "usesCurrency": false
-      }
-    ],
-    "numbers": [
-      { "number": 1, "targetText": "Emwe" },
-      { "number": 2, "targetText": "Ibiri" }
-    ],
-    "culturalItems": [
-      { "name": "basket", "image": "basket.png" }
-    ],
-    "currency": []
-  }
-  $json$::jsonb,
-  50,
-  true
-)
-ON CONFLICT (language_code, content_type, slug) DO UPDATE
-SET payload = EXCLUDED.payload, title = EXCLUDED.title, updated_at = timezone('utc'::text, now());
+Store one story per row. `pages` is required and non-empty. Questions are optional; each needs at least two options and a valid zero-based `correctAnswer`.
+
+```json
+{
+  "id": "new-story",
+  "title": "New Story",
+  "summary": "A short draft story.",
+  "languageCode": "lg",
+  "metadata": {
+    "status": "placeholder",
+    "notes": "Requires content-team review before publication"
+  },
+  "pages": [
+    {
+      "id": "new-story-page-1",
+      "text": "Draft story text awaiting review.",
+      "image": "story/new-story/page-1.jpg",
+      "altText": "Child-friendly description of the illustration"
+    }
+  ],
+  "questions": [
+    {
+      "id": "new-story-question-1",
+      "question": "What happened first?",
+      "options": ["Answer A", "Answer B"],
+      "correctAnswer": 0
+    }
+  ]
+}
 ```
 
-Word row:
+Add or update the same language's `child_menu/stories` card separately. The generic story renderer queries dynamically and does not depend on a fixed story count.
 
-```sql
-INSERT INTO public.content_items (
-  language_code, content_type, slug, title, payload, sort_order, is_active
-)
-VALUES (
-  'nyn',
-  'word_game',
-  'levels',
-  'Runyankole Word Game',
-  $json$
-  {
-    "levels": [
-      {
-        "id": "nyn-word-agandi",
-        "targetText": "AGANDI",
-        "question": "A greeting",
-        "hint": "Used when meeting someone",
-        "subHint": "In English, it means hello.",
-        "image": "learning-beginner.jpg"
-      }
-    ]
-  }
-  $json$::jsonb,
-  40,
-  true
-)
-ON CONFLICT (language_code, content_type, slug) DO UPDATE
-SET payload = EXCLUDED.payload, title = EXCLUDED.title, updated_at = timezone('utc'::text, now());
-```
+## Assets And Code-Owned Values
 
-## Asset, Image, And Audio Conventions
+Content payloads may reference images and audio, but React Native bundling still requires code-owned maps:
 
-Image resolution:
+- register bundled image keys in `content/assets.ts`;
+- register Learning Hub audio in `lib/audioAssets.ts`;
+- keep the standalone game audio/sound registry in `components/games/utils/audioManager.ts`;
+- keep routes, renderers, mechanic registry, scoring, randomization, animation, progress storage/sync, achievement evaluation, completion notices, and Practice Mix's missing renderer in code.
 
-- Register bundled images in `content/assets.ts` in `IMAGE_ASSETS`.
-- Use the registry key in DB payloads, for example `kintu.jpg` or `story/kintu/kintu-cow.jpeg`.
-- `resolveImageSource` accepts registered keys and URI strings such as `https://`, `file://`, or `data:image/`.
-- Missing keys fall back to `learning-beginner.jpg`, then `coin.png`.
-- `preloadContentBundleImages` preloads menu, story, learning, word, counting item, and currency images.
+Do not store functions, JavaScript, scoring formulas, unlock algorithms, or arbitrary route execution in `payload`. See [Content Cache And Asset Loading](./content-cache-and-images.md) for cache and resolver behavior.
 
-When adding images:
+## Adding A Language
 
-1. Add the file under `assets/images` or an appropriate `assets/story/...` folder.
-2. Add a stable key in `content/assets.ts`.
-3. Use that exact key in `content_items.payload`.
-4. Add useful `altText` for story page images.
-5. Run tests that cover asset resolution or at least open the screen manually.
+Adding a language is an explicit product and content release, not a fallback alias:
 
-Naming guidance:
+1. Add the exact code and names to `public.languages` in a new migration.
+2. Add the code to `SupportedLearningLanguageCode` and `LEARNING_LANGUAGES`, plus selection/UI copy as required.
+3. Author each required menu and content row with that exact `language_code`; declare the same code inside Learning Hub/Story payloads.
+4. Start rows as `draft`, non-startable, and unpublished until reviewed content is complete.
+5. Add only the menu cards backed by startable content for that language. Do not expose Cards/Puzzle merely because `lg` has them.
+6. Test exact-language queries, cache keys, progress keys, unavailable states, and a deliberate database outage.
 
-- Prefer lowercase kebab-case file names for new assets.
-- Group story assets under `assets/story/{story-id}/`.
-- Keep DB image keys stable. Changing a key without registering the new asset silently falls back to a generic image.
+Never clone Luganda rows as a temporary fallback and never invent translations. A language with no valid published bundle remains unavailable.
 
-Audio:
+## Cache And Dynamic Updates
 
-- Learning and counting payloads can carry `audio` strings, but playback depends on the existing audio assets and audio manager.
-- Do not add audio names to payloads unless the app can resolve and play them.
-- Keep audio optional for MVP content unless the screen requires it.
+The v2 content cache stores exact-language raw rows in memory and AsyncStorage. A valid hit returns immediately and refreshes in the background. The derived bundle version includes every row's `content_version` and `updated_at`, so a valid newer query replaces the cached row set. Malformed, empty, failed, cross-language, or duplicate-bundle responses retain the previous valid cache. With no cache, the app shows the unavailable/retry state.
 
-Offline behavior:
+New published records appear and retired records disappear on a successful refresh without application code changes, provided their `content_type` already has a mapper/renderer. Learning Hub performs a foreground refresh when registered cached content exists, so its mounted screen can adopt the newer bundle. Generic menu/game consumers may first render their valid stale cache while revalidation runs; navigate away and back or use retry to consume the refreshed cache. Adding a new content type or mechanic still requires code-owned types, validation, rendering, and tests.
 
-- Bundled images can be downloaded through Expo Asset.
-- Remote images can be prefetched, but should not be required for a child to complete core learning.
-- Same-language content caches can keep screens usable during a Supabase outage.
+## Validation
 
-## Progress Requirements
-
-New content and new games should preserve the local-first progress pattern.
-
-Use these scopes:
-
-- `childId`: progress belongs to one child.
-- `languageCode`: progress belongs to the selected learning language.
-- `activityType`: one stable key per activity, such as `learning`, `counting`, `words`, `stories`, `coloring`, `puzzle`, or a new key.
-- `stageId`: stage, story id, page/template id, puzzle id, or equivalent unit.
-- `levelId`: optional finer unit when a stage has levels.
-
-Current progress behavior:
-
-- Gameplay loads AsyncStorage/default state first.
-- Supabase hydration runs without blocking play.
-- Dirty local progress is not overwritten by remote hydration.
-- Dirty records are queued and debounced for sync.
-- `syncProgressNow(childId)` is used after meaningful completion.
-- Activity-level progress upserts on `(child_id, language_code, activity_type)`.
-- Stage-level progress upserts on `(child_id, language_code, activity_type, stage_id, level_id)`.
-
-For new games:
-
-- Use `lib/progressRepository.ts` unless there is a strong reason not to.
-- If you keep a feature-specific AsyncStorage progress manager, include `childId` and `languageCode` in keys from the start.
-- Normalize restored progress against currently available content ids.
-- Do not block the first playable screen on remote hydration.
-- Sync completions promptly; debounce minor in-progress changes.
-- Do not treat last-opened, last-played, or every small score change as a remote-write event.
-
-## Activity Logging Requirements
-
-`activities` is append-only recent history. It is not the current-progress source.
-
-Use `saveActivity` for meaningful child-visible events:
-
-- completed stage,
-- completed level,
-- completed story,
-- completed quiz,
-- saved artwork,
-- completed session, if the session has clear educational meaning.
-
-Avoid logging:
-
-- every tap,
-- every screen open,
-- every page view,
-- every matched card pair,
-- unfinished puzzle attempts,
-- minor score updates,
-- last-played updates.
-
-Include `language_code` when the event is tied to learning content. Use `stage` and `level` when they are meaningful, but keep details short and child-safe.
-
-## Achievement Considerations
-
-Achievements should reward meaningful milestones, not noisy interactions.
-
-Current behavior:
-
-- Achievement definitions are read from `achievements` and cached under `cache:achievements:definitions` for 24 hours.
-- Earned child achievements are cached per child under `cache:child_achievements:{childId}` for 15 minutes.
-- Definitions can be filtered by `game_key`.
-- `awardAchievementToChild` distinguishes a new insert from cached/remote existing rows and failures. Only `newlyAwarded: true` may be presented as a fresh unlock.
-- New inserts and exact existing rows update the child-scoped earned cache without duplicate `achievement_id` records.
-- The `20260701000000_add_child_achievements_unique_constraint.sql` migration enforces one row per `(child_id, achievement_id)`.
-- Child mode presents fresh unlocks through the shared FIFO `ChildNoticeProvider`; games must not add their own blocking achievement overlay.
-- Hydration and cache refreshes update earned state but never enqueue unlock notices.
-- Failed/offline inserts are not yet queued for later evaluation. Device notifications are separate and are not part of the in-app notice path.
-
-For new games:
-
-- Pick one stable `gameKey`.
-- Define achievement event types around completions or milestones.
-- Pass enough event context for `checkAndGrantNewAchievements`.
-- Enqueue every definition returned by the checker through `useChildNotice`; do not keep only the final result in component state.
-- Do not award the same achievement repeatedly.
-- Add tests for duplicate-award prevention when introducing a new achievement path.
-
-## Checklist For Adding A New Game Or Activity
-
-Use this checklist before implementation:
-
-- Define the `activityType`.
-- Define the content source: DB-backed, local-only, or hybrid.
-- Prefer scalable `content_items` payloads for MVP-ready language content.
-- Define the payload schema clearly.
-- Add validation and normalization in `content/contentRepository.ts`.
-- Add language scoping from the start.
-- Add child progress scoping from the start.
-- Avoid hardcoded routes for every content item when a generic renderer can work.
-- Avoid noisy activity logging.
-- Decide what counts as completion.
-- Decide what progress should restore.
-- Decide what achievements can be earned.
-- Add assets to `content/assets.ts`.
-- Consider offline/cache behavior.
-- Add tests for content loading, rendering, progress, and activity logging.
-- Review child safety, age-appropriateness, language quality, and cultural accuracy.
-- Consider future admin/content-management compatibility, but do not build CMS tables until needed.
-
-Implementation questions to answer:
-
-- Does this activity need a new `content_type`, or can it use a current generic renderer?
-- What stable ids will survive content edits?
-- What happens if a language has fewer stages, levels, or cards?
-- What is the coming-soon state when content is missing?
-- What content requires review by a fluent speaker or cultural reviewer?
-- What exact event will trigger `syncProgressNow(childId)`?
-
-## Testing Guidance
-
-Recommended tests when adding or changing DB-backed content:
-
-- Repository loading maps valid payloads into the expected bundle shape.
-- Malformed payloads are skipped and do not borrow another language.
-- Language scoping prevents `nyn` from receiving `lg` rows.
-- Menu `targetPage` values point to valid generic routes.
-- Generic story rendering handles pages, images, missing stories, quiz completion, and already-completed progress.
-- Progress restores from local state before remote hydration.
-- Dirty local progress is not overwritten by remote rows.
-- Completion writes activity progress and stage progress with the expected scope.
-- Activity logging happens once for completion and does not fire for minor interactions.
-- Asset keys resolve to registered images or intentional remote URIs.
-- Migration tests validate important row ids, slugs, and generic route targets.
-- Achievement tests cover milestone awards and duplicate prevention.
-
-For docs-only content changes, still run the normal project checks when practical:
+Run the focused tests, then the whole project:
 
 ```text
+npm test -- content/__tests__/contentRepository.test.ts content/__tests__/learningHubRepository.test.ts supabase/migrations/__tests__/databaseBackedLearningContentMigration.test.ts supabase/migrations/__tests__/normalizePublishedStoryMenuOrderMigration.test.ts
 npm run typecheck
-npm test
 npm run lint
+npm test
 ```
+
+Validate migrations against a disposable Supabase database with a current CLI (discover flags with `--help`):
+
+```text
+supabase --version
+supabase start
+supabase db reset
+supabase migration list --local
+supabase db lint --local
+supabase db advisors --local
+```
+
+### Local reset caveat
+
+The checked-in migration chain begins after the original base application
+schema. On a completely empty local Supabase instance, `supabase db reset`
+currently stops at `20260619000000_add_child_language_support.sql` because
+`public.children` has not yet been created by repository migrations. Until a
+baseline migration is restored, use an existing development schema or a
+disposable database bootstrapped from the context schema to validate content
+migrations. Do not modify old applied migrations to hide this gap.
+
+Also query as `anon` locally: published/active rows should be readable, draft rows should not be visible through RLS, and `INSERT`, `UPDATE`, and `DELETE` should fail. Apply production changes only through the reviewed migration path; never use or expose the service-role key in the app.
+
+Common failures:
+
+- Content is unavailable: row is inactive, not published, not startable, wrong-language, empty, or malformed.
+- An old cache remains: one supported row failed validation or a single-bundle type was duplicated, so last-known-good protection worked.
+- Learning Hub row is rejected: declared language differs, an explicit ID is missing/duplicated, or a nested option/question/page ID is invalid.
+- A lesson shows Coming soon: it is locked/non-startable, its mechanic has no renderer, or it has no valid matching items.
+- Cards are rejected: fewer than eight items, duplicate IDs, or duplicate exact values.
+- Image/audio falls back: its key is absent from the bundled resolver map.
+- `nyn` shows no game: expected until valid reviewed `nyn` rows and matching menu cards are published; do not repair it with `lg` content.

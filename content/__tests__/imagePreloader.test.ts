@@ -18,10 +18,12 @@ describe("image preloader helpers", () => {
     const bundle: ContentBundle = {
       languageCode: "nyn",
       source: "database",
+      contentVersion: "test-version",
       menuCardsByTab: {
         games: [
           {
             id: "words",
+            order: 1,
             title: "Words",
             description: "Words",
             image: "menu.png",
@@ -34,6 +36,7 @@ describe("image preloader helpers", () => {
         stages: [
           {
             id: 1,
+            order: 1,
             title: "Stage",
             description: "Stage",
             image: "stage.png",
@@ -43,11 +46,13 @@ describe("image preloader helpers", () => {
             levels: [
               {
                 id: 1,
+                order: 1,
                 title: "Level",
                 isLocked: false,
                 words: [
                   {
                     id: "word",
+                    order: 1,
                     targetText: "Agandi",
                     english: "How are you?",
                     image: "word.png",
@@ -62,6 +67,8 @@ describe("image preloader helpers", () => {
         title: "Words",
         levels: [
           {
+            id: "word-game-1",
+            order: 1,
             word: "AGANDI",
             question: "Greeting",
             hint: "Greeting",
@@ -74,9 +81,20 @@ describe("image preloader helpers", () => {
         title: "Counting",
         stages: [],
         numbers: [],
-        culturalItems: [{ name: "beans", image: "bean.png" }],
-        currency: [{ value: 500, name: "coin", image: "coin.png", targetText: "Bitaano" }],
+        culturalItems: [{ id: "beans", order: 1, name: "beans", image: "bean.png" }],
+        currency: [
+          {
+            id: "coin-500",
+            order: 1,
+            value: 500,
+            name: "coin",
+            image: "coin.png",
+            targetText: "Bitaano",
+          },
+        ],
       },
+      cardGame: { title: "Cards", items: [] },
+      puzzleGame: { title: "Puzzles", puzzles: [] },
       stories: [
         {
           id: "story",

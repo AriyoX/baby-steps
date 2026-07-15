@@ -6,6 +6,7 @@ import {
   Dimensions,
   Animated,
   Alert,
+  ActivityIndicator,
   PanResponder,
   type GestureResponderEvent,
   type ImageSourcePropType,
@@ -16,6 +17,15 @@ import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Text } from "@/components/StyledText";
+import {
+  DEFAULT_LEARNING_LANGUAGE_CODE,
+  getDbLanguageCodeForLearningLanguage,
+} from "@/content/languages";
+import {
+  loadContentBundle,
+  resolveImageSource,
+  type PuzzleGameDefinition,
+} from "@/content/contentRepository";
 import { saveActivity } from "@/lib/utils"; // Import saveActivity
 import { useChild } from "@/context/ChildContext"; // Import useChild context
 import { useChildNotice } from "@/context/ChildNoticeContext";
@@ -61,6 +71,7 @@ interface PuzzleImage {
   name: string;
   source: ImageSourcePropType;
   description: string;
+  order: number;
 }
 
 interface AnimatedPosition {
@@ -159,6 +170,40 @@ export interface PuzzleCompletionOptions {
   onNetworkError?: (error: unknown) => void;
 }
 
+export const getPlayablePuzzleDefinitions = (
+  definitions: PuzzleGameDefinition[] | undefined,
+): PuzzleGameDefinition[] | undefined => {
+  if (!Array.isArray(definitions) || definitions.length === 0) {
+    return undefined;
+  }
+
+  const ids = new Set<number>();
+  const orders = new Set<number>();
+
+  for (const definition of definitions) {
+    if (
+      !Number.isInteger(definition.id) ||
+      definition.id <= 0 ||
+      typeof definition.name !== "string" ||
+      !definition.name.trim() ||
+      typeof definition.description !== "string" ||
+      !definition.description.trim() ||
+      typeof definition.image !== "string" ||
+      !definition.image.trim() ||
+      !Number.isFinite(definition.order) ||
+      ids.has(definition.id) ||
+      orders.has(definition.order)
+    ) {
+      return undefined;
+    }
+
+    ids.add(definition.id);
+    orders.add(definition.order);
+  }
+
+  return [...definitions].sort((left, right) => left.order - right.order);
+};
+
 export const completePuzzleLocallyFirst = async ({
   progress,
   persistProgress,
@@ -197,16 +242,26 @@ export const runPuzzleAnimationCompletion = (
   void checkCompletion().catch(onError);
 };
 
-const BugandaPuzzleGame: React.FC = () => {
+const PuzzleGame: React.FC = () => {
   const router = useRouter();
   const { activeChild } = useChild(); // Get active child from context
-  const { 
-    isLoadingAchievements, 
-    checkAndGrantNewAchievements 
-  } = useAchievements(activeChild?.id, 'puzzle_game'); // Game key
+  const languageCode = getDbLanguageCodeForLearningLanguage(
+    activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE,
+  );
+  const contentScope = `${activeChild?.id ?? "guest"}:${languageCode}`;
+  const { checkAndGrantNewAchievements } = useAchievements(
+    activeChild?.id,
+    "puzzle_game",
+  );
   const { enqueueAchievementUnlocked } = useChildNotice();
 
   const [puzzleProgress, setPuzzleProgress] = useState<PuzzleGameProgress>(DEFAULT_PUZZLE_PROGRESS);
+  const [puzzleImages, setPuzzleImages] = useState<PuzzleImage[]>([]);
+  const [puzzleTitle, setPuzzleTitle] = useState("Logic Puzzle");
+  const [isContentLoading, setIsContentLoading] = useState(true);
+  const [contentUnavailable, setContentUnavailable] = useState(false);
+  const [contentRetryVersion, setContentRetryVersion] = useState(0);
+  const [hydratedScope, setHydratedScope] = useState<string | null>(null);
   const gameStartTime = useRef(Date.now()); // Track when game started
   const isCompletingRef = useRef(false);
   const isMountedRef = useRef(true);
@@ -225,32 +280,7 @@ const BugandaPuzzleGame: React.FC = () => {
     pendingTimersRef.current.add(timer);
   };
 
-  const puzzleImages: PuzzleImage[] = [
-    {
-      id: 1,
-      name: "Kasubi Tombs",
-      source: require("../../assets/puzzles/kasubi-tombs.jpg"),
-      description:
-        "A UNESCO World Heritage site and burial ground of Buganda kings",
-    },
-    {
-      id: 2,
-      name: "Buganda Royal Drums",
-      source: require("../../assets/puzzles/buganda-drums.jpg"),
-      description: "Traditional royal drums used in Buganda ceremonies",
-    },
-    {
-      id: 3,
-      name: "Lubiri Palace",
-      source: require("../../assets/puzzles/lubiri-palace.jpg"),
-      description: "The palace of the Kabaka (King) of Buganda",
-    },
-  ];
-
-  // Initialize with a random puzzle when the component first loads
-  const [currentPuzzle, setCurrentPuzzle] = useState<number>(
-    Math.floor(Math.random() * puzzleImages.length)
-  );
+  const [currentPuzzle, setCurrentPuzzle] = useState<number>(0);
   const [grid, setGrid] = useState<(number | null)[][]>([]);
   const [emptySlotPosition, setEmptySlotPosition] = useState<Position>({ row: GRID_SIZE -1, col: GRID_SIZE -1 });
   const [tileStaticData, _setTileStaticData] = useState<Record<number, TileStaticData>>(generateTileStaticData());
@@ -258,7 +288,7 @@ const BugandaPuzzleGame: React.FC = () => {
   const [isComplete, setIsComplete] = useState<boolean>(false);
   const [moves, setMoves] = useState<number>(0);
   const [gameStarted, setGameStarted] = useState<boolean>(false);
-  const [showPreview, setShowPreview] = useState<boolean>(true);
+  const [showPreview, setShowPreview] = useState<boolean>(false);
   const [soundEffects, setSoundEffects] = useState<SoundEffects>({
     tileMove: null,
     success: null,
@@ -282,28 +312,90 @@ const BugandaPuzzleGame: React.FC = () => {
 
   useEffect(() => {
     let cancelled = false;
-    const initPuzzleProgress = async () => {
-      if (activeChild) {
-        const loadedProg = await loadPuzzleProgress(activeChild.id);
-        if (cancelled || !isMountedRef.current) return;
-        setPuzzleProgress(loadedProg);
+    const requestedChildId = activeChild?.id;
+    const requestedLanguageCode = languageCode;
+    const requestedScope = `${requestedChildId ?? "guest"}:${requestedLanguageCode}`;
 
-        // Check for "First Play" achievement if this is the very first time
-        // This check needs to be careful not to run on every component mount.
-        // One way is if totalGamesPlayed was 0 and now it's being incremented.
-        // Or, if we move totalGamesPlayed increment to initializePuzzle and check there.
-      } else {
+    setIsContentLoading(true);
+    setContentUnavailable(false);
+    setHydratedScope(null);
+    setPuzzleImages([]);
+    setShowPreview(false);
+    clearPendingTimers();
+
+    const initPuzzleContentAndProgress = async () => {
+      try {
+        const result = await loadContentBundle(requestedLanguageCode, {
+          forceRefresh: contentRetryVersion > 0,
+        });
         if (cancelled || !isMountedRef.current) return;
-        setPuzzleProgress({ ...DEFAULT_PUZZLE_PROGRESS, childId: 'default' });
+
+        const puzzleContent =
+          result.bundle?.languageCode === requestedLanguageCode
+            ? result.bundle.puzzleGame
+            : undefined;
+        const definitions = getPlayablePuzzleDefinitions(puzzleContent?.puzzles);
+
+        if (!definitions) {
+          setContentUnavailable(true);
+          return;
+        }
+
+        const resolvedPuzzles = definitions.map((definition) => ({
+          id: definition.id,
+          name: definition.name,
+          description: definition.description,
+          order: definition.order,
+          source: resolveImageSource(definition.image, "african-logic.png"),
+        }));
+
+        let loadedProgress = { ...DEFAULT_PUZZLE_PROGRESS, childId: "default" };
+        if (requestedChildId) {
+          try {
+            loadedProgress = await loadPuzzleProgress(requestedChildId);
+          } catch (error) {
+            console.warn("Could not restore Puzzle progress; starting safely:", error);
+            loadedProgress = {
+              ...DEFAULT_PUZZLE_PROGRESS,
+              childId: requestedChildId,
+            };
+          }
+        }
+        if (cancelled || !isMountedRef.current) return;
+
+        setPuzzleProgress(loadedProgress);
+        setPuzzleTitle(puzzleContent?.title || "Logic Puzzle");
+        setPuzzleImages(resolvedPuzzles);
+        setCurrentPuzzle(Math.floor(Math.random() * resolvedPuzzles.length));
+        setGrid([]);
+        setAnimatedPositions({});
+        setGameStarted(false);
+        setIsComplete(false);
+        setMoves(0);
+        previewAnim.setValue(1);
+        setShowPreview(true);
+      } catch (error) {
+        console.warn("Could not initialize Puzzle content or progress:", error);
+        if (!cancelled && isMountedRef.current) {
+          setContentUnavailable(true);
+        }
+      } finally {
+        if (!cancelled && isMountedRef.current) {
+          setHydratedScope(requestedScope);
+          setIsContentLoading(false);
+        }
       }
     };
-    void initPuzzleProgress().catch((error) => {
-      console.warn("Could not initialize Puzzle progress:", error);
+
+    void initPuzzleContentAndProgress().catch((error) => {
+      console.warn("Could not finish Puzzle initialization:", error);
     });
+
     return () => {
       cancelled = true;
+      clearPendingTimers();
     };
-  }, [activeChild]);
+  }, [activeChild?.id, contentRetryVersion, languageCode]);
 
   useEffect(() => {
     const loadedSounds: Audio.Sound[] = [];
@@ -348,7 +440,13 @@ const BugandaPuzzleGame: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!showPreview) return;
+    if (
+      !showPreview ||
+      hydratedScope !== contentScope ||
+      !puzzleImages[currentPuzzle]
+    ) {
+      return;
+    }
 
     scheduleTimer(() => {
       if (!isMountedRef.current) return;
@@ -369,7 +467,7 @@ const BugandaPuzzleGame: React.FC = () => {
       clearPendingTimers();
       previewAnim.stopAnimation();
     };
-  }, [showPreview, currentPuzzle]); // Added currentPuzzle to re-init on puzzle change
+  }, [contentScope, currentPuzzle, hydratedScope, puzzleImages.length, showPreview]);
 
   useEffect(() => {
     // Reset the game start time whenever a new puzzle starts
@@ -377,6 +475,8 @@ const BugandaPuzzleGame: React.FC = () => {
   }, [currentPuzzle, showPreview]);
 
   const initializePuzzle = async (): Promise<void> => {
+    if (!puzzleImages[currentPuzzle]) return;
+
     // 1. Create solved grid
     const solvedGrid: (number | null)[][] = [];
     let tileCounter = 1;
@@ -620,6 +720,10 @@ const BugandaPuzzleGame: React.FC = () => {
     if (completed && !isCompletingRef.current) {
       isCompletingRef.current = true;
       const completedPuzzle = puzzleImages[currentPuzzle];
+      if (!completedPuzzle) {
+        isCompletingRef.current = false;
+        return;
+      }
       const currentPuzzleId = completedPuzzle.id;
       const completedMoves = moves + 1; // setMoves is asynchronous
       const durationSeconds = Math.round((Date.now() - gameStartTime.current) / 1000);
@@ -856,6 +960,55 @@ const BugandaPuzzleGame: React.FC = () => {
     );
   };
 
+  if (isContentLoading || hydratedScope !== contentScope) {
+    return (
+      <View className="flex-1 bg-blue-50 justify-center items-center">
+        <StatusBar style="dark" />
+        <ActivityIndicator size="large" color="#7b5af0" />
+        <Text className="text-primary-700 mt-4" variant="medium">
+          Loading puzzles...
+        </Text>
+      </View>
+    );
+  }
+
+  if (
+    contentUnavailable ||
+    puzzleImages.length === 0 ||
+    !puzzleImages[currentPuzzle]
+  ) {
+    return (
+      <View className="flex-1 bg-blue-50 justify-center items-center px-8">
+        <StatusBar style="dark" />
+        <Ionicons name="cloud-offline-outline" size={52} color="#7b5af0" />
+        <Text className="text-primary-700 text-2xl mt-4 text-center" variant="bold">
+          Logic Puzzle is unavailable
+        </Text>
+        <Text className="text-slate-600 mt-2 text-center">
+          This activity is not ready for your learning language yet. Check your connection and try again.
+        </Text>
+        <View className="flex-row mt-6">
+          <TouchableOpacity
+            className="bg-white border-2 border-primary-200 rounded-xl px-5 py-3 mr-3"
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Back to Games"
+          >
+            <Text className="text-primary-700" variant="bold">Back</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            className="bg-primary-600 rounded-xl px-5 py-3"
+            onPress={() => setContentRetryVersion((version) => version + 1)}
+            accessibilityRole="button"
+            accessibilityLabel="Retry Puzzle content"
+          >
+            <Text className="text-white" variant="bold">Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View className="flex-1 bg-blue-50">
       <StatusBar style="dark" />
@@ -874,7 +1027,7 @@ const BugandaPuzzleGame: React.FC = () => {
 
         <View className="flex-1 mx-3 bg-white px-4 py-2 rounded-2xl border-2 border-blue-100 shadow-sm">
           <Text variant="bold" className="text-primary-700 text-center text-base" numberOfLines={1}>
-            Logic Puzzle
+            {puzzleTitle}
           </Text>
           <Text className="text-primary-500 text-xs text-center" numberOfLines={1}>
             Slide tiles into the correct picture
@@ -988,4 +1141,4 @@ const BugandaPuzzleGame: React.FC = () => {
   );
 };
 
-export default BugandaPuzzleGame;
+export default PuzzleGame;

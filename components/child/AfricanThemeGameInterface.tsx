@@ -82,6 +82,7 @@ const AfricanThemeGameInterface: React.FC = () => {
   const [learningCards, setLearningCards] = useState<LearningCard[]>([])
   const [contentBundle, setContentBundle] = useState<ContentBundle | undefined>()
   const [isContentLoading, setIsContentLoading] = useState(true)
+  const [contentRetrySequence, setContentRetrySequence] = useState(0)
   const router = useRouter()
   const { activeChild } = useChild()
   const {
@@ -167,7 +168,9 @@ const AfricanThemeGameInterface: React.FC = () => {
 
     const loadMenuContent = async () => {
       setIsContentLoading(true)
-      const result = await loadContentBundle(activeChild?.selected_language_code)
+      const result = await loadContentBundle(activeChild?.selected_language_code, {
+        forceRefresh: contentRetrySequence > 0,
+      })
 
       if (isMounted) {
         setContentBundle(result.bundle)
@@ -184,7 +187,7 @@ const AfricanThemeGameInterface: React.FC = () => {
     return () => {
       isMounted = false
     }
-  }, [activeChild?.selected_language_code])
+  }, [activeChild?.selected_language_code, contentRetrySequence])
 
   useEffect(() => {
     const contentSlug = TAB_CONTENT_SLUGS[tabId] ?? "games"
@@ -382,6 +385,18 @@ const AfricanThemeGameInterface: React.FC = () => {
                     <Text className="text-xs text-neutral-600 leading-4 mt-2 text-center">
                       This activity is being prepared for your learning language.
                     </Text>
+                    <TouchableOpacity
+                      className="mt-3 rounded-full bg-primary-600 px-4 py-2"
+                      onPress={() =>
+                        setContentRetrySequence((current) => current + 1)
+                      }
+                      accessibilityRole="button"
+                      accessibilityLabel="Retry loading menu content"
+                    >
+                      <Text variant="bold" className="text-xs text-white">
+                        Try again
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 )}
               </ScrollView>

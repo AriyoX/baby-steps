@@ -13,6 +13,7 @@ jest.mock("@/components/games/achievements/achievementManager", () => ({
 }));
 
 import type { AchievementDefinition } from "@/components/games/achievements/achievementTypes";
+import { registerLearningHubTestFixture } from "@/content/testFixtures/learningHubTestFixture";
 import type { LearningLessonCompletion } from "@/lib/learningProgressTypes";
 import { checkAndGrantLearningHubAchievements } from "../learningAchievements";
 
@@ -52,6 +53,7 @@ const completion: LearningLessonCompletion = {
 };
 
 beforeEach(() => {
+  registerLearningHubTestFixture();
   jest.clearAllMocks();
   mockFetchAllDefinedAchievements.mockResolvedValue([achievement]);
   mockFetchChildEarnedAchievements.mockResolvedValue([]);

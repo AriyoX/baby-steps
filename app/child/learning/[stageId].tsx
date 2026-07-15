@@ -19,18 +19,14 @@ import {
   getLearningLanguage,
 } from "@/content/languages";
 import {
-  getLearningLanguageContent,
-  getLearningStageById,
   getLessonStatus,
-  getLessonItemCount,
-  getLessonsForStage,
   getMechanicLabel,
-  resolveLearningHubLanguageCode,
   type LearningHubLesson,
   type LearningHubStage,
 } from "@/content/learningHubRepository";
 import type { LessonStatus } from "@/content/learningHubTypes";
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation";
+import { useLearningHubContent } from "@/hooks/useLearningHubContent";
 import {
   getCompletedLearningLessonIds,
   getLearningProgressChildId,
@@ -270,12 +266,13 @@ export default function LearningStagePathScreen() {
   const { width, height } = useWindowDimensions();
   const stageId = getRouteStageId(params.stageId);
   const childId = getLearningProgressChildId(activeChild?.id);
-  const languageCode = resolveLearningHubLanguageCode(
+  const {
+    languageCode,
+    languageContent,
+    status: contentStatus,
+    retry,
+  } = useLearningHubContent(
     activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE,
-  );
-  const languageContent = useMemo(
-    () => getLearningLanguageContent(languageCode),
-    [languageCode],
   );
   const languageName = getLearningLanguage(languageCode)?.name;
   const [completedLessonIds, setCompletedLessonIds] = useState<string[]>([]);
@@ -283,13 +280,10 @@ export default function LearningStagePathScreen() {
   useChildLandscapeOrientation("child learning stage path");
 
   const stage = useMemo(
-    () => getLearningStageById(languageCode, stageId),
-    [languageCode, stageId],
+    () => languageContent?.stages.find((candidate) => candidate.id === stageId),
+    [languageContent, stageId],
   );
-  const lessons = useMemo(
-    () => getLessonsForStage(languageCode, stageId),
-    [languageCode, stageId],
-  );
+  const lessons = stage?.lessons ?? [];
   const completedLessonIdSet = useMemo(
     () => new Set(completedLessonIds),
     [completedLessonIds],
@@ -353,14 +347,20 @@ export default function LearningStagePathScreen() {
   };
 
   if (!languageContent) {
+    const isLoading = contentStatus === "loading";
+
     return (
       <>
         <Stack.Screen options={{ headerShown: false, animation: "slide_from_right" }} />
         <StatusBar style="light" translucent backgroundColor="transparent" />
         <LearningLanguageUnavailableState
           languageName={languageName}
-          actionLabel="Back to Learning"
-          onAction={goBackToLearning}
+          title={isLoading ? "Getting lessons ready…" : undefined}
+          message={isLoading ? "We are loading this Learning path now." : undefined}
+          actionLabel={isLoading ? "Back to Learning" : "Try again"}
+          onAction={isLoading ? goBackToLearning : retry}
+          secondaryActionLabel={isLoading ? undefined : "Back to Learning"}
+          onSecondaryAction={isLoading ? undefined : goBackToLearning}
         />
       </>
     );
@@ -451,7 +451,7 @@ export default function LearningStagePathScreen() {
                   <LessonPathCard
                     stage={stage}
                     lesson={lesson}
-                    itemCount={getLessonItemCount(languageCode, stage.id, lesson.id)}
+                    itemCount={lesson.items.length}
                     isCompleted={completedLessonIdSet.has(lesson.id)}
                     width={lessonCardWidth}
                     height={lessonCardHeight}

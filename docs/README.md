@@ -11,12 +11,14 @@ This folder documents the current Baby Steps prototype and the work needed to mo
 | [Developer setup](development/setup.md) | Developers | Install, run, test, and common setup issues. |
 | [Project structure](development/project-structure.md) | Developers | Where code and content live. |
 | [Testing guide](development/testing.md) | Developers, QA | Current test setup and test gaps. |
-| [Content management](development/content-management.md) | Developers, content contributors | Where hardcoded content lives and how to update it safely. |
+| [Database-backed content](features/database-content.md) | Developers, product, QA | Runtime architecture, language isolation, security, cache, and deployed state. |
+| [Content management](development/content-management.md) | Developers, content contributors | Database-content ownership and the migration-based update workflow. |
+| [Content authoring and new games](development/content-authoring-and-new-games.md) | Developers, content contributors | Payload examples, stable-ID rules, seeds, smoke test, and adding a language. |
 | [Database notes](development/database.md) | Developers | Current Supabase schema snapshot and gaps. |
 | [Account deletion finalization](development/account-deletion-finalization.md) | Developers, release owners | Secure server-side final account deletion process and manual QA. |
 | [Deployment readiness](development/deployment.md) | Developers, release owners | Build commands, readiness status, blockers, and launch notes. |
 | [Manual QA checklist](qa/manual-qa-checklist.md) | QA, developers | Device and regression testing checklist. |
-| [MVP roadmap](mvp-roadmap.md) | Product, developers | 8-week MVP preparation priorities, risks, and out-of-scope items. |
+| [MVP roadmap](mvp-roadmap.md) | Product, developers | Current release priorities, risks, and out-of-scope items. |
 
 ## Existing Reports
 
@@ -30,5 +32,5 @@ This folder documents the current Baby Steps prototype and the work needed to mo
 
 - Keep implemented, partial, prototype-only, and planned features separate.
 - Use exact commands from `package.json`.
-- Do not document payments, subscriptions, admin tools, or database-driven content as implemented.
+- Do not document payments, subscriptions, or admin/CMS tooling as implemented. The migration-managed database content MVP is implemented; describe its limits accurately.
 - Link to source files and reports instead of duplicating long explanations.

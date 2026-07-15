@@ -83,6 +83,23 @@ Current fields:
 
 Used by child list, parent dashboard, child detail, and add-child flow. `selected_language_code` is set during child profile creation and is not currently editable in child mode.
 
+### `content_items`
+
+Stores exact-language, versioned JSON bundles for Learning Hub, menus, Stories,
+and supplementary games. Runtime reads require the exact `language_code`,
+`is_active = true`, `editorial_status = 'published'`, and `is_startable = true`.
+The row identity is `(language_code, content_type, slug)`; nested stage, lesson,
+item, level, card, puzzle, page, question, and option IDs remain progress/content
+compatibility keys.
+
+RLS permits `anon` and `authenticated` to select active published rows. Explicit
+Data API grants give those roles `SELECT` only; content mutation is reserved for
+trusted migration/admin paths. The Expo app contains no service-role key.
+
+See [Database-Backed Content](../features/database-content.md) for architecture
+and [Content Authoring And New Games](./content-authoring-and-new-games.md) for
+payload contracts.
+
 ### `activities`
 
 Current activity types allowed by the check constraint:
@@ -168,13 +185,13 @@ See [account deletion finalization](account-deletion-finalization.md) for deploy
 - No stable content IDs in `activities`.
 - `activities.score` is text.
 - `activities.details` is text rather than structured JSON.
-- Existing activity writes do not yet populate `language_code`.
+- Historical activity rows may lack `language_code`; current multilingual writes should populate it.
 - No parent profile table separate from `auth.users`.
 - No roles, schools, organizations, or class/group tables.
 - No media asset table.
 - No localization tables.
 - No payment or entitlement tables.
-- No content workflow tables.
+- No separate content workflow/audit tables beyond the MVP editorial fields on `content_items`.
 - No Supabase Storage bucket or user-owned storage metadata table.
 
 ## Future Migration Notes
@@ -185,21 +202,42 @@ Current migrations include:
 - `supabase/migrations/20260619001000_add_mvp_content_items.sql`
 - `supabase/migrations/20260629000000_add_child_progress.sql`
 - `supabase/migrations/20260701000000_add_child_achievements_unique_constraint.sql`
+- `supabase/migrations/20260701001000_migrate_luganda_stories_to_content_items.sql`
 - `supabase/migrations/20260701002000_add_account_management_soft_deletion.sql`
 - `supabase/migrations/20260702000000_add_account_deletion_grace_period.sql`
 - `supabase/migrations/20260702001000_add_account_deletion_lifecycle_rpcs.sql`
 - `supabase/migrations/20260702002000_add_account_deletion_finalizer.sql`
+- `supabase/migrations/20260709225210_seed_learning_hub_achievements.sql`
+- `supabase/migrations/20260714182326_database_backed_learning_content.sql`
+- `supabase/migrations/20260714213732_normalize_published_story_menu_order.sql`
 
-This adds `languages`, required `children.selected_language_code`, nullable `activities.language_code`, seed rows for `lg` and `nyn`, foreign keys, and supporting indexes.
+This chain adds language selection, shared content, progress, account-deletion lifecycle support, Learning Hub achievements, database-backed curriculum/game seeds, strict content security metadata, and the Stories ordered-menu correction. As of 2026-07-15, local and linked Baby-Steps migration histories align through `20260714213732`.
 
-Before adding more database-driven content:
+## Local Reset Caveat
+
+The checked-in migrations begin after the original application base schema. A
+completely empty `supabase db reset` currently fails at
+`20260619000000_add_child_language_support.sql` because `public.children` is not
+created by an earlier repository migration. This is a pre-existing migration
+history gap, not a content-bundle fallback requirement. Restore a proper base
+schema migration before treating fresh local resets as authoritative; until
+then, validate against an existing development schema or a disposable database
+bootstrapped with the base tables.
+
+## Security Advisor Snapshot
+
+As of 2026-07-15, the linked-project advisors report no content-specific finding for `public.content_items`; its child-facing read policy and separate Data API grants are in place. Pre-existing findings elsewhere still need release review: RLS is disabled on `activities`, `achievements`, `child_achievements`, and `languages`; two functions have mutable search paths; account-deletion `SECURITY DEFINER` execution grants need review; `uuid-ossp` is installed in `public`; leaked-password protection is disabled; and database patches are available. These are not reasons to add a service-role key or weaken the content policy.
+
+## Change Guidance
+
+When adding database-driven content:
 
 1. Define TypeScript content contracts.
-2. Add stable IDs to existing hardcoded content.
-3. Normalize activity/progress data.
-4. Add content tables one feature at a time.
-5. Keep bundled fallback content.
-6. Add migrations instead of treating `schema.sql` as executable source of truth.
+2. Preserve every shipped stable ID and exact language code.
+3. Reuse the versioned `content_items` bundle model unless a type truly cannot fit it.
+4. Add validation/rendering code before publishing a new content type or mechanic.
+5. Use exact-language last-known-good caching; do not add bundled learning-content fallback.
+6. Add idempotent migrations instead of treating `schema.sql` as executable source of truth.
 
 Before adding payments:
 
@@ -217,3 +255,5 @@ Before adding payments:
 - [ ] Seed achievement definitions and confirm achievement awarding.
 - [ ] Confirm all parent dashboard queries work for a new user with no children.
 - [ ] Confirm activity screens handle empty and populated states.
+- [ ] Query `content_items` as `anon`: active/published rows are readable, draft rows are hidden, and writes are denied.
+- [ ] Run the reversible [Learning Hub dynamic-stage smoke test](../database/learning-hub-dynamic-stage-smoke-test.sql), verify it appears for `lg`, then run its cleanup SQL.

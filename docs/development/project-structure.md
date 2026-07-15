@@ -18,9 +18,9 @@ Baby Steps uses Expo Router, so most user-facing screens are file routes under `
 | `components/games/` | Large prototype game components. |
 | `components/games/utils/` | Game-specific progress/audio managers. |
 | `components/games/achievements/` | Supabase achievement definitions, earned achievements, and awarding logic. |
-| `components/stories/` | Eight hardcoded story components and `StoryProgress`. |
+| `components/stories/` | Generic database-backed story renderer plus any deprecated route-compatibility components. |
 | `components/child/` | Child dashboard/card interface and older coloring prototype. |
-| `content/games/` | Structured hardcoded content for counting, Luganda lessons, and word game. |
+| `content/` | Exact-language database repository/cache, Learning Hub validators/types, and bundled asset resolvers. |
 | `context/` | React contexts for active child, add-child flow, and language setting. |
 | `lib/` | Supabase client, activity helpers, translations, and Sunbird prototype helpers. |
 | `utils/` | Generic AsyncStorage helpers for progress, activities, sessions, and weekly stats. |
@@ -59,15 +59,15 @@ No strict naming convention is enforced across the prototype yet. Current patter
 
 ## Current Technical Debt In Structure
 
-- Story components duplicate the same reader/quiz structure.
-- Game components mix content, UI, state, scoring, persistence, audio, and achievements.
-- Some content remains embedded in components instead of `content/`.
+- Deprecated story components may still duplicate parts of the generic reader for route compatibility; the production Stories path uses the generic database renderer.
+- Game components still combine mechanics, UI, state, scoring, persistence, audio, and achievements, while their language-specific records load through `content/`.
+- Archived Museum data, onboarding copy, Coloring route configuration, test fixtures, seed SQL, and static asset maps remain bundled intentionally. Reachable published learning/game records do not use those as a language fallback.
 - `types.ts` contains generic early prototype types and may not represent current app data models.
 - `components/child/AfricanColoringGame.tsx` is commented prototype code while active coloring lives under routes.
 
 ## Contributor Notes
 
-- Prefer moving reusable hardcoded content into `content/` only when it reduces real duplication.
-- Do not move story/game content into a database without typed contracts and fallback behavior.
+- Add or revise child-facing learning records through an idempotent content migration. Keep executable mechanics and static React Native asset resolver maps in code.
+- Database-backed story/game content must use typed validation, exact-language unavailable states, and the shared last-known-good cache; never add a bundled cross-language fallback.
 - Keep route names stable unless you update every card/link target.
 - Avoid adding new settings links without actual routes or placeholders.

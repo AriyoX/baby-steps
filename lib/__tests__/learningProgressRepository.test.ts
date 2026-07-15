@@ -11,6 +11,12 @@ const mockCheckAndGrantLearningHubAchievements = jest.fn();
 const mockGetActivityProgress = jest.fn();
 const mockGetStageProgress = jest.fn();
 const mockHydrateProgressFromRemote = jest.fn();
+const mockEnsureLearningHubLanguageContent = jest.fn();
+
+jest.mock("@/content/learningHubLoader", () => ({
+  ensureLearningHubLanguageContent: (...args: unknown[]) =>
+    mockEnsureLearningHubLanguageContent(...args),
+}));
 
 jest.mock("@/lib/progressRepository", () => ({
   getActivityProgress: (...args: unknown[]) => mockGetActivityProgress(...args),
@@ -41,6 +47,7 @@ import {
   getLearningHubStages,
   getLessonStatus,
 } from "@/content/learningHubRepository";
+import { registerLearningHubTestFixture } from "@/content/testFixtures/learningHubTestFixture";
 import type { LearningLessonCompletion } from "@/lib/learningProgressTypes";
 import {
   calculateLearningProgressAggregate,
@@ -113,10 +120,17 @@ const createCompletion = (
 });
 
 beforeEach(async () => {
+  registerLearningHubTestFixture();
   jest.clearAllMocks();
   mockGetActivityProgress.mockResolvedValue(null);
   mockGetStageProgress.mockResolvedValue(null);
   mockHydrateProgressFromRemote.mockResolvedValue({ activities: 0, stages: 0 });
+  mockEnsureLearningHubLanguageContent.mockResolvedValue({
+    status: "ready",
+    languageCode,
+    source: "database",
+    retainedPrevious: true,
+  });
   mockMarkLevelCompleted.mockResolvedValue(undefined);
   mockMarkStageCompleted.mockResolvedValue(undefined);
   mockSaveActivity.mockResolvedValue(true);
@@ -1174,11 +1188,11 @@ describe("learning progress repository", () => {
     warnSpy.mockRestore();
   });
 
-  it("maps legacy Learning language labels to DB language codes", () => {
+  it("maps known language labels without substituting unknown languages", () => {
     expect(getDbLanguageCodeForLearningLanguage("luganda")).toBe("lg");
     expect(getDbLanguageCodeForLearningLanguage("Oluganda")).toBe("lg");
     expect(getDbLanguageCodeForLearningLanguage("runyankore")).toBe("nyn");
-    expect(getDbLanguageCodeForLearningLanguage("missing")).toBe("lg");
+    expect(getDbLanguageCodeForLearningLanguage("missing")).toBe("missing");
     expect(getLearningLanguageFromDbCode("lg")).toBe("lg");
   });
 });

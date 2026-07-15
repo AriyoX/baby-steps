@@ -113,10 +113,6 @@ export const PLACEHOLDER_SETTINGS: Record<string, PlaceholderSettingsInfo> = {
     title: "Language & Learning",
     description: "Language choices and learning preferences will be managed here.",
   },
-  notifications: {
-    title: "Notifications",
-    description: "Reminder and learning update preferences will be managed here.",
-  },
   "privacy-safety": {
     title: "Privacy & Safety",
     description: "Family privacy and child safety choices will be managed here.",

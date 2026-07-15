@@ -60,6 +60,13 @@
           "initialOrientation": "DEFAULT"
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "color": "#0274BB",
+          "defaultChannel": "learning-reminders"
+        }
+      ],
       "expo-asset"
     ],
     "experiments": {

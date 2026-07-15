@@ -13,18 +13,20 @@ Authentication lets parents create accounts, sign in, sign out, and request pass
 1. After onboarding, unauthenticated users go to `/login`.
 2. Parents can sign in with email/password.
 3. Parents can navigate to `/signup` to create an account.
-4. Accepted signup attempts route to `/check-email` so parents know to confirm their Baby Steps account; if Supabase returns a session during signup, the app clears the local session and still shows the confirmation step.
-5. Parents can request a reset link from `/forgot-password`.
-6. Reset links target the app scheme route `babysteps://auth/callback`; legacy `babysteps://reset-password` links remain supported.
-7. Recovery callbacks route to `/reset-password`.
-8. Login attempts for unconfirmed accounts route to the same `/check-email` guidance with a resend action when the email is available.
-9. Signed-in parents reach `/parent`.
-10. Parents sign out from `/parent/settings`.
+4. Accepted new signup attempts route to `/notification-permission`, where parents can opt into the documented local reminder schedule or continue without it.
+5. The permission step then routes to `/check-email` so parents know to confirm their Baby Steps account; if Supabase returns a session during signup, the app clears the local session before continuing.
+6. Parents can request a reset link from `/forgot-password`.
+7. Reset links target the app scheme route `babysteps://auth/callback`; legacy `babysteps://reset-password` links remain supported.
+8. Recovery callbacks route to `/reset-password`.
+9. Login attempts for unconfirmed accounts route to the same `/check-email` guidance with a resend action when the email is available.
+10. Signed-in parents reach `/parent`.
+11. Parents sign out from `/parent/settings`.
 
 ## Main Files Involved
 
 - `app/login.tsx`
 - `app/signup.tsx`
+- `app/notification-permission.tsx`
 - `app/check-email.tsx`
 - `app/forgot-password.tsx`
 - `app/reset-password.tsx`
@@ -63,6 +65,7 @@ The auth screens use local component state for form fields and Supabase Auth for
 ## API Or Database Usage
 
 - Supabase Auth.
+- Notification preferences remain device-local and do not add a Supabase table or auth claim.
 - Environment variables:
   - `EXPO_PUBLIC_SUPABASE_URL`
   - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
@@ -70,7 +73,7 @@ The auth screens use local component state for form fields and Supabase Auth for
 ## Tests
 
 - `lib/__tests__/authMessages.test.ts` covers friendly auth error mapping, resend-confirmation copy, and validation helpers.
-- `app/__tests__/authScreens.test.tsx` covers accepted signup routing, session-returning signup routing, unconfirmed-login guidance, forgot-password check-email routing, and reset-password visibility toggles.
+- `app/__tests__/authScreens.test.tsx` covers accepted signup routing through notification permission, session-returning signup routing, unconfirmed-login guidance, forgot-password check-email routing, and reset-password visibility toggles.
 - `lib/__tests__/accountManagement.test.ts` covers the compatibility signup error helper exported from account management.
 
 ## Known Limitations Or Bugs
@@ -90,7 +93,7 @@ The auth screens use local component state for form fields and Supabase Auth for
 
 - [ ] Open app with no Supabase env vars and confirm failure mode is understandable.
 - [ ] Sign up with a new email.
-- [ ] Confirm signup always leaves the form and shows the check-email screen.
+- [ ] Confirm signup leaves the form, shows notification choice, and then shows the check-email screen.
 - [ ] Try sign-in before email confirmation and confirm the app shows confirmation guidance.
 - [ ] Resend confirmation email from check-email when an email is available.
 - [ ] Confirm expected email-verification behavior for the Supabase project.

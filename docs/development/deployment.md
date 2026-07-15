@@ -31,12 +31,29 @@ EAS profiles are defined in `eas.json`:
 - `preview`
 - `production`
 - `groceries`
+- `notification-test`
 
 The `groceries` profile builds an Android APK using:
 
 ```bash
 eas build --platform android --profile groceries --non-interactive
 ```
+
+The `notification-test` profile extends the same release APK configuration and adds only the compile-time flag that exposes the Settings developer tools:
+
+```bash
+eas build --platform android --profile notification-test
+```
+
+For a local EAS build on supported macOS or Linux hosts:
+
+```bash
+eas build --platform android --local --profile notification-test
+```
+
+Windows local EAS builds are not officially supported. Use the cloud command above from PowerShell, or run the local command inside a correctly configured WSL environment with the Android SDK/NDK and Java available to WSL. The completed APK can be installed from the EAS build link or with `adb install path-to.apk`.
+
+The normal `groceries` and `production` profiles do not expose the test-only Settings section in release builds.
 
 ## App Config Notes
 

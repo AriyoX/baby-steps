@@ -34,7 +34,7 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 
 ## Auth
 
-- [ ] New signup routes to the check-email screen.
+- [ ] New signup routes through notification permission and then to the check-email screen.
 - [ ] New signup does not remain on the Create Parent Account form after Supabase accepts it.
 - [ ] Existing email signup gives helpful sign-in guidance where Supabase safely exposes it.
 - [ ] Login with an unconfirmed email routes to confirmation guidance instead of only showing an alert.
@@ -52,6 +52,20 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Signup confirmation deep link still routes into the authenticated app.
 - [ ] Expired or invalid signup confirmation link shows signup/sign-in actions.
 - [ ] Logout returns user to unauthenticated flow.
+
+## Notifications
+
+- [ ] New signup explains the reminder schedule before showing the native permission prompt.
+- [ ] `Maybe later` continues signup without requesting permission.
+- [ ] Granting permission schedules Tuesday and Thursday at 6:30 PM and Saturday at 10:00 AM local time.
+- [ ] Denying permission does not block signup or login.
+- [ ] Dashboard bell opens notification settings.
+- [ ] Settings toggle pauses and resumes the three recurring reminders.
+- [ ] Blocked permission state offers a route to device settings.
+- [ ] Test reminder appears after approximately three seconds.
+- [ ] Tapping a reminder opens the appropriate signed-in or signed-out root flow.
+- [ ] Reminder text and Android channel styling match the Baby Steps theme.
+- [ ] Native Android/iOS build includes the `expo-notifications` plugin configuration.
 
 ## Child Profiles
 

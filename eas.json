@@ -27,6 +27,14 @@
         "buildType": "apk",
         "gradleCommand": ":app:assembleRelease"
       }
+    },
+    "notification-test": {
+      "extends": "groceries",
+      "autoIncrement": false,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_ENABLE_TEST_TOOLS": "true"
+      }
     }
   },
   "submit": {

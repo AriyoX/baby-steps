@@ -103,6 +103,12 @@ export default function SignUp() {
         params: { flow, email: trimmedEmail },
       } as any);
     };
+    const goToNotificationPermission = () => {
+      router.replace({
+        pathname: "/notification-permission",
+        params: { flow: "signup", email: trimmedEmail },
+      } as any);
+    };
 
     try {
       setLoading(true);
@@ -139,7 +145,7 @@ export default function SignUp() {
         }
       }
 
-      goToCheckEmail("signup");
+      goToNotificationPermission();
     } catch (error) {
       console.error("Could not create account.");
       Alert.alert("Could not create account", getSignUpErrorMessage(error));

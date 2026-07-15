@@ -111,7 +111,7 @@ Child-facing presentation is mounted once in `app/child/_layout.tsx` through `Ch
 
 Notice deduplication is session-only. The stable key contains the active child ID, notice type, and achievement ID. A key is ignored if it is visible, queued, or was already displayed during the current mounted child session. The provider is keyed by active child and unmounts outside child mode, so changing children/accounts or leaving child mode resets this in-memory set. Notice queues and displayed keys are deliberately not persisted to AsyncStorage; reloads and hydration must not replay old unlocks.
 
-Current offline limitation: failed achievement checks/inserts are not queued for later retry or evaluation. Progress and completion can still save, but an achievement whose insert fails while offline may require a later qualifying evaluation. Device notifications are a separate feature: `expo-notifications`, notification permissions, local/push notifications, and a notification inbox are not implemented here.
+Current offline limitation: failed achievement checks/inserts are not queued for later retry or evaluation. Progress and completion can still save, but an achievement whose insert fails while offline may require a later qualifying evaluation. Device-local learning reminders are documented separately in `notifications.md`; achievement-triggered and remote push notifications are not implemented.
 
 ## Remote Progress Sync Audit
 
@@ -319,7 +319,7 @@ Remaining gaps: Supabase activity writes and parent activity dashboard behavior 
 - [ ] Repeat the same completion and confirm an already-earned achievement notice does not replay.
 - [ ] Switch child profiles and confirm notices and earned records do not mix between children.
 - [ ] Enable reduced motion and confirm unlock notices avoid enter/exit animation.
-- [ ] Confirm device notification permission is not requested.
+- [ ] Confirm earning an achievement does not independently request device notification permission.
 - [ ] Confirm child detail shows earned achievements.
 - [ ] Confirm all-achievements groups definitions by game.
 - [ ] Confirm progress survives app restart for local-progress games.

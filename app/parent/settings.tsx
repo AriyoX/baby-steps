@@ -12,6 +12,7 @@ import { SETTINGS_SECTIONS } from "@/lib/settingsOptions";
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const testToolsEnabled = __DEV__ || process.env.EXPO_PUBLIC_ENABLE_TEST_TOOLS === "true";
 
   const handleResetOnboardingForDev = React.useCallback(async () => {
     try {
@@ -24,6 +25,36 @@ export default function SettingsScreen() {
     } catch (error) {
       console.error("Could not reset onboarding:", error);
       Alert.alert("Could not reset onboarding", "Please try again from a development build.");
+    }
+  }, []);
+
+  const handleTestNotification = React.useCallback(async () => {
+    try {
+      const {
+        requestNotificationPermission,
+        sendTestLearningReminder,
+      } = await import("@/lib/notifications");
+      const permission = await requestNotificationPermission();
+
+      if (permission !== "granted") {
+        Alert.alert(
+          "Notifications are not allowed",
+          "Allow Baby Steps notifications when prompted, or enable them in your device settings.",
+        );
+        return;
+      }
+
+      await sendTestLearningReminder();
+      Alert.alert(
+        "Test notification scheduled",
+        "Put Baby Steps in the background. The reminder should appear in about three seconds.",
+      );
+    } catch (error) {
+      console.error("Could not send a test notification:", error);
+      Alert.alert(
+        "Could not send a test notification",
+        "Install a fresh native test build and try again on an Android or iOS device.",
+      );
     }
   }, []);
 
@@ -63,7 +94,7 @@ export default function SettingsScreen() {
         </View>
       ))}
 
-      {__DEV__ ? (
+      {testToolsEnabled ? (
         <View className="mb-5">
           <Text
             variant="medium"
@@ -72,6 +103,13 @@ export default function SettingsScreen() {
             Developer
           </Text>
           <View className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <SettingsRow
+              title="Send test notification"
+              description="Requests permission and shows a themed reminder in about 3 seconds."
+              icon="notifications-circle-outline"
+              iconColor={brandColors.victoriaBlue}
+              onPress={handleTestNotification}
+            />
             <SettingsRow
               title="Reset onboarding"
               description="Clears the pre-login onboarding flag only."

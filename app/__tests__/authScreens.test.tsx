@@ -144,7 +144,7 @@ afterEach(() => {
 });
 
 describe("auth screens", () => {
-  it("routes accepted signup attempts to the check-email screen", async () => {
+  it("routes accepted signup attempts to the notification permission screen", async () => {
     mockSignUp.mockResolvedValue({
       data: { session: null, user: { identities: [{ id: "identity-1" }] } },
       error: null,
@@ -169,12 +169,12 @@ describe("auth screens", () => {
       }),
     );
     expect(mockRouterReplace).toHaveBeenCalledWith({
-      pathname: "/check-email",
+      pathname: "/notification-permission",
       params: { flow: "signup", email: "parent@example.com" },
     });
   });
 
-  it("keeps session-returning signup attempts on the check-email screen", async () => {
+  it("routes session-returning signup attempts through notification permission", async () => {
     mockSignUp.mockResolvedValue({
       data: {
         session: { user: { id: "parent-1" } },
@@ -197,7 +197,7 @@ describe("auth screens", () => {
 
     expect(mockSignOut).toHaveBeenCalledWith({ scope: "local" });
     expect(mockRouterReplace).toHaveBeenCalledWith({
-      pathname: "/check-email",
+      pathname: "/notification-permission",
       params: { flow: "signup", email: "parent@example.com" },
     });
   });

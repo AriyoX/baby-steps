@@ -10,6 +10,7 @@ Current implementation:
 
 - Email/password authentication through Supabase.
 - Parent dashboard, child profiles, activity history, and achievements.
+- Device-local recurring learning reminders with parent controls.
 - Child mode with game, story, coloring, and museum tabs.
 - Hardcoded story, lesson, game, museum, image, audio, and translation content.
 - Local game progress through AsyncStorage.
@@ -37,6 +38,7 @@ See [docs/mvp-roadmap.md](docs/mvp-roadmap.md) for the current 8-week MVP prepar
 | Local storage | `@react-native-async-storage/async-storage` |
 | Audio | `expo-av` and `expo-speech` |
 | Media/export | `react-native-view-shot`, `expo-media-library`, `expo-sharing` |
+| Notifications | `expo-notifications` with device-local weekly schedules |
 | Tests | Jest with `jest-expo` |
 | Package manager | npm, with `package-lock.json` |
 | Build config | Expo config in `app.json`, EAS profiles in `eas.json` |
@@ -49,6 +51,7 @@ Note: `expo-av` is deprecated in current Expo guidance and should be replaced du
 | --- | --- | --- |
 | App onboarding | Implemented prototype | Three-slide intro stored with `@onboarding_completed` in AsyncStorage. |
 | Authentication | Implemented prototype | Supabase signup, login, forgot password, and reset password screens exist. |
+| Notifications | Implemented on native devices | Optional Tuesday/Thursday evening and Saturday morning local reminders; no push-token backend. |
 | Parent dashboard | Partially implemented | Child profiles and activity summaries are Supabase-backed; some progress values and tips are placeholders. |
 | Child profiles | Implemented prototype | Multi-screen add-child flow writes to the `children` table. |
 | Child mode navigation | Implemented prototype | Selected child is stored in React context; child mode locks landscape and exits through a random PIN parent gate. |

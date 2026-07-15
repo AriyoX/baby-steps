@@ -194,7 +194,9 @@ const ParentDashboard = () => {
 
               <TouchableOpacity
                 className="w-10 h-10 rounded-full bg-accent-100 items-center justify-center"
-                onPress={() => {}}
+                onPress={() => router.push("/parent/settings/notifications" as any)}
+                accessibilityRole="button"
+                accessibilityLabel="Open notification reminders"
               >
                 <Ionicons name="notifications-outline" size={22} color={brandColors.equatorialGold} />
               </TouchableOpacity>

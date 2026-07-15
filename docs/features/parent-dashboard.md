@@ -13,8 +13,8 @@ The parent dashboard gives guardians a home screen for child profiles, recent le
 1. Signed-in parents route to `/parent`.
 2. The dashboard loads child profiles for the current Supabase user.
 3. It fetches recent activities and weekly summary values for each child.
-4. Parents can open child detail, child list, all activities, all achievements, and settings.
-5. Settings includes child management, app toggles, language toggle, future content/privacy/help/account links, and logout.
+4. Parents can open child detail, child list, all activities, all achievements, notification reminders, and settings.
+5. The header bell and Settings notification row both open the implemented recurring-reminder controls.
 
 ## Main Files Involved
 
@@ -24,6 +24,7 @@ The parent dashboard gives guardians a home screen for child profiles, recent le
 - `app/parent/all-achievements.tsx`
 - `app/parent/child-detail/[id].tsx`
 - `app/parent/child-progress.tsx`
+- `app/parent/settings/notifications.tsx`
 - `lib/utils.ts`
 - `components/translated-text.tsx`
 - `context/language-context.tsx`
@@ -50,7 +51,7 @@ The parent dashboard gives guardians a home screen for child profiles, recent le
 - Dashboard data is fetched in component effects.
 - Recent activities refresh every 30 seconds in `app/parent/index.tsx`.
 - Activities screen subscribes to Supabase realtime changes on `activities`.
-- Settings toggles for notifications, sound effects, and dark mode are local UI state or placeholders.
+- Notification preferences are device-local and control real Expo weekly schedules. See `notifications.md`.
 - The language toggle persists `isLuganda` in AsyncStorage.
 
 ## API Or Database Usage
@@ -73,7 +74,7 @@ No tests currently cover the parent dashboard, settings, child progress, or acti
   - `/privacy-settings`
   - `/help-support`
   - `/account-info`
-- Notifications, sound effects, and dark mode toggles do not appear to control app-wide behavior.
+- Some settings other than notifications remain placeholders.
 - Parent dashboard child progress values are placeholder/random.
 
 ## Future MVP Improvements

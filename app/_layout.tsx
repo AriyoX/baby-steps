@@ -19,6 +19,11 @@ import { hasCompletedOnboarding } from "@/lib/onboarding";
 import "@/global.css";
 import { ChildProvider } from '@/context/ChildContext';
 import { AudioProvider } from "@/context/AudioContext";
+import {
+  configureNotificationPresentation,
+  observeNotificationOpens,
+  syncRecurringRemindersIfEnabled,
+} from "@/lib/notifications";
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -68,6 +73,17 @@ export default function RootLayout() {
   useEffect(() => {
     pathnameRef.current = pathname;
   }, [pathname]);
+
+  useEffect(() => {
+    configureNotificationPresentation();
+    void syncRecurringRemindersIfEnabled().catch((error) => {
+      console.warn("Could not sync learning reminders:", error);
+    });
+
+    return observeNotificationOpens((url) => {
+      router.push(url as any);
+    });
+  }, [router]);
 
   useEffect(() => {
     let isMounted = true;
@@ -253,6 +269,7 @@ export default function RootLayout() {
             <Stack.Screen name="index" options={{ gestureEnabled: false, orientation: ADULT_ROUTE_ORIENTATION }} />
             <Stack.Screen name="login" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
             <Stack.Screen name="signup" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+            <Stack.Screen name="notification-permission" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
             <Stack.Screen name="check-email" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
             <Stack.Screen name="forgot-password" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
             <Stack.Screen name="auth/callback" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />

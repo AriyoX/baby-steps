@@ -1,57 +1,67 @@
-import React from "react";
-import { Animated, TouchableOpacity } from "react-native";
-import renderer, { act } from "react-test-renderer";
-import { registerLearningHubTestFixture } from "@/content/testFixtures/learningHubTestFixture";
+import React from "react"
+import { Animated, TouchableOpacity } from "react-native"
+import renderer, { act } from "react-test-renderer"
 import {
-  getLearningContentVersion,
   getLearningLanguageContent,
-} from "@/content/learningHubRepository";
-import LearningHubScreen from "../learning";
+  getLessonStatus,
+} from "@/content/learningHubRepository"
+import { registerLearningHubTestFixture } from "@/content/testFixtures/learningHubTestFixture"
+import LearningTab from "../learning"
 
-const mockRouterPush = jest.fn();
-const mockRouterReplace = jest.fn();
-const mockToggleBackgroundMusicMuted = jest.fn();
-const mockToggleAppSoundsMuted = jest.fn();
-const mockLoadLearningHubLanguageContent = jest.fn();
-let mockSelectedLanguageCode = "lg";
+const mockRouterPush = jest.fn()
+const mockLoadContentBundle = jest.fn()
+let mockSelectedLanguageCode = "lg"
+let mockChildId = "child-1"
+let mockCompletedLearningLessonIds: string[] = []
 
-jest.mock("@/content/learningHubLoader", () => ({
-  loadLearningHubLanguageContent: (...args: unknown[]) =>
-    mockLoadLearningHubLanguageContent(...args),
-}));
+jest.mock("@/content/contentRepository", () => ({
+  loadContentBundle: (...args: unknown[]) => mockLoadContentBundle(...args),
+  resolveImageSource: (image: unknown, fallback: unknown) => image ?? fallback,
+}))
+
+jest.mock("@/content/imagePreloader", () => ({
+  preloadContentBundleImages: jest.fn(),
+}))
 
 jest.mock("expo-router", () => ({
-  useRouter: () => ({
-    push: mockRouterPush,
-    replace: mockRouterReplace,
-  }),
-}));
+  useFocusEffect: (callback: () => void | (() => void)) => {
+    const ReactModule = jest.requireActual("react")
+    ReactModule.useEffect(callback, [callback])
+  },
+  usePathname: () => "/child/learning",
+  useRouter: () => ({ push: mockRouterPush }),
+}))
 
-jest.mock("expo-status-bar", () => ({
-  StatusBar: "StatusBar",
-}));
+jest.mock("expo-status-bar", () => ({ StatusBar: "StatusBar" }))
 
 jest.mock("react-native-safe-area-context", () => ({
   SafeAreaView: "SafeAreaView",
-}));
+}))
 
 jest.mock("@expo/vector-icons", () => ({
   Ionicons: (props: Record<string, unknown>) => {
-    const { View } = jest.requireActual("react-native");
-    return <View {...props} />;
+    const { View } = jest.requireActual("react-native")
+    return <View {...props} />
   },
-}));
+}))
 
 jest.mock("@/components/brand/BrandMark", () => ({
   BrandMark: "BrandMark",
-}));
+}))
 
 jest.mock("@/components/common/CachedImage", () => ({
   CachedImage: (props: Record<string, unknown>) => {
-    const { View } = jest.requireActual("react-native");
-    return <View {...props} />;
+    const { View } = jest.requireActual("react-native")
+    return <View {...props} />
   },
-}));
+}))
+
+jest.mock("@/components/translated-text", () => ({
+  TranslatedText: ({ children, ...props }: Record<string, unknown>) => {
+    const { Text } = jest.requireActual("react-native")
+    return <Text {...props}>{children}</Text>
+  },
+}))
 
 jest.mock("@/context/AudioContext", () => ({
   useAudio: () => ({
@@ -59,150 +69,198 @@ jest.mock("@/context/AudioContext", () => ({
       appSoundsMuted: false,
       backgroundMusicMuted: false,
     },
-    toggleAppSoundsMuted: mockToggleAppSoundsMuted,
-    toggleBackgroundMusicMuted: mockToggleBackgroundMusicMuted,
+    toggleAppSoundsMuted: jest.fn(),
+    toggleBackgroundMusicMuted: jest.fn(),
   }),
-}));
+}))
 
 jest.mock("@/context/ChildContext", () => ({
   useChild: () => ({
     activeChild: {
       age: "8",
-      id: "child-1",
+      id: mockChildId,
       name: "Ayo",
       selected_language_code: mockSelectedLanguageCode,
     },
   }),
-}));
+}))
 
 jest.mock("@/hooks/useChildLandscapeOrientation", () => ({
   useChildLandscapeOrientation: jest.fn(),
-}));
+}))
+
+jest.mock("@/hooks/useLearningHubProgress", () => ({
+  useLearningHubProgress: () => mockCompletedLearningLessonIds,
+}))
 
 jest.mock("@/lib/audioManager", () => ({
-  audioManager: {
-    speakAppText: jest.fn(),
+  audioManager: { speakAppText: jest.fn() },
+}))
+
+jest.mock("@/lib/learningProgressRepository", () => ({
+  getLearningProgressChildId: (childId?: string | null) =>
+    childId || "local-demo-child",
+}))
+
+const bundleFor = (languageCode: string, learningHub: unknown) => ({
+  bundle: {
+    contentVersion: "learning-test",
+    languageCode,
+    learningHub,
+    menuCardsByTab: {},
+    source: "database",
   },
-}));
+  languageCode,
+  source: "network",
+})
+
+const renderLearningTab = async () => {
+  let tree: renderer.ReactTestRenderer | undefined
+  await act(async () => {
+    tree = renderer.create(<LearningTab />)
+    await Promise.resolve()
+  })
+  if (!tree) throw new Error("Learning tab did not render")
+  return tree
+}
 
 beforeEach(() => {
-  registerLearningHubTestFixture();
-  jest.clearAllMocks();
-  mockSelectedLanguageCode = "lg";
-  mockLoadLearningHubLanguageContent.mockImplementation(
-    async (languageCode: string) => {
-      const content = getLearningLanguageContent(languageCode);
-      const contentVersion = getLearningContentVersion(languageCode);
-      return content && contentVersion
-        ? {
-            status: "ready",
-            languageCode,
-            content,
-            contentVersion,
-            source: "database",
-            retainedPrevious: true,
-          }
-        : {
-            status: "unavailable",
-            languageCode,
-            source: "empty",
-            retainedPrevious: false,
-          };
-    },
-  );
+  registerLearningHubTestFixture()
+  jest.clearAllMocks()
+  mockSelectedLanguageCode = "lg"
+  mockChildId = "child-1"
+  mockCompletedLearningLessonIds = []
+  mockLoadContentBundle.mockImplementation(async (languageCode: string) => {
+    const content = getLearningLanguageContent(languageCode)
+    return content
+      ? bundleFor(languageCode, content)
+      : { languageCode, source: "empty" }
+  })
   jest.spyOn(Animated, "loop").mockReturnValue({
     start: jest.fn(),
     stop: jest.fn(),
-  } as never);
-});
+  } as never)
+})
 
 afterEach(() => {
-  jest.restoreAllMocks();
-});
+  jest.restoreAllMocks()
+})
 
-describe("Learning tab", () => {
-  it("shows a friendly Runyankole unavailable state without Luganda stages", async () => {
-    mockSelectedLanguageCode = "nyn";
-    let tree: renderer.ReactTestRenderer | undefined;
-
-    await act(async () => {
-      tree = renderer.create(<LearningHubScreen />);
-    });
-
-    if (!tree) {
-      throw new Error("LearningHubScreen did not render");
+describe("Learning tab shared African interface", () => {
+  it("renders the database stage order dynamically and keeps Practice Mix locked", async () => {
+    const content = getLearningLanguageContent("lg")!
+    const databaseAddedStage = {
+      ...content.stages[0],
+      description: "A stage added by published curriculum content.",
+      id: "database-added-stage",
+      lessons: [],
+      stageNumber: 99,
+      title: "Database Added Stage",
     }
+    const databaseStages = [
+      content.stages[0],
+      databaseAddedStage,
+      ...content.stages.slice(1),
+    ]
+    mockLoadContentBundle.mockResolvedValue(
+      bundleFor("lg", { ...content, stages: databaseStages }),
+    )
+    const tree = await renderLearningTab()
+    const text = JSON.stringify(tree.toJSON())
 
-    const text = JSON.stringify(tree.toJSON());
-    const backButton = tree.root.findAllByType(TouchableOpacity).find(
-      (candidate) => candidate.props.accessibilityLabel === "Back to Games",
-    );
+    databaseStages
+      .map((stage) => stage.title)
+      .reduce((previousIndex, title) => {
+        const nextIndex = text.indexOf(title)
+        expect(nextIndex).toBeGreaterThan(previousIndex)
+        return nextIndex
+      }, -1)
 
-    expect(text).toContain("Runyankole lessons");
-    expect(text).toContain("coming soon");
-    expect(text).not.toContain("First Words");
-    expect(text).not.toContain("Family & Home");
-    expect(text).not.toContain("Practice Mix");
-    expect(backButton).toBeDefined();
+    const practiceMix = tree.root.findAllByType(TouchableOpacity).find(
+      (candidate) =>
+        candidate.props.accessibilityLabel?.startsWith("Practice Mix. Locked."),
+    )
+    expect(practiceMix).toBeDefined()
 
-    await act(async () => {
-      backButton?.props.onPress();
-    });
+    act(() => tree.unmount())
+  })
 
-    expect(mockRouterReplace).toHaveBeenCalledWith("/child");
+  it("preserves completed/current states and the stable stage route", async () => {
+    const stages = getLearningLanguageContent("lg")!.stages
+    const firstStageLessonIds = stages[0].lessons
+      .filter((lesson) => getLessonStatus(lesson, stages[0]) === "startable")
+      .map((lesson) => lesson.id)
+    mockCompletedLearningLessonIds = firstStageLessonIds
 
-    act(() => {
-      tree?.unmount();
-    });
-  });
+    const tree = await renderLearningTab()
+    const stageButtons = tree.root.findAllByType(TouchableOpacity)
+    const completedStage = stageButtons.find((candidate) =>
+      candidate.props.accessibilityLabel?.startsWith("First Words. Completed."),
+    )
+    const currentStage = stageButtons.find((candidate) =>
+      candidate.props.accessibilityLabel?.startsWith("Family & Home. 0/"),
+    )
 
-  it("keeps the explicit Luganda stage cards unchanged", async () => {
-    let tree: renderer.ReactTestRenderer | undefined;
+    expect(completedStage).toBeDefined()
+    expect(currentStage?.props.accessibilityLabel).toContain("Current")
 
-    await act(async () => {
-      tree = renderer.create(<LearningHubScreen />);
-    });
+    await act(async () => completedStage?.props.onPress())
+    expect(mockRouterPush).toHaveBeenCalledWith({
+      pathname: "/child/learning/[stageId]",
+      params: { stageId: "first-words" },
+    })
 
-    if (!tree) {
-      throw new Error("LearningHubScreen did not render");
-    }
+    act(() => tree.unmount())
+  })
 
-    const text = JSON.stringify(tree.toJSON());
+  it("shows exact-language unavailable and empty states without inventing stages", async () => {
+    mockSelectedLanguageCode = "nyn"
+    let tree = await renderLearningTab()
+    let text = JSON.stringify(tree.toJSON())
 
-    expect(text).toContain("First Words");
-    expect(text).toContain("Family & Home");
-    expect(text).toContain("Everyday Things");
-    expect(text).toContain("Culture & Stories");
-    expect(text).toContain("Practice Mix");
-    expect(text).not.toContain("lessons are coming soon");
+    expect(text).toContain("Runyankole Learning Hub lessons")
+    expect(text).not.toContain("First Words")
+    expect(text).not.toContain("Practice Mix")
+    act(() => tree.unmount())
 
-    act(() => {
-      tree?.unmount();
-    });
-  });
+    mockSelectedLanguageCode = "lg"
+    mockLoadContentBundle.mockResolvedValue(
+      bundleFor("lg", {
+        displayName: "Luganda",
+        languageCode: "lg",
+        pathTitle: "Learning path",
+        stages: [],
+      }),
+    )
+    tree = await renderLearningTab()
+    text = JSON.stringify(tree.toJSON())
 
-  it("removes Luganda immediately when the selected language changes", async () => {
-    let tree: renderer.ReactTestRenderer | undefined;
+    expect(text).toContain("Lessons coming soon")
+    expect(text).not.toContain("First Words")
+    expect(text).not.toContain("Practice Mix")
+    act(() => tree.unmount())
+  })
 
-    await act(async () => {
-      tree = renderer.create(<LearningHubScreen />);
-    });
-    if (!tree) throw new Error("LearningHubScreen did not render");
+  it("clears child and language scoped UI while replacement data is loading", async () => {
+    const stages = getLearningLanguageContent("lg")!.stages
+    const firstStageLessonIds = stages[0].lessons
+      .filter((lesson) => getLessonStatus(lesson, stages[0]) === "startable")
+      .map((lesson) => lesson.id)
+    mockCompletedLearningLessonIds = firstStageLessonIds
+    const tree = await renderLearningTab()
+    expect(JSON.stringify(tree.toJSON())).toContain("Completed")
 
-    mockLoadLearningHubLanguageContent.mockReturnValue(new Promise(() => undefined));
-    mockSelectedLanguageCode = "nyn";
+    mockLoadContentBundle.mockReturnValue(new Promise(() => undefined))
+    mockCompletedLearningLessonIds = []
+    mockChildId = "child-2"
+    mockSelectedLanguageCode = "nyn"
+    act(() => tree.update(<LearningTab />))
 
-    act(() => {
-      tree?.update(<LearningHubScreen />);
-    });
+    const text = JSON.stringify(tree.toJSON())
+    expect(text).not.toContain("Completed")
+    expect(text).not.toContain("First Words")
+    expect(text).not.toContain("Practice Mix")
 
-    const text = JSON.stringify(tree.toJSON());
-    expect(text).toContain("Getting lessons ready");
-    expect(text).not.toContain("First Words");
-    expect(text).not.toContain("Practice Mix");
-
-    act(() => {
-      tree?.unmount();
-    });
-  });
-});
+    act(() => tree.unmount())
+  })
+})

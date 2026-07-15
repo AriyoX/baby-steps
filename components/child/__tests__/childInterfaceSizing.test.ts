@@ -1,13 +1,8 @@
-import fs from "fs"
-import path from "path"
 import {
   CHILD_INTERFACE_CARD_IMAGE_RATIO,
   CHILD_INTERFACE_CARD_TEXT_RATIO,
   getChildInterfaceCardLayout,
 } from "../childInterfaceSizing"
-
-const readProjectFile = (...segments: string[]) =>
-  fs.readFileSync(path.join(process.cwd(), ...segments), "utf8")
 
 describe("shared child-interface card sizing", () => {
   it("uses the established card dimensions and proportions responsively", () => {
@@ -28,20 +23,20 @@ describe("shared child-interface card sizing", () => {
     expect(smallAndroidLandscape.cardHeight).toBeCloseTo(172.8)
   })
 
-  it("is consumed by Learning and the Games, Stories, and Coloring interface", () => {
-    const learningSource = readProjectFile("app", "child", "(tabs)", "learning.tsx")
-    const childInterfaceSource = readProjectFile(
-      "components",
-      "child",
-      "AfricanThemeGameInterface.tsx",
+  it("keeps the complete image and text regions inside small-screen cards", () => {
+    const smallPhoneLandscape = getChildInterfaceCardLayout(568, 320)
+    const tabletLandscape = getChildInterfaceCardLayout(1024, 768)
+
+    expect(smallPhoneLandscape.cardHeight).toBe(166)
+    expect(smallPhoneLandscape.imageHeight + smallPhoneLandscape.textHeight).toBe(
+      smallPhoneLandscape.cardHeight,
     )
+    expect(smallPhoneLandscape.cardWidth).toBe(220)
 
-    for (const source of [learningSource, childInterfaceSource]) {
-      expect(source).toContain("useWindowDimensions")
-      expect(source).toContain("getChildInterfaceCardLayout(width, height)")
-      expect(source).not.toContain('Dimensions.get("window")')
-    }
-
-    expect(learningSource).toContain('numberOfLines={2}')
+    expect(tabletLandscape.cardHeight).toBe(210)
+    expect(tabletLandscape.cardWidth).toBe(250)
+    expect(tabletLandscape.imageHeight + tabletLandscape.textHeight).toBe(
+      tabletLandscape.cardHeight,
+    )
   })
 })

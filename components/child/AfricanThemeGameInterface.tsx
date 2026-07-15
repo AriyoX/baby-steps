@@ -34,6 +34,13 @@ import { brandColors } from "@/constants/Brand"
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation"
 import { audioManager } from "@/lib/audioManager"
 import { getChildInterfaceCardLayout } from "@/components/child/childInterfaceSizing"
+import {
+  getLessonStatus,
+  type LearningHubStage,
+} from "@/content/learningHubRepository"
+import { getLearningLanguage } from "@/content/languages"
+import { useLearningHubProgress } from "@/hooks/useLearningHubProgress"
+import { getLearningProgressChildId } from "@/lib/learningProgressRepository"
 
 // Define types
 type LearningCard = {
@@ -42,6 +49,14 @@ type LearningCard = {
   image?: string
   description: string
   targetPage: string // Add this property to specify which page to navigate to
+  stageId?: string
+  status?: {
+    backgroundColor: string
+    color: string
+    icon: keyof typeof Ionicons.glyphMap
+    label: string
+  }
+  progressLabel?: string
 }
 
 type NavItem = {
@@ -55,6 +70,7 @@ const CHILD_TAB_BAR_CLEARANCE = 86
 const TAB_CONTENT_SLUGS: Record<string, string> = {
   index: "games",
   profile: "games",
+  learning: "learning",
   coloring: "coloring",
   Stories: "stories",
   museum: "museum",
@@ -62,6 +78,7 @@ const TAB_CONTENT_SLUGS: Record<string, string> = {
 
 const TAB_TITLES: Record<string, string> = {
   games: "Games",
+  learning: "Learning",
   coloring: "Coloring",
   stories: "Stories",
   museum: "Museum",
@@ -75,6 +92,83 @@ const toLearningCards = (cards: ChildMenuCard[]): LearningCard[] =>
     description: card.description,
     targetPage: card.targetPage,
   }))
+
+const toLearningHubCards = (
+  stages: LearningHubStage[],
+  completedLessonIds: string[],
+): LearningCard[] => {
+  const completedIds = new Set(completedLessonIds)
+  const progressByStage = stages.map((stage) => {
+    const startableLessonIds = stage.lessons
+      .filter((lesson) => getLessonStatus(lesson, stage) === "startable")
+      .map((lesson) => lesson.id)
+    const completedLessons = startableLessonIds.filter((lessonId) =>
+      completedIds.has(lessonId),
+    ).length
+
+    return {
+      completedLessons,
+      stage,
+      totalLessons: startableLessonIds.length,
+    }
+  })
+  const currentStageId = progressByStage.find(
+    ({ completedLessons, stage, totalLessons }) =>
+      !stage.isLocked && totalLessons > 0 && completedLessons < totalLessons,
+  )?.stage.id
+
+  return progressByStage.map(({ completedLessons, stage, totalLessons }) => {
+    const isCompleted = totalLessons > 0 && completedLessons === totalLessons
+    const status = stage.isLocked
+      ? {
+          backgroundColor: "rgba(71, 79, 94, 0.9)",
+          color: brandColors.white,
+          icon: "lock-closed" as const,
+          label: "Locked",
+        }
+      : isCompleted
+        ? {
+            backgroundColor: "rgba(34, 197, 94, 0.92)",
+            color: brandColors.white,
+            icon: "checkmark-circle" as const,
+            label: "Completed",
+          }
+        : stage.id === currentStageId
+          ? {
+              backgroundColor: "rgba(248, 194, 62, 0.95)",
+              color: brandColors.neutral[800],
+              icon: "play-circle" as const,
+              label: `${completedLessons}/${totalLessons} Current`,
+            }
+          : totalLessons === 0
+            ? {
+                backgroundColor: "rgba(255, 123, 108, 0.94)",
+                color: brandColors.white,
+                icon: "construct" as const,
+                label: "Coming soon",
+              }
+            : {
+                backgroundColor: "rgba(2, 116, 187, 0.92)",
+                color: brandColors.white,
+                icon: "map" as const,
+                label: `${completedLessons}/${totalLessons}`,
+              }
+
+    return {
+      id: stage.id,
+      title: stage.title,
+      image: stage.imageAsset ?? stage.imageKey,
+      description: stage.description,
+      targetPage: `child/learning/${stage.id}`,
+      stageId: stage.id,
+      status,
+      progressLabel:
+        totalLessons > 0
+          ? `${completedLessons} of ${totalLessons} lessons complete`
+          : status.label,
+    }
+  })
+}
 
 const AfricanThemeGameInterface: React.FC = () => {
   const [selectedLevel, setSelectedLevel] = useState<string>("Basic")
@@ -159,6 +253,16 @@ const AfricanThemeGameInterface: React.FC = () => {
   const pathname = usePathname()
   const pathSegments = pathname.split("/").filter(Boolean)
   const tabId = pathSegments.length <= 1 ? "index" : pathSegments[pathSegments.length - 1]
+  const isLearningTab = tabId === "learning"
+  const learningLanguageCode =
+    contentBundle?.learningHub?.languageCode ??
+    activeChild?.selected_language_code ??
+    ""
+  const completedLearningLessonIds = useLearningHubProgress(
+    getLearningProgressChildId(activeChild?.id),
+    learningLanguageCode,
+    isLearningTab && Boolean(contentBundle?.learningHub),
+  )
 
   // Set the title based on the tab
   const [screenTitle, setScreenTitle] = useState("Games")
@@ -168,6 +272,7 @@ const AfricanThemeGameInterface: React.FC = () => {
 
     const loadMenuContent = async () => {
       setIsContentLoading(true)
+      setContentBundle(undefined)
       const result = await loadContentBundle(activeChild?.selected_language_code, {
         forceRefresh: contentRetrySequence > 0,
       })
@@ -192,8 +297,15 @@ const AfricanThemeGameInterface: React.FC = () => {
   useEffect(() => {
     const contentSlug = TAB_CONTENT_SLUGS[tabId] ?? "games"
     setScreenTitle(TAB_TITLES[contentSlug] ?? "Games")
-    setLearningCards(toLearningCards(contentBundle?.menuCardsByTab[contentSlug] ?? []))
-  }, [contentBundle, tabId])
+    setLearningCards(
+      contentSlug === "learning"
+        ? toLearningHubCards(
+            contentBundle?.learningHub?.stages ?? [],
+            completedLearningLessonIds,
+          )
+        : toLearningCards(contentBundle?.menuCardsByTab[contentSlug] ?? []),
+    )
+  }, [completedLearningLessonIds, contentBundle, tabId])
 
   const handleParentalPress = () => {
     audioManager.speakAppText("For parents only", {
@@ -206,6 +318,14 @@ const AfricanThemeGameInterface: React.FC = () => {
 
   // Updated function to navigate to the card's target page with type assertion
   const handleCardPress = (card: LearningCard) => {
+    if (card.stageId) {
+      router.push({
+        pathname: "/child/learning/[stageId]",
+        params: { stageId: card.stageId },
+      } as any)
+      return
+    }
+
     // Use type assertion to tell TypeScript this is a valid route
     router.push(`/${card.targetPage}` as any)
   }
@@ -330,6 +450,8 @@ const AfricanThemeGameInterface: React.FC = () => {
                 {learningCards.map((card) => (
                   <TouchableOpacity
                     key={card.id}
+                    accessibilityLabel={`${card.title}. ${card.status?.label ?? "Open"}. ${card.description}${card.progressLabel ? `. ${card.progressLabel}` : ""}`}
+                    accessibilityRole="button"
                     className="bg-white rounded-2xl overflow-hidden shadow-md border-2 border-accent-500"
                     style={{
                       height: cardLayout.cardHeight,
@@ -339,16 +461,41 @@ const AfricanThemeGameInterface: React.FC = () => {
                     activeOpacity={0.7}
                     onPress={() => handleCardPress(card)}
                   >
-                    <CachedImage
-                      source={resolveImageSource(card.image, "african-focus.png")}
-                      fallbackSource={resolveImageSource("african-focus.png")}
-                      className="w-full"
-                      style={{ height: cardLayout.imageHeight }}
-                      resizeMode="cover"
-                      accessibilityLabel={card.title}
-                    />
+                    <View style={{ height: cardLayout.imageHeight }}>
+                      <CachedImage
+                        source={resolveImageSource(card.image, "african-focus.png")}
+                        fallbackSource={resolveImageSource("african-focus.png")}
+                        className="w-full h-full"
+                        resizeMode="cover"
+                        accessibilityLabel={card.title}
+                      />
+                      {card.status ? (
+                        <View
+                          className="absolute top-2 right-2 rounded-full px-2.5 py-1 flex-row items-center"
+                          style={{ backgroundColor: card.status.backgroundColor }}
+                        >
+                          <Ionicons
+                            name={card.status.icon}
+                            size={13}
+                            color={card.status.color}
+                          />
+                          <Text
+                            variant="bold"
+                            className="text-[10px] ml-1"
+                            numberOfLines={1}
+                            style={{ color: card.status.color }}
+                          >
+                            {card.status.label}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
                     <View className="p-3 bg-white justify-center" style={{ height: cardLayout.textHeight }}>
-                      <TranslatedText variant="bold" className="text-base text-primary-700 mb-1" numberOfLines={1}>
+                      <TranslatedText
+                        variant="bold"
+                        className="text-base text-primary-700 mb-1"
+                        numberOfLines={card.stageId ? 2 : 1}
+                      >
                         {card.title}
                       </TranslatedText>
                       <TranslatedText className="text-xs text-neutral-600 leading-4" numberOfLines={2}>
@@ -380,10 +527,12 @@ const AfricanThemeGameInterface: React.FC = () => {
                   >
                     <BrandMark kind="mascot" width={54} height={72} />
                     <Text variant="display" className="text-xl text-primary-700 mt-3 text-center">
-                      Coming soon
+                      {isLearningTab ? "Lessons coming soon" : "Coming soon"}
                     </Text>
                     <Text className="text-xs text-neutral-600 leading-4 mt-2 text-center">
-                      This activity is being prepared for your learning language.
+                      {isLearningTab
+                        ? `${getLearningLanguage(activeChild?.selected_language_code)?.name ?? "Your language"} Learning Hub lessons are being prepared.`
+                        : "This activity is being prepared for your learning language."}
                     </Text>
                     <TouchableOpacity
                       className="mt-3 rounded-full bg-primary-600 px-4 py-2"
@@ -391,7 +540,11 @@ const AfricanThemeGameInterface: React.FC = () => {
                         setContentRetrySequence((current) => current + 1)
                       }
                       accessibilityRole="button"
-                      accessibilityLabel="Retry loading menu content"
+                      accessibilityLabel={
+                        isLearningTab
+                          ? "Retry loading Learning Hub content"
+                          : "Retry loading menu content"
+                      }
                     >
                       <Text variant="bold" className="text-xs text-white">
                         Try again

@@ -19,7 +19,9 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Parent dashboard routes to child detail.
 - [ ] Child detail launches child mode.
 - [ ] Child mode tabs render Games, Coloring, Stories, and Learning.
-- [ ] Parent gate returns to parent dashboard with correct PIN.
+- [ ] Parent gate varies between simple addition, subtraction, and missing-number challenges.
+- [ ] A wrong parent-gate answer shows a fresh challenge without leaving the gate.
+- [ ] A correct parent-gate answer returns to the parent dashboard.
 - [ ] Android hardware back behavior is acceptable in child mode.
 - [ ] Settings future links are removed or handled before release.
 
@@ -58,6 +60,8 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] New signup explains gentle Baby Steps notifications without promising specific notification categories or displaying a fixed timetable.
 - [ ] `Maybe later` continues signup without requesting permission.
 - [ ] Granting permission enables the current device-local recurring schedule.
+- [ ] Normal builds do not show `Send a test reminder` on the Notifications settings screen.
+- [ ] The `notification-test` profile still exposes manual test-notification controls.
 - [ ] Denying permission does not block signup or login.
 - [ ] Dashboard bell opens notification settings.
 - [ ] Settings toggle pauses and resumes the three recurring reminders.

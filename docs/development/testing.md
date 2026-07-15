@@ -40,7 +40,7 @@ Representative suites include:
 Automated tests still do not replace end-to-end device QA for:
 
 - real signup, login, reset, add-child, and cold-start route recovery;
-- the parent gate PIN and full parent/child switching flow;
+- the full parent-gate UI and parent/child switching flow (challenge generation and answer validation have focused unit coverage);
 - real Supabase network failures and writes through an installed mobile build;
 - complete touch interaction for every game, Coloring drawing/save/share, and Museum gestures/media;
 - native orientation, audio, media-library permissions, and Android/iOS behavior;

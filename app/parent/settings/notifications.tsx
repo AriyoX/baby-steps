@@ -32,6 +32,8 @@ const NOTIFICATION_PRINCIPLES = [
   },
 ]
 
+const testToolsEnabled = __DEV__ || process.env.EXPO_PUBLIC_ENABLE_TEST_TOOLS === "true"
+
 export default function NotificationSettingsScreen() {
   const [enabled, setEnabled] = useState(false)
   const [permission, setPermission] = useState<NotificationPermissionState>("undetermined")
@@ -185,7 +187,7 @@ export default function NotificationSettingsScreen() {
         </View>
       </View>
 
-      {enabled ? (
+      {enabled && testToolsEnabled ? (
         <TouchableOpacity
           className="mt-5 mb-3 min-h-[52px] rounded-2xl border border-primary-200 bg-white flex-row items-center justify-center"
           onPress={() => void sendTest()}

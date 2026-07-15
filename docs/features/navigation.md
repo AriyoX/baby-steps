@@ -20,7 +20,7 @@ Child mode gives the active child a landscape learning area with tabs for games,
    - `/child/(tabs)/Stories`
    - `/child/(tabs)/learning`
 6. Games, Coloring, and Stories render exact-language database menu cards through `AfricanThemeGameInterface`. Learning renders the published exact-language Learning Hub path.
-7. The parent gate shows a random 3-digit PIN and returns to `/parent` after correct entry.
+7. The parent gate presents a randomized addition, subtraction, or missing-number challenge and returns to `/parent` after the correct answer is submitted.
 
 ## Main Files Involved
 
@@ -31,6 +31,7 @@ Child mode gives the active child a landscape learning area with tabs for games,
 - `app/child/(tabs)/Stories.tsx`
 - `app/child/(tabs)/learning.tsx`
 - `app/child/parent-gate.tsx`
+- `lib/parentGateChallenge.ts`
 - `components/child/AfricanThemeGameInterface.tsx`
 - `context/ChildContext.tsx`
 
@@ -52,7 +53,9 @@ Navigation cards and Learning Hub stages are loaded through the exact-language d
 - Child routes lock orientation to landscape.
 - Parent/settings screens generally lock or return to portrait.
 - Android hardware back in child dashboard routes to `/child/parent-gate`.
-- The parent gate clears `activeChild` when the random PIN is entered correctly.
+- Parent-gate answers are limited to one or two positive digits. Challenges avoid negative subtraction and vary between standard equations and a missing-number format.
+- A wrong answer clears the input, creates a fresh challenge, and shows friendly retry feedback without forcing the user out of the gate.
+- The parent gate clears `activeChild` when the challenge is answered correctly.
 
 ## API Or Database Usage
 
@@ -60,7 +63,7 @@ Child mode depends on a child profile selected from Supabase-backed parent scree
 
 ## Tests
 
-Focused tests cover child tab navigation metadata, Learning loading/unavailable states, and selected route/layout behavior. Full route-guard recovery, native orientation, and parent-gate PIN flows still require device or end-to-end coverage.
+Focused tests cover child tab navigation metadata, Learning loading/unavailable states, selected route/layout behavior, and parent-gate challenge generation and validation. Full parent/child switching still requires device or end-to-end coverage.
 
 ## Known Limitations Or Bugs
 
@@ -73,7 +76,7 @@ Focused tests cover child tab navigation metadata, Learning loading/unavailable 
 ## Future MVP Improvements
 
 - Add child mode route recovery for reloads/cold starts.
-- Add parent gate tests and device QA.
+- Add full parent-gate route interaction coverage and device QA.
 - Add schema-safe support for new menu card types only when a real route requires it.
 - Confirm route naming conventions before adding more tabs.
 
@@ -87,5 +90,5 @@ Focused tests cover child tab navigation metadata, Learning loading/unavailable 
 - [ ] Open every published/startable Learning stage and lesson; confirm locked Practice Mix remains locked.
 - [ ] Select a language with no published content and confirm no Luganda menu or Learning Hub appears.
 - [ ] Press Android hardware back and confirm parent gate opens.
-- [ ] Enter wrong PIN and confirm it does not return to parent dashboard.
-- [ ] Enter displayed PIN and confirm return to `/parent`.
+- [ ] Submit a wrong answer and confirm a fresh puzzle appears without returning to the parent dashboard.
+- [ ] Solve the displayed challenge and confirm return to `/parent`.

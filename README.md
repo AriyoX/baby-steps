@@ -57,7 +57,7 @@ Note: `expo-av` is deprecated in current Expo guidance and should be replaced du
 | Connectivity messaging | Implemented | Global offline notice plus guarded auth and child-profile network actions. |
 | Parent dashboard | Partially implemented | Child profiles and activity summaries are Supabase-backed; some progress values and tips are placeholders. |
 | Child profiles | Implemented prototype | Multi-screen add-child flow writes to the `children` table. |
-| Child mode navigation | Implemented prototype | Selected child is stored in React context; child mode locks landscape and exits through a random PIN parent gate. |
+| Child mode navigation | Implemented prototype | Selected child is stored in React context; child mode locks landscape and exits through a randomized math-challenge parent gate. |
 | Games | Implemented prototype | Word, card matching, puzzle, Luganda learning, and Luganda counting games exist. |
 | Stories | Implemented prototype | Eight hardcoded story screens with page navigation and 5-question quizzes. |
 | Coloring | Implemented prototype | Five drawing templates with brush, eraser, fill, undo/redo, save, and share controls. |

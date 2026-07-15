@@ -41,8 +41,8 @@ The app explains the tone, usefulness, privacy, and parent controls before reque
 - The same screen is available from `Settings -> Notifications`.
 - Parents can pause or resume the whole recurring schedule.
 - If permission was denied, the screen offers a route to the device's app settings.
-- When reminders are enabled, parents can schedule a test notification that appears after approximately three seconds.
-- Development builds and APKs built with the `notification-test` EAS profile also show `Settings -> Developer -> Send test notification`. This action requests permission if necessary and schedules one immediate test without enabling the recurring schedule.
+- Normal production and `groceries` builds do not show manual test-notification actions on the Notifications screen.
+- Development builds and APKs built with the `notification-test` EAS profile can show `Send a test reminder` on the Notifications screen when reminders are enabled. They also show `Settings -> Developer -> Send test notification`, which can request permission and schedule one immediate test without enabling the recurring schedule.
 
 ## Notification Content And Navigation
 
@@ -102,10 +102,10 @@ Auth screen tests verify that a successful new signup enters the notification-pe
 - [ ] Grant permission and confirm Settings shows reminders enabled.
 - [ ] Deny permission and confirm the app continues without blocking signup.
 - [ ] Enable and disable reminders from Settings.
-- [ ] Send a test reminder on a physical Android device.
-- [ ] Send a test reminder on a physical iOS device.
+- [ ] In a test-tools build, send a test reminder on a physical Android or iOS device.
 - [ ] Tap a reminder while signed in and confirm the parent app opens.
 - [ ] Tap a reminder while signed out and confirm the login flow opens.
 - [ ] Confirm the bell icon opens notification settings.
 - [ ] Rebuild the native app after `app.json` notification-plugin changes.
 - [ ] Build with `notification-test` and confirm the Developer test action is present.
+- [ ] Build with `groceries` or `production` and confirm the Notifications screen has no test-reminder button.

@@ -1,169 +1,189 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { View, Image, ImageBackground, TouchableOpacity } from "react-native"
+import { useState } from "react"
+import { ImageBackground, TouchableOpacity, View } from "react-native"
 import { useRouter } from "expo-router"
-import { Text } from "@/components/StyledText"
-import { TranslatedText } from "@/components/translated-text"
 import { StatusBar } from "expo-status-bar"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons"
-import { useChild } from "@/context/ChildContext"
+import { Text } from "@/components/StyledText"
+import { TranslatedText } from "@/components/translated-text"
 import { brandColors } from "@/constants/Brand"
+import { useChild } from "@/context/ChildContext"
+import {
+  generateParentGateChallenge,
+  isCorrectParentGateAnswer,
+} from "@/lib/parentGateChallenge"
+
+const NUMBER_ROWS = [
+  ["1", "2", "3"],
+  ["4", "5", "6"],
+  ["7", "8", "9"],
+]
 
 export default function ParentGate() {
+  const [challenge, setChallenge] = useState(() => generateParentGateChallenge())
   const [input, setInput] = useState("")
-  const [correctPin, setCorrectPin] = useState(generateRandomPin())
+  const [showRetryMessage, setShowRetryMessage] = useState(false)
   const router = useRouter()
   const { setActiveChild } = useChild()
 
-  // Function to generate a random 3-digit PIN
-  function generateRandomPin() {
-    return Math.floor(Math.random() * 900 + 100).toString()
-  }
-
   const handleDigitPress = (digit: string) => {
-    if (input.length < 3) {
-      const newInput = input + digit
-      setInput(newInput)
-
-      if (newInput.length === 3) {
-        if (newInput === correctPin) {
-          setActiveChild(null) // Clear active child
-          router.replace("/parent")
-        } else {
-          // No alert for incorrect PIN, just redirect back
-          router.back() // Using router.back() is safer than hardcoding a path
-        }
-      }
-    }
+    if (input.length >= 2) return
+    setShowRetryMessage(false)
+    setInput((current) => current + digit)
   }
 
   const handleClear = () => {
-    setInput(input.slice(0, -1))
+    setShowRetryMessage(false)
+    setInput((current) => current.slice(0, -1))
   }
 
-  // Effect to regenerate PIN every time the component is mounted
-  useEffect(() => {
-    setCorrectPin(generateRandomPin())
-  }, [])
+  const handleSubmit = () => {
+    if (!input) return
+
+    if (isCorrectParentGateAnswer(challenge, input)) {
+      setActiveChild(null)
+      router.replace("/parent")
+      return
+    }
+
+    setInput("")
+    setChallenge(generateParentGateChallenge())
+    setShowRetryMessage(true)
+  }
 
   return (
     <>
       <StatusBar style="light" translucent backgroundColor="transparent" />
       <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1">
-        <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
-          <View className="flex-1 py-6 px-4" style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
-            {/* Header with back button */}
-            <TouchableOpacity className="absolute top-8 left-6 z-10" onPress={() => router.back()}>
-              <Ionicons name="arrow-back-circle" size={40} color={brandColors.equatorialGold} />
-            </TouchableOpacity>
+        <SafeAreaView className="flex-1 bg-primary-800/90">
+          <View className="absolute -top-16 -right-10 w-56 h-56 rounded-full bg-primary-400/30" />
+          <View className="absolute -bottom-24 left-1/3 w-64 h-64 rounded-full bg-accent-400/20" />
 
-            <View className="flex-1 flex-row">
-              {/* LEFT SECTION */}
-              <View className="flex-1 items-center justify-center">
-                <View className="rounded-2xl p-8 items-center max-w-[300px]">
-                  <TranslatedText variant="bold" className="text-white text-2xl mb-2">
-                    Parent Access
-                  </TranslatedText>
-                  <TranslatedText className="text-white/80 text-base mb-1 text-center">
-                    Please enter these digits:
-                  </TranslatedText>
-                  <Text variant="bold" className="text-accent-500 text-3xl mb-6 tracking-widest pt-2">
-                    {correctPin.split("").join(" ")}
-                  </Text>
+          <TouchableOpacity
+            className="absolute top-5 left-5 z-20 w-12 h-12 rounded-2xl bg-white/15 items-center justify-center border border-white/20"
+            onPress={() => router.back()}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Return to child mode"
+          >
+            <Ionicons name="arrow-back" size={25} color={brandColors.white} />
+          </TouchableOpacity>
 
-                  <Image source={require("@/assets/images/lock-icon.jpg")} className="w-[90px] h-[75px] mb-6" />
-
-                  <View className="flex-row gap-4 mb-2">
-                    {[0, 1, 2].map((i) => (
-                      <View
-                        key={i}
-                        className={`w-[50px] h-[60px] rounded-lg justify-center items-center border-2 ${
-                          input[i] ? "bg-accent-500/20 border-accent-500" : "bg-white/20 border-white/40"
-                        }`}
-                      >
-                        <Text variant="bold" className="text-white text-3xl">
-                          {input[i] || ""}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-
-                  <TranslatedText className="text-white/60 text-sm italic mt-4">For parents only...</TranslatedText>
-                </View>
+          <View className="flex-1 flex-row px-8 py-5 gap-8">
+            <View className="flex-1 justify-center pl-8">
+              <View className="self-start flex-row items-center rounded-full bg-accent-400 px-4 py-2 mb-4">
+                <Ionicons name="shield-checkmark" size={18} color={brandColors.neutral[900]} />
+                <TranslatedText variant="bold" className="text-neutral-900 text-sm ml-2">
+                  Grown-up space
+                </TranslatedText>
               </View>
 
-              {/* RIGHT SECTION - NUMPAD */}
-              <View className="flex-1 items-center justify-center">
-                <View className="flex-row">
-                  {/* Numpad container */}
-                  <View className="flex-row justify-center gap-3">
-                    {/* Column 1 */}
-                    <View className="flex-col gap-3">
-                      {["1", "4", "7"].map((digit) => (
-                        <TouchableOpacity
-                          key={digit}
-                          className="w-[70px] h-[70px] bg-white/20 rounded-2xl justify-center items-center active:opacity-70"
-                          onPress={() => handleDigitPress(digit)}
-                          activeOpacity={0.7}
-                        >
-                          <Text variant="bold" className="text-white text-3xl pt-3">
-                            {digit}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                      <TouchableOpacity
-                        className="w-[70px] h-[70px] bg-white/10 rounded-2xl justify-center items-center"
-                        onPress={() => handleDigitPress("0")}
-                        activeOpacity={0.7}
-                      >
-                        <Text variant="bold" className="text-white text-3xl">
-                          0
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
+              <TranslatedText variant="bold" className="text-white text-[34px] leading-10">
+                Parent Access
+              </TranslatedText>
+              <TranslatedText className="text-primary-100 text-base leading-6 mt-2 max-w-[390px]">
+                Solve one quick puzzle to leave child mode.
+              </TranslatedText>
 
-                    {/* Column 2 */}
-                    <View className="flex-col gap-3">
-                      {["2", "5", "8"].map((digit) => (
-                        <TouchableOpacity
-                          key={digit}
-                          className="w-[70px] h-[70px] bg-white/20 rounded-2xl justify-center items-center"
-                          onPress={() => handleDigitPress(digit)}
-                          activeOpacity={0.7}
-                        >
-                          <Text variant="bold" className="text-white text-3xl pt-3">
-                            {digit}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                      <TouchableOpacity
-                        className="w-[70px] h-[70px] bg-amber-600/30 rounded-2xl justify-center items-center"
-                        onPress={handleClear}
-                        activeOpacity={0.6}
-                      >
-                        <Ionicons name="backspace-outline" size={28} color="white" />
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* Column 3 */}
-                    <View className="flex-col gap-3">
-                      {["3", "6", "9"].map((digit) => (
-                        <TouchableOpacity
-                          key={digit}
-                          className="w-[70px] h-[70px] bg-white/20 rounded-2xl justify-center items-center"
-                          onPress={() => handleDigitPress(digit)}
-                          activeOpacity={0.7}
-                        >
-                          <Text variant="bold" className="text-white text-3xl pt-3">
-                            {digit}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                      <View className="w-[70px] h-[70px]" />
-                    </View>
+              <View className="mt-5 max-w-[390px] rounded-[28px] bg-white p-5 border border-white/40 shadow-lg">
+                <View className="flex-row items-center mb-2">
+                  <View className="w-9 h-9 rounded-xl bg-primary-50 items-center justify-center">
+                    <Ionicons name="calculator-outline" size={20} color={brandColors.victoriaBlue} />
                   </View>
+                  <TranslatedText variant="bold" className="text-neutral-600 text-sm ml-3">
+                    What number is missing?
+                  </TranslatedText>
+                </View>
+                <Text
+                  variant="bold"
+                  className="text-primary-800 text-[38px] leading-[48px] text-center py-2"
+                  accessibilityLabel={`Solve ${challenge.expression}`}
+                >
+                  {challenge.expression}
+                </Text>
+              </View>
+
+              <View className="min-h-[28px] mt-3">
+                {showRetryMessage ? (
+                  <View className="flex-row items-center">
+                    <Ionicons name="refresh-circle" size={20} color={brandColors.equatorialGold} />
+                    <TranslatedText variant="bold" className="text-accent-300 text-sm ml-2">
+                      Almost! Here’s a fresh puzzle to try.
+                    </TranslatedText>
+                  </View>
+                ) : (
+                  <TranslatedText className="text-white/65 text-sm">
+                    A tiny pause helps keep this area for grown-ups.
+                  </TranslatedText>
+                )}
+              </View>
+            </View>
+
+            <View className="w-[300px] justify-center items-center pr-5">
+              <View className="w-full rounded-[30px] bg-neutral-900/35 border border-white/15 p-4">
+                <View className="h-[56px] rounded-2xl bg-white/15 border border-white/20 items-center justify-center mb-3">
+                  <Text
+                    variant="bold"
+                    className={`text-[30px] ${input ? "text-white" : "text-white/40"}`}
+                    accessibilityLabel={input ? `Entered answer ${input}` : "No answer entered"}
+                  >
+                    {input || "—"}
+                  </Text>
+                </View>
+
+                {NUMBER_ROWS.map((row) => (
+                  <View key={row.join("")} className="flex-row gap-3 mb-3">
+                    {row.map((digit) => (
+                      <TouchableOpacity
+                        key={digit}
+                        className="flex-1 h-[56px] bg-white/20 rounded-2xl justify-center items-center border border-white/10"
+                        onPress={() => handleDigitPress(digit)}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Enter ${digit}`}
+                      >
+                        <Text variant="bold" className="text-white text-2xl">{digit}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ))}
+
+                <View className="flex-row gap-3">
+                  <TouchableOpacity
+                    className="w-[70px] h-[56px] bg-white/10 rounded-2xl justify-center items-center"
+                    onPress={handleClear}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Delete last digit"
+                  >
+                    <Ionicons name="backspace-outline" size={25} color={brandColors.white} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    className="w-[70px] h-[56px] bg-white/20 rounded-2xl justify-center items-center border border-white/10"
+                    onPress={() => handleDigitPress("0")}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Enter 0"
+                  >
+                    <Text variant="bold" className="text-white text-2xl">0</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    className={`flex-1 h-[56px] rounded-2xl justify-center items-center flex-row ${input ? "bg-accent-400" : "bg-white/10"}`}
+                    onPress={handleSubmit}
+                    disabled={!input}
+                    activeOpacity={0.75}
+                    accessibilityRole="button"
+                    accessibilityLabel="Check answer"
+                    accessibilityState={{ disabled: !input }}
+                  >
+                    <Ionicons
+                      name="arrow-forward"
+                      size={24}
+                      color={input ? brandColors.neutral[900] : brandColors.neutral[400]}
+                    />
+                  </TouchableOpacity>
                 </View>
               </View>
             </View>

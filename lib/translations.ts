@@ -102,8 +102,11 @@ export const translations: Record<string, string> = {
 
   // Parent Gate
   "Parent Access": "Okuyingira kw'Abazadde",
-  "Please enter these digits:": "Yingiza enamba zino:",
-  "For parents only...": "Eri bazadde bokka...",
+  "Grown-up space": "Ekifo ky'abantu abakulu",
+  "Solve one quick puzzle to leave child mode.": "Gonjoola akabalo kamu akangu okuva mu nkola y'omwana.",
+  "What number is missing?": "Namba ki ebulamu?",
+  "Almost! Here’s a fresh puzzle to try.": "Osemberedde! Gezaako akabalo akalala kano.",
+  "A tiny pause helps keep this area for grown-ups.": "Akaseera kano kayamba okukuuma ekifo kino nga kya bantu bakulu.",
 
   // Child Detail Screen
   "Child Profile": "Ebikwata ku Mwana",

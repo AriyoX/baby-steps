@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Types for the game state that needs to be persisted
 export interface CardGameState {
+  contentRevision?: string;
+  languageCode?: string;
   matchedValues: string[]; // Values of cards that have been matched
   moves: number;
   gameStartTime: number;
@@ -100,21 +102,27 @@ export class CardGameStatsSaveError extends Error {
 /**
  * Get the storage key for a specific child
  */
-const getStorageKey = (childId: string): string => {
-  return `@BabySteps:CardGame:${childId}`;
+const getStorageKey = (childId: string, languageCode?: string): string => {
+  return languageCode
+    ? `@BabySteps:CardGame:${childId}:${languageCode}`
+    : `@BabySteps:CardGame:${childId}`;
 };
 
 /**
  * Load saved game state from AsyncStorage
  */
-export const loadGameState = async (childId: string): Promise<CardGameState | null> => {
+export const loadGameState = async (
+  childId: string,
+  languageCode?: string,
+  contentRevision?: string,
+): Promise<CardGameState | null> => {
   if (!childId) {
     console.warn('No child ID provided for loading card game state');
     return null;
   }
 
   try {
-    const key = getStorageKey(childId);
+    const key = getStorageKey(childId, languageCode);
     const savedState = await AsyncStorage.getItem(key);
     
     if (savedState) {
@@ -123,6 +131,13 @@ export const loadGameState = async (childId: string): Promise<CardGameState | nu
       // Validate the state belongs to this child
       if (parsedState.childId !== childId) {
         console.warn('Game state childId mismatch, returning null');
+        return null;
+      }
+
+      if (
+        (languageCode && parsedState.languageCode !== languageCode) ||
+        (contentRevision && parsedState.contentRevision !== contentRevision)
+      ) {
         return null;
       }
       
@@ -141,7 +156,9 @@ export const loadGameState = async (childId: string): Promise<CardGameState | nu
  */
 export const saveGameState = async (
   state: CardGameState,
-  childId: string
+  childId: string,
+  languageCode?: string,
+  contentRevision?: string,
 ): Promise<void> => {
   if (!childId) {
     console.warn('No child ID provided for saving card game state, aborting');
@@ -152,10 +169,12 @@ export const saveGameState = async (
     // Ensure the state has the correct childId
     const updatedState = {
       ...state,
+      languageCode,
+      contentRevision,
       childId // Always ensure the childId is set correctly
     };
     
-    const key = getStorageKey(childId);
+    const key = getStorageKey(childId, languageCode);
     await AsyncStorage.setItem(key, JSON.stringify(updatedState));
     console.log(`Saved card game state for child: ${childId}`);
   } catch (error) {
@@ -167,11 +186,14 @@ export const saveGameState = async (
 /**
  * Clear saved game state (e.g. when starting a new game)
  */
-export const clearGameState = async (childId: string): Promise<void> => {
+export const clearGameState = async (
+  childId: string,
+  languageCode?: string,
+): Promise<void> => {
   if (!childId) return;
   
   try {
-    const key = getStorageKey(childId);
+    const key = getStorageKey(childId, languageCode);
     await AsyncStorage.removeItem(key);
     console.log(`Cleared card game state for child: ${childId}`);
   } catch (error) {

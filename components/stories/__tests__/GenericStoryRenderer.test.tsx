@@ -273,6 +273,45 @@ describe("GenericStoryRenderer", () => {
     expect(saveActivity).not.toHaveBeenCalled();
   });
 
+  it("does not restore story progress from another content revision", async () => {
+    mockActiveChild = {
+      id: "child-1",
+      selected_language_code: "nyn",
+    };
+    mockStageProgress = {
+      status: "in_progress",
+      progress_payload: {
+        currentPageIndex: 1,
+        contentRevision: "story/nyn-sample-morning-greeting#1",
+      },
+    };
+    const revisedStory: LocalStory = {
+      ...runyankoleStoryFixture,
+      progressRevision: "story/nyn-sample-morning-greeting#2",
+    };
+
+    const tree = renderStory(revisedStory);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(JSON.stringify(tree.toJSON())).toContain("Agandi?");
+    expect(JSON.stringify(tree.toJSON())).not.toContain("Webare,");
+    expect(markStageStarted).toHaveBeenCalledWith(
+      "child-1",
+      "nyn",
+      "stories",
+      "nyn-sample-morning-greeting",
+      expect.objectContaining({
+        progress_payload: expect.objectContaining({
+          currentPageIndex: 0,
+          contentRevision: "story/nyn-sample-morning-greeting#2",
+        }),
+      }),
+    );
+  });
+
   it("waits for quiz answers before enabling story completion", async () => {
     mockActiveChild = {
       id: "child-1",

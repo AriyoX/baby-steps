@@ -30,6 +30,24 @@ const bundleKeys = manifest.bundles.map(
 );
 check(duplicateValues(bundleKeys).length === 0, "Bundle keys must be unique.");
 
+const progressBearingTypes = new Set([
+  "learning_hub",
+  "learning_game",
+  "word_game",
+  "counting_game",
+  "card_game",
+  "puzzle_game",
+  "story",
+]);
+manifest.bundles
+  .filter((bundle) => progressBearingTypes.has(bundle.contentType))
+  .forEach((bundle) => {
+    check(
+      bundle.payload?.progressRevision === manifest.contentVersion,
+      `${bundle.contentType}/${bundle.slug} must declare the current progress revision.`,
+    );
+  });
+
 const requiredBundleKeys = [
   "lg:child_menu:games",
   "lg:child_menu:stories",

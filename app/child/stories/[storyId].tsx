@@ -14,13 +14,16 @@ export default function DynamicStoryScreen() {
   const { activeChild } = useChild();
   const [contentBundle, setContentBundle] = useState<ContentBundle | undefined>();
   const [isLoading, setIsLoading] = useState(true);
+  const story = findStoryById(contentBundle, storyId);
 
   useEffect(() => {
     let isMounted = true;
 
     const loadStoryContent = async () => {
       setIsLoading(true);
-      const result = await loadContentBundle(activeChild?.selected_language_code);
+      const result = await loadContentBundle(activeChild?.selected_language_code, {
+        forceRefresh: true,
+      });
 
       if (isMounted) {
         setContentBundle(result.bundle);
@@ -43,7 +46,7 @@ export default function DynamicStoryScreen() {
           animation: "slide_from_right",
         }}
       />
-      <GenericStoryRenderer story={findStoryById(contentBundle, storyId)} isLoading={isLoading} />
+      <GenericStoryRenderer story={story} isLoading={isLoading} />
     </View>
   );
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 import { Slot } from "expo-router"
 
+import { ChildLoadingState } from "@/components/child/ChildLoadingState"
 import { ComingSoonState } from "@/components/child/ComingSoonState"
 import {
   loadContentBundle,
@@ -69,10 +69,11 @@ export default function MuseumRouteLayout() {
 
   if (status === "loading") {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#006D77" />
-        <Text style={styles.loadingText}>Loading museum content...</Text>
-      </View>
+      <ChildLoadingState
+        title="Getting the museum ready"
+        message="Loading exhibits for your learning language."
+        icon="business-outline"
+      />
     )
   }
 
@@ -84,20 +85,3 @@ export default function MuseumRouteLayout() {
     />
   )
 }
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-    backgroundColor: "#F7FBFA",
-  },
-  loadingText: {
-    marginTop: 16,
-    color: "#194A50",
-    fontSize: 18,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-})

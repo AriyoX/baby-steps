@@ -3,9 +3,13 @@ import {
   CardGameStatsSaveError,
   clearGameState,
   incrementGamesPlayed,
+  loadGameState,
   saveGameState,
 } from "../progressManagerCardGame";
-import { savePuzzleProgress } from "../progressManagerPuzzleGame";
+import {
+  loadPuzzleProgress,
+  savePuzzleProgress,
+} from "../progressManagerPuzzleGame";
 
 jest.mock("@react-native-async-storage/async-storage", () =>
   jest.requireActual(
@@ -74,5 +78,42 @@ describe("Cards and Puzzle progress manager write failures", () => {
         "child-1",
       ),
     ).rejects.toBe(error);
+  });
+
+  it("does not restore Cards or Puzzle progress from an older content revision", async () => {
+    await saveGameState(
+      {
+        childId: "child-1",
+        gameStartTime: 10,
+        matchedValues: ["Webale"],
+        moves: 1,
+      },
+      "child-1",
+      "lg",
+      "card_game/cards#1",
+    );
+    await savePuzzleProgress(
+      {
+        childId: "child-1",
+        completedPuzzleIds: [1],
+        totalGamesPlayed: 1,
+      },
+      "child-1",
+      "lg",
+      "puzzle_game/puzzles#1",
+    );
+
+    await expect(
+      loadGameState("child-1", "lg", "card_game/cards#2"),
+    ).resolves.toBeNull();
+    await expect(
+      loadPuzzleProgress("child-1", "lg", "puzzle_game/puzzles#2"),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        completedPuzzleIds: [],
+        totalGamesPlayed: 0,
+        contentRevision: "puzzle_game/puzzles#2",
+      }),
+    );
   });
 });

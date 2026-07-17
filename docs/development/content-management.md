@@ -37,7 +37,7 @@ Museum content and the drawing mechanics/assets inside individual Coloring route
 - `reviewed`: editorial review recorded, but not yet published; not child-readable.
 - `published`: eligible for RLS reads when active; the app also requires `is_startable = true`.
 
-Set `published_at` when publishing and increase `content_version` for every released payload/order/startability revision. `is_active = false` retires a row. A Learning Hub bundle can be published while individual lessons/items honestly remain `draft` or `placeholder`; internal readiness and lock rules still control what can launch. Do not publish the known Runyankole sample rows as real curriculum.
+Set `published_at` when publishing and increase `content_version` for every released payload/order/startability revision. Progress-bearing payloads also declare `progressRevision`. Keep `progressRevision` unchanged for compatible copy, media, or ordering corrections; increment it only when existing stage/lesson/game identities now represent incompatible playable content and prior completion must not unlock the replacement. `is_active = false` retires a row. A Learning Hub bundle can be published while individual lessons/items honestly remain `draft` or `placeholder`; internal readiness and lock rules still control what can launch. Do not publish the known Runyankole sample rows as real curriculum.
 
 ## Safe Change Process
 
@@ -45,7 +45,7 @@ Set `published_at` when publishing and increase `content_version` for every rele
 2. Obtain the language/curriculum/cultural review appropriate to the change.
 3. Create a migration with `supabase migration new <descriptive_name>`.
 4. Add an `INSERT ... ON CONFLICT (language_code, content_type, slug) DO UPDATE` upsert. Do not edit an applied migration.
-5. Increment `content_version`; set editorial, active, startable, and publication fields explicitly.
+5. Increment `content_version`; change `payload.progressRevision` only for an incompatible progress boundary; set editorial, active, startable, and publication fields explicitly.
 6. Add static image/audio keys in code when the payload references new bundled media.
 7. Validate against a safe development database, then run repository/component tests, typecheck, and lint. A fresh local reset currently needs the repository's missing pre-2026 baseline schema; see [Database Notes](./database.md#local-reset-caveat).
 8. Deploy the migration through the normal Supabase migration workflow. Do not hand-edit or paste a divergent copy into the generated Stage 1–2 `seed.sql`.
@@ -56,7 +56,7 @@ For local curriculum replacement work, `supabase/seed.sql` is generated from `sc
 
 For a reversible database-only proof, use the [Learning Hub dynamic-stage smoke test](../database/learning-hub-dynamic-stage-smoke-test.sql). It is intentionally not a migration and must not be treated as production curriculum.
 
-Stable IDs are permanent progress identities. Retiring current content may change current completion percentages, but it must not delete or rewrite historic progress/achievement records. Never reuse an old ID for different content.
+Stable IDs remain the preferred permanent progress identities. Retiring current content may change current completion percentages, but it must not delete or rewrite historic progress/achievement records. Never reuse an old ID for different content within the same `progressRevision`. When a deliberate full curriculum replacement must reuse route-compatible IDs, increment `progressRevision`; the app keeps the historic records but excludes them from current completion and unlock calculations.
 
 ## Out Of Scope
 

@@ -12,6 +12,7 @@ const WORD_ACTIVITY_TYPE = 'words';
 
 // Types for progress tracking
 export interface WordGameProgress {
+  contentRevision?: string;
   unlockedLevels: number[];
   currentLevel: number;
   completedLevels: number[];
@@ -304,6 +305,7 @@ export const loadGameProgress = async (
   childId: string,
   languageCode: string,
   levelSource: WordLevelSource,
+  contentRevision?: string,
 ): Promise<WordGameProgress> => {
   if (!childId) {
     console.warn('No child ID provided for loading progress, using default');
@@ -315,7 +317,7 @@ export const loadGameProgress = async (
     console.log(`Loading progress with key: ${key} for child: ${childId}`);
     let savedProgress = await AsyncStorage.getItem(key);
 
-    if (!savedProgress && languageCode === 'lg') {
+    if (!savedProgress && !contentRevision && languageCode === 'lg') {
       const legacyKey = getLegacyStorageKey(childId);
       savedProgress = await AsyncStorage.getItem(legacyKey);
       if (savedProgress) {
@@ -343,6 +345,15 @@ export const loadGameProgress = async (
       // Luganda key is deliberately retained so rollback/migration remains safe.
       if (typeof levelSource !== 'number') {
         await AsyncStorage.setItem(key, JSON.stringify(normalizedProgress));
+      }
+
+      if (contentRevision && parsedProgress.contentRevision !== contentRevision) {
+        const resetProgress = {
+          ...createDefaultProgress(childId),
+          contentRevision,
+        };
+        await AsyncStorage.setItem(key, JSON.stringify(resetProgress));
+        return resetProgress;
       }
       
       console.log(`Returning parsed progress for ${childId}:`, {
@@ -376,10 +387,22 @@ export const loadGameProgress = async (
     );
 
     if (hydratedLocalProgress) {
+      if (
+        contentRevision &&
+        hydratedLocalProgress.progress_payload.contentRevision !== contentRevision
+      ) {
+        const resetProgress = {
+          ...createDefaultProgress(childId),
+          contentRevision,
+        };
+        await AsyncStorage.setItem(key, JSON.stringify(resetProgress));
+        return resetProgress;
+      }
       const restoredProgress = ensureUnlockedProgress(
         {
           ...createDefaultProgress(childId),
           ...(hydratedLocalProgress.progress_payload as Partial<WordGameProgress>),
+          contentRevision,
           childId,
         },
         levelSource,
@@ -389,6 +412,7 @@ export const loadGameProgress = async (
         markDirty: false,
         levels: typeof levelSource === 'number' ? undefined : levelSource,
         levelCount: getLevelContext(levelSource, languageCode).levelCount,
+        contentRevision,
       });
       return restoredProgress;
     }
@@ -400,10 +424,22 @@ export const loadGameProgress = async (
     );
 
     if (remoteProgress) {
+      if (
+        contentRevision &&
+        remoteProgress.progress_payload.contentRevision !== contentRevision
+      ) {
+        const resetProgress = {
+          ...createDefaultProgress(childId),
+          contentRevision,
+        };
+        await AsyncStorage.setItem(key, JSON.stringify(resetProgress));
+        return resetProgress;
+      }
       const restoredProgress = ensureUnlockedProgress(
         {
           ...createDefaultProgress(childId),
           ...(remoteProgress.progress_payload as Partial<WordGameProgress>),
+          contentRevision,
           childId,
         },
         levelSource,
@@ -413,13 +449,14 @@ export const loadGameProgress = async (
         markDirty: false,
         levels: typeof levelSource === 'number' ? undefined : levelSource,
         levelCount: getLevelContext(levelSource, languageCode).levelCount,
+        contentRevision,
       });
       return restoredProgress;
     }
     
     console.log(`No saved progress found for child ${childId}, creating default`);
     // If no saved progress found, return default progress for this child
-    return createDefaultProgress(childId);
+    return { ...createDefaultProgress(childId), contentRevision };
   } catch (error) {
     console.error('Failed to load word game progress:', error);
     return createDefaultProgress(childId);
@@ -437,6 +474,7 @@ export const saveGameProgress = async (
     markDirty?: boolean;
     levelCount?: number;
     levels?: readonly WordLevelIdentity[];
+    contentRevision?: string;
   } = {}
 ): Promise<void> => {
   if (!childId) {
@@ -455,6 +493,7 @@ export const saveGameProgress = async (
     const updatedProgress = ensureUnlockedProgress(
       {
         ...progress,
+        contentRevision: options.contentRevision ?? progress.contentRevision,
         childId // Always ensure the childId is set correctly
       },
       levelSource,

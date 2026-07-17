@@ -45,7 +45,9 @@ import {
 } from "@/content/languages";
 import {
   getLearningHubStages,
+  getLearningLanguageContent,
   getLessonStatus,
+  registerLearningHubLanguageContent,
 } from "@/content/learningHubRepository";
 import { registerLearningHubTestFixture } from "@/content/testFixtures/learningHubTestFixture";
 import type { LearningLessonCompletion } from "@/lib/learningProgressTypes";
@@ -56,6 +58,7 @@ import {
   buildLearningCompletionLocalId,
   clearLearningProgressForChild,
   getCompletedLearningLessonIds,
+  getLearningLessonCompletion,
   hydrateLearningProgressFromRemote,
   hydrateLearningProgressFromSharedProgress,
   getLearningProgressSummary,
@@ -283,6 +286,40 @@ describe("learning progress repository", () => {
     );
     expect(mockMarkStageCompleted).not.toHaveBeenCalled();
     expect(mockSyncProgressNow).toHaveBeenCalledWith(childId);
+  });
+
+  it("does not treat a reused lesson ID as complete after the curriculum revision changes", async () => {
+    await saveLearningLessonCompletion(createCompletion());
+    await expect(
+      getCompletedLearningLessonIds(childId, languageCode),
+    ).resolves.toEqual(["greetings-1"]);
+
+    const currentContent = getLearningLanguageContent(languageCode);
+    expect(currentContent).not.toBeNull();
+    registerLearningHubLanguageContent(
+      languageCode,
+      currentContent,
+      "learning_hub/curriculum#2",
+    );
+
+    await expect(
+      getCompletedLearningLessonIds(childId, languageCode),
+    ).resolves.toEqual([]);
+    await expect(
+      getLearningLessonCompletion(
+        childId,
+        languageCode,
+        "first-words",
+        "greetings-1",
+      ),
+    ).resolves.toBeNull();
+
+    const stored = JSON.parse(
+      (await AsyncStorage.getItem(
+        "@BabySteps:LearningProgress:v1:summary:child-1:lg:language",
+      )) ?? "{}",
+    );
+    expect(stored.completedByLessonId?.["greetings-1"]).toBeDefined();
   });
 
   it("queues shared dirty Learning progress before starting a delayed activity insert", async () => {
@@ -674,7 +711,7 @@ describe("learning progress repository", () => {
       expect.objectContaining({
         status: "not_started",
         completedStageCount: 0,
-        completedLessonIds: [retiredLessonId],
+        completedLessonIds: [],
       }),
     );
     expect(summary.completedByLessonId[retiredLessonId]).toEqual(

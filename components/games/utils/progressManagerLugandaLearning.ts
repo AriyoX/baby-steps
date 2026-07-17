@@ -15,6 +15,7 @@ const SCORE_KEY = 'learning_total_score';
 const COMPLETED_LEVELS_KEY = 'learning_completed_levels';
 const STAGES_DATA_KEY = 'learning_stages';
 const USER_STATS_KEY = 'learning_user_stats';
+const CONTENT_REVISION_KEY = 'learning_content_revision';
 const LEARNING_ACTIVITY_TYPE = 'learning';
 
 const LEGACY_SCORE_KEY = 'luganda_total_score';
@@ -111,6 +112,7 @@ const buildActivityProgressSnapshot = (
   completedLevels: number[],
   stages: LearningGameStage[],
   userStats: UserStats,
+  contentRevision?: string,
 ) => {
   const completedStageIds = getCompletedStageIds(completedLevels, stages);
   const highestUnlockedStage = getHighestUnlockedStage(stages);
@@ -134,6 +136,7 @@ const buildActivityProgressSnapshot = (
       completedLevels,
       stages,
       userStats,
+      contentRevision,
     },
   };
 };
@@ -145,13 +148,14 @@ const persistNormalizedLearningProgress = async (
   completedLevels: number[],
   stages: LearningGameStage[],
   userStats: UserStats,
-  options: { onlyIfMissing?: boolean } = {},
+  options: { onlyIfMissing?: boolean; contentRevision?: string } = {},
 ) => {
   const snapshot = buildActivityProgressSnapshot(
     totalScore,
     completedLevels,
     stages,
     userStats,
+    options.contentRevision,
   );
 
   if (options.onlyIfMissing) {
@@ -224,15 +228,24 @@ const restoreProgressFromSnapshot = (
 export const loadGameProgress = async (
   childId: string,
   languageCode: string,
-  defaultStages: LearningGameStage[]
+  defaultStages: LearningGameStage[],
+  contentRevision?: string,
 ) => {
   try {
+    const revisionKey = getStorageKey(CONTENT_REVISION_KEY, childId, languageCode);
+    const savedContentRevision = await AsyncStorage.getItem(revisionKey);
     let scoreData = await AsyncStorage.getItem(getStorageKey(SCORE_KEY, childId, languageCode));
     let completedLevelsData = await AsyncStorage.getItem(getStorageKey(COMPLETED_LEVELS_KEY, childId, languageCode));
     let stagesData = await AsyncStorage.getItem(getStorageKey(STAGES_DATA_KEY, childId, languageCode));
     let userStatsData = await AsyncStorage.getItem(getStorageKey(USER_STATS_KEY, childId, languageCode));
 
-    if (!scoreData && !completedLevelsData && !stagesData && languageCode === 'lg') {
+    if (
+      !contentRevision &&
+      !scoreData &&
+      !completedLevelsData &&
+      !stagesData &&
+      languageCode === 'lg'
+    ) {
       scoreData = await AsyncStorage.getItem(getLegacyStorageKey(LEGACY_SCORE_KEY, childId));
       completedLevelsData = await AsyncStorage.getItem(getLegacyStorageKey(LEGACY_COMPLETED_LEVELS_KEY, childId));
       stagesData = await AsyncStorage.getItem(getLegacyStorageKey(LEGACY_STAGES_DATA_KEY, childId));
@@ -246,6 +259,23 @@ export const loadGameProgress = async (
     const hasLocalProgress = Boolean(scoreData || completedLevelsData || stagesData || userStatsData);
     const fallbackStages = cloneStages(defaultStages);
 
+    if (contentRevision && savedContentRevision !== contentRevision) {
+      await AsyncStorage.multiRemove([
+        getStorageKey(SCORE_KEY, childId, languageCode),
+        getStorageKey(COMPLETED_LEVELS_KEY, childId, languageCode),
+        getStorageKey(STAGES_DATA_KEY, childId, languageCode),
+        getStorageKey(USER_STATS_KEY, childId, languageCode),
+      ]);
+      await AsyncStorage.setItem(revisionKey, contentRevision);
+      return {
+        totalScore: 0,
+        completedLevels: [],
+        stages: fallbackStages,
+        userStats: { ...DEFAULT_USER_STATS },
+        contentRevision,
+      };
+    }
+
     if (!hasLocalProgress) {
       const hydratedLocalProgress = await getActivityProgress(
         childId,
@@ -254,6 +284,18 @@ export const loadGameProgress = async (
       );
 
       if (hydratedLocalProgress) {
+        if (
+          contentRevision &&
+          hydratedLocalProgress.progress_payload.contentRevision !== contentRevision
+        ) {
+          return {
+            totalScore: 0,
+            completedLevels: [],
+            stages: fallbackStages,
+            userStats: { ...DEFAULT_USER_STATS },
+            contentRevision,
+          };
+        }
         const restored = restoreProgressFromSnapshot(
           hydratedLocalProgress.progress_payload,
           fallbackStages,
@@ -267,10 +309,10 @@ export const loadGameProgress = async (
           restored.userStats,
           childId,
           languageCode,
-          { markDirty: false },
+          { markDirty: false, contentRevision },
         );
 
-        return restored;
+        return { ...restored, contentRevision };
       }
 
       const remoteProgress = await hydrateActivityProgressOnLocalMiss(
@@ -280,6 +322,18 @@ export const loadGameProgress = async (
       );
 
       if (remoteProgress) {
+        if (
+          contentRevision &&
+          remoteProgress.progress_payload.contentRevision !== contentRevision
+        ) {
+          return {
+            totalScore: 0,
+            completedLevels: [],
+            stages: fallbackStages,
+            userStats: { ...DEFAULT_USER_STATS },
+            contentRevision,
+          };
+        }
         const restored = restoreProgressFromSnapshot(
           remoteProgress.progress_payload,
           fallbackStages,
@@ -293,10 +347,10 @@ export const loadGameProgress = async (
           restored.userStats,
           childId,
           languageCode,
-          { markDirty: false },
+          { markDirty: false, contentRevision },
         );
 
-        return restored;
+        return { ...restored, contentRevision };
       }
     }
 
@@ -320,7 +374,7 @@ export const loadGameProgress = async (
         normalizedCompletedLevels,
         stages,
         userStats,
-        { onlyIfMissing: true },
+        { onlyIfMissing: true, contentRevision },
       ).catch((error) => {
         console.warn('Could not normalize legacy Learning progress in the background:', error);
       });
@@ -331,6 +385,7 @@ export const loadGameProgress = async (
       completedLevels: normalizedCompletedLevels,
       stages,
       userStats,
+      contentRevision,
     };
   } catch (error) {
     console.error('Error loading game progress', error);
@@ -351,19 +406,34 @@ export const saveGameProgress = async (
   userStats: UserStats,
   childId: string,
   languageCode: string,
-  options: { markDirty?: boolean } = {}
+  options: { markDirty?: boolean; contentRevision?: string } = {}
 ) => {
   try {
     await AsyncStorage.setItem(getStorageKey(SCORE_KEY, childId, languageCode), totalScore.toString());
     await AsyncStorage.setItem(getStorageKey(COMPLETED_LEVELS_KEY, childId, languageCode), JSON.stringify(completedLevels));
     await AsyncStorage.setItem(getStorageKey(STAGES_DATA_KEY, childId, languageCode), JSON.stringify(stages));
     await AsyncStorage.setItem(getStorageKey(USER_STATS_KEY, childId, languageCode), JSON.stringify(userStats));
+    // Commit the compatibility marker last. If an earlier write fails, the
+    // next load safely resets instead of interpreting partially written old
+    // progress as belonging to the new curriculum.
+    if (options.contentRevision) {
+      await AsyncStorage.setItem(
+        getStorageKey(CONTENT_REVISION_KEY, childId, languageCode),
+        options.contentRevision,
+      );
+    }
     if (options.markDirty === false) {
       await updateActivityProgress(
         childId,
         languageCode,
         LEARNING_ACTIVITY_TYPE,
-        buildActivityProgressSnapshot(totalScore, completedLevels, stages, userStats),
+        buildActivityProgressSnapshot(
+          totalScore,
+          completedLevels,
+          stages,
+          userStats,
+          options.contentRevision,
+        ),
         { markDirty: false },
       );
     } else {
@@ -374,6 +444,7 @@ export const saveGameProgress = async (
         completedLevels,
         stages,
         userStats,
+        { contentRevision: options.contentRevision },
       );
     }
     return true;
@@ -440,6 +511,7 @@ export const resetGameProgress = async (childId: string, languageCode: string) =
     await AsyncStorage.removeItem(getStorageKey(COMPLETED_LEVELS_KEY, childId, languageCode));
     await AsyncStorage.removeItem(getStorageKey(STAGES_DATA_KEY, childId, languageCode));
     await AsyncStorage.removeItem(getStorageKey(USER_STATS_KEY, childId, languageCode));
+    await AsyncStorage.removeItem(getStorageKey(CONTENT_REVISION_KEY, childId, languageCode));
     return true;
   } catch (error) {
     console.error('Error resetting game progress', error);

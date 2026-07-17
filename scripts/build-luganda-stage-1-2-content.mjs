@@ -941,6 +941,16 @@ const stories = [
   },
 ];
 
+const PROGRESS_BEARING_CONTENT_TYPES = new Set([
+  "learning_hub",
+  "learning_game",
+  "word_game",
+  "counting_game",
+  "card_game",
+  "puzzle_game",
+  "story",
+]);
+
 const bundle = (contentType, slug, title, sortOrder, payload) => ({
   languageCode: "lg",
   contentType,
@@ -952,7 +962,9 @@ const bundle = (contentType, slug, title, sortOrder, payload) => ({
   isStartable: true,
   contentVersion,
   publishedAt,
-  payload,
+  payload: PROGRESS_BEARING_CONTENT_TYPES.has(contentType)
+    ? { ...payload, progressRevision: contentVersion }
+    : payload,
 });
 
 const bundles = [

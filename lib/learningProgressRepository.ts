@@ -3,6 +3,7 @@ import type { AchievementDefinition } from "@/components/games/achievements/achi
 import { getDbLanguageCodeForLearningLanguage } from "@/content/languages";
 import { ensureLearningHubLanguageContent } from "@/content/learningHubLoader";
 import {
+  getLearningContentVersion,
   getLearningHubStages,
   getLessonStatus,
   type LearningHubLesson,
@@ -149,6 +150,16 @@ const summarizeItemResult = (result: ItemResult): Record<string, unknown> =>
 const getCompletionLessonId = (completion: LearningLessonCompletion): string =>
   completion.progressPayload.lessonId || completion.levelId;
 
+const isCompletionForCurrentLearningContent = (
+  completion: LearningLessonCompletion,
+  languageCode: string,
+): boolean => {
+  const currentRevision = getLearningContentVersion(languageCode);
+  if (!currentRevision) return true;
+
+  return completion.progressPayload.contentVersion === currentRevision;
+};
+
 const toCompletionIso = (completedAt: number): string =>
   new Date(completedAt).toISOString();
 
@@ -264,6 +275,7 @@ const buildActivityProgressPayload = (
         lessonTitle: completion.progressPayload.lessonTitle,
         stageNumber: completion.progressPayload.stageNumber,
         lessonOrder: completion.progressPayload.lessonOrder,
+        contentVersion: completion.progressPayload.contentVersion,
         score: completion.score,
         attempts: completion.attempts,
         completedAt: completion.completedAt,
@@ -648,14 +660,21 @@ const sanitizeSummary = (
 
     return current;
   }, {});
-  const completedLessonIds = Object.keys(completedByLessonId).sort((first, second) => {
-    const firstCompletion = completedByLessonId[first];
-    const secondCompletion = completedByLessonId[second];
-    return (
-      firstCompletion.completedAt - secondCompletion.completedAt ||
-      first.localeCompare(second)
-    );
-  });
+  const completedLessonIds = Object.keys(completedByLessonId)
+    .filter((lessonId) =>
+      isCompletionForCurrentLearningContent(
+        completedByLessonId[lessonId],
+        normalizedLanguageCode,
+      ),
+    )
+    .sort((first, second) => {
+      const firstCompletion = completedByLessonId[first];
+      const secondCompletion = completedByLessonId[second];
+      return (
+        firstCompletion.completedAt - secondCompletion.completedAt ||
+        first.localeCompare(second)
+      );
+    });
   const attempts = completedLessonIds.reduce(
     (total, lessonId) => total + completedByLessonId[lessonId].attempts,
     0,
@@ -856,6 +875,7 @@ const getCompletionFromActivityPayload = (
         totalItems: 0,
         correctItems: 0,
         completedAt,
+        contentVersion: asOptionalString(record.contentVersion),
       },
       readiness: "local_only",
     },
@@ -1245,6 +1265,10 @@ export const getLearningLessonCompletion = async (
   const completion = summary.completedByLessonId[lessonId];
 
   if (!completion || completion.stageId !== stageId || completion.levelId !== lessonId) {
+    return null;
+  }
+
+  if (!isCompletionForCurrentLearningContent(completion, languageCode)) {
     return null;
   }
 

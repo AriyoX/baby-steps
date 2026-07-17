@@ -70,12 +70,14 @@ export const loadLearningHubLanguageContent = async (
   try {
     const result = await loadContentBundle(resolvedLanguageCode, options);
     const bundle = result.bundle;
+    const learningHubProgressRevision =
+      bundle?.progressRevisions?.learning_hub ?? bundle?.contentVersion;
 
     if (
       result.languageCode !== resolvedLanguageCode ||
       bundle?.languageCode !== resolvedLanguageCode ||
       !bundle.learningHub ||
-      !bundle.contentVersion
+      !learningHubProgressRevision
     ) {
       return retainedResult(
         resolvedLanguageCode,
@@ -88,7 +90,7 @@ export const loadLearningHubLanguageContent = async (
     const content = registerLearningHubLanguageContent(
       resolvedLanguageCode,
       bundle.learningHub,
-      bundle.contentVersion,
+      learningHubProgressRevision,
     );
 
     if (!content) {
@@ -103,7 +105,7 @@ export const loadLearningHubLanguageContent = async (
       status: "ready",
       languageCode: resolvedLanguageCode,
       content,
-      contentVersion: bundle.contentVersion,
+      contentVersion: learningHubProgressRevision,
       source: result.source,
       cacheSource: result.cache?.source,
       retainedPrevious: false,

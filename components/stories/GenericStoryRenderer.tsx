@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/StyledText";
+import { ChildLoadingState } from "@/components/child/ChildLoadingState";
 import { ComingSoonState } from "@/components/child/ComingSoonState";
 import { ChildCompletionCard } from "@/components/child/ChildCompletionCard";
 import { CachedImage } from "@/components/common/CachedImage";
@@ -170,8 +171,13 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
   const hasQuiz = totalQuestions > 0;
   const hasAnsweredAllQuestions = !hasQuiz || answeredQuestionCount === totalQuestions;
   const languageCode = activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE;
+  const contentRevision = story?.progressRevision;
   const progressScopeKey =
-    activeChild && story ? `${activeChild.id}:${languageCode}:stories:${story.id}` : null;
+    activeChild && story
+      ? `${activeChild.id}:${languageCode}:stories:${story.id}:${
+          contentRevision ?? "unversioned"
+        }`
+      : null;
   const [restoredProgressKey, setRestoredProgressKey] = useState<string | null>(null);
   const useSplitLayout = width >= 700;
   const textSizeConfig =
@@ -398,6 +404,14 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
         return;
       }
 
+      if (
+        contentRevision &&
+        progress.progress_payload.contentRevision !== contentRevision
+      ) {
+        setRestoredProgressKey(progressScopeKey);
+        return;
+      }
+
       const isCompleted = progress.status === "completed";
       setHasCompletedStory(isCompleted);
       setHasSavedCompletion(isCompleted);
@@ -424,7 +438,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
     return () => {
       isMounted = false;
     };
-  }, [activeChild, languageCode, progressScopeKey, story]);
+  }, [activeChild, contentRevision, languageCode, progressScopeKey, story]);
 
   useEffect(() => {
     if (
@@ -444,6 +458,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
         totalPages: story.pages.length,
         currentPage: pageIndex + 1,
         currentPageIndex: pageIndex,
+        contentRevision,
         lastReadAt: new Date().toISOString(),
       },
     }).catch((error) => {
@@ -451,6 +466,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
     });
   }, [
     activeChild,
+    contentRevision,
     hasCompletedStory,
     isLoading,
     languageCode,
@@ -525,6 +541,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
               quizCompletedAt: hasQuiz ? completedAt : undefined,
               durationSeconds: duration,
               completedAt,
+              contentRevision,
             },
           });
           await markStageCompleted(childId, languageCode, "stories", story.id, {
@@ -535,6 +552,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
               quizScore,
               quizTotal: totalQuestions,
               quizCompletedAt: hasQuiz ? completedAt : undefined,
+              contentRevision,
             },
           });
         },
@@ -611,10 +629,10 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
 
   if (isLoading) {
     return (
-      <ComingSoonState
-        title="Loading story"
-        message="Preparing this story for your learning language."
-        showBackButton={false}
+      <ChildLoadingState
+        title="Opening your story"
+        message="Preparing the pages and pictures for your learning language."
+        icon="book-outline"
       />
     );
   }

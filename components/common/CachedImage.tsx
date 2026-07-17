@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  type LayoutChangeEvent,
   type ImageProps,
   type ImageSourcePropType,
   type ImageStyle,
@@ -15,7 +16,7 @@ import {
 } from "react-native";
 
 interface CachedImageProps
-  extends Omit<ImageProps, "source" | "style" | "onError" | "onLoadStart" | "onLoadEnd"> {
+  extends Omit<ImageProps, "source" | "style" | "onError" | "onLoad" | "onLoadStart" | "onLoadEnd"> {
   source: ImageSourcePropType;
   fallbackSource?: ImageSourcePropType;
   className?: string;
@@ -24,6 +25,10 @@ interface CachedImageProps
   imageStyle?: StyleProp<ImageStyle>;
   indicatorColor?: string;
   showRetry?: boolean;
+  loadingDelayMs?: number;
+  loadTimeoutMs?: number;
+  placeholderText?: string;
+  onImageError?: ImageProps["onError"];
 }
 
 const imageSourceKey = (source: ImageSourcePropType): string => {
@@ -42,6 +47,20 @@ const imageSourceKey = (source: ImageSourcePropType): string => {
   return JSON.stringify(source);
 };
 
+const isNetworkImageSource = (source: ImageSourcePropType): boolean => {
+  if (Array.isArray(source)) {
+    return source.some(isNetworkImageSource);
+  }
+
+  return Boolean(
+    source &&
+      typeof source === "object" &&
+      "uri" in source &&
+      typeof source.uri === "string" &&
+      /^https?:\/\//i.test(source.uri.trim()),
+  );
+};
+
 export function CachedImage({
   source,
   fallbackSource,
@@ -51,46 +70,124 @@ export function CachedImage({
   imageStyle,
   indicatorColor = "#6366f1",
   showRetry = true,
+  loadingDelayMs = 180,
+  loadTimeoutMs = 15_000,
+  placeholderText = "Picture coming soon",
+  onImageError,
   accessibilityLabel,
   resizeMode = "cover",
   ...imageProps
 }: CachedImageProps) {
   const sourceKey = useMemo(() => imageSourceKey(source), [source]);
-  const latestSourceRef = useRef(source);
-  const [activeSource, setActiveSource] = useState<ImageSourcePropType>(source);
-  const [isUsingFallback, setIsUsingFallback] = useState(false);
+  const fallbackSourceKey = useMemo(
+    () => (fallbackSource ? imageSourceKey(fallbackSource) : ""),
+    [fallbackSource],
+  );
+  const [fallbackForSourceKey, setFallbackForSourceKey] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showLoadingUi, setShowLoadingUi] = useState(false);
   const [loadProgress, setLoadProgress] = useState<number | undefined>();
   const [hasError, setHasError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
+  const [layout, setLayout] = useState({ width: 0, height: 0 });
 
-  latestSourceRef.current = source;
+  const isUsingFallback = fallbackForSourceKey === sourceKey;
+  const activeSource = isUsingFallback && fallbackSource ? fallbackSource : source;
+  const activeSourceKey = imageSourceKey(activeSource);
+  const canUseFallback = Boolean(
+    fallbackSource && fallbackSourceKey !== activeSourceKey,
+  );
+  const isCompactPlaceholder =
+    layout.width === 0 || layout.height === 0 || layout.width < 120 || layout.height < 96;
+  const canShowRetry =
+    showRetry &&
+    isNetworkImageSource(source) &&
+    layout.width >= 160 &&
+    layout.height >= 128;
 
   useEffect(() => {
-    setActiveSource(latestSourceRef.current);
-    setIsUsingFallback(false);
+    setFallbackForSourceKey(null);
     setIsLoading(true);
+    setShowLoadingUi(false);
     setLoadProgress(undefined);
     setHasError(false);
-  }, [sourceKey]);
+  }, [fallbackSourceKey, sourceKey]);
+
+  useEffect(() => {
+    if (!isLoading || hasError) {
+      setShowLoadingUi(false);
+      return;
+    }
+
+    if (loadingDelayMs <= 0) {
+      setShowLoadingUi(true);
+      return;
+    }
+
+    const timer = setTimeout(() => setShowLoadingUi(true), loadingDelayMs);
+    return () => clearTimeout(timer);
+  }, [activeSourceKey, hasError, isLoading, loadingDelayMs, retryKey]);
+
+  useEffect(() => {
+    if (!isLoading || hasError || loadTimeoutMs <= 0) return;
+
+    const timer = setTimeout(() => {
+      if (canUseFallback && !isUsingFallback) {
+        setFallbackForSourceKey(sourceKey);
+        setLoadProgress(undefined);
+        setRetryKey((current) => current + 1);
+        return;
+      }
+
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        console.warn("Image and fallback timed out while loading.");
+      }
+      setHasError(true);
+      setIsLoading(false);
+      setShowLoadingUi(false);
+    }, loadTimeoutMs);
+
+    return () => clearTimeout(timer);
+  }, [
+    activeSourceKey,
+    canUseFallback,
+    hasError,
+    isLoading,
+    isUsingFallback,
+    loadTimeoutMs,
+    retryKey,
+    sourceKey,
+  ]);
 
   const retry = () => {
     setHasError(false);
     setIsLoading(true);
     setLoadProgress(undefined);
-    setIsUsingFallback(false);
-    setActiveSource(source);
+    setFallbackForSourceKey(null);
     setRetryKey((current) => current + 1);
   };
 
+  const handleLayout = (event: LayoutChangeEvent) => {
+    const { height, width } = event.nativeEvent.layout;
+    setLayout((current) =>
+      current.width === width && current.height === height
+        ? current
+        : { width, height },
+    );
+  };
+
   return (
-    <View className={className} style={[styles.container, style]}>
+    <View className={className} style={[styles.container, style]} onLayout={handleLayout}>
       {!hasError ? (
         <Image
           {...imageProps}
-          key={`${imageSourceKey(activeSource)}-${retryKey}`}
+          key={`${activeSourceKey}-${retryKey}`}
           source={activeSource}
           accessibilityLabel={accessibilityLabel}
+          accessibilityState={{
+            ...imageProps.accessibilityState,
+            busy: isLoading,
+          }}
           resizeMode={resizeMode}
           className={imageClassName}
           style={[styles.image, imageStyle]}
@@ -104,32 +201,35 @@ export function CachedImage({
               setLoadProgress(Math.min(1, loaded / total));
             }
           }}
-          onLoadEnd={() => {
+          onLoad={() => {
             setIsLoading(false);
+            setShowLoadingUi(false);
           }}
           onError={(event) => {
-            if (typeof __DEV__ !== "undefined" && __DEV__) {
-              console.warn("Image failed to load.", event.nativeEvent.error);
-            }
-
-            if (fallbackSource && !isUsingFallback) {
-              setIsUsingFallback(true);
-              setActiveSource(fallbackSource);
+            if (canUseFallback && !isUsingFallback) {
+              setFallbackForSourceKey(sourceKey);
+              setIsLoading(true);
               setRetryKey((current) => current + 1);
               setLoadProgress(undefined);
               return;
             }
 
+            if (typeof __DEV__ !== "undefined" && __DEV__) {
+              console.warn("Image and fallback failed to load.", event.nativeEvent.error);
+            }
+
             setHasError(true);
             setIsLoading(false);
+            setShowLoadingUi(false);
+            onImageError?.(event);
           }}
         />
       ) : null}
 
-      {isLoading && !hasError ? (
+      {showLoadingUi && isLoading && !hasError ? (
         <View style={styles.overlay} pointerEvents="none">
           <ActivityIndicator size="small" color={indicatorColor} />
-          {loadProgress !== undefined ? (
+          {!isCompactPlaceholder && loadProgress !== undefined ? (
             <View style={styles.progressTrack}>
               <View
                 style={[
@@ -143,10 +243,25 @@ export function CachedImage({
       ) : null}
 
       {hasError ? (
-        <View style={styles.fallback}>
-          <Ionicons name="image-outline" size={28} color="#64748b" />
-          <Text style={styles.fallbackText}>Picture coming soon</Text>
-          {showRetry ? (
+        <View
+          style={styles.fallback}
+          accessible
+          accessibilityRole="image"
+          accessibilityLabel={
+            accessibilityLabel
+              ? `${accessibilityLabel} is unavailable`
+              : "Picture is unavailable"
+          }
+        >
+          <Ionicons
+            name="image-outline"
+            size={isCompactPlaceholder ? 22 : 30}
+            color="#64748b"
+          />
+          {!isCompactPlaceholder ? (
+            <Text style={styles.fallbackText}>{placeholderText}</Text>
+          ) : null}
+          {canShowRetry ? (
             <TouchableOpacity
               accessibilityRole="button"
               accessibilityLabel={
@@ -178,7 +293,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(248, 250, 252, 0.72)",
+    backgroundColor: "rgba(248, 250, 252, 0.82)",
     gap: 8,
   },
   progressTrack: {
@@ -197,7 +312,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 12,
-    backgroundColor: "#e0f2fe",
+    backgroundColor: "#eef6fb",
   },
   fallbackText: {
     marginTop: 6,

@@ -2116,7 +2116,8 @@
               }
             ]
           }
-        ]
+        ],
+        "progressRevision": 2
       }
     },
     {
@@ -2288,7 +2289,8 @@
               }
             ]
           }
-        ]
+        ],
+        "progressRevision": 2
       }
     },
     {
@@ -2381,7 +2383,8 @@
             "subHint": "This is a reviewed home word.",
             "image": "learning/lg/stage-2/ekitabo.png"
           }
-        ]
+        ],
+        "progressRevision": 2
       }
     },
     {
@@ -2482,7 +2485,8 @@
             "image": "learning/lg/counting/water-cups.png"
           }
         ],
-        "currency": []
+        "currency": [],
+        "progressRevision": 2
       }
     },
     {
@@ -2573,7 +2577,8 @@
             "info": "Book Curriculum-linked optional practice; pronunciation and usage still require native review.",
             "imageSymbol": "📘"
           }
-        ]
+        ],
+        "progressRevision": 2
       }
     },
     {
@@ -2615,7 +2620,8 @@
             "description": "A house, water, and book scene from Stage 2",
             "image": "learning/lg/puzzles/book-and-water.png"
           }
-        ]
+        ],
+        "progressRevision": 2
       }
     },
     {
@@ -2691,7 +2697,8 @@
             ],
             "correctAnswer": 1
           }
-        ]
+        ],
+        "progressRevision": 2
       }
     },
     {
@@ -2784,7 +2791,8 @@
             ],
             "correctAnswer": 0
           }
-        ]
+        ],
+        "progressRevision": 2
       }
     }
   ]

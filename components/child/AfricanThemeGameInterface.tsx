@@ -10,7 +10,6 @@ import {
   Animated,
   Easing,
   BackHandler,
-  ActivityIndicator,
   useWindowDimensions,
 } from "react-native"
 import { StatusBar } from "expo-status-bar"
@@ -30,6 +29,7 @@ import {
 } from "@/content/contentRepository"
 import { preloadContentBundleImages } from "@/content/imagePreloader"
 import { BrandMark } from "@/components/brand/BrandMark"
+import { ChildLoadingCard } from "@/components/child/ChildLoadingState"
 import { brandColors } from "@/constants/Brand"
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation"
 import { audioManager } from "@/lib/audioManager"
@@ -258,6 +258,7 @@ const AfricanThemeGameInterface: React.FC = () => {
     getLearningProgressChildId(activeChild?.id),
     learningLanguageCode,
     isLearningTab && Boolean(contentBundle?.learningHub),
+    contentBundle?.progressRevisions?.learning_hub,
   )
 
   // Set the title based on the tab
@@ -270,7 +271,10 @@ const AfricanThemeGameInterface: React.FC = () => {
       setIsContentLoading(true)
       setContentBundle(undefined)
       const result = await loadContentBundle(activeChild?.selected_language_code, {
-        forceRefresh: contentRetrySequence > 0,
+        // DB-backed curriculum is network-first so a newly published revision
+        // is not hidden behind the six-hour last-known-good cache. The content
+        // repository still falls back to that cache when the network is down.
+        forceRefresh: true,
       })
 
       if (isMounted) {
@@ -526,16 +530,14 @@ const AfricanThemeGameInterface: React.FC = () => {
                   </TouchableOpacity>
                 ))}
                 {isContentLoading && (
-                  <View
-                    className="bg-white rounded-2xl items-center justify-center border-2 border-accent-500"
+                  <ChildLoadingCard
+                    label={isLearningTab ? "Loading lessons..." : "Loading activities..."}
                     style={{
                       height: cardLayout.cardHeight,
                       marginRight: cardLayout.cardGap,
                       width: cardLayout.cardWidth,
                     }}
-                  >
-                    <ActivityIndicator size="large" color={brandColors.victoriaBlue} />
-                  </View>
+                  />
                 )}
                 {!isContentLoading && learningCards.length === 0 && (
                   <View

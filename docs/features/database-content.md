@@ -10,7 +10,7 @@ The runtime path is:
 2. Type-specific validators normalize the rows and reject malformed or duplicate bundles.
 3. The repository returns one ordered `ContentBundle` and registers its Learning Hub payload with `content/learningHubRepository.ts`.
 4. Screens start only when their required content exists; otherwise they show a retry/coming-soon state.
-5. Raw validated rows are cached in memory and AsyncStorage through the existing stale-while-revalidate cache.
+5. Raw validated rows are cached in memory and AsyncStorage as a last-known-good offline fallback. Child menus, curriculum, games, and generic stories request a network refresh on entry so a newly published DB revision is not hidden behind the cache.
 
 The supported `content_type` values are:
 
@@ -49,7 +49,7 @@ Row publication and payload readiness are separate. A published MVP bundle may s
 
 Every query and cache key is scoped to the exact normalized language code. `lg` is Luganda and `nyn` is Runyankole. An explicit `nyn` or other-language request never substitutes `lg`, another database row, or a bundled legacy array. Missing content produces the friendly unavailable/retry state.
 
-Stable IDs are compatibility keys, not display copy. Do not rename or reuse shipped row slugs, stage IDs, lesson IDs, item IDs, game level IDs, card values, or puzzle IDs. Existing progress and achievements continue to resolve those IDs even when later bundles remove content. Current completion percentages use only current published/startable content; historic completion records are not deleted.
+Stable IDs are compatibility keys, not display copy. Do not normally rename or reuse shipped row slugs, stage IDs, lesson IDs, item IDs, game level IDs, card values, or puzzle IDs. Each progress-bearing payload also has a `progressRevision`, separate from timestamp-based cache freshness. Compatible editorial changes retain it; an incompatible curriculum replacement increments it. Existing records from another revision remain historical but cannot complete or unlock the replacement content, even when an ID was deliberately reused.
 
 ## Seed And Updates
 
@@ -57,7 +57,7 @@ Stable IDs are compatibility keys, not display copy. Do not rename or reuse ship
 
 `supabase/seed.sql` is now a generated **development reset seed** for the Luganda Stage 1–2 curriculum cut. Its source is `scripts/build-luganda-stage-1-2-content.mjs`, and its reviewable manifest is `content/curriculum/lg-stage-1-2.json`. On a local reset it purges obsolete Luganda runtime rows and inserts the two-stage Hub, aligned menus/games, two stories, and explicit placeholder-media references. It does not delete child profiles, progress, activity history, achievements, auth users, or Runyankole editorial rows.
 
-The Stage 1–2 seed is not a production migration and must not be used with a linked production database. Its image/audio files are intentionally empty and every affected payload remains review-required. Run `npm run content:build:lg-stage-1-2` after editing its source and `npm run content:validate:lg-stage-1-2` before review. A later production deployment requires approved media/language/curriculum gates and a new migration created with `supabase migration new`; never edit the applied initial migration.
+The Stage 1–2 seed is not a production migration and must not be used with a linked production database. Its image/audio files are intentionally empty and every affected payload remains review-required. Its progress-bearing payloads declare revision `2`, so legacy revision-1 Hub/game completions do not unlock the replacement curriculum. Run `npm run content:build:lg-stage-1-2` after editing its source and `npm run content:validate:lg-stage-1-2` before review. A later production deployment requires approved media/language/curriculum gates and a new migration created with `supabase migration new`; never edit the applied initial migration.
 
 Do not edit an applied migration. Create a new migration with `supabase migration new <descriptive_name>`, upsert the changed exact-language row, preserve all stable IDs and ordering, and increment `content_version`. Linked/deployed environments receive the same data through the migration chain. Fresh local resets will do the same after the repository's pre-existing [base-schema migration gap](../development/database.md#local-reset-caveat) is restored.
 

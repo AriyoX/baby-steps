@@ -9,6 +9,11 @@ jest.mock("@react-native-async-storage/async-storage", () =>
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import {
+  getLearningContentVersion,
+  getLearningLanguageContent,
+} from "@/content/learningHubRepository";
+import { getLearningHubSeedFixture } from "@/content/testFixtures/learningHubTestFixture";
+import {
   buildContentBundleFromItems,
   clearContentBundleCache,
   findStoryById,
@@ -122,6 +127,19 @@ const validLearningGameItem = (): ContentItemRecord =>
       },
     ],
   });
+
+const validLearningHubItem = (): ContentItemRecord => {
+  const content = getLearningHubSeedFixture().languages.lg;
+  if (!content || typeof content !== "object" || Array.isArray(content)) {
+    throw new Error("Missing Luganda Learning Hub seed fixture.");
+  }
+
+  return published(
+    "learning_hub",
+    "curriculum",
+    JSON.parse(JSON.stringify(content)) as Record<string, unknown>,
+  );
+};
 
 const validWordGameItem = (): ContentItemRecord =>
   published("word_game", "levels", {
@@ -473,6 +491,50 @@ describe("content payload mapping and publication gates", () => {
     expect(bundle.stories[0].questions?.[0].options).toEqual(["Kintu", "No one"]);
   });
 
+  it("derives stable per-type progress revisions without using updated timestamps", () => {
+    const learningItem = validLearningGameItem();
+    learningItem.payload.progressRevision = "curriculum-v2";
+    learningItem.updated_at = "2026-07-15T12:00:00.000Z";
+    const first = buildContentBundleFromItems("lg", [learningItem]);
+
+    learningItem.updated_at = "2026-07-16T12:00:00.000Z";
+    const timestampOnlyEdit = buildContentBundleFromItems("lg", [learningItem]);
+
+    expect(first.contentVersion).not.toBe(timestampOnlyEdit.contentVersion);
+    expect(first.progressRevisions?.learning_game).toBe(
+      "learning_game/starter#curriculum-v2",
+    );
+    expect(timestampOnlyEdit.progressRevisions?.learning_game).toBe(
+      first.progressRevisions?.learning_game,
+    );
+  });
+
+  it("derives progress identity only from valid exact-language rows", () => {
+    const lugandaItem = validLearningGameItem();
+    lugandaItem.payload.progressRevision = 2;
+    const unexpectedRunyankoleItem = cloneContentItem(lugandaItem);
+    unexpectedRunyankoleItem.language_code = "nyn";
+    unexpectedRunyankoleItem.payload.progressRevision = 99;
+
+    const bundle = buildContentBundleFromItems("lg", [
+      lugandaItem,
+      unexpectedRunyankoleItem,
+    ]);
+
+    expect(bundle.progressRevisions?.learning_game).toBe(
+      "learning_game/starter#2",
+    );
+  });
+
+  it("maps each story with its own stable progress revision", () => {
+    const storyItem = validStoryItem();
+    storyItem.payload.progressRevision = "story-v2";
+
+    const bundle = buildContentBundleFromItems("lg", [storyItem]);
+
+    expect(bundle.stories[0].progressRevision).toBe("story/kintu#story-v2");
+  });
+
   it("rejects globally duplicated legacy Learning level IDs", () => {
     const item = validLearningGameItem();
     const stages = asPayloadRecords(item.payload, "stages");
@@ -779,6 +841,29 @@ describe("exact-language stale-while-revalidate cache", () => {
     const updated = await loadContentBundle("lg");
     expect(updated.bundle?.menuCardsByTab.games[0].id).toBe("version-2");
     expect(updated.bundle?.contentVersion).toContain("@2:");
+  });
+
+  it("registers Learning Hub cache reads with the stable progress revision", async () => {
+    const first = validLearningHubItem();
+    first.payload.progressRevision = "curriculum-v2";
+    const timestampEdit = cloneContentItem(first);
+    timestampEdit.content_version = 2;
+    timestampEdit.updated_at = "2026-07-16T00:00:00.000Z";
+    mockSupabaseResults(
+      { data: [first], error: null },
+      { data: [timestampEdit], error: null },
+    );
+
+    await loadContentBundle("lg", { forceRefresh: true });
+    expect(getLearningContentVersion("lg")).toBe(
+      "learning_hub/curriculum#curriculum-v2",
+    );
+
+    await loadContentBundle("lg", { forceRefresh: true });
+    expect(getLearningLanguageContent("lg")).not.toBeNull();
+    expect(getLearningContentVersion("lg")).toBe(
+      "learning_hub/curriculum#curriculum-v2",
+    );
   });
 
   it("adopts newly published records and drops retired records without app changes", async () => {

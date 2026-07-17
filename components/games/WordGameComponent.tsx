@@ -7,7 +7,6 @@ import {
   Modal,
   type ModalProps,
   ScrollView,
-  ActivityIndicator,
   useWindowDimensions,
 } from "react-native";
 import type { Audio } from "expo-av";
@@ -15,6 +14,7 @@ import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Text } from "@/components/StyledText";
+import { ChildLoadingState } from "@/components/child/ChildLoadingState";
 import { ComingSoonState } from "@/components/child/ComingSoonState";
 import { CachedImage } from "@/components/common/CachedImage";
 import { useChild } from "@/context/ChildContext"; // Import useChild context
@@ -114,7 +114,7 @@ const WordGame: React.FC = () => {
   );
   const languageCode =
     activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE;
-  const { isLoadingAchievements, checkAndGrantNewAchievements } =
+  const { checkAndGrantNewAchievements } =
     useAchievements(activeChild?.id, "word_game"); // Game key
   const { enqueueAchievementUnlocked } = useChildNotice();
 
@@ -152,6 +152,7 @@ const WordGame: React.FC = () => {
   const [progress, setProgress] = useState<WordGameProgress>(DEFAULT_PROGRESS);
   const progressRef = useRef<WordGameProgress>(DEFAULT_PROGRESS);
   const progressRevisionRef = useRef(0);
+  const contentProgressRevisionRef = useRef<string | undefined>(undefined);
   const progressOwnerRef = useRef({
     childId: activeChild?.id,
     languageCode,
@@ -377,6 +378,7 @@ const WordGame: React.FC = () => {
         updateProgressState(updatedProgress);
         void saveGameProgress(updatedProgress, activeChild.id, languageCode, {
           levels: gameLevels,
+          contentRevision: contentProgressRevisionRef.current,
         }).catch((error) => {
           console.warn("Could not save Word Game level selection:", error);
         });
@@ -534,6 +536,7 @@ const WordGame: React.FC = () => {
           completionLanguageCode,
           {
             levels: gameLevels,
+            contentRevision: contentProgressRevisionRef.current,
           },
         ),
       revealCompletion: (savedProgress) => {
@@ -594,7 +597,10 @@ const WordGame: React.FC = () => {
             progressWithAchievementPoints,
             completionChildId,
             completionLanguageCode,
-            { levels: gameLevels },
+            {
+              levels: gameLevels,
+              contentRevision: contentProgressRevisionRef.current,
+            },
           );
         };
         const networkTasks: Promise<unknown>[] = [
@@ -755,9 +761,11 @@ const WordGame: React.FC = () => {
         setSelectedLetters([]);
 
         const contentResult = await loadContentBundle(requestedLanguageCode, {
-          forceRefresh: contentRetrySequence > 0,
+          forceRefresh: true,
         });
         const levels = contentResult.bundle?.wordGame.levels ?? [];
+        const contentProgressRevision =
+          contentResult.bundle?.progressRevisions?.word_game;
         if (contentResult.bundle) {
           void preloadContentBundleImages(contentResult.bundle).catch(
             (error) => {
@@ -767,6 +775,8 @@ const WordGame: React.FC = () => {
         }
 
         if (!isCurrentRequest()) return;
+
+        contentProgressRevisionRef.current = contentProgressRevision;
 
         setGameLevels(levels);
 
@@ -781,11 +791,18 @@ const WordGame: React.FC = () => {
             console.log(
               `Loading word game progress for child: ${requestedChildId}`,
             );
-            const savedProgress = await loadGameProgress(
-              requestedChildId,
-              requestedLanguageCode,
-              levels,
-            );
+            const savedProgress = contentProgressRevision
+              ? await loadGameProgress(
+                  requestedChildId,
+                  requestedLanguageCode,
+                  levels,
+                  contentProgressRevision,
+                )
+              : await loadGameProgress(
+                  requestedChildId,
+                  requestedLanguageCode,
+                  levels,
+                );
             if (!isCurrentRequest()) return;
 
             console.log("Loaded progress:", JSON.stringify(savedProgress));
@@ -1026,13 +1043,11 @@ const WordGame: React.FC = () => {
   // Modified layout for landscape orientation with NativeWind styling
   if (isLoading) {
     return (
-      <View className="flex-1 bg-primary-50 justify-center items-center">
-        <StatusBar style="dark" translucent backgroundColor="transparent" />
-        <ActivityIndicator size="large" color="#7b5af0" />
-        <Text variant="medium" className="text-primary-700 mt-4">
-          Loading your progress...
-        </Text>
-      </View>
+      <ChildLoadingState
+        title="Getting your word game ready"
+        message="Loading words and your saved progress."
+        icon="chatbubble-ellipses-outline"
+      />
     );
   }
 
@@ -1126,7 +1141,7 @@ const WordGame: React.FC = () => {
               resizeMode="cover"
               accessibilityLabel={`${currentLevel.question} picture`}
             />
-            <View className="absolute right-1.5 bottom-1.5 w-7 h-7 rounded-full bg-black/60 items-center justify-center border border-white/80">
+            <View className="absolute right-1.5 bottom-1.5 w-7 h-7 rounded-full bg-primary-700/90 items-center justify-center border border-white/80">
               <Ionicons name="expand" size={15} color="white" />
             </View>
           </TouchableOpacity>

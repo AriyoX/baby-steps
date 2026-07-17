@@ -22,12 +22,14 @@ jest.mock("@/lib/learningProgressRepository", () => ({
 
 type HarnessProps = {
   childId: string
+  contentRevision?: string
   contentReady?: boolean
   languageCode: string
 }
 
 const ProgressHarness = ({
   childId,
+  contentRevision,
   contentReady = true,
   languageCode,
 }: HarnessProps) => {
@@ -35,6 +37,7 @@ const ProgressHarness = ({
     childId,
     languageCode,
     contentReady,
+    contentRevision,
   )
   return <Text>{completedLessonIds.join(",")}</Text>
 }
@@ -90,6 +93,39 @@ describe("useLearningHubProgress", () => {
     act(() => {
       tree?.update(
         <ProgressHarness childId="child-2" languageCode="nyn" />,
+      )
+    })
+
+    expect(JSON.stringify(tree?.toJSON())).not.toContain("greetings-1")
+    act(() => tree?.unmount())
+  })
+
+  it("hides and reloads progress immediately when the content revision changes", async () => {
+    mockGetCompletedLearningLessonIds.mockResolvedValue(["greetings-1"])
+    let tree: renderer.ReactTestRenderer | undefined
+
+    await act(async () => {
+      tree = renderer.create(
+        <ProgressHarness
+          childId="child-1"
+          contentRevision="learning_hub/curriculum#1"
+          languageCode="lg"
+        />,
+      )
+      await Promise.resolve()
+    })
+    expect(JSON.stringify(tree?.toJSON())).toContain("greetings-1")
+
+    mockGetCompletedLearningLessonIds.mockReturnValue(
+      new Promise(() => undefined),
+    )
+    act(() => {
+      tree?.update(
+        <ProgressHarness
+          childId="child-1"
+          contentRevision="learning_hub/curriculum#2"
+          languageCode="lg"
+        />,
       )
     })
 

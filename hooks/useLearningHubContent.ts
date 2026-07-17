@@ -4,8 +4,6 @@ import {
   type LearningHubLoadStatus,
 } from "@/content/learningHubLoader";
 import {
-  getLearningContentVersion,
-  getLearningLanguageContent,
   resolveLearningHubLanguageCode,
 } from "@/content/learningHubRepository";
 import type {
@@ -31,64 +29,38 @@ export const useLearningHubContent = (
     [requestedLanguageCode],
   );
   const [retrySequence, setRetrySequence] = useState(0);
-  const [state, setState] = useState<LearningHubContentSnapshot>(() => {
-    const languageContent = getLearningLanguageContent(languageCode);
-    return {
-      languageCode,
-      languageContent,
-      contentVersion: getLearningContentVersion(languageCode),
-      status: languageContent ? ("ready" as const) : ("loading" as const),
-    };
+  const [state, setState] = useState<LearningHubContentSnapshot>({
+    languageCode,
+    languageContent: null,
+    status: "loading",
   });
 
   useEffect(() => {
     let isActive = true;
-    const cachedContent = getLearningLanguageContent(languageCode);
-    const cachedVersion = getLearningContentVersion(languageCode);
 
     setState({
       languageCode,
-      languageContent: cachedContent,
-      contentVersion: cachedVersion,
-      status: cachedContent ? "ready" : "loading",
+      languageContent: null,
+      status: "loading",
     });
 
     void (async () => {
-      const firstResult = await loadLearningHubLanguageContent(languageCode, {
-        forceRefresh: retrySequence > 0 || Boolean(cachedContent),
+      // A forced repository load is network-first and falls back to the
+      // last-known-good cache only when the database cannot provide content.
+      // Do not render a registered cache entry before that decision, otherwise
+      // a direct/deep link can briefly expose a replaced curriculum.
+      const result = await loadLearningHubLanguageContent(languageCode, {
+        forceRefresh: true,
       });
 
       if (!isActive) return;
 
       setState({
         languageCode,
-        languageContent: firstResult.content ?? null,
-        contentVersion: firstResult.contentVersion,
-        status: firstResult.status,
+        languageContent: result.content ?? null,
+        contentVersion: result.contentVersion,
+        status: result.status,
       });
-
-      // A cold load may return the shared repository's storage cache promptly.
-      // Follow it with an explicit refresh so a newer published version reaches
-      // this screen without waiting for another navigation.
-      if (
-        firstResult.status === "ready" &&
-        !cachedContent &&
-        firstResult.cacheSource !== undefined &&
-        firstResult.cacheSource !== "network"
-      ) {
-        const refreshed = await loadLearningHubLanguageContent(languageCode, {
-          forceRefresh: true,
-        });
-        if (!isActive) return;
-
-        setState({
-          languageCode,
-          languageContent: refreshed.content ?? firstResult.content ?? null,
-          contentVersion:
-            refreshed.contentVersion ?? firstResult.contentVersion,
-          status: refreshed.status,
-        });
-      }
     })();
 
     return () => {
@@ -101,12 +73,10 @@ export const useLearningHubContent = (
   }, []);
 
   if (state.languageCode !== languageCode) {
-    const languageContent = getLearningLanguageContent(languageCode);
     return {
       languageCode,
-      languageContent,
-      contentVersion: getLearningContentVersion(languageCode),
-      status: languageContent ? "ready" : "loading",
+      languageContent: null,
+      status: "loading",
       retry,
     };
   }

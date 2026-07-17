@@ -26,6 +26,7 @@ import * as Sharing from "expo-sharing"
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons"
 import { ReactNativeZoomableView } from "@openspacelabs/react-native-zoomable-view"
 import { useChild } from "@/context/ChildContext"
+import { ChildLoadingCard } from "@/components/child/ChildLoadingState"
 import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages"
 import {
   markStageCompleted,
@@ -117,6 +118,8 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
 
   const [isDrawing, setIsDrawing] = useState(false)
   const [imageLoaded, setImageLoaded] = useState(false)
+  const [imageLoadFailed, setImageLoadFailed] = useState(false)
+  const [imageRetryKey, setImageRetryKey] = useState(0)
   const [isSaving, setIsSaving] = useState(false)
   const [hasPermission, setHasPermission] = useState(false)
   const [showColorPalette, setShowColorPalette] = useState(true)
@@ -132,6 +135,12 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
   // Create a ref for ViewShot
   const viewShotRef = useRef<ViewShot>(null)
   const zoomableViewRef = useRef(null)
+
+  useEffect(() => {
+    setImageLoaded(false)
+    setImageLoadFailed(false)
+    setImageRetryKey(0)
+  }, [imageSource, pageName])
 
   // Check for media library permissions on mount
   useEffect(() => {
@@ -526,10 +535,18 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
             >
               {/* Background Image as a full container */}
               <ImageBackground
+                key={imageRetryKey}
                 source={imageSource}
                 style={styles.backgroundImage}
                 resizeMode="contain"
-                onLoad={() => setImageLoaded(true)}
+                onLoad={() => {
+                  setImageLoadFailed(false)
+                  setImageLoaded(true)
+                }}
+                onError={() => {
+                  setImageLoaded(false)
+                  setImageLoadFailed(true)
+                }}
               >
                 {/* Drawing area with pan responder */}
                 <View
@@ -581,10 +598,46 @@ export default function ColoringGameScreen({ imageSource, pageName, colors = DEF
           </ViewShot>
 
           {/* Image loading indicator */}
-          {!imageLoaded && (
+          {!imageLoaded && !imageLoadFailed && (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#FF4081" />
-              <Text style={styles.loadingText}>Loading your coloring page...</Text>
+              <ChildLoadingCard
+                label="Loading your coloring page..."
+                style={styles.coloringLoadingCard}
+              />
+            </View>
+          )}
+
+          {imageLoadFailed && (
+            <View style={styles.loadingContainer} accessibilityRole="alert">
+              <View style={styles.imageErrorCard}>
+                <Ionicons name="image-outline" size={38} color="#0274BB" />
+                <Text style={styles.imageErrorTitle}>This coloring page did not load</Text>
+                <Text style={styles.imageErrorMessage}>
+                  Try once more, or choose another picture.
+                </Text>
+                <View style={styles.imageErrorActions}>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel="Try loading the coloring page again"
+                    style={styles.imageRetryButton}
+                    onPress={() => {
+                      setImageLoadFailed(false)
+                      setImageLoaded(false)
+                      setImageRetryKey((current) => current + 1)
+                    }}
+                  >
+                    <Ionicons name="refresh" size={18} color="white" />
+                    <Text style={styles.imageActionText}>Try again</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    style={styles.imageBackButton}
+                    onPress={() => router.back()}
+                  >
+                    <Text style={styles.imageBackText}>Choose another</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
           )}
 
@@ -940,11 +993,71 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "rgba(255, 255, 255, 0.9)",
   },
-  loadingText: {
-    fontSize: 20,
-    fontWeight: "bold",
+  coloringLoadingCard: {
+    width: "72%",
+    maxWidth: 320,
+    minHeight: 160,
+  },
+  imageErrorCard: {
+    width: "78%",
+    maxWidth: 380,
+    minHeight: 190,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: "#F9D35F",
+    backgroundColor: "#FFFFFF",
+    padding: 20,
+  },
+  imageErrorTitle: {
+    marginTop: 10,
+    color: "#075685",
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  imageErrorMessage: {
+    marginTop: 5,
+    color: "#62666A",
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  imageErrorActions: {
     marginTop: 15,
-    color: "#FF4081",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  imageRetryButton: {
+    minHeight: 42,
+    borderRadius: 21,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#0274BB",
+    paddingHorizontal: 16,
+  },
+  imageActionText: {
+    marginLeft: 7,
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  imageBackButton: {
+    minHeight: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#D4EDF8",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 16,
+    marginLeft: 10,
+  },
+  imageBackText: {
+    color: "#075685",
+    fontWeight: "700",
   },
   savingOverlay: {
     position: "absolute",

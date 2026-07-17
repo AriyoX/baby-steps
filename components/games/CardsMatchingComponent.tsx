@@ -3,7 +3,6 @@ import {
   View,
   TouchableOpacity,
   Animated,
-  ActivityIndicator,
   useWindowDimensions,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -11,6 +10,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Text } from "@/components/StyledText";
+import { ChildLoadingState } from "@/components/child/ChildLoadingState";
 import { useChild } from "@/context/ChildContext";  
 import {
   DEFAULT_LEARNING_LANGUAGE_CODE,
@@ -322,6 +322,7 @@ const CardsMatchingGame: React.FC = () => {
   const matchedCountRef = useRef(0);
   const matchStreakRef = useRef(0);
   const gameStateRef = useRef<CardGameState | null>(null);
+  const contentProgressRevisionRef = useRef<string | undefined>(undefined);
 
   const clearPendingTimers = () => {
     pendingTimersRef.current.forEach((timer) => clearTimeout(timer));
@@ -367,7 +368,7 @@ const CardsMatchingGame: React.FC = () => {
     const loadContentAndSavedState = async () => {
       try {
         const result = await loadContentBundle(requestedLanguageCode, {
-          forceRefresh: contentRetryVersion > 0,
+          forceRefresh: true,
         });
         if (cancelled || !isMountedRef.current) return;
 
@@ -375,6 +376,8 @@ const CardsMatchingGame: React.FC = () => {
           result.bundle?.languageCode === requestedLanguageCode
             ? getPlayableCardGameContent(result.bundle.cardGame)
             : undefined;
+        const contentProgressRevision =
+          result.bundle?.progressRevisions?.card_game;
 
         if (!playableContent) {
           setCardItems([]);
@@ -384,10 +387,15 @@ const CardsMatchingGame: React.FC = () => {
 
         setCardItems(playableContent.items);
         setGameTitle(playableContent.title);
+        contentProgressRevisionRef.current = contentProgressRevision;
 
         if (requestedChildId) {
           try {
-            const savedState = await loadGameState(requestedChildId);
+            const savedState = await loadGameState(
+              requestedChildId,
+              requestedLanguageCode,
+              contentProgressRevision,
+            );
             if (cancelled || !isMountedRef.current) return;
 
             if (savedState && savedState.matchedValues.length > 0) {
@@ -540,7 +548,7 @@ const CardsMatchingGame: React.FC = () => {
 
     // Clear saved state if there's an active child
     if (childId) {
-      void clearGameState(childId).catch((error) => {
+      void clearGameState(childId, languageCode).catch((error) => {
         console.warn("Could not clear the previous Cards Matching game:", error);
       });
     }
@@ -615,7 +623,7 @@ const CardsMatchingGame: React.FC = () => {
     
     // Clear saved state if there's an active child
     if (activeChild) {
-      void clearGameState(activeChild.id).catch((error) => {
+      void clearGameState(activeChild.id, languageCode).catch((error) => {
         console.warn("Could not clear Cards Matching state during reset:", error);
       });
     }
@@ -655,7 +663,7 @@ const CardsMatchingGame: React.FC = () => {
 
       await completeCardsMatchingGameLocallyFirst({
         persistGamesPlayed: () => incrementGamesPlayed(childId),
-        clearPersistedGame: () => clearGameState(childId),
+        clearPersistedGame: () => clearGameState(childId, languageCode),
         revealCompletion: () => {
           if (isMountedRef.current) setGameOver(true);
         },
@@ -774,7 +782,13 @@ const CardsMatchingGame: React.FC = () => {
                 await persistCardsMatchingPairLocallyFirst({
                   gameState: updatedState,
                   persistPairStats: () => updateTotalPairsMatched(1, activeChild.id),
-                  persistGameState: () => saveGameState(updatedState, activeChild.id),
+                  persistGameState: () =>
+                    saveGameState(
+                      updatedState,
+                      activeChild.id,
+                      languageCode,
+                      contentProgressRevisionRef.current,
+                    ),
                   revealPersistedPair: ({ gameState: savedState }) => {
                     if (!isMountedRef.current) return;
                     gameStateRef.current = savedState;
@@ -893,7 +907,12 @@ const CardsMatchingGame: React.FC = () => {
               };
               gameStateRef.current = updatedState;
               setGameState(updatedState);
-              void saveGameState(updatedState, activeChild.id).catch((error) => {
+              void saveGameState(
+                updatedState,
+                activeChild.id,
+                languageCode,
+                contentProgressRevisionRef.current,
+              ).catch((error) => {
                 console.warn("Could not persist the Cards Matching move locally:", error);
               });
             }
@@ -921,11 +940,11 @@ const CardsMatchingGame: React.FC = () => {
   // Never render content or progress hydrated for a different child/language.
   if (isLoading || hydratedScope !== contentScope) {
     return (
-      <View className="flex-1 bg-primary-50 justify-center items-center">
-        <StatusBar style="dark" />
-        <ActivityIndicator size="large" color="#7b5af0" />
-        <Text className="text-primary-700 mt-4" variant="medium">Loading matching cards...</Text>
-      </View>
+      <ChildLoadingState
+        title="Getting the matching cards ready"
+        message="Loading card pictures and your saved game."
+        icon="copy-outline"
+      />
     );
   }
 

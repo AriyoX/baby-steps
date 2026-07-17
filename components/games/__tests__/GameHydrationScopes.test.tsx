@@ -25,6 +25,7 @@ const mockSaveActivity = jest.fn();
 const mockSyncProgressNow = jest.fn();
 const mockCheckAndGrantNewAchievements = jest.fn();
 const mockEnqueueAchievementUnlocked = jest.fn();
+let mockIsLoadingAchievements = false;
 
 const deferred = <T,>() => {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -242,7 +243,7 @@ jest.mock("../achievements/useAchievements", () => ({
       mockCheckAndGrantNewAchievements(...args),
     definedAchievements: [],
     earnedChildAchievements: [],
-    isLoadingAchievements: false,
+    isLoadingAchievements: mockIsLoadingAchievements,
   }),
 }));
 
@@ -326,6 +327,7 @@ jest.mock("../utils/progressManagerLugandaLearning", () => ({
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockIsLoadingAchievements = false;
   mockActiveChild = { id: "child-a", selected_language_code: "lg" };
   mockLoadContentBundle.mockImplementation((languageCode: "lg" | "nyn") =>
     Promise.resolve(contentResult(languageCode)),
@@ -542,6 +544,135 @@ describe("game hydration request scopes", () => {
     expect(mockUnloadAppSound).toHaveBeenCalledWith(staleWrong);
     expect(mockUnloadAppSound).not.toHaveBeenCalledWith(currentCorrect);
     expect(mockUnloadAppSound).not.toHaveBeenCalledWith(currentWrong);
+
+    act(() => tree.unmount());
+  });
+
+  it("does not rehydrate Counting content when achievement loading changes", async () => {
+    mockLoadCountingProgress.mockResolvedValue(countingProgress("child-a"));
+
+    let tree!: renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<CountingGame />);
+      await flush();
+    });
+
+    expect(mockLoadContentBundle).toHaveBeenCalledTimes(1);
+    expect(mockLoadCountingProgress).toHaveBeenCalledTimes(1);
+
+    mockIsLoadingAchievements = true;
+    await act(async () => {
+      tree.update(<CountingGame />);
+      await flush();
+    });
+
+    expect(mockLoadContentBundle).toHaveBeenCalledTimes(1);
+    expect(mockLoadCountingProgress).toHaveBeenCalledTimes(1);
+
+    act(() => tree.unmount());
+  });
+
+  it("shows legacy Learning content without waiting for optional sounds", async () => {
+    const pendingSounds = deferred<{ correctSound: object; wrongSound: object }>();
+    mockLoadGameSounds.mockReturnValue(pendingSounds.promise);
+    mockLoadLearningProgress.mockResolvedValue({
+      completedLevels: [],
+      stages: learningStages("Luganda"),
+      totalScore: 0,
+      userStats: {
+        correctAnswers: 0,
+        lastPlayed: "2026-07-14T00:00:00.000Z",
+        streakDays: 1,
+        totalWords: 0,
+        wrongAnswers: 0,
+      },
+    });
+
+    let tree!: renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<LearningGame />);
+      await flush();
+    });
+
+    expect(JSON.stringify(tree.toJSON())).toContain("Luganda Learning");
+
+    await act(async () => {
+      pendingSounds.resolve({
+        correctSound: { id: "late-correct" },
+        wrongSound: { id: "late-wrong" },
+      });
+      await pendingSounds.promise;
+      await flush();
+    });
+
+    act(() => tree.unmount());
+  });
+
+  it("shows a recoverable state instead of spinning forever for an empty Learning level", async () => {
+    const stages = learningStages("Luganda");
+    stages[0].levels[0].words = [];
+    mockLoadContentBundle.mockResolvedValue({
+      ...contentResult("lg"),
+      bundle: {
+        ...contentResult("lg").bundle,
+        learningGame: { title: "Luganda Learning", stages },
+      },
+    });
+    mockLoadLearningProgress.mockResolvedValue({
+      completedLevels: [],
+      stages,
+      totalScore: 0,
+      userStats: {
+        correctAnswers: 0,
+        lastPlayed: "2026-07-14T00:00:00.000Z",
+        streakDays: 1,
+        totalWords: 0,
+        wrongAnswers: 0,
+      },
+    });
+
+    let tree!: renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<LearningGame />);
+      await flush();
+    });
+
+    act(() => findButtonByText(tree, "Luganda stage").props.onPress());
+    act(() => findButtonByText(tree, "Luganda level").props.onPress());
+
+    expect(JSON.stringify(tree.toJSON())).toContain("This level is not ready");
+    expect(JSON.stringify(tree.toJSON())).toContain("Choose another level");
+
+    act(() => tree.unmount());
+  });
+
+  it("shows a recoverable state when a Counting question has no visual items", async () => {
+    const result = contentResult("lg");
+    result.bundle.countingGame.culturalItems = [];
+    mockLoadContentBundle.mockResolvedValue(result);
+    mockLoadCountingProgress.mockResolvedValue(countingProgress("child-a"));
+
+    let tree!: renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<CountingGame />);
+      await flush();
+    });
+
+    const stage = tree.root.findAllByType(TouchableOpacity).find(
+      (candidate) =>
+        typeof candidate.props.accessibilityLabel === "string" &&
+        candidate.props.accessibilityLabel.startsWith("Luganda Stage One."),
+    );
+
+    await act(async () => {
+      stage!.props.onPress();
+      await flush();
+    });
+
+    expect(JSON.stringify(tree.toJSON())).toContain(
+      "This counting question is not ready",
+    );
+    expect(JSON.stringify(tree.toJSON())).toContain("Choose another stage");
 
     act(() => tree.unmount());
   });

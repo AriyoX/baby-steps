@@ -10,7 +10,6 @@ import {
   Animated,
   ScrollView,
   FlatList,
-  ActivityIndicator,
   useWindowDimensions,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -20,6 +19,7 @@ import { StatusBar } from "expo-status-bar"
 import { useRouter } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import { Text } from "@/components/StyledText"
+import { ChildLoadingState } from "@/components/child/ChildLoadingState"
 import { ComingSoonState } from "@/components/child/ComingSoonState"
 import { CachedImage } from "@/components/common/CachedImage"
 import { useChild } from "@/context/ChildContext"
@@ -148,9 +148,6 @@ const LugandaLearningGame: React.FC = () => {
   const languageCode = activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE
   const achievementGameKey = languageCode === "lg" ? "luganda_learning_game" : "learning_game"
   const {
-    // definedAchievements, // Not directly used for display in-game, but hook needs it
-    // earnedChildAchievements, // Not directly used for display in-game
-    isLoadingAchievements, // Can be combined with main isLoading
     checkAndGrantNewAchievements,
   } = useAchievements(activeChild?.id, achievementGameKey) // Pass childId and gameKey
   const { enqueueAchievementUnlocked } = useChildNotice()
@@ -188,6 +185,7 @@ const LugandaLearningGame: React.FC = () => {
   const [completedLevels, setCompletedLevels] = useState<number[]>([])
   const userStatsRef = useRef<UserStats>({ ...DEFAULT_USER_STATS })
   const completionRevisionRef = useRef(0)
+  const contentProgressRevisionRef = useRef<string | undefined>(undefined)
   const progressOwnerRef = useRef({
     childId: activeChild?.id,
     languageCode,
@@ -236,6 +234,25 @@ const LugandaLearningGame: React.FC = () => {
       console.warn("Could not unload learning-game sound:", error)
     })
   }, [])
+
+  const loadSounds = useCallback(async (
+    isCurrentRequest: () => boolean = () => isMountedRef.current,
+  ): Promise<void> => {
+    try {
+      const { correctSound: newCorrectSound, wrongSound: newWrongSound } = await loadGameSounds()
+      if (isCurrentRequest()) {
+        correctSoundRef.current = newCorrectSound
+        wrongSoundRef.current = newWrongSound
+        setCorrectSound(newCorrectSound)
+        setWrongSound(newWrongSound)
+      } else {
+        unloadSound(newCorrectSound)
+        unloadSound(newWrongSound)
+      }
+    } catch (error) {
+      console.error("Error loading sounds", error)
+    }
+  }, [unloadSound])
 
   const clearGameTimers = useCallback((): void => {
     if (answerTimeoutRef.current) {
@@ -295,17 +312,23 @@ const LugandaLearningGame: React.FC = () => {
 
       try {
         const contentResult = await loadContentBundle(requestedLanguageCode, {
-          forceRefresh: contentRetrySequence > 0,
+          forceRefresh: true,
         })
         const contentStages = contentResult.bundle?.learningGame.stages ?? []
+        const contentProgressRevision =
+          contentResult.bundle?.progressRevisions?.learning_game
         if (contentResult.bundle) {
           void preloadContentBundleImages(contentResult.bundle).catch((error) => {
             console.warn("Could not preload legacy Learning images:", error)
           })
         }
-        await loadSounds(isCurrentRequest)
+        // Audio is an enhancement, not a prerequisite for showing the game.
+        // Playback already tolerates sounds that are still loading.
+        void loadSounds(isCurrentRequest)
 
         if (!isCurrentRequest()) return
+
+        contentProgressRevisionRef.current = contentProgressRevision
 
         setGameTitle(contentResult.bundle?.learningGame.title ?? "Learning")
         setSelectedStage(null)
@@ -313,7 +336,18 @@ const LugandaLearningGame: React.FC = () => {
         setCurrentWords([])
 
         if (requestedChildId && contentStages.length > 0) {
-          const progress = await loadProgress(requestedChildId, requestedLanguageCode, contentStages)
+          const progress = contentProgressRevision
+            ? await loadProgress(
+                requestedChildId,
+                requestedLanguageCode,
+                contentStages,
+                contentProgressRevision,
+              )
+            : await loadProgress(
+                requestedChildId,
+                requestedLanguageCode,
+                contentStages,
+              )
 
           if (!isCurrentRequest()) return
 
@@ -352,7 +386,7 @@ const LugandaLearningGame: React.FC = () => {
       answerLockRef.current = false
       completionLockRef.current = false
     }
-  }, [activeChild?.id, languageCode, clearGameTimers, contentRetrySequence])
+  }, [activeChild?.id, languageCode, clearGameTimers, contentRetrySequence, loadSounds])
 
   // Setup when selecting a level
   useEffect(() => {
@@ -429,25 +463,6 @@ const LugandaLearningGame: React.FC = () => {
       })
     }
   }, [shakingOption])
-
-  const loadSounds = async (
-    isCurrentRequest: () => boolean = () => isMountedRef.current,
-  ): Promise<void> => {
-    try {
-      const { correctSound: newCorrectSound, wrongSound: newWrongSound } = await loadGameSounds()
-      if (isCurrentRequest()) {
-        correctSoundRef.current = newCorrectSound
-        wrongSoundRef.current = newWrongSound
-        setCorrectSound(newCorrectSound)
-        setWrongSound(newWrongSound)
-      } else {
-        unloadSound(newCorrectSound)
-        unloadSound(newWrongSound)
-      }
-    } catch (error) {
-      console.error("Error loading sounds", error)
-    }
-  }
 
   const playWordSound = async (word: LearningGameWord = currentWord!): Promise<void> => {
     try {
@@ -803,6 +818,7 @@ const LugandaLearningGame: React.FC = () => {
           updatedUserStatsState,
           completionChildId,
           completionLanguageCode,
+          { contentRevision: contentProgressRevisionRef.current },
         ),
       revealCompletion: (completedTotalScore) => {
         const owner = progressOwnerRef.current
@@ -870,6 +886,7 @@ const LugandaLearningGame: React.FC = () => {
             updatedUserStatsState,
             completionChildId,
             completionLanguageCode,
+            { contentRevision: contentProgressRevisionRef.current },
           )
           if (!savedAchievementProgress) {
             throw new Error("Legacy Learning achievement points were not saved locally.")
@@ -916,6 +933,7 @@ const LugandaLearningGame: React.FC = () => {
       },
       activeChild.id,
       languageCode,
+      { contentRevision: contentProgressRevisionRef.current },
     )
   }
 
@@ -1300,10 +1318,14 @@ const LugandaLearningGame: React.FC = () => {
 
     if (currentWords.length === 0) {
       return (
-        <SafeAreaView className="flex-1 bg-blue-50 justify-center items-center px-6">
-          <ActivityIndicator size="large" color={brandColors.victoriaBlue} />
-          <Text className="mt-4 text-primary-700 text-center">Getting your first card ready...</Text>
-        </SafeAreaView>
+        <ComingSoonState
+          title="This level is not ready"
+          message="There are no learning cards in this level yet. Choose another level while it is being prepared."
+          showBackButton={false}
+          onRetry={() => setGameState("levelSelect")}
+          actionLabel="Choose another level"
+          actionAccessibilityLabel="Return to the level list"
+        />
       )
     }
 
@@ -1921,10 +1943,11 @@ const LugandaLearningGame: React.FC = () => {
   // Loading screen
   if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 justify-center items-center">
-        <ActivityIndicator size="large" color="#6366f1" />
-        <Text className="mt-4 text-slate-600">Loading your learning journey...</Text>
-      </SafeAreaView>
+      <ChildLoadingState
+        title="Getting your learning journey ready"
+        message="Loading lessons and your saved progress."
+        icon="school-outline"
+      />
     )
   }
 

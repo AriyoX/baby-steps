@@ -34,6 +34,7 @@ import {
 import {
   DEFAULT_USER_STATS,
   loadGameProgress as loadLearningProgress,
+  saveGameProgress as saveLearningProgress,
 } from "../progressManagerLugandaLearning";
 import {
   createDefaultProgress as createDefaultWordProgress,
@@ -110,6 +111,98 @@ const flushBackgroundWork = async () => {
 };
 
 describe("progress compatibility when published content changes", () => {
+  it("starts Learning Game progress clean when its progress revision changes", async () => {
+    await AsyncStorage.multiSet([
+      [`learning_total_score_${childId}_lg`, "20"],
+      [`learning_completed_levels_${childId}_lg`, JSON.stringify([10])],
+      [`learning_stages_${childId}_lg`, JSON.stringify(learningStages)],
+      [`learning_user_stats_${childId}_lg`, JSON.stringify(DEFAULT_USER_STATS)],
+      [`learning_content_revision_${childId}_lg`, "learning_game/starter#1"],
+    ]);
+
+    const progress = await loadLearningProgress(
+      childId,
+      "lg",
+      learningStages,
+      "learning_game/starter#2",
+    );
+
+    expect(progress).toEqual(
+      expect.objectContaining({
+        totalScore: 0,
+        completedLevels: [],
+        contentRevision: "learning_game/starter#2",
+      }),
+    );
+    expect(
+      await AsyncStorage.getItem(`learning_completed_levels_${childId}_lg`),
+    ).toBeNull();
+  });
+
+  it("commits the Learning Game revision marker after its progress payload", async () => {
+    await saveLearningProgress(
+      10,
+      [10],
+      learningStages,
+      DEFAULT_USER_STATS,
+      childId,
+      "lg",
+      { contentRevision: "learning_game/starter#2" },
+    );
+
+    const setItemMock = AsyncStorage.setItem as jest.Mock;
+    const revisionCall = setItemMock.mock.calls.findIndex(
+      ([key]) => key === `learning_content_revision_${childId}_lg`,
+    );
+    const progressCall = setItemMock.mock.calls.findIndex(
+      ([key]) => key === `learning_user_stats_${childId}_lg`,
+    );
+
+    expect(progressCall).toBeGreaterThanOrEqual(0);
+    expect(revisionCall).toBeGreaterThan(progressCall);
+  });
+
+  it("starts Word and Counting progress clean when reused IDs belong to a new revision", async () => {
+    const wordLevels = [wordLevel("word-a", 1), wordLevel("word-b", 2)];
+    await AsyncStorage.setItem(
+      `@BabySteps:WordGame:${childId}:lg`,
+      JSON.stringify({
+        ...createDefaultWordProgress(childId),
+        contentRevision: "word_game/levels#1",
+        completedLevels: [0],
+        completedLevelIds: ["word-a"],
+        unlockedLevels: [0, 1],
+        unlockedLevelIds: ["word-a", "word-b"],
+      }),
+    );
+    await AsyncStorage.setItem(
+      `@BabySteps:CountingGame:${childId}:lg`,
+      JSON.stringify({
+        ...createDefaultCountingProgress(childId),
+        contentRevision: "counting_game/stages#1",
+        completedStages: [1],
+      }),
+    );
+
+    const wordProgress = await loadWordProgress(
+      childId,
+      "lg",
+      wordLevels,
+      "word_game/levels#2",
+    );
+    const countingProgress = await loadCountingProgress(
+      childId,
+      "lg",
+      [1],
+      "counting_game/stages#2",
+    );
+
+    expect(wordProgress.completedLevels).toEqual([]);
+    expect(wordProgress.contentRevision).toBe("word_game/levels#2");
+    expect(countingProgress.completedStages).toEqual([]);
+    expect(countingProgress.contentRevision).toBe("counting_game/stages#2");
+  });
+
   it("retains retired Learning level IDs while measuring current stages", async () => {
     await AsyncStorage.multiSet([
       [`learning_total_score_${childId}_lg`, "20"],

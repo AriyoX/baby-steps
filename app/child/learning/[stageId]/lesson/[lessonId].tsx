@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/StyledText";
+import { ChildLoadingState } from "@/components/child/ChildLoadingState";
 import { LearningLanguageUnavailableState } from "@/components/learning/LearningLanguageUnavailableState";
 import { getMechanicRenderer } from "@/components/learning/mechanics/mechanicRegistry";
 import { brandColors } from "@/constants/Brand";
@@ -161,6 +162,7 @@ export default function LearningLessonSessionScreen() {
     childId,
     languageCode,
     Boolean(languageContent),
+    lessonContentVersion,
   );
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
@@ -392,18 +394,31 @@ export default function LearningLessonSessionScreen() {
   if (!languageContent) {
     const isLoading = contentStatus === "loading" || Boolean(loadedLanguageContent);
 
+    if (isLoading) {
+      return (
+        <>
+          <Stack.Screen options={{ headerShown: false, animation: "slide_from_right" }} />
+          <ChildLoadingState
+            title="Getting your lesson ready"
+            message="Loading the activity and your saved progress."
+            icon="book-outline"
+            onBack={goBackToLearning}
+            backLabel="Back to Learning"
+          />
+        </>
+      );
+    }
+
     return (
       <>
         <Stack.Screen options={{ headerShown: false, animation: "slide_from_right" }} />
         <StatusBar style="light" translucent backgroundColor="transparent" />
         <LearningLanguageUnavailableState
           languageName={languageName}
-          title={isLoading ? "Getting lesson ready…" : undefined}
-          message={isLoading ? "We are loading this lesson now." : undefined}
-          actionLabel={isLoading ? "Back to Learning" : "Try again"}
-          onAction={isLoading ? goBackToLearning : retry}
-          secondaryActionLabel={isLoading ? undefined : "Back to Learning"}
-          onSecondaryAction={isLoading ? undefined : goBackToLearning}
+          actionLabel="Try again"
+          onAction={retry}
+          secondaryActionLabel="Back to Learning"
+          onSecondaryAction={goBackToLearning}
         />
       </>
     );

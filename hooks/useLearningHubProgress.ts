@@ -18,8 +18,9 @@ export function useLearningHubProgress(
   childId: string,
   languageCode: string,
   contentReady: boolean,
+  contentRevision?: string,
 ): string[] {
-  const scopeKey = `${childId}:${languageCode}`
+  const scopeKey = `${childId}:${languageCode}:${contentRevision ?? "unversioned"}`
   const [progressScope, setProgressScope] = useState<ProgressScope>({
     completedLessonIds: [],
     key: scopeKey,

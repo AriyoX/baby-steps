@@ -42,6 +42,8 @@ export interface LocalStory {
   title: string;
   summary: string;
   languageCode: SupportedLearningLanguageCode;
+  /** Stable identity for deciding whether saved reading progress is compatible. */
+  progressRevision?: string;
   metadata: LocalContentMetadata;
   pages: LocalStoryPage[];
   questions?: LocalStoryQuestion[];

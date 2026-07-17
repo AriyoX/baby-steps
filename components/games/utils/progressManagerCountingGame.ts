@@ -13,6 +13,7 @@ const COUNTING_ACTIVITY_TYPE = 'counting';
 
 // Types for progress tracking
 export interface CountingGameProgress {
+  contentRevision?: string;
   unlockedStages: number[];
   currentStage: number;
   totalScore: number;
@@ -212,7 +213,8 @@ const persistNormalizedCountingProgress = async (
 export const loadGameProgress = async (
   childId: string,
   languageCode: string,
-  availableStageIds?: number[]
+  availableStageIds?: number[],
+  contentRevision?: string,
 ): Promise<CountingGameProgress> => {
   if (!childId) {
     console.warn('No child ID provided for loading progress, using default');
@@ -223,7 +225,7 @@ export const loadGameProgress = async (
     const key = getStorageKey(childId, languageCode);
     let savedProgress = await AsyncStorage.getItem(key);
 
-    if (!savedProgress && languageCode === 'lg') {
+    if (!savedProgress && !contentRevision && languageCode === 'lg') {
       const legacyKey = getLegacyStorageKey(childId);
       savedProgress = await AsyncStorage.getItem(legacyKey);
       if (savedProgress) {
@@ -238,6 +240,18 @@ export const loadGameProgress = async (
       if (parsedProgress.childId !== childId) {
         console.warn('Progress childId mismatch, resetting to default');
         return createDefaultProgress(childId, getAvailableStageIds(availableStageIds)[0]);
+      }
+
+      if (contentRevision && parsedProgress.contentRevision !== contentRevision) {
+        const resetProgress = {
+          ...createDefaultProgress(
+            childId,
+            getAvailableStageIds(availableStageIds)[0],
+          ),
+          contentRevision,
+        };
+        await AsyncStorage.setItem(key, JSON.stringify(resetProgress));
+        return resetProgress;
       }
       
       const normalizedProgress = normalizeProgressForStages(
@@ -271,6 +285,20 @@ export const loadGameProgress = async (
     );
 
     if (hydratedLocalProgress) {
+      if (
+        contentRevision &&
+        hydratedLocalProgress.progress_payload.contentRevision !== contentRevision
+      ) {
+        const resetProgress = {
+          ...createDefaultProgress(
+            childId,
+            getAvailableStageIds(availableStageIds)[0],
+          ),
+          contentRevision,
+        };
+        await AsyncStorage.setItem(key, JSON.stringify(resetProgress));
+        return resetProgress;
+      }
       const restoredProgress = normalizeProgressForStages(
         hydratedLocalProgress.progress_payload as unknown as CountingGameProgress,
         childId,
@@ -279,6 +307,7 @@ export const loadGameProgress = async (
       await saveGameProgress(restoredProgress, childId, languageCode, {
         markDirty: false,
         availableStageIds,
+        contentRevision,
       });
       return restoredProgress;
     }
@@ -290,6 +319,20 @@ export const loadGameProgress = async (
     );
 
     if (remoteProgress) {
+      if (
+        contentRevision &&
+        remoteProgress.progress_payload.contentRevision !== contentRevision
+      ) {
+        const resetProgress = {
+          ...createDefaultProgress(
+            childId,
+            getAvailableStageIds(availableStageIds)[0],
+          ),
+          contentRevision,
+        };
+        await AsyncStorage.setItem(key, JSON.stringify(resetProgress));
+        return resetProgress;
+      }
       const restoredProgress = normalizeProgressForStages(
         remoteProgress.progress_payload as unknown as CountingGameProgress,
         childId,
@@ -298,12 +341,16 @@ export const loadGameProgress = async (
       await saveGameProgress(restoredProgress, childId, languageCode, {
         markDirty: false,
         availableStageIds,
+        contentRevision,
       });
       return restoredProgress;
     }
     
     // If no saved progress found, return default progress for this child
-    return createDefaultProgress(childId, getAvailableStageIds(availableStageIds)[0]);
+    return {
+      ...createDefaultProgress(childId, getAvailableStageIds(availableStageIds)[0]),
+      contentRevision,
+    };
   } catch (error) {
     console.error('Failed to load counting game progress:', error);
     return createDefaultProgress(childId, getAvailableStageIds(availableStageIds)[0]);
@@ -317,7 +364,11 @@ export const saveGameProgress = async (
   progress: CountingGameProgress,
   childId: string,
   languageCode: string,
-  options: { markDirty?: boolean; availableStageIds?: number[] } = {}
+  options: {
+    markDirty?: boolean;
+    availableStageIds?: number[];
+    contentRevision?: string;
+  } = {}
 ): Promise<void> => {
   if (!childId) {
     console.warn('No child ID provided for saving progress, aborting');
@@ -329,6 +380,7 @@ export const saveGameProgress = async (
     const updatedProgress = normalizeProgressForStages(
       {
         ...progress,
+        contentRevision: options.contentRevision ?? progress.contentRevision,
         childId // Always ensure the childId is set correctly
       },
       childId,

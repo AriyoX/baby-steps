@@ -6,7 +6,6 @@ import {
   useWindowDimensions,
   Animated,
   Alert,
-  ActivityIndicator,
   PanResponder,
   type GestureResponderEvent,
   type ImageSourcePropType,
@@ -17,6 +16,7 @@ import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Text } from "@/components/StyledText";
+import { ChildLoadingState } from "@/components/child/ChildLoadingState";
 import {
   DEFAULT_LEARNING_LANGUAGE_CODE,
   getDbLanguageCodeForLearningLanguage,
@@ -269,6 +269,7 @@ const PuzzleGame: React.FC = () => {
   const isCompletingRef = useRef(false);
   const isMountedRef = useRef(true);
   const pendingTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const contentProgressRevisionRef = useRef<string | undefined>(undefined);
 
   const clearPendingTimers = () => {
     pendingTimersRef.current.forEach((timer) => clearTimeout(timer));
@@ -329,7 +330,7 @@ const PuzzleGame: React.FC = () => {
     const initPuzzleContentAndProgress = async () => {
       try {
         const result = await loadContentBundle(requestedLanguageCode, {
-          forceRefresh: contentRetryVersion > 0,
+          forceRefresh: true,
         });
         if (cancelled || !isMountedRef.current) return;
 
@@ -337,12 +338,16 @@ const PuzzleGame: React.FC = () => {
           result.bundle?.languageCode === requestedLanguageCode
             ? result.bundle.puzzleGame
             : undefined;
+        const contentProgressRevision =
+          result.bundle?.progressRevisions?.puzzle_game;
         const definitions = getPlayablePuzzleDefinitions(puzzleContent?.puzzles);
 
         if (!definitions) {
           setContentUnavailable(true);
           return;
         }
+
+        contentProgressRevisionRef.current = contentProgressRevision;
 
         const resolvedPuzzles = definitions.map((definition) => ({
           id: definition.id,
@@ -355,7 +360,11 @@ const PuzzleGame: React.FC = () => {
         let loadedProgress = { ...DEFAULT_PUZZLE_PROGRESS, childId: "default" };
         if (requestedChildId) {
           try {
-            loadedProgress = await loadPuzzleProgress(requestedChildId);
+            loadedProgress = await loadPuzzleProgress(
+              requestedChildId,
+              requestedLanguageCode,
+              contentProgressRevision,
+            );
           } catch (error) {
             console.warn("Could not restore Puzzle progress; starting safely:", error);
             loadedProgress = {
@@ -609,7 +618,12 @@ const PuzzleGame: React.FC = () => {
             childId: activeChild.id, // Ensure childId is set
         };
         setPuzzleProgress(newProgress); // Update local state
-        await savePuzzleProgress(newProgress, activeChild.id);
+        await savePuzzleProgress(
+          newProgress,
+          activeChild.id,
+          languageCode,
+          contentProgressRevisionRef.current,
+        );
 
         // Check for "First Play" achievement
         if (newProgress.totalGamesPlayed === 1) {
@@ -802,7 +816,13 @@ const PuzzleGame: React.FC = () => {
 
       await completePuzzleLocallyFirst({
         progress: newProgress,
-        persistProgress: () => savePuzzleProgress(newProgress, childId),
+        persistProgress: () =>
+          savePuzzleProgress(
+            newProgress,
+            childId,
+            languageCode,
+            contentProgressRevisionRef.current,
+          ),
         revealCompletion: revealPuzzleCompletion,
         saveCompletionActivity: () => saveActivity(activity),
         evaluateAchievements: async (savedProgress) => {
@@ -965,13 +985,11 @@ const PuzzleGame: React.FC = () => {
 
   if (isContentLoading || hydratedScope !== contentScope) {
     return (
-      <View className="flex-1 bg-blue-50 justify-center items-center">
-        <StatusBar style="dark" />
-        <ActivityIndicator size="large" color="#7b5af0" />
-        <Text className="text-primary-700 mt-4" variant="medium">
-          Loading puzzles...
-        </Text>
-      </View>
+      <ChildLoadingState
+        title="Getting your puzzles ready"
+        message="Loading puzzle pictures and your saved progress."
+        icon="extension-puzzle-outline"
+      />
     );
   }
 

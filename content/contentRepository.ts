@@ -196,6 +196,13 @@ export interface ContentBundle {
   languageCode: string;
   source: "database";
   contentVersion: string;
+  /**
+   * Stable progress identities are intentionally separate from the cache
+   * version. A CMS edit can update timestamps/content versions without
+   * reinterpreting a child's completions. Bump a payload's progressRevision
+   * only when the playable curriculum is replaced incompatibly.
+   */
+  progressRevisions?: Partial<Record<ContentItemType, string>>;
   menuCardsByTab: Record<string, ChildMenuCard[]>;
   learningHub?: LearningLanguageContent;
   learningGame: {
@@ -876,6 +883,9 @@ const mapStoryPayload = (
     title,
     summary: asString(payload.summary, asString(payload.description)),
     languageCode: item.language_code as LocalStory["languageCode"],
+    progressRevision: `story/${normalizeContentSlug(item.slug)}#${getItemProgressRevision(
+      item,
+    )}`,
     metadata: {
       status:
         metadata.status === "existing-prototype" ||
@@ -1082,6 +1092,52 @@ const deriveContentVersion = (items: ContentItemRecord[]): string =>
     )
     .join("|");
 
+function getItemProgressRevision(item: ContentItemRecord): string {
+  const declaredRevision = item.payload?.progressRevision;
+  const normalizedRevision =
+    typeof declaredRevision === "string"
+      ? declaredRevision.trim()
+      : typeof declaredRevision === "number" && Number.isFinite(declaredRevision)
+        ? String(declaredRevision)
+        : "";
+
+  return normalizedRevision || String(item.content_version ?? 1);
+}
+
+const deriveProgressRevisions = (
+  items: ContentItemRecord[],
+): Partial<Record<ContentItemType, string>> => {
+  const revisions = new Map<ContentItemType, string[]>();
+
+  [...items]
+    .sort(
+      (left, right) =>
+        left.content_type.localeCompare(right.content_type) ||
+        left.slug.localeCompare(right.slug),
+    )
+    .forEach((item) => {
+      const contentType = parseContentItemType(item.content_type);
+      const slug = normalizeContentSlug(item.slug);
+      if (!contentType || !slug) return;
+
+      const current = revisions.get(contentType) ?? [];
+      current.push(`${contentType}/${slug}#${getItemProgressRevision(item)}`);
+      revisions.set(contentType, current);
+    });
+
+  return Object.fromEntries(
+    [...revisions.entries()].map(([contentType, values]) => [
+      contentType,
+      values.join("|"),
+    ]),
+  );
+};
+
+export const getContentProgressRevision = (
+  bundle: ContentBundle | undefined,
+  contentType: ContentItemType,
+): string | undefined => bundle?.progressRevisions?.[contentType];
+
 const buildContentBundleWithDiagnostics = (
   languageCode: string,
   items: ContentItemRecord[],
@@ -1094,6 +1150,7 @@ const buildContentBundleWithDiagnostics = (
   let cardGame = { ...EMPTY_CARD_GAME_CONTENT };
   let puzzleGame = { ...EMPTY_PUZZLE_GAME_CONTENT };
   const stories: LocalStory[] = [];
+  const progressBearingItems: ContentItemRecord[] = [];
   const seenSingleBundleTypes = new Set<ContentItemType>();
   let supportedRowCount = 0;
   let invalidSupportedRowCount = 0;
@@ -1170,6 +1227,11 @@ const buildContentBundleWithDiagnostics = (
       const story = mapStoryPayload(payload, item);
       if (story) stories.push(story);
     }
+
+    // Only rows that actually contributed valid, exact-language content may
+    // participate in the progress identity. This keeps an unexpected draft,
+    // cross-language, or otherwise ignored row from resetting valid progress.
+    progressBearingItems.push(item);
   }
 
   return {
@@ -1177,6 +1239,7 @@ const buildContentBundleWithDiagnostics = (
       languageCode,
       source: "database",
       contentVersion: deriveContentVersion(orderedItems),
+      progressRevisions: deriveProgressRevisions(progressBearingItems),
       menuCardsByTab,
       learningHub,
       learningGame,
@@ -1222,7 +1285,7 @@ const buildLastKnownGoodBundle = (
     registerLearningHubLanguageContent(
       languageCode,
       result.bundle.learningHub,
-      result.bundle.contentVersion,
+      result.bundle.progressRevisions?.learning_hub ?? result.bundle.contentVersion,
     );
   }
   return result.bundle;

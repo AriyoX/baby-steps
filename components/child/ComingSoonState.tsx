@@ -11,6 +11,8 @@ interface ComingSoonStateProps {
   message?: string;
   showBackButton?: boolean;
   onRetry?: () => void;
+  actionLabel?: string;
+  actionAccessibilityLabel?: string;
 }
 
 export function ComingSoonState({
@@ -18,6 +20,8 @@ export function ComingSoonState({
   message = "This activity is being prepared for your learning language.",
   showBackButton = true,
   onRetry,
+  actionLabel = "Try again",
+  actionAccessibilityLabel = "Retry loading content",
 }: ComingSoonStateProps) {
   const router = useRouter();
 
@@ -46,10 +50,10 @@ export function ComingSoonState({
           className="mt-6 rounded-full bg-primary-600 px-6 py-3"
           onPress={onRetry}
           accessibilityRole="button"
-          accessibilityLabel="Retry loading content"
+          accessibilityLabel={actionAccessibilityLabel}
         >
           <Text variant="bold" className="text-white">
-            Try again
+            {actionLabel}
           </Text>
         </TouchableOpacity>
       ) : null}

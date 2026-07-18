@@ -38,6 +38,16 @@ describe("game guide storage", () => {
     )
   })
 
+  it("stores the Parent Dashboard tour per signed-in parent", async () => {
+    await markGameGuideSeen("parent-dashboard", "parent-1")
+
+    expect(await hasSeenGameGuide("parent-dashboard", "parent-1")).toBe(true)
+    expect(await hasSeenGameGuide("parent-dashboard", "parent-2")).toBe(false)
+    expect(getGameGuideStorageKey("parent-dashboard", "parent-1")).toBe(
+      "@BabySteps:GameGuide:v1:parent-1:parent-dashboard",
+    )
+  })
+
   it("preserves legacy Coloring Studio seen state without rewriting it", async () => {
     const legacyKey = getColoringStudioTutorialStorageKey("child-1")
     await AsyncStorage.setItem(legacyKey, "seen")

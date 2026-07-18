@@ -133,6 +133,15 @@ describe("settings management screens", () => {
     expect(text).toContain("Audio");
     expect(text).toContain("Privacy & Safety");
     expect(text).toContain("About Baby Steps");
+    expect(text).toContain("Show App Tour");
+
+    const tourRow = tree?.root.findByProps({ title: "Show App Tour" });
+    act(() => tourRow?.props.onPress());
+
+    expect(mockRouterReplace).toHaveBeenCalledWith({
+      pathname: "/parent",
+      params: { showTour: "1" },
+    });
   });
 
   it("renders a placeholder settings screen", async () => {

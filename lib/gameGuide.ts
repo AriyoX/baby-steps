@@ -10,6 +10,7 @@ export type GameGuideId =
   | "learning-hub-home"
   | "learning-hub-stage"
   | "learning-quiz"
+  | "parent-dashboard"
   | "puzzle"
   | "stories"
   | "word"

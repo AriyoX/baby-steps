@@ -35,6 +35,25 @@ describe("shared game tour vertical alignment", () => {
     ).toBe(0)
   })
 
+  it("allows a portrait tour to override only the Android tuning value", () => {
+    expect(
+      getModalCoordinateOffsetY({
+        androidSpotlightOffsetY: 0,
+        platform: "android",
+        safeAreaTop: 18,
+        statusBarHeight: 24,
+      }),
+    ).toBe(24)
+    expect(
+      getModalCoordinateOffsetY({
+        androidSpotlightOffsetY: 30,
+        platform: "ios",
+        safeAreaTop: 18,
+        statusBarHeight: 24,
+      }),
+    ).toBe(0)
+  })
+
   it("accepts consecutive target measurements within the stability tolerance", () => {
     expect(
       areTourMeasurementsStable(

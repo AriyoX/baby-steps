@@ -247,10 +247,12 @@ export const areTourMeasurementsStable = (
     GAME_TOUR_LAYOUT.targetMeasurementTolerance
 
 export const getModalCoordinateOffsetY = ({
+  androidSpotlightOffsetY = GAME_TOUR_LAYOUT.androidSpotlightOffsetY,
   platform = Platform.OS,
   safeAreaTop,
   statusBarHeight = NativeStatusBar.currentHeight,
 }: {
+  androidSpotlightOffsetY?: number
   platform?: typeof Platform.OS
   safeAreaTop: number
   statusBarHeight?: number
@@ -259,7 +261,7 @@ export const getModalCoordinateOffsetY = ({
 
   return (
     Math.max(0, statusBarHeight ?? safeAreaTop) +
-    GAME_TOUR_LAYOUT.androidSpotlightOffsetY
+    androidSpotlightOffsetY
   )
 }
 
@@ -359,6 +361,7 @@ const getTooltipPosition = ({
 
 type GameTourProps = {
   accentColor?: string
+  androidSpotlightOffsetY?: number
   finishLabel?: string
   onCancel: () => void
   onComplete: () => void
@@ -368,6 +371,7 @@ type GameTourProps = {
 
 export function GameTour({
   accentColor = brandColors.victoriaBlue,
+  androidSpotlightOffsetY = GAME_TOUR_LAYOUT.androidSpotlightOffsetY,
   finishLabel = "Let's play",
   onCancel,
   onComplete,
@@ -483,7 +487,10 @@ export function GameTour({
       ...current.rect,
       y:
         current.rect.y +
-        getModalCoordinateOffsetY({ safeAreaTop: insets.top }),
+        getModalCoordinateOffsetY({
+          androidSpotlightOffsetY,
+          safeAreaTop: insets.top,
+        }),
     },
     width,
     height,

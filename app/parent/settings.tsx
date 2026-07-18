@@ -94,6 +94,30 @@ export default function SettingsScreen() {
         </View>
       ))}
 
+      <View className="mb-5">
+        <Text
+          variant="medium"
+          className="text-gray-500 text-sm uppercase tracking-wider mb-2 px-1"
+        >
+          Guidance
+        </Text>
+        <View className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <SettingsRow
+            title="Show App Tour"
+            description="Replay the guided tour of the Parent Dashboard."
+            icon="compass-outline"
+            iconColor={brandColors.victoriaBlue}
+            onPress={() =>
+              router.replace({
+                pathname: "/parent",
+                params: { showTour: "1" },
+              } as any)
+            }
+            last
+          />
+        </View>
+      </View>
+
       {testToolsEnabled ? (
         <View className="mb-5">
           <Text

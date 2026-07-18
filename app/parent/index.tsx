@@ -1,9 +1,9 @@
 "use client"
 
-import { useCallback, useState, useEffect } from "react"
+import { useCallback, useState, useEffect, useRef } from "react"
 import { View, ScrollView, TouchableOpacity } from "react-native"
 import { Text } from "@/components/StyledText"
-import { useFocusEffect, useRouter } from "expo-router"
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons"
@@ -13,6 +13,13 @@ import { TranslatedText } from "@/components/translated-text"
 import { BrandMark } from "@/components/brand/BrandMark"
 import { brandColors } from "@/constants/Brand"
 import { PARENTING_TIPS } from "@/content/parentingTips"
+import { PARENT_DASHBOARD_TOUR_STEPS } from "@/lib/parentDashboardTour"
+import {
+  GameTour,
+  GameTourProvider,
+  TourTarget,
+  useGameTour,
+} from "@/components/games/GameTour"
 
 type ChildProfile = {
   id: string
@@ -29,9 +36,15 @@ type ChildProfile = {
   avatar?: string
 }
 
+// Portrait dashboard tuning only. Increase this value to move every Parent
+// Dashboard spotlight lower on Android; the shared game-tour value stays intact.
+const PARENT_DASHBOARD_ANDROID_SPOTLIGHT_OFFSET_Y = 0
+
 const ParentDashboard = () => {
   const router = useRouter()
+  const params = useLocalSearchParams<{ showTour?: string }>()
   const [childProfiles, setChildProfiles] = useState<ChildProfile[]>([])
+  const [parentId, setParentId] = useState<string>()
   const [loading, setLoading] = useState(true)
   const [recentActivities, setRecentActivities] = useState<any[]>([])
   const [weeklyStats, setWeeklyStats] = useState({
@@ -39,6 +52,30 @@ const ParentDashboard = () => {
     totalActivities: 0,
     averageScore: 0
   })
+  const {
+    complete: completeParentTour,
+    open: openParentTour,
+    visible: parentTourVisible,
+  } = useGameTour(
+    "parent-dashboard",
+    parentId,
+    !loading && Boolean(parentId),
+  )
+  const replayRequestHandledRef = useRef(false)
+
+  useEffect(() => {
+    if (
+      params.showTour !== "1" ||
+      loading ||
+      !parentId ||
+      replayRequestHandledRef.current
+    ) {
+      return
+    }
+
+    replayRequestHandledRef.current = true
+    openParentTour()
+  }, [loading, openParentTour, params.showTour, parentId])
 
   const fetchChildProfiles = useCallback(async () => {
     try {
@@ -49,11 +86,13 @@ const ParentDashboard = () => {
 
       if (!sessionData.session) {
         console.log("No active session found")
+        setParentId(undefined)
         setLoading(false)
         return
       }
 
       const userId = sessionData.session.user.id
+      setParentId(userId)
 
       // Fetch child profiles from the 'children' table
       const { data, error } = await supabase
@@ -167,6 +206,7 @@ const ParentDashboard = () => {
   }, [])
 
   return (
+    <GameTourProvider>
     <>
       <StatusBar style="dark" />
 
@@ -185,12 +225,16 @@ const ParentDashboard = () => {
             </View>
 
             <View className="flex-row">
+              <TourTarget id="parent-dashboard-settings">
               <TouchableOpacity
                 className="w-10 h-10 rounded-full bg-primary-100 items-center justify-center mr-3"
                 onPress={() => router.push("/parent/settings")}
+                accessibilityRole="button"
+                accessibilityLabel="Open parent settings"
               >
                 <Ionicons name="settings-outline" size={22} color={brandColors.victoriaBlue} />
               </TouchableOpacity>
+              </TourTarget>
 
               <TouchableOpacity
                 className="w-10 h-10 rounded-full bg-accent-100 items-center justify-center"
@@ -219,19 +263,24 @@ const ParentDashboard = () => {
               </View>
             </View>
             {/* Child profiles section */}
+            <TourTarget id="parent-dashboard-profiles">
             <View className="mb-6">
               <View className="flex-row justify-between items-center mb-3">
                 <TranslatedText variant="bold" className="text-neutral-800 text-lg">
                   Child Profiles
                 </TranslatedText>
+                <TourTarget id="parent-dashboard-language">
                 <TouchableOpacity
                   className="bg-primary-100 px-3 py-1 rounded-full"
                   onPress={() => router.push("/parent/settings/child-profiles" as any)}
+                  accessibilityRole="button"
+                  accessibilityLabel="View all child profiles and learning languages"
                 >
                   <TranslatedText variant="medium" className="text-primary-700">
                     View All
                   </TranslatedText>
                 </TouchableOpacity>
+                </TourTarget>
               </View>
 
               {loading ? (
@@ -307,12 +356,17 @@ const ParentDashboard = () => {
                 </ScrollView>
               )}
             </View>
+            </TourTarget>
 
             {/* Recent activities section */}
             <View className="mb-6">
-              <TranslatedText variant="bold" className="text-neutral-800 text-lg mb-3">
-                Recent Activities
-              </TranslatedText>
+              <TourTarget id="parent-dashboard-progress">
+                <View className="mb-3">
+                  <TranslatedText variant="bold" className="text-neutral-800 text-lg">
+                    Recent Activities
+                  </TranslatedText>
+                </View>
+              </TourTarget>
 
               <View className="bg-white rounded-xl p-4 shadow-sm border border-muted-200">
                 {recentActivities.length > 0 ? (
@@ -349,6 +403,8 @@ const ParentDashboard = () => {
                 <TouchableOpacity
                   className="mt-3 border-t border-gray-100 pt-3"
                   onPress={() => router.push("/parent/activities")}
+                  accessibilityRole="button"
+                  accessibilityLabel="View all child learning activities"
                 >
                   <TranslatedText variant="medium" className="text-primary-700 text-center">
                     View All Activities
@@ -427,7 +483,16 @@ const ParentDashboard = () => {
           </ScrollView>
         </View>
       </SafeAreaView>
+      <GameTour
+        androidSpotlightOffsetY={PARENT_DASHBOARD_ANDROID_SPOTLIGHT_OFFSET_Y}
+        visible={parentTourVisible}
+        onCancel={completeParentTour}
+        onComplete={completeParentTour}
+        finishLabel="Explore"
+        steps={PARENT_DASHBOARD_TOUR_STEPS}
+      />
     </>
+    </GameTourProvider>
   )
 }
 

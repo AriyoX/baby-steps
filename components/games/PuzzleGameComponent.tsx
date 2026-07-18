@@ -42,6 +42,13 @@ import {
   type LocalFirstCompletionResult,
   type LocalPersistenceStatus,
 } from "@/lib/completionReliability";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  GameGuideOverlay,
+  GameHeader,
+  GameStatChip,
+  useFirstPlayGuide,
+} from "./GameGuide";
 
 const GRID_SIZE = 3; // Keep the same 3x3 puzzle grid
 const PUZZLE_PADDING = 20;
@@ -240,14 +247,16 @@ export const runPuzzleAnimationCompletion = (
 const PuzzleGame: React.FC = () => {
   const router = useRouter();
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const landscapeWidth = Math.max(windowWidth, windowHeight);
-  const landscapeHeight = Math.min(windowWidth, windowHeight);
+  const landscapeHeight = Math.min(windowWidth, windowHeight) - insets.top - insets.bottom;
   const puzzleContainerSize = Math.max(
-    210,
-    Math.min(320, landscapeHeight - 90, landscapeWidth * 0.43),
+    196,
+    Math.min(300, landscapeHeight - 70, landscapeWidth * 0.42),
   );
   const tileSize = (puzzleContainerSize - PUZZLE_PADDING * 2) / GRID_SIZE;
   const { activeChild } = useChild(); // Get active child from context
+  const puzzleGuide = useFirstPlayGuide("puzzle", activeChild?.id);
   const languageCode = getDbLanguageCodeForLearningLanguage(
     activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE,
   );
@@ -454,6 +463,7 @@ const PuzzleGame: React.FC = () => {
   useEffect(() => {
     if (
       !showPreview ||
+      puzzleGuide.visible ||
       hydratedScope !== contentScope ||
       !puzzleImages[currentPuzzle]
     ) {
@@ -479,7 +489,7 @@ const PuzzleGame: React.FC = () => {
       clearPendingTimers();
       previewAnim.stopAnimation();
     };
-  }, [contentScope, currentPuzzle, hydratedScope, puzzleImages.length, showPreview]);
+  }, [contentScope, currentPuzzle, hydratedScope, puzzleGuide.visible, puzzleImages.length, showPreview]);
 
   useEffect(() => {
     // Reset the game start time whenever a new puzzle starts
@@ -1031,42 +1041,35 @@ const PuzzleGame: React.FC = () => {
   }
 
   return (
-    <View className="flex-1 bg-blue-50">
+    <SafeAreaView className="flex-1 bg-blue-50" edges={["top", "bottom", "left", "right"]}>
       <StatusBar style="dark" />
-      <View className="flex-row items-center justify-between px-5 pt-5 pb-1">
-        <TouchableOpacity
-          className="w-11 h-11 rounded-full bg-white items-center justify-center shadow-md border-2 border-primary-200"
-          onPress={() => {
-            router.back();
-          }}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Back to Games"
-        >
-          <Ionicons name="arrow-back" size={22} color="#7b5af0" />
-        </TouchableOpacity>
+      <GameHeader
+        title={puzzleTitle}
+        subtitle="Slide a tile into the empty space to rebuild the picture"
+        onBack={() => router.back()}
+        backAccessibilityLabel="Back to Games"
+        onHelp={puzzleGuide.open}
+        trailing={
+          <>
+            <GameStatChip icon="footsteps-outline" label={`${moves}`} accessibilityLabel={`${moves} moves`} />
+            {gameStarted && !showPreview ? (
+              <TouchableOpacity
+                className="w-11 h-11 rounded-2xl bg-white items-center justify-center border border-blue-100 ml-2"
+                onPress={handleReset}
+                accessibilityLabel="Reset Puzzle"
+                accessibilityHint="Starts a new shuffled puzzle"
+                accessibilityRole="button"
+                activeOpacity={0.76}
+              >
+                <Ionicons name="refresh" size={19} color="#0274BB" />
+              </TouchableOpacity>
+            ) : null}
+          </>
+        }
+      />
 
-        <View className="flex-1 mx-3 bg-white px-4 py-2 rounded-2xl border-2 border-blue-100 shadow-sm">
-          <Text variant="bold" className="text-primary-700 text-center text-base" numberOfLines={1}>
-            {puzzleTitle}
-          </Text>
-          <Text className="text-primary-500 text-xs text-center" numberOfLines={1}>
-            Slide tiles into the correct picture
-          </Text>
-        </View>
-
-        <View className="bg-white rounded-full px-3 py-1.5 border-2 border-primary-200 shadow-sm min-w-[84px] items-center">
-          <Text className="text-xs text-primary-500" numberOfLines={1}>
-            Moves
-          </Text>
-          <Text variant="bold" className="text-primary-700" numberOfLines={1}>
-            {moves}
-          </Text>
-        </View>
-      </View>
-
-      <View className="flex-1 flex-row px-4 pb-3 pt-1">
-        <View className="justify-center items-center px-2 ml-auto" style={{ flex: 0.9 }}>
+      <View className="flex-1 flex-row px-4 pb-3">
+        <View className="justify-center items-center px-2" style={{ flex: 1.12 }}>
           <View
             className="bg-white rounded-3xl overflow-hidden relative border-4 border-primary-100 shadow-lg"
             style={{
@@ -1123,42 +1126,38 @@ const PuzzleGame: React.FC = () => {
           </View>
         </View>
 
-        <View className="justify-center px-4" style={{ flex: 1.1 }}>
-          <View className="bg-white rounded-3xl border-2 border-blue-100 shadow-sm p-4">
+        <View className="justify-center pl-3 pr-2" style={{ flex: 0.88 }}>
+          <View className="bg-white rounded-3xl border border-blue-100 shadow-sm px-5 py-5">
+            <View className="w-11 h-11 rounded-2xl bg-blue-50 items-center justify-center self-center mb-3">
+              <Ionicons name="images-outline" size={23} color="#0274BB" />
+            </View>
             <Text variant="bold" className="text-xl text-indigo-800 mb-2 text-center" numberOfLines={2}>
               {puzzleImages[currentPuzzle].name}
             </Text>
-            {gameStarted && (
-              <View className="self-center bg-blue-50 rounded-full px-4 py-1.5 border border-blue-100 mb-3">
-                <Text className="text-indigo-500" numberOfLines={1}>
-                  Moves: {moves}
-                </Text>
-              </View>
-            )}
-            <Text className="text-base text-center text-slate-600 mb-4" numberOfLines={4}>
+            <Text className="text-sm text-center text-slate-500" numberOfLines={4}>
               {puzzleImages[currentPuzzle].description}
             </Text>
-
-            {gameStarted && !showPreview && (
-              <TouchableOpacity
-                className="bg-primary-600 py-2.5 px-5 rounded-full shadow-md flex-row items-center justify-center self-center min-w-[156px]"
-                onPress={handleReset} // Use handleReset instead of initializePuzzle directly
-                accessible={true}
-                accessibilityLabel="Reset Puzzle"
-                accessibilityHint="Starts a new shuffled puzzle"
-                accessibilityRole="button"
-                activeOpacity={0.78}
-              >
-                <Ionicons name="refresh" size={18} color="#ffffff" style={{ marginRight: 6 }} />
-                <Text variant="bold" className="text-lg text-white" numberOfLines={1}>
-                  Reset Puzzle
-                </Text>
-              </TouchableOpacity>
-            )}
+            <View className="flex-row items-center justify-center mt-4 bg-blue-50 rounded-xl px-3 py-2.5">
+              <Ionicons name="hand-left-outline" size={18} color="#0274BB" />
+              <Text variant="medium" className="text-xs text-primary-700 ml-2" numberOfLines={2}>
+                Tap or swipe a tile beside the empty space
+              </Text>
+            </View>
           </View>
         </View>
       </View>
-    </View>
+      <GameGuideOverlay
+        visible={puzzleGuide.visible}
+        onDismiss={puzzleGuide.dismiss}
+        title="How to solve the puzzle"
+        description="Rebuild the picture one move at a time."
+        steps={[
+          { icon: "eye-outline", title: "Memorize it", description: "Study the finished picture before the tiles are shuffled." },
+          { icon: "move-outline", title: "Move a tile", description: "Tap or swipe a tile next to the empty space." },
+          { icon: "grid-outline", title: "Rebuild it", description: "Keep sliding tiles until every part of the picture lines up." },
+        ]}
+      />
+    </SafeAreaView>
   );
 };
 

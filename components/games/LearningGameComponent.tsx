@@ -44,6 +44,12 @@ import { useAchievements } from "./achievements/useAchievements"
 import type { AchievementDefinition } from "./achievements/achievementTypes"
 import { playWordAudio, loadGameSounds } from "./utils/audioManager"
 import { audioManager } from "@/lib/audioManager"
+import {
+  GameGuideOverlay,
+  GameHeader,
+  GameStatChip,
+  useFirstPlayGuide,
+} from "./GameGuide"
 
 import {
   loadGameProgress as loadProgress,
@@ -146,6 +152,7 @@ const LugandaLearningGame: React.FC = () => {
   const router = useRouter()
   const { activeChild } = useChild()
   const languageCode = activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE
+  const learningGuide = useFirstPlayGuide("learning-quiz", activeChild?.id)
   const achievementGameKey = languageCode === "lg" ? "luganda_learning_game" : "learning_game"
   const {
     checkAndGrantNewAchievements,
@@ -1577,41 +1584,30 @@ const LugandaLearningGame: React.FC = () => {
       <SafeAreaView className="flex-1 bg-blue-50">
         <StatusBar style="dark" />
 
-        {/* Header */}
-        <View className="flex-row justify-between items-center px-4 pt-5 pb-3">
-          <TouchableOpacity
-            className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
-            onPress={() => {
-              clearGameTimers()
-              answerLockRef.current = false
-              completionLockRef.current = false
-              setGameState("learning")
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Back to word cards"
-          >
-            <Ionicons name="arrow-back" size={20} color="#7b5af0" />
-          </TouchableOpacity>
-
-          <Text variant="bold" className="text-indigo-800 flex-1 text-center px-3" numberOfLines={1}>
-            {selectedLevel?.title} Quiz
-          </Text>
-
-          <View className="flex-row items-center bg-white px-3 py-1.5 rounded-full shadow-sm border border-amber-200">
-            <Image
-              source={require("../../assets/images/coin.png")}
-              style={{ width: 20, height: 20, marginRight: 4 }}
-              resizeMode="contain"
+        <GameHeader
+          title={`${selectedLevel?.title} Quiz`}
+          subtitle={`Choose the English meaning • Question ${currentWordIndex + 1} of ${currentWords.length}`}
+          onBack={() => {
+            clearGameTimers()
+            answerLockRef.current = false
+            completionLockRef.current = false
+            setGameState("learning")
+          }}
+          backAccessibilityLabel="Back to word cards"
+          onHelp={learningGuide.open}
+          trailing={
+            <GameStatChip
+              icon="star"
+              label={`${levelScore}`}
+              tint="#D99D19"
+              accessibilityLabel={`${levelScore} points`}
             />
-            <Text variant="bold" className=" text-amber-500">
-              {levelScore}
-            </Text>
-          </View>
-        </View>
+          }
+        />
 
         {/* Progress bar */}
-        <View className="px-4 mb-2">
-          <View className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
+        <View className="px-4 pb-1">
+          <View className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
             <Animated.View
               className="h-full bg-indigo-500"
               style={{
@@ -1622,31 +1618,28 @@ const LugandaLearningGame: React.FC = () => {
               }}
             />
           </View>
-          <View className="flex-row justify-between mt-1">
-            <Text className="text-xs text-slate-500">
-              Question {currentWordIndex + 1} of {currentWords.length}
-            </Text>
-            <Text className="text-xs text-slate-500">
-              {Math.round((currentWordIndex / currentWords.length) * 100)}% Complete
-            </Text>
-          </View>
         </View>
 
         <Animated.View className="flex-1" style={{ opacity: fadeAnim }}>
           {layout === "landscape" ? (
             // Landscape layout
-            <View className="flex-1 flex-row px-3">
-              <View className="w-1/2 p-2 justify-center">
-                <View className="bg-white p-5 rounded-2xl shadow-sm border border-blue-100">
-                  <Text className="text-lg text-slate-600 mb-4 text-center" numberOfLines={2}>
+            <View className="flex-1 flex-row px-4 pb-3">
+              <View className="w-[44%] pr-2 justify-center">
+                <View className="bg-white p-4 rounded-3xl shadow-sm border border-blue-100 min-h-[184px] justify-center">
+                  <View className="self-center bg-blue-50 rounded-full px-3 py-1 mb-3">
+                    <Text variant="medium" className="text-xs text-primary-600" numberOfLines={1}>
+                      Translate this phrase
+                    </Text>
+                  </View>
+                  <Text className="text-sm text-slate-500 mb-2 text-center" numberOfLines={2}>
                     What is the English translation of:
                   </Text>
 
-                  <View className="items-center mb-3">
+                  <View className="items-center">
                     <View className="flex-row items-center">
                       <Text
                         variant="bold"
-                        className="text-3xl text-indigo-700 text-center pt-3 flex-1"
+                        className="text-3xl text-indigo-700 text-center flex-1"
                         numberOfLines={2}
                         adjustsFontSizeToFit
                         minimumFontScale={0.78}
@@ -1654,7 +1647,7 @@ const LugandaLearningGame: React.FC = () => {
                         {currentWord.targetText}
                       </Text>
                       <TouchableOpacity
-                        className="ml-3 w-10 h-10 bg-indigo-100 rounded-full items-center justify-center"
+                        className="ml-3 w-11 h-11 bg-indigo-100 rounded-2xl items-center justify-center"
                         onPress={() => {
                           void playWordSound().catch((error) => {
                             console.warn("Could not play legacy Learning word sound:", error)
@@ -1670,8 +1663,8 @@ const LugandaLearningGame: React.FC = () => {
 
                   {/* Feedback */}
                   {isCorrect !== null && (
-                    <View className={`items-center my-2 rounded-full px-4 py-2 ${isCorrect ? "bg-emerald-50" : "bg-red-50"}`}>
-                      <Text className={`text-lg ${isCorrect ? "text-emerald-600" : "text-red-600"}`} variant="bold">
+                    <View className={`items-center mt-3 rounded-full px-4 py-1.5 ${isCorrect ? "bg-emerald-50" : "bg-red-50"}`}>
+                      <Text className={`text-sm ${isCorrect ? "text-emerald-600" : "text-red-600"}`} variant="bold">
                         {isCorrect ? "Correct!" : "Try again!"}
                       </Text>
                       <Text className="hidden" variant="bold">
@@ -1682,8 +1675,8 @@ const LugandaLearningGame: React.FC = () => {
                 </View>
               </View>
 
-              <View className="w-1/2 p-2 justify-center">
-                <View className="space-y-3">
+              <View className="w-[56%] pl-2 justify-center">
+                <View>
                   {options.map((option, index) => (
                     <Animated.View
                       key={index}
@@ -1691,7 +1684,7 @@ const LugandaLearningGame: React.FC = () => {
                     >
                       <TouchableOpacity
                         className={`
-                          min-h-[54px] py-3 px-5 rounded-xl shadow-sm border-2 items-center justify-center mb-2
+                          min-h-[50px] py-2.5 px-5 rounded-2xl shadow-sm border-2 items-center justify-center mb-2
                           ${
                             selectedOption === null
                               ? "bg-white border-slate-200"
@@ -1852,6 +1845,17 @@ const LugandaLearningGame: React.FC = () => {
             </View>
           )}
         </Animated.View>
+        <GameGuideOverlay
+          visible={learningGuide.visible}
+          onDismiss={learningGuide.dismiss}
+          title="How to play the quiz"
+          description="Listen, think, and choose the best English meaning."
+          steps={[
+            { icon: "volume-high-outline", title: "Read or listen", description: "Read the phrase, or tap the speaker to hear it aloud." },
+            { icon: "list-outline", title: "Choose an answer", description: "Tap the English translation that matches the phrase." },
+            { icon: "star-outline", title: "Build your score", description: "Correct answers add points and move you to the next question." },
+          ]}
+        />
       </SafeAreaView>
     )
   }

@@ -91,18 +91,18 @@ export default function NotificationSettingsScreen() {
     }
   }
 
-  const sendTest = async () => {
-    setSendingTest(true)
-    try {
-      await sendTestLearningReminder()
-      Alert.alert("Test on the way", "A Baby Steps reminder will appear in about three seconds.")
-    } catch (error) {
-      console.error("Could not send test reminder:", error)
-      Alert.alert("Could not send a test", "Check that notifications are allowed, then try again.")
-    } finally {
-      setSendingTest(false)
-    }
-  }
+  // const sendTest = async () => {
+  //   setSendingTest(true)
+  //   try {
+  //     await sendTestLearningReminder()
+  //     Alert.alert("Test on the way", "A Baby Steps reminder will appear in about three seconds.")
+  //   } catch (error) {
+  //     console.error("Could not send test reminder:", error)
+  //     Alert.alert("Could not send a test", "Check that notifications are allowed, then try again.")
+  //   } finally {
+  //     setSendingTest(false)
+  //   }
+  // }
 
   const permissionLabel =
     permission === "granted"
@@ -200,7 +200,7 @@ export default function NotificationSettingsScreen() {
           </Text>
         </TouchableOpacity>
       ) : null} */}
-      
+
     </SettingsScaffold>
   )
 }

@@ -36,7 +36,7 @@ import {
 import { useAchievements } from "./achievements/useAchievements";
 import { audioManager } from "@/lib/audioManager";
 import { useChildNotice } from "@/context/ChildNoticeContext";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   completeLocallyFirst,
   runCompletionOnce,
@@ -44,6 +44,12 @@ import {
   type LocalPersistenceStatus,
 } from "@/lib/completionReliability";
 import { getCardsMatchingGridSizing } from "./responsiveSizing";
+import {
+  GameGuideOverlay,
+  GameHeader,
+  GameStatChip,
+  useFirstPlayGuide,
+} from "./GameGuide";
 
 // Define card interface
 interface Card {
@@ -273,7 +279,7 @@ const CardsMatchingGame: React.FC = () => {
   const contentScope = `${activeChild?.id ?? "guest"}:${languageCode}`;
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const compactHeader = windowWidth < 720;
+  const matchingGuide = useFirstPlayGuide("cards-matching", activeChild?.id);
   const { checkAndGrantNewAchievements } = useAchievements(
     activeChild?.id,
     "card_matching_game",
@@ -1001,86 +1007,39 @@ const CardsMatchingGame: React.FC = () => {
   };
 
   return (
-    <View
-      className="flex-1 flex-col bg-blue-50"
-      style={{ paddingLeft: insets.left, paddingRight: insets.right }}
-    >
+    <SafeAreaView className="flex-1 flex-col bg-blue-50" edges={["top", "bottom", "left", "right"]}>
       <StatusBar style="dark" />
-      {/* Top navigation bar with all elements aligned horizontally */}
-      <View className="flex-row justify-between items-center px-4 pt-5 pb-1">
-        {/* Back button */}
-        <TouchableOpacity
-          className="w-11 h-11 rounded-full bg-white items-center justify-center shadow-md border-2 border-primary-200"
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Back to Games"
-        >
-          <Ionicons name="arrow-back" size={20} color="#7b5af0" />
-        </TouchableOpacity>
-
-        {/* Game title in the middle */}
-        <View className="flex-1 mx-3 bg-white px-4 py-2 rounded-2xl shadow-md border-2 border-blue-100">
-          <Text
-            className=" text-primary-700 text-center"
-            variant="bold"
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.84}
-          >
-            {gameTitle}
-          </Text>
-        </View>
-
-        {/* Right side container for stats, reset and new game buttons */}
-        <View className="flex-row items-center space-x-2">
-          {/* Moves counter */}
-          <View
-            className="bg-white py-1.5 rounded-xl shadow-md border-2 border-primary-200"
-            style={{ minWidth: compactHeader ? 58 : 74, paddingHorizontal: compactHeader ? 6 : 10 }}
-          >
-            <View className="flex-row items-center">
-              <Ionicons name="swap-horizontal" size={13} color="#7b5af0" />
-              <Text className="text-sm text-primary-700 ml-1" numberOfLines={1}>{moves}</Text>
-            </View>
-          </View>
-
-          {/* Matches counter */}
-          <View
-            className="bg-white py-1.5 rounded-xl shadow-md border-2 border-primary-200"
-            style={{ minWidth: compactHeader ? 64 : 82, paddingHorizontal: compactHeader ? 6 : 10 }}
-          >
-            <View className="flex-row items-center">
-              <Ionicons name="checkmark-circle" size={13} color="#22c55e" />
-              <Text className="text-sm text-primary-700 ml-1" numberOfLines={1}>
-                {matchedCount}/{PAIRS_PER_GAME}
-              </Text>
-            </View>
-          </View>
-
-          {/* Reset button */}
-          <TouchableOpacity
-            className="bg-white w-11 h-11 rounded-full shadow-md border-2 border-primary-200 items-center justify-center"
-            onPress={resetGame}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Reset matching game"
-          >
-            <Ionicons name="refresh" size={18} color="#7b5af0" />
-          </TouchableOpacity>
-
-          {/* New Game button */}
-          <TouchableOpacity
-            className="bg-white w-11 h-11 rounded-full shadow-md border-2 border-secondary-200 items-center justify-center"
-            onPress={() => initGame()}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Start a new matching game"
-          >
-            <Ionicons name="add-circle" size={19} color="#7b5af0" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <GameHeader
+        title={gameTitle}
+        subtitle="Turn over two cards and find every matching pair"
+        onBack={() => router.back()}
+        backAccessibilityLabel="Back to Games"
+        onHelp={matchingGuide.open}
+        trailing={
+          <>
+            <GameStatChip
+              icon="swap-horizontal"
+              label={`${moves}`}
+              accessibilityLabel={`${moves} moves`}
+            />
+            <GameStatChip
+              icon="checkmark-circle"
+              label={`${matchedCount}/${PAIRS_PER_GAME}`}
+              tint="#22c55e"
+              accessibilityLabel={`${matchedCount} of ${PAIRS_PER_GAME} pairs matched`}
+            />
+            <TouchableOpacity
+              className="bg-white w-11 h-11 rounded-2xl border border-blue-100 items-center justify-center ml-2"
+              onPress={resetGame}
+              activeOpacity={0.76}
+              accessibilityRole="button"
+              accessibilityLabel="Reset matching game"
+            >
+              <Ionicons name="refresh" size={19} color="#0274BB" />
+            </TouchableOpacity>
+          </>
+        }
+      />
 
       {/* Game board with improved visuals - reduced padding */}
       <Animated.View
@@ -1265,7 +1224,18 @@ const CardsMatchingGame: React.FC = () => {
           </View>
         </View>
       )}
-    </View>
+      <GameGuideOverlay
+        visible={matchingGuide.visible}
+        onDismiss={matchingGuide.dismiss}
+        title="How to match the cards"
+        description="Find all eight pairs in as few turns as you can."
+        steps={[
+          { icon: "hand-left-outline", title: "Flip a card", description: "Tap any hidden card to reveal what is underneath." },
+          { icon: "copy-outline", title: "Find its twin", description: "Turn over one more card with the same picture and word." },
+          { icon: "checkmark-circle-outline", title: "Clear the board", description: "Matched pairs stay open. Keep going until all eight are found." },
+        ]}
+      />
+    </SafeAreaView>
   );
 };
 

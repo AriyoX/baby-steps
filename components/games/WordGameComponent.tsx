@@ -1,8 +1,7 @@
-import React, { useCallback, useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   TouchableOpacity,
-  Image,
   Animated,
   Modal,
   type ModalProps,
@@ -45,8 +44,14 @@ import { useAchievements } from "./achievements/useAchievements";
 import type { AchievementDefinition } from "./achievements/achievementTypes";
 import { audioManager } from "@/lib/audioManager";
 import { useChildNotice } from "@/context/ChildNoticeContext";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { getWordGameSizing } from "./responsiveSizing";
+import {
+  GameGuideOverlay,
+  GameHeader,
+  GameStatChip,
+  useFirstPlayGuide,
+} from "./GameGuide";
 
 const WORD_GAME_MODAL_ORIENTATIONS: ModalProps["supportedOrientations"] = [
   "landscape-left",
@@ -100,20 +105,20 @@ const WordGame: React.FC = () => {
   // Add child context
   const { activeChild } = useChild();
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
   const wordGameSizing = getWordGameSizing(windowWidth, windowHeight);
   const isCompactLandscape = windowHeight < 400;
   const sideVisualSize = Math.min(
-    isCompactLandscape ? 92 : 112,
-    Math.max(84, windowWidth * 0.14),
+    isCompactLandscape ? 104 : 128,
+    Math.max(92, windowWidth * 0.15),
   );
-  const hintButtonSize = isCompactLandscape ? 56 : 64;
+  const hintButtonSize = isCompactLandscape ? 52 : 58;
   const previewImageSize = Math.max(
     176,
     Math.min(windowHeight * 0.6, windowWidth * 0.48, 360),
   );
   const languageCode =
     activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE;
+  const wordGuide = useFirstPlayGuide("word", activeChild?.id);
   const { checkAndGrantNewAchievements } =
     useAchievements(activeChild?.id, "word_game"); // Game key
   const { enqueueAchievementUnlocked } = useChildNotice();
@@ -144,7 +149,6 @@ const WordGame: React.FC = () => {
   const [showLevelIntroModal, setShowLevelIntroModal] =
     useState<boolean>(false);
   const [showHintModal, setShowHintModal] = useState<boolean>(false);
-  const [showHintNudge, setShowHintNudge] = useState<boolean>(false);
   const [showImagePreview, setShowImagePreview] = useState<boolean>(false);
   const [showSubHint, setShowSubHint] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -166,9 +170,6 @@ const WordGame: React.FC = () => {
     null,
   );
   const bounceResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-  const hintNudgeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
 
@@ -198,10 +199,6 @@ const WordGame: React.FC = () => {
         clearTimeout(bounceResetTimeoutRef.current);
         bounceResetTimeoutRef.current = null;
       }
-      if (hintNudgeTimeoutRef.current) {
-        clearTimeout(hintNudgeTimeoutRef.current);
-        hintNudgeTimeoutRef.current = null;
-      }
     };
   }, []);
 
@@ -222,62 +219,6 @@ const WordGame: React.FC = () => {
   const containerRef = useRef<View | null>(null);
 
   const router = useRouter();
-
-  const dismissHintNudge = useCallback(() => {
-    if (hintNudgeTimeoutRef.current) {
-      clearTimeout(hintNudgeTimeoutRef.current);
-      hintNudgeTimeoutRef.current = null;
-    }
-    setShowHintNudge(false);
-  }, []);
-
-  const restartHintNudgeTimer = useCallback(() => {
-    if (hintNudgeTimeoutRef.current) {
-      clearTimeout(hintNudgeTimeoutRef.current);
-    }
-    setShowHintNudge(false);
-    hintNudgeTimeoutRef.current = setTimeout(() => {
-      hintNudgeTimeoutRef.current = null;
-      setShowHintNudge(true);
-    }, 5000);
-  }, []);
-
-  useEffect(() => {
-    const hasBlockingOverlay =
-      showHintModal ||
-      showImagePreview ||
-      showSuccessModal ||
-      showLevelIntroModal ||
-      showLevelSelect ||
-      isGameCompleted;
-
-    if (isLoading || gameLevels.length === 0 || hasBlockingOverlay) {
-      dismissHintNudge();
-      return;
-    }
-
-    restartHintNudgeTimer();
-
-    return () => {
-      if (hintNudgeTimeoutRef.current) {
-        clearTimeout(hintNudgeTimeoutRef.current);
-        hintNudgeTimeoutRef.current = null;
-      }
-    };
-  }, [
-    currentLevelIndex,
-    currentQuestion,
-    dismissHintNudge,
-    gameLevels.length,
-    isGameCompleted,
-    isLoading,
-    restartHintNudgeTimer,
-    showHintModal,
-    showImagePreview,
-    showLevelIntroModal,
-    showLevelSelect,
-    showSuccessModal,
-  ]);
 
   // Function to generate random letters for choices
   const generateLetterChoices = (word: string): string[] => {
@@ -353,16 +294,8 @@ const WordGame: React.FC = () => {
     letterRefs.current = {};
     wordSlotRefs.current = {};
 
-    if (levelIntroTimeoutRef.current) {
-      clearTimeout(levelIntroTimeoutRef.current);
-    }
-
-    levelIntroTimeoutRef.current = setTimeout(() => {
-      levelIntroTimeoutRef.current = null;
-      if (isMountedRef.current) {
-        setShowLevelIntroModal(true);
-      }
-    }, 250);
+    // The shared first-play guide now introduces the mechanic. Levels begin
+    // immediately so returning players are not stopped by a repetitive dialog.
   };
 
   // Function to handle level selection from the level select modal
@@ -756,7 +689,6 @@ const WordGame: React.FC = () => {
         setShowLevelIntroModal(false);
         setShowHintModal(false);
         setShowImagePreview(false);
-        setShowHintNudge(false);
         setShowSubHint(false);
         setSelectedLetters([]);
 
@@ -1063,63 +995,37 @@ const WordGame: React.FC = () => {
   const currentLevel = gameLevels[currentLevelIndex] ?? gameLevels[0];
 
   return (
-    <View
+    <SafeAreaView
       ref={containerRef}
       className="flex-1 bg-blue-50"
-      style={{ paddingLeft: insets.left, paddingRight: insets.right }}
-      onTouchStart={restartHintNudgeTimer}
+      edges={["top", "bottom", "left", "right"]}
     >
-      <StatusBar style="dark" translucent backgroundColor="transparent" />
-      {/* Top navigation bar with all elements aligned horizontally */}
-      <View className="flex-row justify-between items-center px-5 pt-6 pb-1">
-        {/* Back button */}
-        <TouchableOpacity
-          className="w-12 h-12 rounded-full bg-white items-center justify-center shadow-md border-2 border-primary-200"
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Back to Games"
-        >
-          <Ionicons name="arrow-back" size={22} color="#7b5af0" />
-        </TouchableOpacity>
-
-        {/* Question text in the middle */}
-        <View className="flex-1 mx-3 bg-white px-4 py-2 rounded-2xl shadow-md border-2 border-blue-100">
-          <Text
-            variant="medium"
-            className="text-primary-700 text-center"
-            style={{
-              fontSize: wordGameSizing.titleFontSize,
-              lineHeight: wordGameSizing.titleLineHeight,
-            }}
-            numberOfLines={2}
-          >
-            {currentQuestion}
-          </Text>
-        </View>
-
-        {/* Level navigation controls */}
-        <View className="flex-row items-center">
-          {/* Level selector button */}
+      <StatusBar style="dark" />
+      <GameHeader
+        title={currentQuestion}
+        subtitle="Tap the letters in order to complete the word"
+        onBack={() => router.back()}
+        backAccessibilityLabel="Back to Games"
+        onHelp={wordGuide.open}
+        trailing={
+          <>
           <TouchableOpacity
-            className="w-11 h-11 rounded-full bg-white items-center justify-center shadow-md border-2 border-accent-200 mr-2"
+            className="w-11 h-11 rounded-2xl bg-white items-center justify-center border border-blue-100 ml-2"
             onPress={() => setShowLevelSelect(true)}
-            activeOpacity={0.7}
+            activeOpacity={0.76}
             accessibilityRole="button"
             accessibilityLabel="Choose word game level"
           >
-            <Ionicons name="list" size={22} color="#7b5af0" />
+            <Ionicons name="list" size={21} color="#0274BB" />
           </TouchableOpacity>
-
-          {/* Level indicator */}
-          <View className="flex-row items-center bg-white px-3 py-1.5 rounded-full shadow-md border-2 border-primary-200">
-            <Text variant="bold" className="text-primary-700">
-              {Math.min(currentLevelIndex + 1, gameLevels.length)}/
-              {gameLevels.length}
-            </Text>
-          </View>
-        </View>
-      </View>
+            <GameStatChip
+              icon="flag-outline"
+              label={`${Math.min(currentLevelIndex + 1, gameLevels.length)}/${gameLevels.length}`}
+              accessibilityLabel={`Level ${Math.min(currentLevelIndex + 1, gameLevels.length)} of ${gameLevels.length}`}
+            />
+          </>
+        }
+      />
 
       {/* Main content area */}
       <View className="flex-1 flex-row justify-between items-center px-4 pb-3 pt-1">
@@ -1257,67 +1163,16 @@ const WordGame: React.FC = () => {
         </View>
 
         {/* Right hint button */}
-        <View
-          className="w-[14%] items-center justify-center"
-          style={{ zIndex: showHintNudge ? 20 : 1 }}
-        >
-          {showHintNudge && (
-            <View
-              className="absolute bg-primary-700 rounded-2xl px-3 py-2.5 shadow-xl border-2 border-white"
-              style={{
-                right: hintButtonSize + 10,
-                width: isCompactLandscape ? 154 : 174,
-              }}
-              pointerEvents="none"
-              accessibilityRole="alert"
-            >
-              <Text variant="bold" className="text-white text-sm text-center">
-                Need a little help?
-              </Text>
-              <Text
-                variant="medium"
-                className="text-primary-50 text-xs text-center mt-0.5"
-              >
-                Tap the hint button.
-              </Text>
-              <View
-                className="absolute"
-                style={{
-                  right: -11,
-                  top: "50%",
-                  marginTop: -9,
-                  width: 0,
-                  height: 0,
-                  borderTopWidth: 9,
-                  borderBottomWidth: 9,
-                  borderLeftWidth: 12,
-                  borderTopColor: "transparent",
-                  borderBottomColor: "transparent",
-                  borderLeftColor: brandColors.blue[700],
-                }}
-              />
-            </View>
-          )}
+        <View className="w-[14%] items-center justify-center">
           <TouchableOpacity
-            className="bg-white rounded-full justify-center items-center shadow-lg border-4 border-accent-200"
+            className="bg-amber-50 rounded-2xl justify-center items-center shadow-md border-2 border-amber-200"
             style={{ width: hintButtonSize, height: hintButtonSize }}
-            onPress={() => {
-              dismissHintNudge();
-              setShowHintModal(true);
-            }}
+            onPress={() => setShowHintModal(true)}
             activeOpacity={0.8}
             accessibilityRole="button"
             accessibilityLabel="Show hint"
           >
-            <Image
-              source={require("@/assets/images/info.png")}
-              style={{
-                width: hintButtonSize - 14,
-                height: hintButtonSize - 14,
-                borderRadius: (hintButtonSize - 14) / 2,
-              }}
-              resizeMode="cover"
-            />
+            <Ionicons name="bulb" size={Math.round(hintButtonSize * 0.45)} color="#D99D19" />
           </TouchableOpacity>
         </View>
       </View>
@@ -1856,7 +1711,18 @@ const WordGame: React.FC = () => {
           </View>
         </View>
       </Modal>
-    </View>
+      <GameGuideOverlay
+        visible={wordGuide.visible}
+        onDismiss={wordGuide.dismiss}
+        title="How to build the word"
+        description="Use the picture and question to spell the answer."
+        steps={[
+          { icon: "image-outline", title: "Look at the clue", description: "Use the question and picture to work out the missing word." },
+          { icon: "text-outline", title: "Choose letters", description: "Tap letters in the right order to fill each blank." },
+          { icon: "bulb-outline", title: "Ask for a hint", description: "The gold bulb gives you a clue whenever you feel stuck." },
+        ]}
+      />
+    </SafeAreaView>
   );
 };
 

@@ -16,9 +16,11 @@ import { ComingSoonState } from "@/components/child/ComingSoonState";
 import { ChildCompletionCard } from "@/components/child/ChildCompletionCard";
 import { CachedImage } from "@/components/common/CachedImage";
 import {
-  GameGuideOverlay,
-  useFirstPlayGuide,
-} from "@/components/games/GameGuide";
+  GameTour,
+  GameTourProvider,
+  TourTarget,
+  useGameTour,
+} from "@/components/games/GameTour";
 import { useAudio } from "@/context/AudioContext";
 import { useChild } from "@/context/ChildContext";
 import { resolveImageSource } from "@/content/contentRepository";
@@ -151,7 +153,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
   const { activeChild } = useChild();
   const { settings: audioSettings } = useAudio();
   const { width, height } = useWindowDimensions();
-  const storyGuide = useFirstPlayGuide("stories", activeChild?.id);
+  const storyTour = useGameTour("stories", activeChild?.id);
   const [pageIndex, setPageIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, number>>({});
   const [hasSavedCompletion, setHasSavedCompletion] = useState(false);
@@ -712,6 +714,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
   }
 
   return (
+    <GameTourProvider>
     <SafeAreaView className="flex-1 bg-amber-50">
       <View
         className="flex-1"
@@ -775,7 +778,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                 width: headerButtonSize,
                 height: headerButtonSize,
               }}
-              onPress={storyGuide.open}
+              onPress={storyTour.open}
               accessibilityLabel="Show story guide"
               accessibilityRole="button"
             >
@@ -835,6 +838,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
               className="flex-row items-center justify-between"
               style={{ marginBottom: isCompactReader ? 8 : 12 }}
             >
+              <TourTarget id="story-audio">
               <TouchableOpacity
                 className={`rounded-full shadow-sm flex-row items-center ${
                   isReading ? "bg-red-600" : "bg-emerald-700"
@@ -860,6 +864,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                   {isReading ? "Stop" : "Read"}
                 </Text>
               </TouchableOpacity>
+              </TourTarget>
 
               <View
                 className="bg-white rounded-full shadow-sm flex-row items-center border border-amber-200"
@@ -875,6 +880,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
               </View>
             </View>
 
+            <TourTarget id="story-content">
             <View
               className="bg-white rounded-3xl shadow-md border border-amber-200 overflow-hidden"
               style={{
@@ -992,7 +998,9 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                 ) : null}
               </ScrollView>
             </View>
+            </TourTarget>
 
+            <TourTarget id="story-navigation">
             <View
               className="flex-row justify-between items-center"
               style={{ marginBottom: isCompactReader ? 0 : 12 }}
@@ -1079,6 +1087,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                 <Ionicons name="chevron-forward" size={footerIconSize} color="#fff" />
               </TouchableOpacity>
             </View>
+            </TourTarget>
 
             {!isCompactReader ? (
               <View className="flex-row justify-center">
@@ -1098,29 +1107,36 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
         </View>
         </View>
       </View>
-      <GameGuideOverlay
-        visible={storyGuide.visible}
-        onDismiss={storyGuide.dismiss}
-        title="How to read a story"
-        description="Move through each page at your own pace."
+      <GameTour
+        visible={storyTour.visible}
+        onCancel={storyTour.close}
+        onComplete={storyTour.complete}
         accentColor="#8B4513"
-        actionLabel="Start reading"
-        actionAccessibilityLabel="Close guide and start reading"
+        finishLabel="Start reading"
         steps={[
           {
+            id: "content",
+            targetId: "story-content",
             icon: "volume-high-outline",
-            title: "Listen or read",
-            description: "Tap Read to hear the page aloud. Tap it again whenever you want to stop.",
+            placement: "auto",
+            title: "Read the story",
+            description: "Read the words on this page.",
           },
           {
+            id: "audio",
+            targetId: "story-audio",
+            icon: "volume-high-outline",
+            placement: "bottom",
+            title: "Listen",
+            description: "Tap Read to hear the page.",
+          },
+          {
+            id: "navigation",
+            targetId: "story-navigation",
             icon: "arrow-forward-circle-outline",
-            title: "Move through pages",
-            description: "Use Next or the arrow buttons when you are ready for another page.",
-          },
-          {
-            icon: "checkmark-circle-outline",
-            title: "Finish the story",
-            description: "Answer any final questions, then tap Finish to complete your story.",
+            placement: "top",
+            title: "Turn the page",
+            description: "Tap Next when you are ready.",
           },
         ]}
       />
@@ -1200,5 +1216,6 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
+    </GameTourProvider>
   );
 }

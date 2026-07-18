@@ -30,6 +30,12 @@ import {
 import { preloadContentBundleImages } from "@/content/imagePreloader"
 import { BrandMark } from "@/components/brand/BrandMark"
 import { ChildLoadingCard } from "@/components/child/ChildLoadingState"
+import {
+  GameTour,
+  GameTourProvider,
+  TourTarget,
+  useGameTour,
+} from "@/components/games/GameTour"
 import { brandColors } from "@/constants/Brand"
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation"
 import { audioManager } from "@/lib/audioManager"
@@ -251,6 +257,11 @@ const AfricanThemeGameInterface: React.FC = () => {
   const tabId = pathSegments.length <= 1 ? "index" : pathSegments[pathSegments.length - 1]
   const isLearningTab = tabId === "learning"
   const isColoringTab = tabId === "coloring"
+  const learningHubTour = useGameTour(
+    "learning-hub-home",
+    activeChild?.id,
+    isLearningTab,
+  )
   const learningLanguageCode =
     contentBundle?.learningHub?.languageCode ??
     activeChild?.selected_language_code ??
@@ -369,6 +380,7 @@ const AfricanThemeGameInterface: React.FC = () => {
     )?.name ?? "Learning language"
 
   return (
+    <GameTourProvider>
     <>
       {/* Make StatusBar transparent to show background behind it */}
       <StatusBar style="light" translucent backgroundColor="transparent" />
@@ -405,9 +417,13 @@ const AfricanThemeGameInterface: React.FC = () => {
                 <Text className="text-white/80 text-sm" numberOfLines={1}>
                   {activeChild ? `Age ${activeChild.age}` : "Age 9+"}
                 </Text>
-                <Text className="text-white/80 text-sm" numberOfLines={1}>
-                  Learning {learningLanguageName}
-                </Text>
+                <TourTarget id="learning-hub-language">
+                  <View style={{ alignSelf: "flex-start" }}>
+                    <Text className="text-white/80 text-sm" numberOfLines={1}>
+                      Learning {learningLanguageName}
+                    </Text>
+                  </View>
+                </TourTarget>
               </View>
             </View>
 
@@ -422,6 +438,20 @@ const AfricanThemeGameInterface: React.FC = () => {
                 </View>
 
                 <View className="flex-row items-center">
+                  {isLearningTab ? (
+                    <TouchableOpacity
+                      className="bg-white rounded-full w-11 h-11 items-center justify-center border-2 border-accent-500 mr-2"
+                      onPress={learningHubTour.open}
+                      accessibilityRole="button"
+                      accessibilityLabel="Show Learning Hub guide"
+                    >
+                      <Ionicons
+                        name="help-circle-outline"
+                        size={23}
+                        color={brandColors.victoriaBlue}
+                      />
+                    </TouchableOpacity>
+                  ) : null}
                   <TouchableOpacity
                     className="bg-white rounded-full w-11 h-11 items-center justify-center border-2 border-accent-500 mr-2"
                     onPress={toggleBackgroundMusicMuted}
@@ -540,9 +570,16 @@ const AfricanThemeGameInterface: React.FC = () => {
                 )}
 
                 {/* Learning cards */}
-                {learningCards.map((card) => (
-                  <TouchableOpacity
+                {learningCards.map((card, index) => (
+                  <TourTarget
                     key={card.id}
+                    id={
+                      isLearningTab && index === 0
+                        ? "learning-hub-stages"
+                        : `child-menu-card-${contentSlug}-${card.id}`
+                    }
+                  >
+                  <TouchableOpacity
                     accessibilityLabel={`${card.title}. ${card.status?.label ?? "Open"}. ${card.description}${card.progressLabel ? `. ${card.progressLabel}` : ""}`}
                     accessibilityRole="button"
                     accessibilityState={{ disabled: card.disabled }}
@@ -598,6 +635,7 @@ const AfricanThemeGameInterface: React.FC = () => {
                       </TranslatedText>
                     </View>
                   </TouchableOpacity>
+                  </TourTarget>
                 ))}
                 {isContentLoading && (
                   <ChildLoadingCard
@@ -650,7 +688,32 @@ const AfricanThemeGameInterface: React.FC = () => {
           </View>
         </SafeAreaView>
       </ImageBackground>
+      <GameTour
+        visible={learningHubTour.visible}
+        onCancel={learningHubTour.close}
+        onComplete={learningHubTour.complete}
+        finishLabel="Start learning"
+        steps={[
+          {
+            id: "language",
+            targetId: "learning-hub-language",
+            icon: "language-outline",
+            placement: "right",
+            title: "Your language",
+            description: `These lessons are in ${learningLanguageName}.`,
+          },
+          {
+            id: "stages",
+            targetId: "learning-hub-stages",
+            icon: "map-outline",
+            placement: "top",
+            title: "Choose a stage",
+            description: "Swipe, then tap a stage.",
+          },
+        ]}
+      />
     </>
+    </GameTourProvider>
   )
 }
 

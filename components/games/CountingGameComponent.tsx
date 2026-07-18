@@ -54,11 +54,13 @@ import { audioManager } from "@/lib/audioManager"
 import { useChildNotice } from "@/context/ChildNoticeContext"
 import { playWordAudio } from "./utils/audioManager"
 import {
-  GameGuideOverlay,
   GameHeader,
   GameStatChip,
-  useFirstPlayGuide,
-} from "./GameGuide"
+  GameTour,
+  GameTourProvider,
+  TourTarget,
+  useGameTour,
+} from "./GameTour"
 
 const GAME_SCREEN_OVERLAY = "rgba(2, 116, 187, 0.88)"
 
@@ -117,7 +119,7 @@ const LugandaCountingGame: React.FC = () => {
   const router = useRouter()
   const { activeChild } = useChild()
   const languageCode = activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE
-  const countingGuide = useFirstPlayGuide("counting", activeChild?.id)
+  const countingTour = useGameTour("counting", activeChild?.id)
   const { width: windowWidth, height: windowHeight } = useWindowDimensions()
   const insets = useSafeAreaInsets()
   const landscapeWidth = Math.max(windowWidth, windowHeight)
@@ -1396,7 +1398,8 @@ const LugandaCountingGame: React.FC = () => {
 
   // Render the game screen
   return (
-    <View className="flex-1 bg-blue-50">
+    <GameTourProvider>
+      <View className="flex-1 bg-blue-50">
       <SafeAreaView className="flex-1">
       <StatusBar style={stageCompleted ? "light" : "dark"} />
 
@@ -1405,7 +1408,7 @@ const LugandaCountingGame: React.FC = () => {
         subtitle={`Stage ${currentStage} • Level ${currentLevel} of ${activeStage.levels}`}
         onBack={() => setGameState("stageSelect")}
         backAccessibilityLabel="Back to counting stages"
-        onHelp={countingGuide.open}
+        onHelp={countingTour.open}
         trailing={
           <>
             <GameStatChip
@@ -1413,7 +1416,13 @@ const LugandaCountingGame: React.FC = () => {
               label={`${currentLevel}/${activeStage.levels}`}
               accessibilityLabel={`Level ${currentLevel} of ${activeStage.levels}`}
             />
-            <GameStatChip icon="star" label={`${score}`} tint="#D99D19" accessibilityLabel={`${score} points`} />
+            <GameStatChip
+              icon="star"
+              label={`${score}`}
+              tint="#D99D19"
+              accessibilityLabel={`${score} points`}
+              tourTargetId="counting-score"
+            />
           </>
         }
       />
@@ -1443,6 +1452,7 @@ const LugandaCountingGame: React.FC = () => {
           </View>
 
           {/* Items container */}
+          <TourTarget id="counting-objects">
           <View className="w-full relative bg-white rounded-3xl p-4 shadow-sm border border-blue-100 overflow-hidden" style={{ height: countingCanvasHeight }}>
             <Text className="hidden">{getNumberLabel(targetNumber)} = {targetNumber}</Text>
             <View className="absolute top-3 left-3 flex-row items-center bg-blue-50 rounded-full px-2.5 py-1">
@@ -1452,10 +1462,12 @@ const LugandaCountingGame: React.FC = () => {
             {/* Render counting items */}
             {renderItemsToCount()}
           </View>
+          </TourTarget>
         </View>
 
         {/* Right section - Number options */}
         <View className="items-center justify-center pl-2" style={{ flex: 1 }}>
+          <TourTarget id="counting-answers">
           <View className="bg-white rounded-3xl shadow-sm px-3 py-3 w-full border border-blue-100 justify-center">
             <Text variant="bold" className="text-center text-base text-primary-700 mb-2" numberOfLines={1}>
               BALANGA EMEKA?
@@ -1493,6 +1505,7 @@ const LugandaCountingGame: React.FC = () => {
               )}
             </View>
           </View>
+          </TourTarget>
         </View>
       </Animated.View>
       </SafeAreaView>
@@ -1595,18 +1608,18 @@ const LugandaCountingGame: React.FC = () => {
           </View>
         </View>
       )}
-      <GameGuideOverlay
-        visible={countingGuide.visible}
-        onDismiss={countingGuide.dismiss}
-        title="How to play the counting game"
-        description="Count the objects, then choose the matching number."
+      <GameTour
+        visible={countingTour.visible}
+        onCancel={countingTour.close}
+        onComplete={countingTour.complete}
         steps={[
-          { icon: "eye-outline", title: "Count the objects", description: "Look across the whole picture and count each item once." },
-          { icon: "calculator-outline", title: "Choose a number", description: "Tap the answer with the correct number and Luganda name." },
-          { icon: "trending-up-outline", title: "Keep progressing", description: "Finish each level to move through the counting stages." },
+          { id: "objects", targetId: "counting-objects", icon: "eye-outline", placement: "right", title: "Count", description: "Count each picture once." },
+          { id: "answers", targetId: "counting-answers", icon: "calculator-outline", placement: "left", title: "Pick a number", description: "Tap the number you counted." },
+          { id: "score", targetId: "counting-score", icon: "star-outline", placement: "bottom", title: "Your stars", description: "Right answers add stars." },
         ]}
       />
-    </View>
+      </View>
+    </GameTourProvider>
   )
 }
 

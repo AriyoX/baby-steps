@@ -11,6 +11,63 @@ import {
 import LearningLessonSessionScreen from "../[stageId]/lesson/[lessonId]";
 import { getGameGuideStorageKey } from "@/lib/gameGuide";
 
+jest.mock("@/components/games/GameTour", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const React = require("react");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { Text, TouchableOpacity, View } = require("react-native");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { hasSeenGameGuide, markGameGuideSeen } = require("@/lib/gameGuide");
+
+  return {
+    GameTourProvider: ({ children }: { children: React.ReactNode }) => children,
+    TourTarget: ({ children }: { children: React.ReactNode }) => children,
+    useGameTour: (guideId: string, childId?: string, enabled = true) => {
+      const [visible, setVisible] = React.useState(false);
+      React.useEffect(() => {
+        let active = true;
+        if (enabled) {
+          void hasSeenGameGuide(guideId, childId).then((seen: boolean) => {
+            if (active && !seen) setVisible(true);
+          });
+        }
+        return () => {
+          active = false;
+        };
+      }, [childId, enabled, guideId]);
+
+      return {
+        visible,
+        open: () => setVisible(true),
+        close: () => setVisible(false),
+        complete: () => {
+          setVisible(false);
+          void markGameGuideSeen(guideId, childId);
+        },
+      };
+    },
+    GameTour: ({
+      finishLabel = "Let's play",
+      onComplete,
+      steps,
+      visible,
+    }: {
+      finishLabel?: string;
+      onComplete: () => void;
+      steps: { title: string }[];
+      visible: boolean;
+    }) =>
+      visible ? (
+        <View>
+          <Text>{steps[0]?.title}</Text>
+          <TouchableOpacity accessibilityLabel={finishLabel} onPress={onComplete}>
+            <Text>{finishLabel}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null,
+  };
+});
+
 const mockRouterBack = jest.fn();
 const mockRouterReplace = jest.fn();
 const mockRouterCanGoBack = jest.fn();
@@ -310,23 +367,23 @@ describe("Learning lesson completion persistence", () => {
     }
     const renderedTree = tree;
 
-    expect(JSON.stringify(renderedTree.toJSON())).toContain("How Learning Hub lessons work");
+    expect(JSON.stringify(renderedTree.toJSON())).toContain("Try this");
 
     await act(async () => {
-      findButtonByAccessibilityLabel(renderedTree.root, "Close guide and start learning").props.onPress();
+      findButtonByAccessibilityLabel(renderedTree.root, "Start learning").props.onPress();
       await Promise.resolve();
     });
 
     expect(
       await AsyncStorage.getItem(getGameGuideStorageKey("learning-hub", "child-1")),
     ).toBe("seen");
-    expect(JSON.stringify(renderedTree.toJSON())).not.toContain("How Learning Hub lessons work");
+    expect(JSON.stringify(renderedTree.toJSON())).not.toContain("Try this");
 
     act(() => {
       findButtonByAccessibilityLabel(renderedTree.root, "Show lesson guide").props.onPress();
     });
 
-    expect(JSON.stringify(renderedTree.toJSON())).toContain("How Learning Hub lessons work");
+    expect(JSON.stringify(renderedTree.toJSON())).toContain("Try this");
   });
 
   it("does not start a Luganda mechanic for a direct Runyankole lesson route", async () => {

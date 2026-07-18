@@ -12,7 +12,7 @@ The Coloring tab uses the same African-themed child activity interface as Games,
 3. The canvas can be magnified from 1× to 3×. Zoom controls remain separate from drawing; the hand control enables one-finger panning while magnified. New strokes, stamps, and eraser passes are inversely scaled at higher zoom so they stay visually steady and can handle finer picture details.
 4. Save writes the complete, unzoomed finished canvas to the device photo library. Share opens the system share sheet without photo-library permission.
 5. Local child-scoped progress unlocks First masterpiece, Color explorer, and Gallery star badges without placing goal cards in the studio.
-6. Each child's first studio visit shows a four-step, dismissible tutorial for tools, colors and brush size, zoom and movement, and saving. Completing or skipping it stores a versioned flag under that child's profile, so later sessions open directly without hiding onboarding from another child on the device.
+6. Each child's first studio visit shows the shared four-step spotlight tour for tools, the canvas, colors and brush size, and saving. Completing or skipping it stores the shared per-child guide flag while still honoring the legacy Coloring Studio seen key.
 
 Coloring remains optional creative reinforcement. Its badges and saves do not count as proof of curriculum knowledge.
 
@@ -141,5 +141,5 @@ On physical Android and iOS devices, also draw near every edge, erase, undo/redo
 - [ ] On compact phones, every icon-only tool still has a spoken accessibility label and a minimum 44-point effective touch target.
 - [ ] Zoom in, pan with the hand control, return to drawing, and confirm Save still exports the complete picture rather than the zoomed viewport.
 - [ ] At 2× and 3× zoom, new strokes, stamps, and eraser passes cover progressively smaller areas of the underlying picture while retaining a usable on-screen size.
-- [ ] A child without tutorial state sees all four tips once; Skip and completion hide them only for that child, while a second child still receives onboarding.
+- [ ] A child without tour state sees all four spotlight steps once; Skip and completion hide them only for that child, while a second child still receives onboarding.
 - [ ] New badges appear once and persist for the active child.

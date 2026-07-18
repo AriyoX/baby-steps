@@ -45,11 +45,13 @@ import {
 } from "@/lib/completionReliability";
 import { getCardsMatchingGridSizing } from "./responsiveSizing";
 import {
-  GameGuideOverlay,
   GameHeader,
   GameStatChip,
-  useFirstPlayGuide,
-} from "./GameGuide";
+  GameTour,
+  GameTourProvider,
+  TourTarget,
+  useGameTour,
+} from "./GameTour";
 
 // Define card interface
 interface Card {
@@ -279,7 +281,7 @@ const CardsMatchingGame: React.FC = () => {
   const contentScope = `${activeChild?.id ?? "guest"}:${languageCode}`;
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const matchingGuide = useFirstPlayGuide("cards-matching", activeChild?.id);
+  const matchingTour = useGameTour("cards-matching", activeChild?.id);
   const { checkAndGrantNewAchievements } = useAchievements(
     activeChild?.id,
     "card_matching_game",
@@ -1007,7 +1009,8 @@ const CardsMatchingGame: React.FC = () => {
   };
 
   return (
-    <View className="flex-1 bg-blue-50">
+    <GameTourProvider>
+      <View className="flex-1 bg-blue-50">
       <SafeAreaView className="flex-1 flex-col" edges={["top", "bottom", "left", "right"]}>
       <StatusBar style={infoModal.show || gameOver ? "light" : "dark"} />
       <GameHeader
@@ -1015,19 +1018,21 @@ const CardsMatchingGame: React.FC = () => {
         subtitle="Turn over two cards and find every matching pair"
         onBack={() => router.back()}
         backAccessibilityLabel="Back to Games"
-        onHelp={matchingGuide.open}
+        onHelp={matchingTour.open}
         trailing={
           <>
             <GameStatChip
               icon="swap-horizontal"
               label={`${moves}`}
               accessibilityLabel={`${moves} moves`}
+              tourTargetId="matching-moves"
             />
             <GameStatChip
               icon="checkmark-circle"
               label={`${matchedCount}/${PAIRS_PER_GAME}`}
               tint="#22c55e"
               accessibilityLabel={`${matchedCount} of ${PAIRS_PER_GAME} pairs matched`}
+              tourTargetId="matching-progress"
             />
             <TouchableOpacity
               className="bg-white w-12 h-12 rounded-2xl border border-blue-100 items-center justify-center ml-2"
@@ -1058,8 +1063,11 @@ const CardsMatchingGame: React.FC = () => {
           style={{ columnGap, rowGap }}
         >
           {cards.map((card, index) => (
-            <TouchableOpacity
+            <TourTarget
               key={card.id}
+              id={index === 0 ? "matching-card-grid" : `matching-card-${card.id}`}
+            >
+            <TouchableOpacity
               style={{
                 width: cardWidth,
                 height: cardHeight,
@@ -1146,6 +1154,7 @@ const CardsMatchingGame: React.FC = () => {
                 </LinearGradient>
               )}
             </TouchableOpacity>
+            </TourTarget>
           ))}
         </View>
       </Animated.View>
@@ -1244,18 +1253,18 @@ const CardsMatchingGame: React.FC = () => {
           </View>
         </View>
       )}
-      <GameGuideOverlay
-        visible={matchingGuide.visible}
-        onDismiss={matchingGuide.dismiss}
-        title="How to match the cards"
-        description="Find all eight pairs in as few turns as you can."
+      <GameTour
+        visible={matchingTour.visible}
+        onCancel={matchingTour.close}
+        onComplete={matchingTour.complete}
         steps={[
-          { icon: "hand-left-outline", title: "Flip a card", description: "Tap any hidden card to reveal what is underneath." },
-          { icon: "copy-outline", title: "Find its twin", description: "Turn over one more card with the same picture and word." },
-          { icon: "checkmark-circle-outline", title: "Clear the board", description: "Matched pairs stay open. Keep going until all eight are found." },
+          { id: "grid", targetId: "matching-card-grid", icon: "albums-outline", placement: "auto", title: "Flip a card", description: "Tap two cards to find a pair." },
+          { id: "progress", targetId: "matching-progress", icon: "checkmark-circle-outline", placement: "bottom", title: "Your pairs", description: "This shows the pairs you found." },
+          { id: "moves", targetId: "matching-moves", icon: "swap-horizontal", placement: "bottom", title: "Your moves", description: "Try to use fewer turns." },
         ]}
       />
-    </View>
+      </View>
+    </GameTourProvider>
   );
 };
 

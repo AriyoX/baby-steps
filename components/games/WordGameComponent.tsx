@@ -47,11 +47,13 @@ import { useChildNotice } from "@/context/ChildNoticeContext";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getWordGameSizing } from "./responsiveSizing";
 import {
-  GameGuideOverlay,
   GameHeader,
   GameStatChip,
-  useFirstPlayGuide,
-} from "./GameGuide";
+  GameTour,
+  GameTourProvider,
+  TourTarget,
+  useGameTour,
+} from "./GameTour";
 
 const WORD_GAME_MODAL_ORIENTATIONS: ModalProps["supportedOrientations"] = [
   "landscape-left",
@@ -123,7 +125,7 @@ const WordGame: React.FC = () => {
   );
   const languageCode =
     activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE;
-  const wordGuide = useFirstPlayGuide("word", activeChild?.id);
+  const wordTour = useGameTour("word", activeChild?.id);
   const { checkAndGrantNewAchievements } =
     useAchievements(activeChild?.id, "word_game"); // Game key
   const { enqueueAchievementUnlocked } = useChildNotice();
@@ -1005,23 +1007,25 @@ const WordGame: React.FC = () => {
     showHintModal ||
     showImagePreview ||
     showLevelSelect ||
-    wordGuide.visible;
+    wordTour.visible;
 
   return (
-    <SafeAreaView
-      ref={containerRef}
-      className="flex-1 bg-blue-50"
-      edges={["top", "bottom", "left", "right"]}
-    >
+    <GameTourProvider>
+      <SafeAreaView
+        ref={containerRef}
+        className="flex-1 bg-blue-50"
+        edges={["top", "bottom", "left", "right"]}
+      >
       <StatusBar style={hasOpenModal ? "light" : "dark"} />
       <GameHeader
         title={currentQuestion}
         subtitle="Tap the letters in order to complete the word"
         onBack={() => router.back()}
         backAccessibilityLabel="Back to Games"
-        onHelp={wordGuide.open}
+        onHelp={wordTour.open}
         trailing={
           <>
+          <TourTarget id="word-level-picker">
           <TouchableOpacity
             className="w-12 h-12 rounded-2xl bg-white items-center justify-center border border-blue-100 ml-2"
             onPress={() => setShowLevelSelect(true)}
@@ -1031,6 +1035,7 @@ const WordGame: React.FC = () => {
           >
             <Ionicons name="list" size={23} color="#0274BB" />
           </TouchableOpacity>
+          </TourTarget>
             <GameStatChip
               icon="flag-outline"
               label={`${Math.min(currentLevelIndex + 1, gameLevels.length)}/${gameLevels.length}`}
@@ -1044,6 +1049,7 @@ const WordGame: React.FC = () => {
       <View className="flex-1 flex-row justify-between items-center px-4 pb-3 pt-1">
         {/* Left character */}
         <View className="w-[16%] items-center justify-center">
+          <TourTarget id="word-clue">
           <TouchableOpacity
             className="bg-white rounded-3xl items-center justify-center shadow-lg border-4 border-secondary-200 overflow-hidden"
             style={{ width: sideVisualSize, height: sideVisualSize }}
@@ -1064,11 +1070,13 @@ const WordGame: React.FC = () => {
               <Ionicons name="expand" size={17} color="white" />
             </View>
           </TouchableOpacity>
+          </TourTarget>
         </View>
 
         {/* Center game area */}
         <View className="w-[70%] items-center justify-center">
           {/* Word to guess */}
+          <TourTarget id="word-answer-area">
           <Animated.View
             className="flex-row flex-wrap items-center justify-center py-2 px-3 bg-white rounded-3xl shadow-md mb-3 border-2 border-primary-100 max-w-full"
             style={{
@@ -1117,8 +1125,10 @@ const WordGame: React.FC = () => {
               </View>
             ))}
           </Animated.View>
+          </TourTarget>
 
           {/* Letter choices */}
+          <TourTarget id="word-letter-options">
           <View className="flex-row flex-wrap justify-center w-full pb-2">
             {letters.map((letter, index) => {
               // Check if this letter still has any unfilled positions in the word
@@ -1173,10 +1183,12 @@ const WordGame: React.FC = () => {
               );
             })}
           </View>
+          </TourTarget>
         </View>
 
         {/* Right hint button */}
         <View className="w-[14%] items-center justify-center">
+          <TourTarget id="word-hint">
           <TouchableOpacity
             className="bg-amber-50 rounded-2xl justify-center items-center shadow-md border-2 border-amber-200"
             style={{ width: hintButtonSize, height: hintButtonSize }}
@@ -1187,6 +1199,7 @@ const WordGame: React.FC = () => {
           >
             <Ionicons name="bulb" size={Math.round(hintButtonSize * 0.45)} color="#D99D19" />
           </TouchableOpacity>
+          </TourTarget>
         </View>
       </View>
 
@@ -1731,18 +1744,20 @@ const WordGame: React.FC = () => {
           </View>
         </View>
       </Modal>
-      <GameGuideOverlay
-        visible={wordGuide.visible}
-        onDismiss={wordGuide.dismiss}
-        title="How to build the word"
-        description="Use the picture and question to spell the answer."
+      <GameTour
+        visible={wordTour.visible}
+        onCancel={wordTour.close}
+        onComplete={wordTour.complete}
         steps={[
-          { icon: "image-outline", title: "Look at the clue", description: "Use the question and picture to work out the missing word." },
-          { icon: "text-outline", title: "Choose letters", description: "Tap letters in the right order to fill each blank." },
-          { icon: "bulb-outline", title: "Ask for a hint", description: "The gold bulb gives you a clue whenever you feel stuck." },
+          { id: "clue", targetId: "word-clue", icon: "image-outline", placement: "right", title: "Look at the picture", description: "It helps you find the word." },
+          { id: "answer", targetId: "word-answer-area", icon: "text-outline", placement: "bottom", title: "Your word", description: "Your letters go here." },
+          { id: "letters", targetId: "word-letter-options", icon: "finger-print-outline", placement: "top", title: "Pick letters", description: "Tap the letters in order." },
+          { id: "hint", targetId: "word-hint", icon: "bulb-outline", placement: "left", title: "Need help?", description: "Tap the bulb for a clue." },
+          { id: "level-picker", targetId: "word-level-picker", icon: "list-outline", placement: "bottom", title: "Choose a level", description: "Tap here to pick an unlocked level." },
         ]}
       />
-    </SafeAreaView>
+      </SafeAreaView>
+    </GameTourProvider>
   );
 };
 

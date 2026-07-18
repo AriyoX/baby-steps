@@ -45,11 +45,13 @@ import type { AchievementDefinition } from "./achievements/achievementTypes"
 import { playWordAudio, loadGameSounds } from "./utils/audioManager"
 import { audioManager } from "@/lib/audioManager"
 import {
-  GameGuideOverlay,
   GameHeader,
   GameStatChip,
-  useFirstPlayGuide,
-} from "./GameGuide"
+  GameTour,
+  GameTourProvider,
+  TourTarget,
+  useGameTour,
+} from "./GameTour"
 
 import {
   loadGameProgress as loadProgress,
@@ -152,7 +154,7 @@ const LugandaLearningGame: React.FC = () => {
   const router = useRouter()
   const { activeChild } = useChild()
   const languageCode = activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE
-  const learningGuide = useFirstPlayGuide("learning-quiz", activeChild?.id)
+  const learningTour = useGameTour("learning-quiz", activeChild?.id)
   const achievementGameKey = languageCode === "lg" ? "luganda_learning_game" : "learning_game"
   const {
     checkAndGrantNewAchievements,
@@ -1581,7 +1583,8 @@ const LugandaLearningGame: React.FC = () => {
     const layout = isLandscape ? "landscape" : "portrait"
 
     return (
-      <SafeAreaView className="flex-1 bg-blue-50">
+      <GameTourProvider>
+        <SafeAreaView className="flex-1 bg-blue-50">
         <StatusBar style="dark" />
 
         <GameHeader
@@ -1594,7 +1597,7 @@ const LugandaLearningGame: React.FC = () => {
             setGameState("learning")
           }}
           backAccessibilityLabel="Back to word cards"
-          onHelp={learningGuide.open}
+          onHelp={learningTour.open}
           trailing={
             <GameStatChip
               icon="star"
@@ -1606,6 +1609,7 @@ const LugandaLearningGame: React.FC = () => {
         />
 
         {/* Progress bar */}
+        <TourTarget id="learning-quiz-progress">
         <View className="px-4 pb-1">
           <View className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
             <Animated.View
@@ -1619,12 +1623,14 @@ const LugandaLearningGame: React.FC = () => {
             />
           </View>
         </View>
+        </TourTarget>
 
         <Animated.View className="flex-1" style={{ opacity: fadeAnim }}>
           {layout === "landscape" ? (
             // Landscape layout
             <View className="flex-1 flex-row px-4 pb-3">
               <View className="w-[44%] pr-2 justify-center">
+                <TourTarget id="learning-quiz-prompt">
                 <View className="bg-white p-4 rounded-3xl shadow-sm border border-blue-100 min-h-[184px] justify-center">
                   <View className="self-center bg-blue-50 rounded-full px-3 py-1 mb-3">
                     <Text variant="medium" className="text-xs text-primary-600" numberOfLines={1}>
@@ -1673,9 +1679,11 @@ const LugandaLearningGame: React.FC = () => {
                     </View>
                   )}
                 </View>
+                </TourTarget>
               </View>
 
               <View className="w-[56%] pl-2 justify-center">
+                <TourTarget id="learning-quiz-answers">
                 <View>
                   {options.map((option, index) => (
                     <Animated.View
@@ -1720,11 +1728,13 @@ const LugandaLearningGame: React.FC = () => {
                     </Animated.View>
                   ))}
                 </View>
+                </TourTarget>
               </View>
             </View>
           ) : (
             // Portrait layout
             <View className="flex-1 px-4">
+              <TourTarget id="learning-quiz-prompt">
               <View className="bg-white p-6 rounded-2xl shadow-sm mb-5 border border-blue-100">
                 <Text className="text-base text-slate-600 mb-5 text-center" numberOfLines={2}>
                   What is the English translation of:
@@ -1768,7 +1778,9 @@ const LugandaLearningGame: React.FC = () => {
                   </View>
                 )}
               </View>
+              </TourTarget>
 
+              <TourTarget id="learning-quiz-answers">
               <View className="space-y-3">
                 {options.map((option, index) => (
                   <Animated.View
@@ -1816,6 +1828,7 @@ const LugandaLearningGame: React.FC = () => {
                   </Animated.View>
                 ))}
               </View>
+              </TourTarget>
 
               {/* Animated confetti when correct */}
               {isCorrect === true && (
@@ -1843,18 +1856,18 @@ const LugandaLearningGame: React.FC = () => {
             </View>
           )}
         </Animated.View>
-        <GameGuideOverlay
-          visible={learningGuide.visible}
-          onDismiss={learningGuide.dismiss}
-          title="How to play the quiz"
-          description="Listen, think, and choose the best English meaning."
+        <GameTour
+          visible={learningTour.visible}
+          onCancel={learningTour.close}
+          onComplete={learningTour.complete}
           steps={[
-            { icon: "volume-high-outline", title: "Read or listen", description: "Read the phrase, or tap the speaker to hear it aloud." },
-            { icon: "list-outline", title: "Choose an answer", description: "Tap the English translation that matches the phrase." },
-            { icon: "star-outline", title: "Build your score", description: "Correct answers add points and move you to the next question." },
+            { id: "prompt", targetId: "learning-quiz-prompt", icon: "volume-high-outline", placement: "auto", title: "Listen or read", description: "Tap the speaker to hear the phrase." },
+            { id: "answers", targetId: "learning-quiz-answers", icon: "list-outline", placement: "auto", title: "Pick an answer", description: "Tap the matching meaning." },
+            { id: "progress", targetId: "learning-quiz-progress", icon: "trending-up-outline", placement: "bottom", title: "Quiz progress", description: "This bar shows how much is left." },
           ]}
         />
-      </SafeAreaView>
+        </SafeAreaView>
+      </GameTourProvider>
     )
   }
 

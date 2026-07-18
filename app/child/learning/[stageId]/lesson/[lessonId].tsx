@@ -12,9 +12,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/StyledText";
 import { ChildLoadingState } from "@/components/child/ChildLoadingState";
 import {
-  GameGuideOverlay,
-  useFirstPlayGuide,
-} from "@/components/games/GameGuide";
+  GameTour,
+  GameTourProvider,
+  TourTarget,
+  useGameTour,
+} from "@/components/games/GameTour";
 import { LearningLanguageUnavailableState } from "@/components/learning/LearningLanguageUnavailableState";
 import { getMechanicRenderer } from "@/components/learning/mechanics/mechanicRegistry";
 import { brandColors } from "@/constants/Brand";
@@ -158,7 +160,7 @@ export default function LearningLessonSessionScreen() {
   const params = useLocalSearchParams();
   const { height, width } = useWindowDimensions();
   const { activeChild } = useChild();
-  const lessonGuide = useFirstPlayGuide("learning-hub", activeChild?.id);
+  const lessonTour = useGameTour("learning-hub", activeChild?.id);
   const { enqueueAchievementUnlocks } = useChildNotice();
   const stageId = getRouteParam(params.stageId);
   const lessonId = getRouteParam(params.lessonId);
@@ -600,6 +602,7 @@ export default function LearningLessonSessionScreen() {
   }
 
   return (
+    <GameTourProvider>
     <>
       <Stack.Screen options={{ headerShown: false, animation: "slide_from_right" }} />
       <StatusBar style="light" translucent backgroundColor="transparent" />
@@ -658,6 +661,7 @@ export default function LearningLessonSessionScreen() {
               </View>
 
               <View className="flex-row items-center" style={{ flexShrink: 0 }}>
+                <TourTarget id="learning-lesson-progress">
                 <View
                   className="bg-white rounded-full px-4 py-2 border-2 border-accent-500"
                   style={{ maxWidth: width < 380 ? 82 : 104 }}
@@ -673,11 +677,12 @@ export default function LearningLessonSessionScreen() {
                     {currentIndex + 1} of {items.length}
                   </Text>
                 </View>
+                </TourTarget>
 
                 <TouchableOpacity
                   className="rounded-full bg-white items-center justify-center border-2 border-accent-500 ml-2"
                   style={{ height: headerButtonSize, width: headerButtonSize }}
-                  onPress={lessonGuide.open}
+                  onPress={lessonTour.open}
                   accessibilityRole="button"
                   accessibilityLabel="Show lesson guide"
                 >
@@ -709,31 +714,39 @@ export default function LearningLessonSessionScreen() {
           </View>
         </SafeAreaView>
       </ImageBackground>
-      <GameGuideOverlay
-        visible={lessonGuide.visible}
-        onDismiss={lessonGuide.dismiss}
-        title="How Learning Hub lessons work"
-        description="Each lesson mixes short activities to help you learn and remember."
-        actionLabel="Start learning"
-        actionAccessibilityLabel="Close guide and start learning"
+      <GameTour
+        visible={lessonTour.visible}
+        onCancel={lessonTour.close}
+        onComplete={lessonTour.complete}
+        finishLabel="Start learning"
         steps={[
           {
+            id: "content",
+            targetId: "learning-lesson-content",
             icon: "eye-outline",
-            title: "Follow the card",
-            description: "Read the prompt, look at the picture, or listen when a sound button appears.",
+            placement: "auto",
+            title: "Try this",
+            description: "Look, listen, or read here.",
           },
           {
+            id: "action",
+            targetId: "learning-lesson-action",
             icon: "hand-left-outline",
-            title: "Tap and try",
-            description: "Choose, match, or review what the card asks. It is always okay to try again.",
+            placement: "top",
+            title: "Next",
+            description: "Tap this button when you are ready.",
           },
           {
-            icon: "arrow-forward-circle-outline",
-            title: "Keep going",
-            description: "Use Next after each card. The progress at the top shows how much is left.",
+            id: "progress",
+            targetId: "learning-lesson-progress",
+            icon: "trending-up-outline",
+            placement: "bottom",
+            title: "Your progress",
+            description: `You are on activity ${currentIndex + 1} of ${items.length}.`,
           },
         ]}
       />
     </>
+    </GameTourProvider>
   );
 }

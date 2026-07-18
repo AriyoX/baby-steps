@@ -44,11 +44,13 @@ import {
 } from "@/lib/completionReliability";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  GameGuideOverlay,
   GameHeader,
   GameStatChip,
-  useFirstPlayGuide,
-} from "./GameGuide";
+  GameTour,
+  GameTourProvider,
+  TourTarget,
+  useGameTour,
+} from "./GameTour";
 
 const GRID_SIZE = 3; // Keep the same 3x3 puzzle grid
 const PUZZLE_PADDING = 20;
@@ -256,7 +258,7 @@ const PuzzleGame: React.FC = () => {
   );
   const tileSize = (puzzleContainerSize - PUZZLE_PADDING * 2) / GRID_SIZE;
   const { activeChild } = useChild(); // Get active child from context
-  const puzzleGuide = useFirstPlayGuide("puzzle", activeChild?.id);
+  const puzzleTour = useGameTour("puzzle", activeChild?.id);
   const languageCode = getDbLanguageCodeForLearningLanguage(
     activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE,
   );
@@ -463,7 +465,7 @@ const PuzzleGame: React.FC = () => {
   useEffect(() => {
     if (
       !showPreview ||
-      puzzleGuide.visible ||
+      puzzleTour.visible ||
       hydratedScope !== contentScope ||
       !puzzleImages[currentPuzzle]
     ) {
@@ -489,7 +491,7 @@ const PuzzleGame: React.FC = () => {
       clearPendingTimers();
       previewAnim.stopAnimation();
     };
-  }, [contentScope, currentPuzzle, hydratedScope, puzzleGuide.visible, puzzleImages.length, showPreview]);
+  }, [contentScope, currentPuzzle, hydratedScope, puzzleImages.length, puzzleTour.visible, showPreview]);
 
   useEffect(() => {
     // Reset the game start time whenever a new puzzle starts
@@ -1041,17 +1043,23 @@ const PuzzleGame: React.FC = () => {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-blue-50" edges={["top", "bottom", "left", "right"]}>
+    <GameTourProvider>
+      <SafeAreaView className="flex-1 bg-blue-50" edges={["top", "bottom", "left", "right"]}>
       <StatusBar style="dark" />
       <GameHeader
         title={puzzleTitle}
         subtitle="Slide a tile into the empty space to rebuild the picture"
         onBack={() => router.back()}
         backAccessibilityLabel="Back to Games"
-        onHelp={puzzleGuide.open}
+        onHelp={puzzleTour.open}
         trailing={
           <>
-            <GameStatChip icon="footsteps-outline" label={`${moves}`} accessibilityLabel={`${moves} moves`} />
+            <GameStatChip
+              icon="footsteps-outline"
+              label={`${moves}`}
+              accessibilityLabel={`${moves} moves`}
+              tourTargetId="puzzle-moves"
+            />
             {gameStarted && !showPreview ? (
               <TouchableOpacity
                 className="w-12 h-12 rounded-2xl bg-white items-center justify-center border border-blue-100 ml-2"
@@ -1070,6 +1078,7 @@ const PuzzleGame: React.FC = () => {
 
       <View className="flex-1 flex-row px-4 pb-3">
         <View className="justify-center items-center px-2" style={{ flex: 1.12 }}>
+          <TourTarget id="puzzle-board">
           <View
             className="bg-white rounded-3xl overflow-hidden relative border-4 border-primary-100 shadow-lg"
             style={{
@@ -1124,9 +1133,11 @@ const PuzzleGame: React.FC = () => {
               </Text>
             </Animated.View>
           </View>
+          </TourTarget>
         </View>
 
         <View className="justify-center pl-3 pr-2" style={{ flex: 0.88 }}>
+          <TourTarget id="puzzle-instructions">
           <View className="bg-white rounded-3xl border border-blue-100 shadow-sm px-5 py-5">
             <View className="w-12 h-12 rounded-2xl bg-blue-50 items-center justify-center self-center mb-3">
               <Ionicons name="images-outline" size={25} color="#0274BB" />
@@ -1144,20 +1155,21 @@ const PuzzleGame: React.FC = () => {
               </Text>
             </View>
           </View>
+          </TourTarget>
         </View>
       </View>
-      <GameGuideOverlay
-        visible={puzzleGuide.visible}
-        onDismiss={puzzleGuide.dismiss}
-        title="How to solve the puzzle"
-        description="Rebuild the picture one move at a time."
+      <GameTour
+        visible={puzzleTour.visible}
+        onCancel={puzzleTour.close}
+        onComplete={puzzleTour.complete}
         steps={[
-          { icon: "eye-outline", title: "Memorize it", description: "Study the finished picture before the tiles are shuffled." },
-          { icon: "move-outline", title: "Move a tile", description: "Tap or swipe a tile next to the empty space." },
-          { icon: "grid-outline", title: "Rebuild it", description: "Keep sliding tiles until every part of the picture lines up." },
+          { id: "board", targetId: "puzzle-board", icon: "grid-outline", placement: "right", title: "Move the tiles", description: "Tap a tile next to the empty space." },
+          { id: "instructions", targetId: "puzzle-instructions", icon: "hand-left-outline", placement: "left", title: "Need a reminder?", description: "This card shows what to do." },
+          { id: "moves", targetId: "puzzle-moves", icon: "footsteps-outline", placement: "bottom", title: "Your moves", description: "This counts your tile moves." },
         ]}
       />
-    </SafeAreaView>
+      </SafeAreaView>
+    </GameTourProvider>
   );
 };
 

@@ -12,6 +12,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/StyledText";
 import { ChildLoadingState } from "@/components/child/ChildLoadingState";
+import {
+  GameTour,
+  GameTourProvider,
+  TourTarget,
+  useGameTour,
+} from "@/components/games/GameTour";
 import { LearningLanguageUnavailableState } from "@/components/learning/LearningLanguageUnavailableState";
 import { brandColors } from "@/constants/Brand";
 import { useChild } from "@/context/ChildContext";
@@ -123,6 +129,7 @@ type LessonPathCardProps = {
   height: number;
   gap: number;
   onPress: (lesson: LearningHubLesson) => void;
+  tourTargetId?: string;
 };
 
 const LessonPathCard = ({
@@ -134,6 +141,7 @@ const LessonPathCard = ({
   height,
   gap,
   onPress,
+  tourTargetId,
 }: LessonPathCardProps) => {
   const status = getLessonCardStatus(
     lessonAccess.effectiveStatus,
@@ -146,6 +154,7 @@ const LessonPathCard = ({
       : undefined;
 
   return (
+    <TourTarget id={tourTargetId ?? `learning-stage-lesson-${lesson.id}`}>
     <TouchableOpacity
       className="bg-white rounded-2xl border-2 overflow-hidden shadow-sm"
       style={{
@@ -237,6 +246,7 @@ const LessonPathCard = ({
         </View>
       </View>
     </TouchableOpacity>
+    </TourTarget>
   );
 };
 
@@ -281,6 +291,7 @@ export default function LearningStagePathScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { activeChild } = useChild();
+  const stageTour = useGameTour("learning-hub-stage", activeChild?.id);
   const { width, height } = useWindowDimensions();
   const stageId = getRouteStageId(params.stageId);
   const childId = getLearningProgressChildId(activeChild?.id);
@@ -437,6 +448,7 @@ export default function LearningStagePathScreen() {
   }
 
   return (
+    <GameTourProvider>
     <>
       <Stack.Screen options={{ headerShown: false, animation: "slide_from_right" }} />
       <StatusBar style="light" translucent backgroundColor="transparent" />
@@ -462,15 +474,27 @@ export default function LearningStagePathScreen() {
                 </Text>
               </View>
 
-              <View className="flex-row items-center bg-white rounded-full px-4 py-2 border-2 border-accent-500">
-                <Ionicons
-                  name={stage.isPractice ? "sparkles" : "map"}
-                  size={18}
-                  color={brandColors.victoriaBlue}
-                />
-                <Text variant="bold" className="text-primary-700 text-sm ml-1" numberOfLines={1}>
-                  {stage.isPractice ? "Practice" : `Stage ${stage.stageNumber}`}
-                </Text>
+              <View className="flex-row items-center">
+                <TouchableOpacity
+                  className="w-12 h-12 rounded-full bg-white items-center justify-center border-2 border-accent-500 mr-2"
+                  onPress={stageTour.open}
+                  accessibilityRole="button"
+                  accessibilityLabel="Show lesson path guide"
+                >
+                  <Ionicons name="help-circle-outline" size={23} color={brandColors.victoriaBlue} />
+                </TouchableOpacity>
+                <TourTarget id="learning-stage-info">
+                <View className="flex-row items-center bg-white rounded-full px-4 py-2 border-2 border-accent-500">
+                  <Ionicons
+                    name={stage.isPractice ? "sparkles" : "map"}
+                    size={18}
+                    color={brandColors.victoriaBlue}
+                  />
+                  <Text variant="bold" className="text-primary-700 text-sm ml-1" numberOfLines={1}>
+                    {stage.isPractice ? "Practice" : `Stage ${stage.stageNumber}`}
+                  </Text>
+                </View>
+                </TourTarget>
               </View>
             </View>
 
@@ -512,7 +536,7 @@ export default function LearningStagePathScreen() {
                 paddingBottom: 6,
                 paddingRight: lessonListEndPadding,
               }}
-              renderItem={({ item: lesson }) => (
+              renderItem={({ item: lesson, index }) => (
                   <LessonPathCard
                     stage={stage}
                     lesson={lesson}
@@ -522,12 +546,38 @@ export default function LearningStagePathScreen() {
                     height={lessonCardHeight}
                     gap={cardGap}
                     onPress={startLesson}
+                    tourTargetId={index === 0 ? "learning-stage-lessons" : undefined}
                   />
               )}
             />
           </View>
         </SafeAreaView>
       </ImageBackground>
+      <GameTour
+        visible={stageTour.visible}
+        onCancel={stageTour.close}
+        onComplete={stageTour.complete}
+        finishLabel="Choose a lesson"
+        steps={[
+          {
+            id: "stage",
+            targetId: "learning-stage-info",
+            icon: "map-outline",
+            placement: "bottom",
+            title: "Your stage",
+            description: stage.isPractice ? "This is your practice stage." : `You are on Stage ${stage.stageNumber}.`,
+          },
+          {
+            id: "lessons",
+            targetId: "learning-stage-lessons",
+            icon: "albums-outline",
+            placement: "top",
+            title: "Pick a lesson",
+            description: "Swipe, then tap an open lesson.",
+          },
+        ]}
+      />
     </>
+    </GameTourProvider>
   );
 }

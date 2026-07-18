@@ -16,6 +16,63 @@ import { saveActivity } from "@/lib/utils";
 import { getGameGuideStorageKey } from "@/lib/gameGuide";
 import type { LocalStory } from "@/content/types";
 
+jest.mock("@/components/games/GameTour", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const React = require("react");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { Text, TouchableOpacity, View } = require("react-native");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { hasSeenGameGuide, markGameGuideSeen } = require("@/lib/gameGuide");
+
+  return {
+    GameTourProvider: ({ children }: { children: React.ReactNode }) => children,
+    TourTarget: ({ children }: { children: React.ReactNode }) => children,
+    useGameTour: (guideId: string, childId?: string, enabled = true) => {
+      const [visible, setVisible] = React.useState(false);
+      React.useEffect(() => {
+        let active = true;
+        if (enabled) {
+          void hasSeenGameGuide(guideId, childId).then((seen: boolean) => {
+            if (active && !seen) setVisible(true);
+          });
+        }
+        return () => {
+          active = false;
+        };
+      }, [childId, enabled, guideId]);
+
+      return {
+        visible,
+        open: () => setVisible(true),
+        close: () => setVisible(false),
+        complete: () => {
+          setVisible(false);
+          void markGameGuideSeen(guideId, childId);
+        },
+      };
+    },
+    GameTour: ({
+      finishLabel = "Let's play",
+      onComplete,
+      steps,
+      visible,
+    }: {
+      finishLabel?: string;
+      onComplete: () => void;
+      steps: { title: string }[];
+      visible: boolean;
+    }) =>
+      visible ? (
+        <View>
+          <Text>{steps[0]?.title}</Text>
+          <TouchableOpacity accessibilityLabel={finishLabel} onPress={onComplete}>
+            <Text>{finishLabel}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null,
+  };
+});
+
 const runyankoleStoryFixture: LocalStory = {
   id: "nyn-sample-morning-greeting",
   title: "Agandi Omuka",
@@ -240,23 +297,23 @@ describe("GenericStoryRenderer", () => {
       await Promise.resolve();
     });
 
-    expect(JSON.stringify(tree.toJSON())).toContain("How to read a story");
+    expect(JSON.stringify(tree.toJSON())).toContain("Read the story");
 
     await act(async () => {
-      findButtonByAccessibilityLabel(tree.root, "Close guide and start reading").props.onPress();
+      findButtonByAccessibilityLabel(tree.root, "Start reading").props.onPress();
       await Promise.resolve();
     });
 
     expect(
       await AsyncStorage.getItem(getGameGuideStorageKey("stories", "child-1")),
     ).toBe("seen");
-    expect(JSON.stringify(tree.toJSON())).not.toContain("How to read a story");
+    expect(JSON.stringify(tree.toJSON())).not.toContain("Read the story");
 
     act(() => {
       findButtonByAccessibilityLabel(tree.root, "Show story guide").props.onPress();
     });
 
-    expect(JSON.stringify(tree.toJSON())).toContain("How to read a story");
+    expect(JSON.stringify(tree.toJSON())).toContain("Read the story");
   });
 
   it("keeps short pages still and opens settings over the full system window", async () => {

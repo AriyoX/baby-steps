@@ -1,9 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage"
 
+import { getColoringStudioTutorialStorageKey } from "@/lib/coloringStudioTutorial"
+
 export type GameGuideId =
   | "cards-matching"
+  | "coloring-studio"
   | "counting"
   | "learning-hub"
+  | "learning-hub-home"
+  | "learning-hub-stage"
   | "learning-quiz"
   | "puzzle"
   | "stories"
@@ -25,8 +30,23 @@ export const getGameGuideStorageKey = (
 export const hasSeenGameGuide = async (
   gameId: GameGuideId,
   childId?: string,
-): Promise<boolean> =>
-  (await AsyncStorage.getItem(getGameGuideStorageKey(gameId, childId))) === "seen"
+): Promise<boolean> => {
+  const sharedValue = await AsyncStorage.getItem(
+    getGameGuideStorageKey(gameId, childId),
+  )
+
+  if (sharedValue === "seen") return true
+
+  if (gameId === "coloring-studio") {
+    return (
+      (await AsyncStorage.getItem(
+        getColoringStudioTutorialStorageKey(childId),
+      )) === "seen"
+    )
+  }
+
+  return false
+}
 
 export const markGameGuideSeen = async (
   gameId: GameGuideId,

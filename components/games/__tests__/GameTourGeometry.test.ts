@@ -1,4 +1,5 @@
 import {
+  areTourMeasurementsStable,
   GAME_TOUR_LAYOUT,
   getModalCoordinateOffsetY,
 } from "@/components/games/GameTour"
@@ -32,5 +33,25 @@ describe("shared game tour vertical alignment", () => {
         statusBarHeight: 24,
       }),
     ).toBe(0)
+  })
+
+  it("accepts consecutive target measurements within the stability tolerance", () => {
+    expect(
+      areTourMeasurementsStable(
+        { height: 40, width: 100, x: 20, y: 30 },
+        { height: 40.5, width: 99.5, x: 20.5, y: 29.5 },
+      ),
+    ).toBe(true)
+  })
+
+  it("rejects transient horizontal or vertical target positions", () => {
+    const settled = { height: 40, width: 100, x: 20, y: 30 }
+
+    expect(
+      areTourMeasurementsStable(settled, { ...settled, x: 24 }),
+    ).toBe(false)
+    expect(
+      areTourMeasurementsStable(settled, { ...settled, y: 34 }),
+    ).toBe(false)
   })
 })

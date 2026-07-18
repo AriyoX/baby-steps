@@ -193,6 +193,7 @@ export const GAME_TOUR_LAYOUT = {
   safeAreaMargin: 10,
   spotlightCornerRadius: 16,
   spotlightPadding: 8,
+  targetMeasurementTolerance: 1,
   targetRetryCount: 18,
   targetRetryDelayMs: 120,
   tooltipBoundsInset: 8,
@@ -233,6 +234,17 @@ const measureNode = (node: MeasurableNode | null | undefined): Promise<TourRect 
 
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(Math.max(value, minimum), Math.max(minimum, maximum))
+
+export const areTourMeasurementsStable = (
+  previous: TourRect,
+  next: TourRect,
+) =>
+  Math.abs(previous.x - next.x) <= GAME_TOUR_LAYOUT.targetMeasurementTolerance &&
+  Math.abs(previous.y - next.y) <= GAME_TOUR_LAYOUT.targetMeasurementTolerance &&
+  Math.abs(previous.width - next.width) <=
+    GAME_TOUR_LAYOUT.targetMeasurementTolerance &&
+  Math.abs(previous.height - next.height) <=
+    GAME_TOUR_LAYOUT.targetMeasurementTolerance
 
 export const getModalCoordinateOffsetY = ({
   platform = Platform.OS,
@@ -387,6 +399,7 @@ export function GameTour({
 
     const findTargets = async () => {
       const measured = new Map<string, TourRect>()
+      const candidates = new Map<string, TourRect>()
 
       for (
         let attempt = 0;
@@ -402,7 +415,20 @@ export function GameTour({
         )
 
         results.forEach(({ rect, step }) => {
-          if (rect) measured.set(step.id, rect)
+          if (!rect) {
+            candidates.delete(step.id)
+            return
+          }
+
+          const previous = candidates.get(step.id)
+          if (previous && areTourMeasurementsStable(previous, rect)) {
+            measured.set(step.id, rect)
+            return
+          }
+
+          // iOS can report a valid but stale window position while the route's
+          // layout is settling. Keep retrying until two samples agree.
+          candidates.set(step.id, rect)
         })
 
         if (measured.size === currentSteps.length || cancelled) break
@@ -412,7 +438,9 @@ export function GameTour({
       if (cancelled) return
 
       const nextValidSteps = currentSteps.flatMap((step) => {
-        const rect = measured.get(step.id)
+        // A latest valid sample is still safer than dismissing the entire tour
+        // if a continuously animating target never becomes pixel-stable.
+        const rect = measured.get(step.id) ?? candidates.get(step.id)
         return rect ? [{ step, rect }] : []
       })
 

@@ -3,7 +3,7 @@ import { brandFonts } from "@/constants/Brand";
 
 type FontVariant = "regular" | "bold" | "medium" | "light" | "semibold" | "display";
 
-interface StyledTextProps extends TextProps {
+export interface StyledTextProps extends TextProps {
   variant?: FontVariant;
 }
 

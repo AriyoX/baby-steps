@@ -4,4 +4,4 @@ points
 
 analytics
 
-setting to translate ui elements to local language
+work on bottom navigation panel, small text within cards, etc

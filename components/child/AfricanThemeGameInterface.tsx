@@ -18,6 +18,7 @@ import { StatusBar } from "expo-status-bar"
 import { useFocusEffect, useRouter, usePathname } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import { Text } from "@/components/StyledText"
+import { MarqueeText } from "@/components/common/MarqueeText"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useAudio } from "@/context/AudioContext"
 import { useChild } from "@/context/ChildContext"
@@ -76,7 +77,7 @@ type LearningCard = {
   progressLabel?: string
 }
 
-const CHILD_TAB_BAR_CLEARANCE = 86
+const CHILD_TAB_BAR_CLEARANCE = 74
 
 const TAB_CONTENT_SLUGS: Record<string, string> = {
   index: "games",
@@ -423,18 +424,22 @@ const AfricanThemeGameInterface: React.FC = () => {
                   </Text>
                 </TouchableOpacity>
               </Animated.View>
-              <View className="pl-3">
-                <Text variant="bold" className="text-white text-lg mt-2" numberOfLines={1}>
+              <View className="pl-3" style={{ width: 150 }}>
+                <MarqueeText
+                  variant="bold"
+                  className="text-white text-lg"
+                  containerStyle={{ marginTop: 8 }}
+                >
                   {activeChild?.name || "Learner"}
-                </Text>
-                <Text className="text-white/80 text-sm" numberOfLines={1}>
+                </MarqueeText>
+                <MarqueeText className="text-white/80 text-sm">
                   {activeChild ? `Age ${activeChild.age}` : "Age 9+"}
-                </Text>
+                </MarqueeText>
                 <TourTarget id="learning-hub-language">
-                  <View style={{ alignSelf: "flex-start" }}>
-                    <Text className="text-white/80 text-sm" numberOfLines={1}>
+                  <View style={{ width: "100%" }}>
+                    <MarqueeText className="text-white/80 text-sm">
                       {t("learning.learningLanguage", { language: learningLanguageName })}
-                    </Text>
+                    </MarqueeText>
                   </View>
                 </TourTarget>
               </View>
@@ -444,10 +449,14 @@ const AfricanThemeGameInterface: React.FC = () => {
             <View className="flex-1 px-4 pt-8" style={{ paddingBottom: CHILD_TAB_BAR_CLEARANCE }}>
               {/* Header */}
               <View className="flex-row justify-between items-center mb-5 ml-[45%]">
-                <View className="flex-row items-center">
-                  <Text variant="bold" className="text-white text-3xl mr-2.5 pt-3" numberOfLines={1}>
+                <View className="flex-1 flex-row items-center min-w-0 mr-2.5">
+                  <MarqueeText
+                    variant="bold"
+                    className="text-white text-3xl"
+                    containerStyle={{ paddingTop: 12 }}
+                  >
                     {screenTitle}
-                  </Text>
+                  </MarqueeText>
                 </View>
 
                 <View className="flex-row items-center">
@@ -572,12 +581,12 @@ const AfricanThemeGameInterface: React.FC = () => {
                   </View>
                 ) : (
                 <View className="bg-white/15 rounded-2xl p-4 mr-2.5 w-[200px]" style={{ height: cardLayout.cardHeight }}>
-                  <Text variant="bold" className="text-white text-2xl">
+                  <MarqueeText variant="bold" className="text-white text-2xl">
                     {t("common.start")}
-                  </Text>
-                  <Text className="text-white text-base" numberOfLines={2}>
+                  </MarqueeText>
+                  <MarqueeText className="text-white text-base">
                     {t("child.learningJourney")}
-                  </Text>
+                  </MarqueeText>
 
                   {/* Optional Adinkra symbol */}
                   <View className="mt-2.5 w-12 h-12 rounded-full bg-white/20 items-center justify-center">
@@ -643,16 +652,16 @@ const AfricanThemeGameInterface: React.FC = () => {
                       ) : null}
                     </View>
                     <View className="p-3 bg-white justify-center" style={{ height: cardLayout.textHeight }}>
-                      <Text
+                      <MarqueeText
                         variant="bold"
-                        className="text-base text-primary-700 mb-1"
-                        numberOfLines={card.stageId ? 2 : 1}
+                        className="text-base text-primary-700"
+                        containerStyle={{ marginBottom: 4 }}
                       >
                         {card.title}
-                      </Text>
-                      <Text className="text-xs text-neutral-600 leading-4" numberOfLines={2}>
+                      </MarqueeText>
+                      <MarqueeText className="text-xs text-neutral-600 leading-4">
                         {card.description}
-                      </Text>
+                      </MarqueeText>
                     </View>
                   </TouchableOpacity>
                   </TourTarget>

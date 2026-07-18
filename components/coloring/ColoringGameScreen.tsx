@@ -27,6 +27,19 @@ import ViewShot from "react-native-view-shot"
 
 import { Text } from "@/components/StyledText"
 import { ChildLoadingCard } from "@/components/child/ChildLoadingState"
+import {
+  getColoringStudioLayout,
+  SMALL_PHONE_CONTROL_SIZE,
+} from "@/components/coloring/coloringStudioLayout"
+import {
+  BRUSH_SIZES,
+  clampCanvasOffset,
+  DEFAULT_BRUSH_SIZE,
+  getZoomAdjustedBrushSize,
+  getZoomAdjustedEraserRadius,
+  stepBrushSize,
+  stepCanvasZoom,
+} from "@/components/coloring/coloringStudioControls"
 import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages"
 import { brandColors, brandFonts, brandShadows } from "@/constants/Brand"
 import { useChild } from "@/context/ChildContext"
@@ -49,6 +62,10 @@ import {
   COLORING_ACHIEVEMENTS,
   recordColoringSave,
 } from "@/lib/coloringProgress"
+import {
+  hasSeenColoringStudioTutorial,
+  markColoringStudioTutorialSeen,
+} from "@/lib/coloringStudioTutorial"
 import {
   markStageCompleted,
   syncProgressNow,
@@ -101,7 +118,42 @@ const COLOR_NAMES: Record<string, string> = {
   "#000000": "Charcoal",
 }
 
-const BRUSH_SIZES = [10, 18, 28]
+const TUTORIAL_STEPS: {
+  icon: React.ComponentProps<typeof Ionicons>["name"]
+  location: string
+  locationIcon: React.ComponentProps<typeof Ionicons>["name"]
+  title: string
+  message: string
+}[] = [
+  {
+    icon: "brush",
+    location: "Look left",
+    locationIcon: "arrow-back",
+    title: "Pick a tool",
+    message: "Crayon draws, Eraser tidies up, and Flower makes a quick stamp.",
+  },
+  {
+    icon: "color-palette",
+    location: "Look right",
+    locationIcon: "arrow-forward",
+    title: "Choose color and size",
+    message: "Tap a color, then use − and + to make your brush tiny or bold.",
+  },
+  {
+    icon: "search",
+    location: "On the picture",
+    locationIcon: "arrow-up",
+    title: "Zoom for tiny details",
+    message: "Tap + to zoom. Use the hand to move, then tap the brush to draw again.",
+  },
+  {
+    icon: "download-outline",
+    location: "Look at the top",
+    locationIcon: "arrow-up",
+    title: "Keep your artwork",
+    message: "Undo mistakes, save your finished picture, or go back when you are done.",
+  },
+]
 
 const smoothPath = (points: ColoringPoint[]): string => {
   if (points.length === 0) return ""
@@ -184,7 +236,12 @@ export default function ColoringGameScreen({
   const reduceMotion = useReducedMotion()
   useChildLandscapeOrientation("coloring studio")
 
-  const isCompact = width < 780 || height < 410
+  const {
+    isCompact,
+    isSmallPhone,
+    showCanvasHint,
+    showDockTitles,
+  } = getColoringStudioLayout(width, height)
   const paletteColors = useMemo(
     () => [...new Set(colors.filter((color) => color.toUpperCase() !== "#FFFFFF"))],
     [colors],
@@ -193,7 +250,14 @@ export default function ColoringGameScreen({
     paletteColors[0] ?? DEFAULT_COLORS[0],
   )
   const [selectedTool, setSelectedTool] = useState<ColoringTool>("crayon")
-  const [brushSize, setBrushSize] = useState(18)
+  const [brushSize, setBrushSize] = useState(DEFAULT_BRUSH_SIZE)
+  const [canvasZoom, setCanvasZoom] = useState(1)
+  const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 })
+  const [isCanvasMoveMode, setIsCanvasMoveMode] = useState(false)
+  const [tutorialStatus, setTutorialStatus] = useState<
+    "checking" | "pending" | "hidden"
+  >("checking")
+  const [tutorialStep, setTutorialStep] = useState(0)
   const [history, setHistory] = useState<ColoringHistory>(createColoringHistory)
   const [currentPath, setCurrentPath] = useState<ColoringPoint[]>([])
   const [imageLoaded, setImageLoaded] = useState(false)
@@ -208,14 +272,36 @@ export default function ColoringGameScreen({
   const toolRef = useRef<ColoringTool>(selectedTool)
   const colorRef = useRef(selectedColor)
   const brushSizeRef = useRef(brushSize)
+  const canvasZoomRef = useRef(canvasZoom)
+  const canvasOffsetRef = useRef(canvasOffset)
+  const canvasMoveModeRef = useRef(isCanvasMoveMode)
+  const canvasSizeRef = useRef({ width: 0, height: 0 })
+  const panGestureStartRef = useRef<{
+    pageX: number
+    pageY: number
+    offsetX: number
+    offsetY: number
+  } | null>(null)
   const markSequenceRef = useRef(0)
   const celebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const celebrationAnimation = useRef(new Animated.Value(0)).current
+  const tutorialVisibleRef = useRef(false)
 
   historyRef.current = history
   toolRef.current = selectedTool
   colorRef.current = selectedColor
   brushSizeRef.current = brushSize
+  canvasZoomRef.current = canvasZoom
+  canvasOffsetRef.current = canvasOffset
+  canvasMoveModeRef.current = isCanvasMoveMode
+
+  const zoomAdjustedBrushSize = getZoomAdjustedBrushSize(brushSize, canvasZoom)
+  const zoomAdjustedEraserRadius = getZoomAdjustedEraserRadius(
+    brushSize,
+    canvasZoom,
+  )
+  const showTutorial = tutorialStatus === "pending" && imageLoaded
+  tutorialVisibleRef.current = showTutorial
 
   const updateHistory = useCallback(
     (updater: (current: ColoringHistory) => ColoringHistory) => {
@@ -265,12 +351,61 @@ export default function ColoringGameScreen({
   )
 
   useEffect(() => {
+    let isActive = true
+    void hasSeenColoringStudioTutorial().then((hasSeenTutorial) => {
+      if (!isActive) return
+      setTutorialStatus(hasSeenTutorial ? "hidden" : "pending")
+    })
+    return () => {
+      isActive = false
+    }
+  }, [])
+
+  const dismissTutorial = useCallback(() => {
+    tutorialVisibleRef.current = false
+    setTutorialStatus("hidden")
+    void markColoringStudioTutorialSeen()
+  }, [])
+
+  useEffect(() => {
     setImageLoaded(false)
     setImageLoadFailed(false)
     setImageRetryKey(0)
     setHistory(createColoringHistory())
     historyRef.current = createColoringHistory()
+    setCanvasZoom(1)
+    canvasZoomRef.current = 1
+    setCanvasOffset({ x: 0, y: 0 })
+    canvasOffsetRef.current = { x: 0, y: 0 }
+    setIsCanvasMoveMode(false)
+    canvasMoveModeRef.current = false
   }, [imageSource, pageName])
+
+  const changeCanvasZoom = useCallback((direction: -1 | 1) => {
+    const nextZoom = stepCanvasZoom(canvasZoomRef.current, direction)
+    const nextOffset = clampCanvasOffset(
+      canvasOffsetRef.current,
+      nextZoom,
+      canvasSizeRef.current,
+    )
+
+    canvasZoomRef.current = nextZoom
+    canvasOffsetRef.current = nextOffset
+    setCanvasZoom(nextZoom)
+    setCanvasOffset(nextOffset)
+
+    if (nextZoom === 1) {
+      canvasMoveModeRef.current = false
+      setIsCanvasMoveMode(false)
+    }
+  }, [])
+
+  const toggleCanvasMoveMode = useCallback(() => {
+    if (canvasZoomRef.current === 1) return
+    const nextMoveMode = !canvasMoveModeRef.current
+    canvasMoveModeRef.current = nextMoveMode
+    setIsCanvasMoveMode(nextMoveMode)
+  }, [])
 
   const commitGesture = useCallback(() => {
     const points = currentPathRef.current
@@ -278,9 +413,21 @@ export default function ColoringGameScreen({
     setCurrentPath([])
     if (points.length === 0) return
 
+    const gestureBrushSize = getZoomAdjustedBrushSize(
+      brushSizeRef.current,
+      canvasZoomRef.current,
+    )
+
     if (toolRef.current === "eraser") {
       updateHistory((current) =>
-        eraseColoringMarks(current, points, brushSizeRef.current * 0.8 + 8),
+        eraseColoringMarks(
+          current,
+          points,
+          getZoomAdjustedEraserRadius(
+            brushSizeRef.current,
+            canvasZoomRef.current,
+          ),
+        ),
       )
       return
     }
@@ -293,7 +440,7 @@ export default function ColoringGameScreen({
         id: `${Date.now()}-${markSequenceRef.current}`,
         points: markPoints,
         color: colorRef.current,
-        size: type === "stamp" ? brushSizeRef.current * 1.8 : brushSizeRef.current,
+        size: type === "stamp" ? gestureBrushSize * 1.8 : gestureBrushSize,
         type,
       }),
     )
@@ -305,6 +452,16 @@ export default function ColoringGameScreen({
         onStartShouldSetPanResponder: (event) => event.nativeEvent.touches.length <= 1,
         onMoveShouldSetPanResponder: (event) => event.nativeEvent.touches.length <= 1,
         onPanResponderGrant: (event) => {
+          if (canvasMoveModeRef.current && canvasZoomRef.current > 1) {
+            panGestureStartRef.current = {
+              pageX: event.nativeEvent.pageX,
+              pageY: event.nativeEvent.pageY,
+              offsetX: canvasOffsetRef.current.x,
+              offsetY: canvasOffsetRef.current.y,
+            }
+            return
+          }
+
           const point = {
             x: event.nativeEvent.locationX,
             y: event.nativeEvent.locationY,
@@ -313,6 +470,21 @@ export default function ColoringGameScreen({
           setCurrentPath([point])
         },
         onPanResponderMove: (event) => {
+          const panStart = panGestureStartRef.current
+          if (panStart) {
+            const nextOffset = clampCanvasOffset(
+              {
+                x: panStart.offsetX + event.nativeEvent.pageX - panStart.pageX,
+                y: panStart.offsetY + event.nativeEvent.pageY - panStart.pageY,
+              },
+              canvasZoomRef.current,
+              canvasSizeRef.current,
+            )
+            canvasOffsetRef.current = nextOffset
+            setCanvasOffset(nextOffset)
+            return
+          }
+
           if (toolRef.current === "stamp") return
           const point = {
             x: event.nativeEvent.locationX,
@@ -325,22 +497,26 @@ export default function ColoringGameScreen({
           currentPathRef.current = nextPoints
           setCurrentPath(nextPoints)
         },
-        onPanResponderRelease: commitGesture,
-        onPanResponderTerminate: commitGesture,
+        onPanResponderRelease: () => {
+          if (panGestureStartRef.current) {
+            panGestureStartRef.current = null
+            return
+          }
+          commitGesture()
+        },
+        onPanResponderTerminate: () => {
+          if (panGestureStartRef.current) {
+            panGestureStartRef.current = null
+            return
+          }
+          commitGesture()
+        },
         onPanResponderTerminationRequest: () => false,
       }),
     [commitGesture],
   )
 
   const usedColorCount = getUsedColorCount(history.marks)
-  const boldArtistComplete = history.marks.length >= 8
-  const colorExplorerComplete = usedColorCount >= 3
-  const completedGoalCount = Number(boldArtistComplete) + Number(colorExplorerComplete)
-
-  useEffect(() => {
-    if (usedColorCount === 3) showCelebration("Color explorer badge!")
-  }, [showCelebration, usedColorCount])
-
   const requestExit = useCallback(() => {
     if (historyRef.current.marks.length === 0) {
       router.back()
@@ -359,11 +535,15 @@ export default function ColoringGameScreen({
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (tutorialVisibleRef.current) {
+        dismissTutorial()
+        return true
+      }
       requestExit()
       return true
     })
     return () => subscription.remove()
-  }, [requestExit])
+  }, [dismissTutorial, requestExit])
 
   const clearCanvas = () => {
     if (history.marks.length === 0) return
@@ -529,25 +709,34 @@ export default function ColoringGameScreen({
         accessibilityRole="button"
         accessibilityLabel={`${label} tool`}
         accessibilityState={{ selected }}
-        onPress={() => setSelectedTool(tool)}
+        onPress={() => {
+          canvasMoveModeRef.current = false
+          setIsCanvasMoveMode(false)
+          setSelectedTool(tool)
+        }}
         style={({ pressed }) => [
           styles.toolButton,
           isCompact && styles.compactToolButton,
+          isSmallPhone && styles.smallPhoneToolButton,
           selected && styles.selectedToolButton,
           pressed && styles.pressedButton,
         ]}
       >
         <View style={[styles.toolIcon, selected && styles.selectedToolIcon]}>{icon}</View>
-        <Text
-          variant="bold"
-          numberOfLines={1}
-          style={[styles.toolLabel, selected && styles.selectedToolLabel]}
-        >
-          {label}
-        </Text>
+        {!isSmallPhone ? (
+          <Text
+            variant="bold"
+            numberOfLines={1}
+            style={[styles.toolLabel, selected && styles.selectedToolLabel]}
+          >
+            {label}
+          </Text>
+        ) : null}
       </Pressable>
     )
   }
+
+  const tutorial = TUTORIAL_STEPS[tutorialStep] ?? TUTORIAL_STEPS[0]
 
   return (
     <LinearGradient
@@ -559,38 +748,49 @@ export default function ColoringGameScreen({
       <View pointerEvents="none" style={styles.sunBubble} />
       <View pointerEvents="none" style={styles.skyBubble} />
 
-      <View style={[styles.header, isCompact && styles.compactHeader]}>
+      <View
+        style={[
+          styles.header,
+          isCompact && styles.compactHeader,
+          isSmallPhone && styles.smallPhoneHeader,
+        ]}
+      >
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel="Back to coloring pictures"
           onPress={requestExit}
-          style={styles.backButton}
+          style={[styles.backButton, isSmallPhone && styles.smallPhoneHeaderButton]}
         >
           <Ionicons name="arrow-back" size={22} color={brandColors.blue[700]} />
         </TouchableOpacity>
 
-        <View style={styles.titleBlock}>
-          <Text variant="display" numberOfLines={1} style={styles.studioTitle}>
-            Coloring Studio
-          </Text>
-          <Text variant="bold" numberOfLines={1} style={styles.pageTitle}>
+        <View style={[styles.titleBlock, isSmallPhone && styles.smallPhoneTitleBlock]}>
+          {!isSmallPhone ? (
+            <Text variant="display" numberOfLines={1} style={styles.studioTitle}>
+              Coloring Studio
+            </Text>
+          ) : null}
+          <Text
+            variant="bold"
+            numberOfLines={1}
+            style={[styles.pageTitle, isSmallPhone && styles.smallPhonePageTitle]}
+          >
             {pageName}
           </Text>
         </View>
 
-        <View style={styles.goalPill} accessibilityLabel={`${completedGoalCount} of 2 creative goals complete`}>
-          <Ionicons name="sparkles" size={17} color={brandColors.gold[700]} />
-          <Text variant="bold" style={styles.goalPillText}>{completedGoalCount}/2 goals</Text>
-        </View>
-
-        <View style={styles.headerActions}>
+        <View style={[styles.headerActions, isSmallPhone && styles.smallPhoneHeaderActions]}>
           <TouchableOpacity
             accessibilityRole="button"
             accessibilityLabel="Undo"
             accessibilityState={{ disabled: history.undoStack.length === 0 }}
             disabled={history.undoStack.length === 0 || exportAction !== null}
             onPress={() => updateHistory(undoColoringHistory)}
-            style={[styles.roundAction, history.undoStack.length === 0 && styles.disabledAction]}
+            style={[
+              styles.roundAction,
+              isSmallPhone && styles.smallPhoneHeaderButton,
+              history.undoStack.length === 0 && styles.disabledAction,
+            ]}
           >
             <Ionicons name="arrow-undo" size={20} color={brandColors.blue[700]} />
           </TouchableOpacity>
@@ -600,7 +800,11 @@ export default function ColoringGameScreen({
             accessibilityState={{ disabled: history.redoStack.length === 0 }}
             disabled={history.redoStack.length === 0 || exportAction !== null}
             onPress={() => updateHistory(redoColoringHistory)}
-            style={[styles.roundAction, history.redoStack.length === 0 && styles.disabledAction]}
+            style={[
+              styles.roundAction,
+              isSmallPhone && styles.smallPhoneHeaderButton,
+              history.redoStack.length === 0 && styles.disabledAction,
+            ]}
           >
             <Ionicons name="arrow-redo" size={20} color={brandColors.blue[700]} />
           </TouchableOpacity>
@@ -609,7 +813,11 @@ export default function ColoringGameScreen({
             accessibilityLabel="Share artwork"
             disabled={exportAction !== null}
             onPress={() => void shareArtwork()}
-            style={[styles.shareButton, exportAction !== null && styles.disabledAction]}
+            style={[
+              styles.shareButton,
+              isSmallPhone && styles.smallPhoneShareButton,
+              exportAction !== null && styles.disabledAction,
+            ]}
           >
             {exportAction === "share" ? (
               <ActivityIndicator size="small" color={brandColors.blue[700]} />
@@ -623,23 +831,41 @@ export default function ColoringGameScreen({
             accessibilityLabel="Save artwork to photos"
             disabled={exportAction !== null}
             onPress={() => void saveToGallery()}
-            style={[styles.saveButton, exportAction !== null && styles.disabledAction]}
+            style={[
+              styles.saveButton,
+              isSmallPhone && styles.smallPhoneSaveButton,
+              exportAction !== null && styles.disabledAction,
+            ]}
           >
             {exportAction === "save" ? (
               <ActivityIndicator size="small" color={brandColors.white} />
             ) : (
               <Ionicons name="download-outline" size={20} color={brandColors.white} />
             )}
-            <Text variant="bold" style={styles.saveText}>Save</Text>
+            {!isSmallPhone ? <Text variant="bold" style={styles.saveText}>Save</Text> : null}
           </TouchableOpacity>
         </View>
       </View>
 
-      <View style={[styles.workspace, isCompact && styles.compactWorkspace]}>
-        <View style={[styles.toolDock, isCompact && styles.compactToolDock]}>
-          <Text variant="display" style={[styles.dockTitle, isCompact && styles.compactDockTitle]}>
-            Tools
-          </Text>
+      <View
+        style={[
+          styles.workspace,
+          isCompact && styles.compactWorkspace,
+          isSmallPhone && styles.smallPhoneWorkspace,
+        ]}
+      >
+        <View
+          style={[
+            styles.toolDock,
+            isCompact && styles.compactToolDock,
+            isSmallPhone && styles.smallPhoneToolDock,
+          ]}
+        >
+          {showDockTitles ? (
+            <Text variant="display" style={[styles.dockTitle, isCompact && styles.compactDockTitle]}>
+              Tools
+            </Text>
+          ) : null}
           {toolButton(
             "crayon",
             "Crayon",
@@ -662,7 +888,11 @@ export default function ColoringGameScreen({
             accessibilityState={{ disabled: history.marks.length === 0 }}
             disabled={history.marks.length === 0 || exportAction !== null}
             onPress={clearCanvas}
-            style={[styles.clearButton, history.marks.length === 0 && styles.disabledAction]}
+            style={[
+              styles.clearButton,
+              isSmallPhone && styles.smallPhoneClearButton,
+              history.marks.length === 0 && styles.disabledAction,
+            ]}
           >
             <Ionicons name="refresh" size={18} color={brandColors.orange[700]} />
             {!isCompact ? <Text variant="bold" style={styles.clearText}>Start over</Text> : null}
@@ -670,71 +900,152 @@ export default function ColoringGameScreen({
         </View>
 
         <View style={styles.canvasColumn}>
-          <View style={styles.canvasCard}>
-            <ViewShot
-              ref={viewShotRef}
-              options={{ format: "png", quality: 1, result: "tmpfile" }}
-              style={styles.artworkCapture}
+          <View
+            style={styles.canvasCard}
+            onLayout={(event) => {
+              canvasSizeRef.current = event.nativeEvent.layout
+              const nextOffset = clampCanvasOffset(
+                canvasOffsetRef.current,
+                canvasZoomRef.current,
+                canvasSizeRef.current,
+              )
+              canvasOffsetRef.current = nextOffset
+              if (
+                nextOffset.x !== canvasOffset.x ||
+                nextOffset.y !== canvasOffset.y
+              ) {
+                setCanvasOffset(nextOffset)
+              }
+            }}
+          >
+            <View
+              style={[
+                styles.zoomedArtwork,
+                {
+                  transform: [
+                    { translateX: canvasOffset.x },
+                    { translateY: canvasOffset.y },
+                    { scale: canvasZoom },
+                  ],
+                },
+              ]}
             >
-              <Image
-                key={imageRetryKey}
-                source={imageSource}
-                resizeMode="contain"
-                style={styles.templateImage}
-                onLoad={() => {
-                  setImageLoaded(true)
-                  setImageLoadFailed(false)
-                }}
-                onError={() => {
-                  setImageLoaded(false)
-                  setImageLoadFailed(true)
-                }}
-              />
-              <View
-                accessibilityLabel={`${pageName} coloring canvas`}
-                style={styles.drawingSurface}
-                pointerEvents={imageLoaded && exportAction === null ? "auto" : "none"}
-                {...panResponder.panHandlers}
+              <ViewShot
+                ref={viewShotRef}
+                options={{ format: "png", quality: 1, result: "tmpfile" }}
+                style={styles.artworkCapture}
               >
-                <Svg width="100%" height="100%" style={styles.paintLayer} pointerEvents="none">
-                  <G opacity={0.82}>{history.marks.map(renderMark)}</G>
-                  {currentPath.length > 0 && selectedTool === "crayon" ? (
-                    currentPath.length === 1 ? (
-                      <Circle cx={currentPath[0].x} cy={currentPath[0].y} r={brushSize / 2} fill={selectedColor} opacity={0.82} />
-                    ) : (
-                      <Path d={smoothPath(currentPath)} fill="none" stroke={selectedColor} strokeWidth={brushSize} strokeLinecap="round" strokeLinejoin="round" opacity={0.82} />
-                    )
-                  ) : null}
-                  {currentPath.length > 0 && selectedTool === "stamp"
-                    ? renderStamp(currentPath[0], brushSize * 1.8, selectedColor)
-                    : null}
-                </Svg>
-              </View>
-            </ViewShot>
+                <Image
+                  key={imageRetryKey}
+                  source={imageSource}
+                  resizeMode="contain"
+                  style={styles.templateImage}
+                  onLoad={() => {
+                    setImageLoaded(true)
+                    setImageLoadFailed(false)
+                  }}
+                  onError={() => {
+                    setImageLoaded(false)
+                    setImageLoadFailed(true)
+                  }}
+                />
+                <View
+                  accessibilityLabel={`${pageName} coloring canvas`}
+                  style={styles.drawingSurface}
+                  pointerEvents={imageLoaded && exportAction === null ? "auto" : "none"}
+                  {...panResponder.panHandlers}
+                >
+                  <Svg width="100%" height="100%" style={styles.paintLayer} pointerEvents="none">
+                    <G opacity={0.82}>{history.marks.map(renderMark)}</G>
+                    {currentPath.length > 0 && selectedTool === "crayon" ? (
+                      currentPath.length === 1 ? (
+                        <Circle cx={currentPath[0].x} cy={currentPath[0].y} r={zoomAdjustedBrushSize / 2} fill={selectedColor} opacity={0.82} />
+                      ) : (
+                        <Path d={smoothPath(currentPath)} fill="none" stroke={selectedColor} strokeWidth={zoomAdjustedBrushSize} strokeLinecap="round" strokeLinejoin="round" opacity={0.82} />
+                      )
+                    ) : null}
+                    {currentPath.length > 0 && selectedTool === "stamp"
+                      ? renderStamp(currentPath[0], zoomAdjustedBrushSize * 1.8, selectedColor)
+                      : null}
+                  </Svg>
+                </View>
+              </ViewShot>
 
-            {currentPath.length > 0 && selectedTool === "eraser" ? (
-              <View pointerEvents="none" style={styles.gestureOverlay}>
-                <Svg width="100%" height="100%">
-                  <Path
-                    d={smoothPath(currentPath)}
-                    fill="none"
-                    stroke={brandColors.blue[700]}
-                    strokeWidth={2}
-                    strokeDasharray="5 6"
-                    strokeLinecap="round"
-                    opacity={0.7}
-                  />
-                  <Circle
-                    cx={currentPath.at(-1)?.x ?? 0}
-                    cy={currentPath.at(-1)?.y ?? 0}
-                    r={brushSize * 0.8 + 8}
-                    fill="rgba(255,255,255,0.5)"
-                    stroke={brandColors.blue[700]}
-                    strokeWidth={2}
-                  />
-                </Svg>
-              </View>
-            ) : null}
+              {currentPath.length > 0 && selectedTool === "eraser" ? (
+                <View pointerEvents="none" style={styles.gestureOverlay}>
+                  <Svg width="100%" height="100%">
+                    <Path
+                      d={smoothPath(currentPath)}
+                      fill="none"
+                      stroke={brandColors.blue[700]}
+                      strokeWidth={2}
+                      strokeDasharray="5 6"
+                      strokeLinecap="round"
+                      opacity={0.7}
+                    />
+                      <Circle
+                        cx={currentPath.at(-1)?.x ?? 0}
+                        cy={currentPath.at(-1)?.y ?? 0}
+                        r={zoomAdjustedEraserRadius}
+                      fill="rgba(255,255,255,0.5)"
+                      stroke={brandColors.blue[700]}
+                      strokeWidth={2}
+                    />
+                  </Svg>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={styles.zoomControls}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Zoom out"
+                accessibilityState={{ disabled: canvasZoom === 1 }}
+                disabled={canvasZoom === 1 || exportAction !== null}
+                onPress={() => changeCanvasZoom(-1)}
+                style={[styles.zoomButton, canvasZoom === 1 && styles.disabledAction]}
+              >
+                <Ionicons name="remove" size={23} color={brandColors.blue[700]} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={isCanvasMoveMode ? "Return to drawing" : "Move zoomed picture"}
+                accessibilityHint="Use one finger to move the picture while this is selected"
+                accessibilityState={{ disabled: canvasZoom === 1, selected: isCanvasMoveMode }}
+                disabled={canvasZoom === 1 || exportAction !== null}
+                onPress={toggleCanvasMoveMode}
+                style={[
+                  styles.zoomMoveButton,
+                  isCanvasMoveMode && styles.selectedZoomMoveButton,
+                  canvasZoom === 1 && styles.disabledAction,
+                ]}
+              >
+                <Ionicons
+                  name={isCanvasMoveMode ? "brush" : "hand-left-outline"}
+                  size={18}
+                  color={isCanvasMoveMode ? brandColors.white : brandColors.blue[700]}
+                />
+                <Text
+                  variant="bold"
+                  style={[
+                    styles.zoomLevelText,
+                    isCanvasMoveMode && styles.selectedZoomLevelText,
+                  ]}
+                >
+                  {canvasZoom}×
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Zoom in"
+                accessibilityState={{ disabled: canvasZoom === 3 }}
+                disabled={canvasZoom === 3 || exportAction !== null}
+                onPress={() => changeCanvasZoom(1)}
+                style={[styles.zoomButton, canvasZoom === 3 && styles.disabledAction]}
+              >
+                <Ionicons name="add" size={23} color={brandColors.blue[700]} />
+              </TouchableOpacity>
+            </View>
 
             {!imageLoaded && !imageLoadFailed ? (
               <View style={styles.canvasOverlay}>
@@ -781,23 +1092,41 @@ export default function ColoringGameScreen({
               </View>
             ) : null}
           </View>
-          <View style={styles.canvasHint}>
-            <Ionicons name="hand-left-outline" size={16} color={brandColors.blue[700]} />
-            <Text variant="medium" numberOfLines={1} style={styles.canvasHintText}>
-              Draw with one finger • choose Eraser to tidy up
-            </Text>
-          </View>
+          {showCanvasHint ? (
+            <View style={styles.canvasHint}>
+              <Ionicons name="hand-left-outline" size={16} color={brandColors.blue[700]} />
+              <Text variant="medium" numberOfLines={1} style={styles.canvasHintText}>
+                Draw with one finger • choose Eraser to tidy up
+              </Text>
+            </View>
+          ) : null}
         </View>
 
-        <View style={[styles.creativeDock, isCompact && styles.compactCreativeDock]}>
-          <View style={styles.dockHeadingRow}>
-            <Text variant="display" style={[styles.dockTitle, isCompact && styles.compactDockTitle]}>Colors</Text>
-            <View style={[styles.activeColorDot, { backgroundColor: selectedColor }]} />
-          </View>
-          <Text variant="bold" numberOfLines={1} style={styles.colorName}>
-            {COLOR_NAMES[selectedColor.toUpperCase()] ?? "My color"}
-          </Text>
-          <View style={[styles.colorGrid, isCompact && styles.compactColorGrid]}>
+        <View
+          style={[
+            styles.creativeDock,
+            isCompact && styles.compactCreativeDock,
+            isSmallPhone && styles.smallPhoneCreativeDock,
+          ]}
+        >
+          {showDockTitles ? (
+            <>
+              <View style={styles.dockHeadingRow}>
+                <Text variant="display" style={[styles.dockTitle, isCompact && styles.compactDockTitle]}>Colors</Text>
+                <View style={[styles.activeColorDot, { backgroundColor: selectedColor }]} />
+              </View>
+              <Text variant="bold" numberOfLines={1} style={styles.colorName}>
+                {COLOR_NAMES[selectedColor.toUpperCase()] ?? "My color"}
+              </Text>
+            </>
+          ) : null}
+          <View
+            style={[
+              styles.colorGrid,
+              isCompact && styles.compactColorGrid,
+              isSmallPhone && styles.smallPhoneColorGrid,
+            ]}
+          >
             {paletteColors.map((color) => {
               const isSelected = selectedColor === color
               const colorName = COLOR_NAMES[color.toUpperCase()] ?? "color"
@@ -807,13 +1136,17 @@ export default function ColoringGameScreen({
                   accessibilityRole="button"
                   accessibilityLabel={colorName}
                   accessibilityState={{ selected: isSelected }}
+                  hitSlop={isSmallPhone ? SMALL_PHONE_CONTROL_SIZE.colorHitSlop : undefined}
                   onPress={() => {
+                    canvasMoveModeRef.current = false
+                    setIsCanvasMoveMode(false)
                     setSelectedColor(color)
                     if (selectedTool === "eraser") setSelectedTool("crayon")
                   }}
                   style={({ pressed }) => [
                     styles.colorButton,
                     isCompact && styles.compactColorButton,
+                    isSmallPhone && styles.smallPhoneColorButton,
                     isSelected && styles.selectedColorButton,
                     pressed && styles.pressedButton,
                   ]}
@@ -826,58 +1159,67 @@ export default function ColoringGameScreen({
             })}
           </View>
 
-          <Text variant="display" style={[styles.sizeTitle, isCompact && styles.compactSizeTitle]}>Crayon size</Text>
-          <View style={styles.sizeRow}>
-            {BRUSH_SIZES.map((size) => {
-              const selected = brushSize === size
-              return (
-                <Pressable
-                  key={size}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${size === 10 ? "Small" : size === 18 ? "Medium" : "Large"} crayon`}
-                  accessibilityState={{ selected }}
-                  onPress={() => setBrushSize(size)}
-                  style={({ pressed }) => [styles.sizeButton, selected && styles.selectedSizeButton, pressed && styles.pressedButton]}
-                >
-                  <View style={{ width: Math.max(8, size * 0.55), height: Math.max(8, size * 0.55), borderRadius: size, backgroundColor: selectedColor }} />
-                </Pressable>
-              )
-            })}
+          <Text variant="display" style={[styles.sizeTitle, isCompact && styles.compactSizeTitle]}>
+            Brush size
+          </Text>
+          <View style={[styles.sizeRow, isSmallPhone && styles.smallPhoneSizeRow]}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Use a smaller brush"
+              accessibilityState={{ disabled: brushSize === BRUSH_SIZES[0] }}
+              disabled={brushSize === BRUSH_SIZES[0]}
+              onPress={() => setBrushSize((current) => stepBrushSize(current, -1))}
+              style={({ pressed }) => [
+                styles.sizeButton,
+                brushSize === BRUSH_SIZES[0] && styles.disabledAction,
+                pressed && styles.pressedButton,
+              ]}
+            >
+              <Ionicons name="remove" size={23} color={brandColors.blue[700]} />
+            </Pressable>
+            <View
+              accessibilityRole="adjustable"
+              accessibilityLabel="Current brush size"
+              accessibilityValue={{
+                min: 1,
+                max: BRUSH_SIZES.length,
+                now: BRUSH_SIZES.findIndex((size) => size === brushSize) + 1,
+              }}
+              accessibilityActions={[{ name: "decrement" }, { name: "increment" }]}
+              onAccessibilityAction={(event) => {
+                if (event.nativeEvent.actionName === "decrement") {
+                  setBrushSize((current) => stepBrushSize(current, -1))
+                }
+                if (event.nativeEvent.actionName === "increment") {
+                  setBrushSize((current) => stepBrushSize(current, 1))
+                }
+              }}
+              style={styles.brushPreview}
+            >
+              <View
+                style={{
+                  width: Math.min(30, Math.max(6, brushSize * 0.7)),
+                  height: Math.min(30, Math.max(6, brushSize * 0.7)),
+                  borderRadius: brushSize,
+                  backgroundColor: selectedColor,
+                }}
+              />
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Use a bigger brush"
+              accessibilityState={{ disabled: brushSize === BRUSH_SIZES.at(-1) }}
+              disabled={brushSize === BRUSH_SIZES.at(-1)}
+              onPress={() => setBrushSize((current) => stepBrushSize(current, 1))}
+              style={({ pressed }) => [
+                styles.sizeButton,
+                brushSize === BRUSH_SIZES.at(-1) && styles.disabledAction,
+                pressed && styles.pressedButton,
+              ]}
+            >
+              <Ionicons name="add" size={23} color={brandColors.blue[700]} />
+            </Pressable>
           </View>
-
-          {isCompact ? (
-            <View style={styles.compactGoalsSection}>
-              <Text variant="display" style={styles.compactGoalTitle}>Goals</Text>
-              <View style={styles.compactGoalsRow}>
-                <View style={[styles.compactGoalChip, colorExplorerComplete && styles.completedMiniGoal]}>
-                  <Ionicons name={colorExplorerComplete ? "checkmark-circle" : "color-palette-outline"} size={17} color={colorExplorerComplete ? brandColors.success : brandColors.orange[600]} />
-                  <Text variant="bold" style={styles.compactGoalCount}>{Math.min(usedColorCount, 3)}/3</Text>
-                </View>
-                <View style={[styles.compactGoalChip, boldArtistComplete && styles.completedMiniGoal]}>
-                  <Ionicons name={boldArtistComplete ? "checkmark-circle" : "brush-outline"} size={17} color={boldArtistComplete ? brandColors.success : brandColors.victoriaBlue} />
-                  <Text variant="bold" style={styles.compactGoalCount}>{Math.min(history.marks.length, 8)}/8</Text>
-                </View>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.goalSection}>
-              <Text variant="display" style={styles.goalTitle}>Creative goals</Text>
-              <View style={[styles.miniGoal, colorExplorerComplete && styles.completedMiniGoal]}>
-                <Ionicons name={colorExplorerComplete ? "checkmark-circle" : "color-palette-outline"} size={18} color={colorExplorerComplete ? brandColors.success : brandColors.orange[600]} />
-                <View style={styles.miniGoalCopy}>
-                  <Text variant="bold" numberOfLines={1} style={styles.miniGoalTitle}>Color explorer</Text>
-                  <Text variant="medium" numberOfLines={1} style={styles.miniGoalProgress}>{Math.min(usedColorCount, 3)}/3 colors</Text>
-                </View>
-              </View>
-              <View style={[styles.miniGoal, boldArtistComplete && styles.completedMiniGoal]}>
-                <Ionicons name={boldArtistComplete ? "checkmark-circle" : "brush-outline"} size={18} color={boldArtistComplete ? brandColors.success : brandColors.victoriaBlue} />
-                <View style={styles.miniGoalCopy}>
-                  <Text variant="bold" numberOfLines={1} style={styles.miniGoalTitle}>Bold artist</Text>
-                  <Text variant="medium" numberOfLines={1} style={styles.miniGoalProgress}>{Math.min(history.marks.length, 8)}/8 marks</Text>
-                </View>
-              </View>
-            </View>
-          )}
         </View>
       </View>
 
@@ -906,6 +1248,92 @@ export default function ColoringGameScreen({
           </View>
           <Text variant="display" style={styles.celebrationText}>{celebrationMessage}</Text>
         </Animated.View>
+      ) : null}
+
+      {showTutorial ? (
+        <View
+          accessibilityViewIsModal
+          accessibilityLabel="Coloring studio tutorial"
+          style={styles.tutorialOverlay}
+        >
+          <View style={styles.tutorialCard}>
+            <View style={styles.tutorialTopRow}>
+              <View style={styles.tutorialIconBubble}>
+                <Ionicons name={tutorial.icon} size={27} color={brandColors.victoriaBlue} />
+              </View>
+              <View style={styles.tutorialCopy}>
+                <View style={styles.tutorialLocationRow}>
+                  <Ionicons
+                    name={tutorial.locationIcon}
+                    size={14}
+                    color={brandColors.orange[600]}
+                  />
+                  <Text variant="bold" style={styles.tutorialLocation}>
+                    {tutorial.location}
+                  </Text>
+                </View>
+                <Text variant="display" style={styles.tutorialTitle}>
+                  {tutorial.title}
+                </Text>
+                <Text variant="medium" style={styles.tutorialMessage}>
+                  {tutorial.message}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.tutorialActions}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Skip coloring tutorial"
+                onPress={dismissTutorial}
+                style={styles.tutorialSkipButton}
+              >
+                <Text variant="bold" style={styles.tutorialSkipText}>Skip</Text>
+              </TouchableOpacity>
+
+              <View
+                accessibilityLabel={`Tutorial step ${tutorialStep + 1} of ${TUTORIAL_STEPS.length}`}
+                style={styles.tutorialDots}
+              >
+                {TUTORIAL_STEPS.map((step, index) => (
+                  <View
+                    key={step.title}
+                    style={[
+                      styles.tutorialDot,
+                      index === tutorialStep && styles.activeTutorialDot,
+                    ]}
+                  />
+                ))}
+              </View>
+
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={
+                  tutorialStep === TUTORIAL_STEPS.length - 1
+                    ? "Start coloring"
+                    : "Next tutorial tip"
+                }
+                onPress={() => {
+                  if (tutorialStep === TUTORIAL_STEPS.length - 1) {
+                    dismissTutorial()
+                    return
+                  }
+                  setTutorialStep((current) => current + 1)
+                }}
+                style={styles.tutorialNextButton}
+              >
+                <Text variant="bold" style={styles.tutorialNextText}>
+                  {tutorialStep === TUTORIAL_STEPS.length - 1 ? "Let’s color!" : "Next"}
+                </Text>
+                <Ionicons
+                  name={tutorialStep === TUTORIAL_STEPS.length - 1 ? "sparkles" : "arrow-forward"}
+                  size={17}
+                  color={brandColors.white}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       ) : null}
     </LinearGradient>
   )
@@ -946,6 +1374,11 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: 9,
   },
+  smallPhoneHeader: {
+    minHeight: 52,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
   backButton: {
     width: 44,
     height: 44,
@@ -962,6 +1395,11 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     marginLeft: 11,
   },
+  smallPhoneTitleBlock: {
+    flex: 1,
+    minWidth: 0,
+    marginLeft: 6,
+  },
   studioTitle: {
     color: brandColors.blue[700],
     fontSize: 22,
@@ -972,21 +1410,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 1,
   },
-  goalPill: {
-    minHeight: 34,
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.86)",
-    borderWidth: 1,
-    borderColor: brandColors.gold[200],
-    paddingHorizontal: 11,
-    marginLeft: 10,
-  },
-  goalPillText: {
-    color: brandColors.gold[800],
-    fontSize: 11,
-    marginLeft: 5,
+  smallPhonePageTitle: {
+    color: brandColors.blue[700],
+    fontSize: 12,
+    marginTop: 0,
   },
   headerActions: {
     flex: 1,
@@ -995,6 +1422,11 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     gap: 7,
     marginLeft: 10,
+  },
+  smallPhoneHeaderActions: {
+    flex: 0,
+    gap: 4,
+    marginLeft: 6,
   },
   roundAction: {
     width: 42,
@@ -1005,6 +1437,11 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.96)",
     borderWidth: 1,
     borderColor: brandColors.blue[100],
+  },
+  smallPhoneHeaderButton: {
+    width: SMALL_PHONE_CONTROL_SIZE.header,
+    height: SMALL_PHONE_CONTROL_SIZE.header,
+    borderRadius: 22,
   },
   shareButton: {
     minWidth: 44,
@@ -1017,6 +1454,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: brandColors.blue[200],
     paddingHorizontal: 12,
+  },
+  smallPhoneShareButton: {
+    minWidth: SMALL_PHONE_CONTROL_SIZE.header,
+    width: SMALL_PHONE_CONTROL_SIZE.header,
+    height: SMALL_PHONE_CONTROL_SIZE.header,
+    paddingHorizontal: 0,
   },
   shareText: {
     color: brandColors.blue[700],
@@ -1035,6 +1478,12 @@ const styles = StyleSheet.create({
     borderColor: brandColors.white,
     paddingHorizontal: 13,
     ...brandShadows.soft,
+  },
+  smallPhoneSaveButton: {
+    minWidth: SMALL_PHONE_CONTROL_SIZE.header,
+    width: SMALL_PHONE_CONTROL_SIZE.header,
+    height: SMALL_PHONE_CONTROL_SIZE.header,
+    paddingHorizontal: 0,
   },
   saveText: {
     color: brandColors.white,
@@ -1056,6 +1505,11 @@ const styles = StyleSheet.create({
     paddingBottom: 7,
     gap: 7,
   },
+  smallPhoneWorkspace: {
+    paddingHorizontal: 6,
+    paddingBottom: 5,
+    gap: 5,
+  },
   toolDock: {
     width: 104,
     borderRadius: 25,
@@ -1069,6 +1523,11 @@ const styles = StyleSheet.create({
     width: 76,
     borderRadius: 20,
     padding: 6,
+  },
+  smallPhoneToolDock: {
+    width: 64,
+    borderRadius: 18,
+    padding: 5,
   },
   dockTitle: {
     color: brandColors.blue[700],
@@ -1092,6 +1551,10 @@ const styles = StyleSheet.create({
   compactToolButton: {
     minHeight: 48,
     borderRadius: 14,
+    marginBottom: 4,
+  },
+  smallPhoneToolButton: {
+    minHeight: SMALL_PHONE_CONTROL_SIZE.tool,
     marginBottom: 4,
   },
   selectedToolButton: {
@@ -1131,6 +1594,10 @@ const styles = StyleSheet.create({
     borderColor: brandColors.orange[200],
     paddingHorizontal: 8,
   },
+  smallPhoneClearButton: {
+    minHeight: SMALL_PHONE_CONTROL_SIZE.header,
+    paddingHorizontal: 0,
+  },
   clearText: {
     color: brandColors.orange[700],
     fontSize: 10,
@@ -1149,6 +1616,9 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: brandColors.white,
     ...brandShadows.lifted,
+  },
+  zoomedArtwork: {
+    ...StyleSheet.absoluteFillObject,
   },
   artworkCapture: {
     flex: 1,
@@ -1169,6 +1639,49 @@ const styles = StyleSheet.create({
   gestureOverlay: {
     ...StyleSheet.absoluteFillObject,
   },
+  zoomControls: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    zIndex: 10,
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.94)",
+    borderWidth: 1,
+    borderColor: brandColors.blue[100],
+    padding: 2,
+    ...brandShadows.soft,
+  },
+  zoomButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  zoomMoveButton: {
+    minWidth: 54,
+    height: 44,
+    borderRadius: 22,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: brandColors.blue[50],
+    paddingHorizontal: 7,
+  },
+  selectedZoomMoveButton: {
+    backgroundColor: brandColors.victoriaBlue,
+  },
+  zoomLevelText: {
+    color: brandColors.blue[700],
+    fontSize: 10,
+    marginLeft: 3,
+  },
+  selectedZoomLevelText: {
+    color: brandColors.white,
+  },
   canvasHint: {
     height: 26,
     flexDirection: "row",
@@ -1182,6 +1695,7 @@ const styles = StyleSheet.create({
   },
   canvasOverlay: {
     ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.94)",
@@ -1246,6 +1760,7 @@ const styles = StyleSheet.create({
   },
   exportOverlay: {
     ...StyleSheet.absoluteFillObject,
+    zIndex: 30,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.55)",
@@ -1280,6 +1795,11 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 7,
   },
+  smallPhoneCreativeDock: {
+    width: 176,
+    borderRadius: 18,
+    padding: 7,
+  },
   dockHeadingRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1310,6 +1830,9 @@ const styles = StyleSheet.create({
   compactColorGrid: {
     gap: 3,
   },
+  smallPhoneColorGrid: {
+    gap: 3,
+  },
   colorButton: {
     width: 38,
     height: 38,
@@ -1323,6 +1846,11 @@ const styles = StyleSheet.create({
     width: 29,
     height: 29,
     borderRadius: 11,
+  },
+  smallPhoneColorButton: {
+    width: SMALL_PHONE_CONTROL_SIZE.color,
+    height: SMALL_PHONE_CONTROL_SIZE.color,
+    borderRadius: 14,
   },
   selectedColorButton: {
     borderColor: brandColors.neutral[700],
@@ -1350,92 +1878,147 @@ const styles = StyleSheet.create({
   },
   sizeRow: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "center",
-    gap: 7,
+    gap: 5,
+  },
+  smallPhoneSizeRow: {
+    gap: 3,
+    marginTop: 6,
   },
   sizeButton: {
-    width: 42,
-    height: 36,
-    borderRadius: 14,
+    width: SMALL_PHONE_CONTROL_SIZE.size,
+    height: SMALL_PHONE_CONTROL_SIZE.size,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: brandColors.neutral[50],
     borderWidth: 2,
     borderColor: brandColors.neutral[100],
   },
-  selectedSizeButton: {
-    borderColor: brandColors.victoriaBlue,
+  brushPreview: {
+    width: SMALL_PHONE_CONTROL_SIZE.size,
+    height: SMALL_PHONE_CONTROL_SIZE.size,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 16,
+    backgroundColor: brandColors.white,
+    borderWidth: 2,
+    borderColor: brandColors.blue[100],
+  },
+  tutorialOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 200,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(9, 44, 73, 0.68)",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  tutorialCard: {
+    width: "92%",
+    maxWidth: 520,
+    borderRadius: 24,
+    backgroundColor: brandColors.white,
+    borderWidth: 3,
+    borderColor: brandColors.gold[300],
+    padding: 14,
+    ...brandShadows.lifted,
+  },
+  tutorialTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  tutorialIconBubble: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: brandColors.blue[50],
+    borderWidth: 2,
+    borderColor: brandColors.blue[100],
   },
-  goalSection: {
-    flex: 1,
-    justifyContent: "flex-end",
-    minHeight: 0,
-  },
-  goalTitle: {
-    color: brandColors.blue[700],
-    fontSize: 15,
-    textAlign: "center",
-    marginBottom: 5,
-  },
-  compactGoalTitle: {
-    fontSize: 13,
-    marginBottom: 3,
-  },
-  compactGoalsSection: {
-    flex: 1,
-    minHeight: 0,
-    justifyContent: "flex-end",
-  },
-  compactGoalsRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 5,
-  },
-  compactGoalChip: {
-    flex: 1,
-    maxWidth: 72,
-    height: 34,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 13,
-    backgroundColor: brandColors.neutral[50],
-    borderWidth: 1,
-    borderColor: brandColors.neutral[100],
-  },
-  compactGoalCount: {
-    color: brandColors.neutral[600],
-    fontSize: 8,
-    marginLeft: 4,
-  },
-  miniGoal: {
-    minHeight: 42,
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 14,
-    backgroundColor: brandColors.neutral[50],
-    borderWidth: 1,
-    borderColor: brandColors.neutral[100],
-    paddingHorizontal: 8,
-    marginTop: 4,
-  },
-  completedMiniGoal: {
-    backgroundColor: "#EFFCF2",
-    borderColor: "#BDEBC8",
-  },
-  miniGoalCopy: {
+  tutorialCopy: {
     flex: 1,
     minWidth: 0,
-    marginLeft: 6,
+    marginLeft: 12,
   },
-  miniGoalTitle: {
-    color: brandColors.neutral[700],
-    fontSize: 9,
+  tutorialLocationRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
-  miniGoalProgress: {
-    color: brandColors.neutral[500],
-    fontSize: 8,
+  tutorialLocation: {
+    color: brandColors.orange[700],
+    fontSize: 10,
+    marginLeft: 4,
+    textTransform: "uppercase",
+  },
+  tutorialTitle: {
+    color: brandColors.blue[700],
+    fontSize: 19,
+    lineHeight: 22,
+    marginTop: 1,
+  },
+  tutorialMessage: {
+    color: brandColors.neutral[600],
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  tutorialActions: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 12,
+  },
+  tutorialSkipButton: {
+    minWidth: 64,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: brandColors.neutral[200],
+    paddingHorizontal: 13,
+  },
+  tutorialSkipText: {
+    color: brandColors.neutral[600],
+    fontSize: 12,
+  },
+  tutorialDots: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 8,
+  },
+  tutorialDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: brandColors.neutral[200],
+  },
+  activeTutorialDot: {
+    width: 22,
+    backgroundColor: brandColors.victoriaBlue,
+  },
+  tutorialNextButton: {
+    minWidth: 92,
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 22,
+    backgroundColor: brandColors.victoriaBlue,
+    paddingHorizontal: 14,
+  },
+  tutorialNextText: {
+    color: brandColors.white,
+    fontSize: 12,
   },
   pressedButton: {
     transform: [{ scale: 0.96 }],

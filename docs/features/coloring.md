@@ -7,10 +7,12 @@ The Coloring tab uses the same African-themed child activity interface as Games,
 ## Child experience
 
 1. The child opens Coloring and chooses a picture from the shared African-themed activity card rail. The leading journey card shows local saved-art and badge progress.
-2. The studio opens in landscape with a large canvas, Crayon, real segment Eraser, Flower stamp, ten colors, three brush sizes, undo, redo, and protected Start over.
-3. Two in-session creative goals encourage experimentation without grading the artwork.
-4. Save writes only the finished canvas to the device photo library. Share opens the system share sheet without photo-library permission.
-5. Local child-scoped progress unlocks First masterpiece, Color explorer, and Gallery star badges.
+2. The studio opens in landscape with a large canvas, Crayon, real segment Eraser, Flower stamp, ten colors, seven stepped brush sizes, undo, redo, and protected Start over.
+   On short or narrow phones, redundant headings and the drawing hint are hidden so the icon controls and enlarged child touch targets remain reachable.
+3. The canvas can be magnified from 1× to 3×. Zoom controls remain separate from drawing; the hand control enables one-finger panning while magnified. New strokes, stamps, and eraser passes are inversely scaled at higher zoom so they stay visually steady and can handle finer picture details.
+4. Save writes the complete, unzoomed finished canvas to the device photo library. Share opens the system share sheet without photo-library permission.
+5. Local child-scoped progress unlocks First masterpiece, Color explorer, and Gallery star badges without placing goal cards in the studio.
+6. The first studio visit shows a four-step, dismissible tutorial for tools, colors and brush size, zoom and movement, and saving. Completing or skipping it stores a device-local versioned flag so it does not interrupt later sessions.
 
 Coloring remains optional creative reinforcement. Its badges and saves do not count as proof of curriculum knowledge.
 
@@ -136,4 +138,8 @@ On physical Android and iOS devices, also draw near every edge, erase, undo/redo
 - [ ] Share works without requesting photo permission.
 - [ ] Denied and permanently blocked save permission leave the drawing intact.
 - [ ] Compact landscape phones and larger tablets show the entire tool and color docks.
+- [ ] On compact phones, every icon-only tool still has a spoken accessibility label and a minimum 44-point effective touch target.
+- [ ] Zoom in, pan with the hand control, return to drawing, and confirm Save still exports the complete picture rather than the zoomed viewport.
+- [ ] At 2× and 3× zoom, new strokes, stamps, and eraser passes cover progressively smaller areas of the underlying picture while retaining a usable on-screen size.
+- [ ] A fresh install shows the four tutorial tips once; Skip and completion both prevent it from reopening.
 - [ ] New badges appear once and persist for the active child.

@@ -1,26 +1,7 @@
-local first then caching with supabase activity logging
-refactor achievements
 streaks
-notifications
-locking of next stage
 points
-
-
-in curriculum, consider achievements and activities too. 
 
 
 analytics
 
-caching of achievements
-
-onboarding of child
-
-nterface improvement areas:
-Replace the absolute profile positioning and ml-[45%] header offset with a responsive three-part header. These are the biggest overlap risks on small devices and increased text sizes.
-Respect reduced-motion settings for the endlessly pulsing/bouncing avatar and pause animations while the app is inactive.
-Replace the horizontal ScrollView with a virtualized card rail when database content grows.
-Extract a shared interface shell, profile cluster, header controls, and card rail. The component currently mixes content loading, tab detection, audio controls, navigation, animations, and presentation.
-Improve long-title handling. The single-line screen title, fixed Start card copy, and two-line card descriptions can become cramped in translated content.
-Give loading, unavailable-language, cached-content, and true-empty states more distinct treatments.
-Remove unused navigation state and the hidden corrupted emoji fallback.
-Eventually coordinate the hardcoded 86-point tab clearance with the navigator’s measured height—but only as a separate safe-area/device pass.
+setting to translate ui elements to local language

@@ -188,7 +188,7 @@ Before changing a child `Modal`, record its purpose and whether it requires a na
 - Put interactive content in a four-edge `SafeAreaView`.
 - For a normal result state, prefer a render branch or in-tree overlay.
 
-Current child-mode native Modals include Word Game utility dialogs, dormant legacy story settings dialogs, and the archived Museum art video viewer. Do not refactor them as part of unrelated UI work.
+Current child-mode native Modals include Word Game utility dialogs, the generic story accessibility dialog, dormant legacy story settings dialogs, and the archived Museum art video viewer. Full-window translucent dialogs should set both status-bar and navigation-bar translucency so the dim backdrop covers system safe areas consistently. Do not refactor them as part of unrelated UI work.
 
 ## Adjustment workflow
 

@@ -1007,8 +1007,9 @@ const CardsMatchingGame: React.FC = () => {
   };
 
   return (
-    <SafeAreaView className="flex-1 flex-col bg-blue-50" edges={["top", "bottom", "left", "right"]}>
-      <StatusBar style="dark" />
+    <View className="flex-1 bg-blue-50">
+      <SafeAreaView className="flex-1 flex-col" edges={["top", "bottom", "left", "right"]}>
+      <StatusBar style={infoModal.show || gameOver ? "light" : "dark"} />
       <GameHeader
         title={gameTitle}
         subtitle="Turn over two cards and find every matching pair"
@@ -1029,13 +1030,13 @@ const CardsMatchingGame: React.FC = () => {
               accessibilityLabel={`${matchedCount} of ${PAIRS_PER_GAME} pairs matched`}
             />
             <TouchableOpacity
-              className="bg-white w-11 h-11 rounded-2xl border border-blue-100 items-center justify-center ml-2"
+              className="bg-white w-12 h-12 rounded-2xl border border-blue-100 items-center justify-center ml-2"
               onPress={resetGame}
               activeOpacity={0.76}
               accessibilityRole="button"
               accessibilityLabel="Reset matching game"
             >
-              <Ionicons name="refresh" size={19} color="#0274BB" />
+              <Ionicons name="refresh" size={21} color="#0274BB" />
             </TouchableOpacity>
           </>
         }
@@ -1107,7 +1108,7 @@ const CardsMatchingGame: React.FC = () => {
                   <Text
                     className="text-center text-primary-700 px-1"
                     numberOfLines={1}
-                    style={{ fontSize: Math.max(10, cardWidth * 0.15) }}
+                    style={{ fontSize: Math.max(12, cardWidth * 0.16) }}
                     variant="bold"
                     adjustsFontSizeToFit
                     minimumFontScale={0.72}
@@ -1148,10 +1149,20 @@ const CardsMatchingGame: React.FC = () => {
           ))}
         </View>
       </Animated.View>
+      </SafeAreaView>
 
       {/* Info modal when match is found - with fun styling */}
       {infoModal.show && (
-        <View className="absolute inset-0 bg-black/50 justify-center items-center px-5">
+        <View
+          className="absolute inset-0 justify-center items-center px-5"
+          style={{
+            backgroundColor: "#020617B3",
+            paddingBottom: Math.max(insets.bottom, 16),
+            paddingLeft: Math.max(insets.left, 20),
+            paddingRight: Math.max(insets.right, 20),
+            paddingTop: Math.max(insets.top, 16),
+          }}
+        >
           <View
             className="w-4/5 max-w-xl rounded-3xl p-6 items-center shadow-xl border-4 border-primary-200 bg-white"
           >
@@ -1193,7 +1204,16 @@ const CardsMatchingGame: React.FC = () => {
 
       {/* Game over modal with celebration styling */}
       {gameOver && (
-        <View className="absolute inset-0 bg-black/50 justify-center items-center px-5">
+        <View
+          className="absolute inset-0 justify-center items-center px-5"
+          style={{
+            backgroundColor: "#020617B3",
+            paddingBottom: Math.max(insets.bottom, 16),
+            paddingLeft: Math.max(insets.left, 20),
+            paddingRight: Math.max(insets.right, 20),
+            paddingTop: Math.max(insets.top, 16),
+          }}
+        >
           <View
             className="w-4/5 max-w-xl rounded-3xl p-6 items-center shadow-xl border-4 border-primary-200 bg-white"
           >
@@ -1235,7 +1255,7 @@ const CardsMatchingGame: React.FC = () => {
           { icon: "checkmark-circle-outline", title: "Clear the board", description: "Matched pairs stay open. Keep going until all eight are found." },
         ]}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 

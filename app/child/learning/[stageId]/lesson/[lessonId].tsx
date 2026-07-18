@@ -4,7 +4,6 @@ import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ImageBackground,
-  ScrollView,
   TouchableOpacity,
   View,
   useWindowDimensions,
@@ -12,6 +11,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/StyledText";
 import { ChildLoadingState } from "@/components/child/ChildLoadingState";
+import {
+  GameGuideOverlay,
+  useFirstPlayGuide,
+} from "@/components/games/GameGuide";
 import { LearningLanguageUnavailableState } from "@/components/learning/LearningLanguageUnavailableState";
 import { getMechanicRenderer } from "@/components/learning/mechanics/mechanicRegistry";
 import { brandColors } from "@/constants/Brand";
@@ -67,46 +70,67 @@ const LessonState = ({
   message,
   buttonLabel,
   onButtonPress,
-}: LessonStateProps) => (
-  <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
-    <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
-      <ScrollView
-        alwaysBounceVertical={false}
-        contentContainerStyle={{
-          alignItems: "center",
-          flexGrow: 1,
-          justifyContent: "center",
-          paddingHorizontal: 32,
-          paddingVertical: 24,
-        }}
-        showsVerticalScrollIndicator={false}
-        style={{ flex: 1 }}
-      >
-        <View className="bg-white rounded-2xl border-2 border-accent-500 p-6 w-full max-w-md items-center">
-          <View className="w-16 h-16 rounded-full bg-primary-50 items-center justify-center mb-4">
-            <Ionicons name={icon} size={32} color={brandColors.victoriaBlue} />
-          </View>
-          <Text variant="bold" className="text-primary-700 text-2xl text-center mb-2">
-            {title}
-          </Text>
-          <Text className="text-neutral-600 text-base text-center leading-6 mb-5">
-            {message}
-          </Text>
-          <TouchableOpacity
-            className="bg-primary-600 rounded-full px-6 py-3"
-            onPress={onButtonPress}
-            accessibilityRole="button"
-            accessibilityLabel={buttonLabel}
+}: LessonStateProps) => {
+  const { height } = useWindowDimensions();
+  const isCompactState = height < 430;
+
+  return (
+    <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
+      <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
+        <View
+          className="flex-1 items-center justify-center"
+          style={{
+            paddingHorizontal: isCompactState ? 24 : 32,
+            paddingVertical: isCompactState ? 12 : 20,
+          }}
+        >
+          <View
+            className="bg-white rounded-2xl border-2 border-accent-500 w-full max-w-md items-center"
+            style={{ padding: isCompactState ? 18 : 24 }}
           >
-            <Text variant="bold" className="text-white text-base">
-              {buttonLabel}
+            <View
+              className="rounded-full bg-primary-50 items-center justify-center"
+              style={{
+                height: isCompactState ? 60 : 68,
+                marginBottom: isCompactState ? 10 : 14,
+                width: isCompactState ? 60 : 68,
+              }}
+            >
+              <Ionicons
+                name={icon}
+                size={isCompactState ? 32 : 36}
+                color={brandColors.victoriaBlue}
+              />
+            </View>
+            <Text
+              variant="bold"
+              className="text-primary-700 text-center mb-2"
+              style={{ fontSize: isCompactState ? 26 : 29 }}
+            >
+              {title}
             </Text>
-          </TouchableOpacity>
+            <Text
+              className="text-neutral-600 text-center mb-5"
+              style={{ fontSize: 17, lineHeight: 24 }}
+            >
+              {message}
+            </Text>
+            <TouchableOpacity
+              className="bg-primary-600 rounded-full px-7 py-3"
+              onPress={onButtonPress}
+              accessibilityRole="button"
+              accessibilityLabel={buttonLabel}
+            >
+              <Text variant="bold" className="text-white" style={{ fontSize: 17 }}>
+                {buttonLabel}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </ScrollView>
-    </SafeAreaView>
-  </ImageBackground>
-);
+      </SafeAreaView>
+    </ImageBackground>
+  );
+};
 
 const ProgressDots = ({
   currentIndex,
@@ -134,6 +158,7 @@ export default function LearningLessonSessionScreen() {
   const params = useLocalSearchParams();
   const { height, width } = useWindowDimensions();
   const { activeChild } = useChild();
+  const lessonGuide = useFirstPlayGuide("learning-hub", activeChild?.id);
   const { enqueueAchievementUnlocks } = useChildNotice();
   const stageId = getRouteParam(params.stageId);
   const lessonId = getRouteParam(params.lessonId);
@@ -518,40 +543,56 @@ export default function LearningLessonSessionScreen() {
         <StatusBar style="light" translucent backgroundColor="transparent" />
         <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
           <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
-            <ScrollView
-              alwaysBounceVertical={false}
-              contentContainerStyle={{
-                alignItems: "center",
-                flexGrow: 1,
-                justifyContent: "center",
-                paddingHorizontal: 32,
-                paddingVertical: 24,
+            <View
+              className="flex-1 items-center justify-center"
+              style={{
+                paddingHorizontal: isCompactLessonScreen ? 24 : 32,
+                paddingVertical: isCompactLessonScreen ? 12 : 20,
               }}
-              showsVerticalScrollIndicator={false}
-              style={{ flex: 1 }}
             >
-              <View className="bg-white rounded-2xl border-2 border-accent-500 p-6 w-full max-w-md items-center">
-                <View className="w-20 h-20 rounded-full bg-green-100 items-center justify-center mb-4">
-                  <Ionicons name="checkmark-circle" size={44} color={brandColors.success} />
+              <View
+                className="bg-white rounded-2xl border-2 border-accent-500 w-full max-w-md items-center"
+                style={{ padding: isCompactLessonScreen ? 18 : 24 }}
+              >
+                <View
+                  className="rounded-full bg-green-100 items-center justify-center"
+                  style={{
+                    height: isCompactLessonScreen ? 68 : 80,
+                    marginBottom: isCompactLessonScreen ? 10 : 14,
+                    width: isCompactLessonScreen ? 68 : 80,
+                  }}
+                >
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={isCompactLessonScreen ? 40 : 46}
+                    color={brandColors.success}
+                  />
                 </View>
-                <Text variant="bold" className="text-primary-700 text-3xl text-center mb-2">
+                <Text
+                  variant="bold"
+                  className="text-primary-700 text-center mb-2"
+                  style={{ fontSize: isCompactLessonScreen ? 28 : 31 }}
+                >
                   Great learning!
                 </Text>
-                <Text className="text-neutral-600 text-base text-center leading-6 mb-5">
+                <Text
+                  className="text-neutral-600 text-center mb-5"
+                  style={{ fontSize: 17, lineHeight: 24 }}
+                >
                   You finished {lesson.title} in {stage.title}. {results.length} items complete.
                 </Text>
                 <TouchableOpacity
-                  className="bg-primary-600 rounded-full px-6 py-3"
+                  className="bg-primary-600 rounded-full px-7 py-3"
                   onPress={goBackToStagePath}
                   accessibilityRole="button"
                   accessibilityLabel="Continue"
                 >
-                  <Text variant="bold" className="text-white text-base">
+                  <Text variant="bold" className="text-white" style={{ fontSize: 17 }}>
                     Continue
                   </Text>
                 </TouchableOpacity>
               </View>
-            </ScrollView>
+            </View>
           </SafeAreaView>
         </ImageBackground>
       </>
@@ -584,7 +625,7 @@ export default function LearningLessonSessionScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Back to Lessons"
               >
-                <Ionicons name="arrow-back" size={22} color={brandColors.victoriaBlue} />
+                <Ionicons name="arrow-back" size={24} color={brandColors.victoriaBlue} />
               </TouchableOpacity>
 
               <View
@@ -596,7 +637,8 @@ export default function LearningLessonSessionScreen() {
               >
                 <Text
                   variant="bold"
-                  className="text-white text-2xl text-center"
+                  className="text-white text-center"
+                  style={{ fontSize: isCompactLessonScreen ? 25 : 27 }}
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.72}
@@ -604,7 +646,8 @@ export default function LearningLessonSessionScreen() {
                   {lesson.title}
                 </Text>
                 <Text
-                  className="text-white/80 text-sm text-center"
+                  className="text-white/80 text-center"
+                  style={{ fontSize: 15 }}
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.78}
@@ -614,19 +657,36 @@ export default function LearningLessonSessionScreen() {
                 <ProgressDots currentIndex={currentIndex} total={items.length} />
               </View>
 
-              <View
-                className="bg-white rounded-full px-4 py-2 border-2 border-accent-500"
-                style={{ flexShrink: 0, maxWidth: width < 380 ? 82 : 104 }}
-              >
-                <Text
-                  variant="bold"
-                  className="text-primary-700 text-sm text-center"
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.76}
+              <View className="flex-row items-center" style={{ flexShrink: 0 }}>
+                <View
+                  className="bg-white rounded-full px-4 py-2 border-2 border-accent-500"
+                  style={{ maxWidth: width < 380 ? 82 : 104 }}
                 >
-                  {currentIndex + 1} of {items.length}
-                </Text>
+                  <Text
+                    variant="bold"
+                    className="text-primary-700 text-center"
+                    style={{ fontSize: 15 }}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.76}
+                  >
+                    {currentIndex + 1} of {items.length}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  className="rounded-full bg-white items-center justify-center border-2 border-accent-500 ml-2"
+                  style={{ height: headerButtonSize, width: headerButtonSize }}
+                  onPress={lessonGuide.open}
+                  accessibilityRole="button"
+                  accessibilityLabel="Show lesson guide"
+                >
+                  <Ionicons
+                    name="help-circle-outline"
+                    size={24}
+                    color={brandColors.victoriaBlue}
+                  />
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -649,6 +709,31 @@ export default function LearningLessonSessionScreen() {
           </View>
         </SafeAreaView>
       </ImageBackground>
+      <GameGuideOverlay
+        visible={lessonGuide.visible}
+        onDismiss={lessonGuide.dismiss}
+        title="How Learning Hub lessons work"
+        description="Each lesson mixes short activities to help you learn and remember."
+        actionLabel="Start learning"
+        actionAccessibilityLabel="Close guide and start learning"
+        steps={[
+          {
+            icon: "eye-outline",
+            title: "Follow the card",
+            description: "Read the prompt, look at the picture, or listen when a sound button appears.",
+          },
+          {
+            icon: "hand-left-outline",
+            title: "Tap and try",
+            description: "Choose, match, or review what the card asks. It is always okay to try again.",
+          },
+          {
+            icon: "arrow-forward-circle-outline",
+            title: "Keep going",
+            description: "Use Next after each card. The progress at the top shows how much is left.",
+          },
+        ]}
+      />
     </>
   );
 }

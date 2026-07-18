@@ -352,20 +352,22 @@ export default function ColoringGameScreen({
 
   useEffect(() => {
     let isActive = true
-    void hasSeenColoringStudioTutorial().then((hasSeenTutorial) => {
+    setTutorialStatus("checking")
+    setTutorialStep(0)
+    void hasSeenColoringStudioTutorial(activeChild?.id).then((hasSeenTutorial) => {
       if (!isActive) return
       setTutorialStatus(hasSeenTutorial ? "hidden" : "pending")
     })
     return () => {
       isActive = false
     }
-  }, [])
+  }, [activeChild?.id])
 
   const dismissTutorial = useCallback(() => {
     tutorialVisibleRef.current = false
     setTutorialStatus("hidden")
-    void markColoringStudioTutorialSeen()
-  }, [])
+    void markColoringStudioTutorialSeen(activeChild?.id)
+  }, [activeChild?.id])
 
   useEffect(() => {
     setImageLoaded(false)

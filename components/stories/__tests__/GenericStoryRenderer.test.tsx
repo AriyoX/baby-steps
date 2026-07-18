@@ -1,6 +1,7 @@
 import React from "react";
 import renderer, { act } from "react-test-renderer";
-import { TouchableOpacity } from "react-native";
+import { ScrollView, TouchableOpacity } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Speech from "expo-speech";
 import { GenericStoryRenderer } from "../GenericStoryRenderer";
 import { lugandaStories } from "@/content/luganda/stories";
@@ -12,6 +13,7 @@ import {
   updateActivityProgress,
 } from "@/lib/progressRepository";
 import { saveActivity } from "@/lib/utils";
+import { getGameGuideStorageKey } from "@/lib/gameGuide";
 import type { LocalStory } from "@/content/types";
 
 const runyankoleStoryFixture: LocalStory = {
@@ -87,6 +89,15 @@ jest.mock("expo-speech", () => ({
   speak: jest.fn(),
   stop: jest.fn(),
 }));
+
+jest.mock("react-native-safe-area-context", () => {
+  const actual = jest.requireActual("react-native-safe-area-context");
+
+  return {
+    ...actual,
+    useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+  };
+});
 
 jest.mock("@/context/AudioContext", () => ({
   useAudio: () => ({
@@ -206,13 +217,80 @@ const renderStory = (story: LocalStory) => {
   return tree;
 };
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.clearAllMocks();
+  await AsyncStorage.clear();
+  await AsyncStorage.setItem(getGameGuideStorageKey("stories"), "seen");
+  await AsyncStorage.setItem(getGameGuideStorageKey("stories", "child-1"), "seen");
   mockActiveChild = null;
   mockStageProgress = null;
 });
 
 describe("GenericStoryRenderer", () => {
+  it("shows story onboarding once and keeps a help button to reopen it", async () => {
+    mockActiveChild = {
+      id: "child-1",
+      selected_language_code: "nyn",
+    };
+    await AsyncStorage.removeItem(getGameGuideStorageKey("stories", "child-1"));
+    const tree = renderStory(runyankoleStoryFixture);
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(JSON.stringify(tree.toJSON())).toContain("How to read a story");
+
+    await act(async () => {
+      findButtonByAccessibilityLabel(tree.root, "Close guide and start reading").props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(
+      await AsyncStorage.getItem(getGameGuideStorageKey("stories", "child-1")),
+    ).toBe("seen");
+    expect(JSON.stringify(tree.toJSON())).not.toContain("How to read a story");
+
+    act(() => {
+      findButtonByAccessibilityLabel(tree.root, "Show story guide").props.onPress();
+    });
+
+    expect(JSON.stringify(tree.toJSON())).toContain("How to read a story");
+  });
+
+  it("keeps short pages still and opens settings over the full system window", async () => {
+    const tree = renderStory(runyankoleStoryFixture);
+    let storyScrollView = tree.root.findByType(ScrollView);
+
+    expect(storyScrollView.props.scrollEnabled).toBe(false);
+
+    act(() => {
+      storyScrollView.props.onLayout({ nativeEvent: { layout: { height: 220 } } });
+      storyScrollView.props.onContentSizeChange(480, 180);
+    });
+
+    storyScrollView = tree.root.findByType(ScrollView);
+    expect(storyScrollView.props.scrollEnabled).toBe(false);
+
+    act(() => {
+      storyScrollView.props.onContentSizeChange(480, 280);
+    });
+
+    storyScrollView = tree.root.findByType(ScrollView);
+    expect(storyScrollView.props.scrollEnabled).toBe(true);
+
+    await act(async () => {
+      findButtonByAccessibilityLabel(tree.root, "Open accessibility options").props.onPress();
+    });
+
+    const settingsModal = tree.root.findByProps({ testID: "story-settings-modal" });
+    expect(settingsModal.props.visible).toBe(true);
+    expect(settingsModal.props.statusBarTranslucent).toBe(true);
+    expect(settingsModal.props.navigationBarTranslucent).toBe(true);
+    expect(settingsModal.props.presentationStyle).toBe("overFullScreen");
+  });
+
   it("renders a seeded Luganda story with non-empty page and quiz content", async () => {
     const story = {
       ...lugandaStories.find((item) => item.id === "fig-tree")!,

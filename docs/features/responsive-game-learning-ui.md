@@ -6,7 +6,9 @@ Implemented for the landscape child experience. This pass preserves existing saf
 
 ## Learning Hub Mechanics
 
-The shared mechanic frame keeps the primary action outside the content scroller and uses scrolling only when authored text genuinely exceeds the available height. Mechanic cards now switch to split-column layouts from `620px` wide rather than waiting until `680px`, and their maximum widths make better use of tablets and wider phones.
+The shared mechanic frame keeps the primary action outside the content scroller and enables vertical scrolling only after measured content genuinely exceeds the available height. Short cards no longer move or show a scroll indicator. Mechanic cards now switch to split-column layouts from `620px` wide rather than waiting until `680px`, and their maximum widths make better use of tablets and wider phones.
+
+Primary Next and Finish actions are slightly larger across all mechanics. Fixed lesson status and completion cards use centered, non-scrolling layouts, while compact spacing keeps them within short landscape screens.
 
 Adjusted mechanics:
 
@@ -17,6 +19,10 @@ Adjusted mechanics:
 - Mini Quiz gives question copy and answers distinct horizontal regions.
 - Cultural Card balances a fuller visual/local-language panel against longer explanatory copy.
 - Story Bite gives story text more room, makes the page illustration more prominent, and keeps page actions outside the scroll area.
+
+## Story Reader
+
+The generic story reader uses slightly larger reading text and 44-point-or-larger header and page controls. Its page panel stays fixed for short content and enables scrolling only when the measured story or final quiz content overflows. The accessibility panel uses a translucent full-window native modal so the status, navigation, and cutout areas dim consistently with the story content.
 
 The lesson header is inset slightly farther from the top without changing `SafeAreaView` or its edge configuration.
 

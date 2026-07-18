@@ -73,6 +73,8 @@ The same full-lesson completion also writes a parent-feed activity through the e
 
 Individual lesson mechanics should fit within one screen during normal child use. `tap_to_learn`, `listen_and_choose`, `choose_correct_word`, `match_word_picture`, `mini_quiz`, `cultural_card`, and `story_bite` should keep the primary content, answer choices or card copy, feedback when applicable, and advance action visible without normal vertical scrolling. Future mechanics should follow the same layout rule and only use vertical scroll as a last-resort safety fallback for unusually small screens.
 
+The first startable Learning Hub lesson opened by a child shows one shared three-step guide covering prompts/media, interaction and retry, and lesson advancement. Dismissal is stored per child and applies across all seven mechanics so new activity types do not repeatedly interrupt the lesson. A help button beside lesson progress reopens the guide without changing the current item, answers, results, or saved completion.
+
 The current landscape breakpoints, per-mechanic layout treatment, and device QA matrix are documented in [Responsive Game And Learning UI](responsive-game-learning-ui.md).
 
 ## Content Contract

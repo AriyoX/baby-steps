@@ -59,10 +59,12 @@ describe("account management deletion helpers", () => {
       "cache:child_achievements:child-1",
       "@BabySteps:LearningProgress:v1:summary:child-1:lg:language",
       "@BabySteps:Progress:v1:activity:child-1:lg:words",
+      "@baby_steps_coloring_studio_tutorial_v2:child-1",
       "cache:achievements:definitions",
       "@BabySteps:ContentBundle:v1:lg",
       "@baby_steps/audio_settings/v1",
       "@BabySteps:CountingGame:child-2:lg",
+      "@baby_steps_coloring_studio_tutorial_v2:child-2",
     ];
 
     expect(getChildLocalStorageKeysToRemove(keys, "child-1")).toEqual([
@@ -76,6 +78,7 @@ describe("account management deletion helpers", () => {
       "cache:child_achievements:child-1",
       "@BabySteps:LearningProgress:v1:summary:child-1:lg:language",
       "@BabySteps:Progress:v1:activity:child-1:lg:words",
+      "@baby_steps_coloring_studio_tutorial_v2:child-1",
     ]);
   });
 

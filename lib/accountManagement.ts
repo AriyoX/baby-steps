@@ -6,6 +6,7 @@ import {
   getSignUpErrorMessage as getFriendlySignUpErrorMessage,
   isExistingAccountSignUpError as isFriendlyExistingAccountSignUpError,
 } from "@/lib/authMessages";
+import { getColoringStudioTutorialStorageKey } from "@/lib/coloringStudioTutorial";
 import { clearLearningProgressForChild } from "@/lib/learningProgressRepository";
 import { clearProgressRepositoryStorageForChild } from "@/lib/progressRepository";
 import { supabase } from "@/lib/supabase";
@@ -315,6 +316,7 @@ const getExactChildStorageKeys = (childId: string): string[] => [
   `@BabySteps:CardGame:${childId}`,
   `@BabySteps:CardGameOverallStats:${childId}`,
   `@BabySteps:PuzzleGameProgress:${childId}`,
+  getColoringStudioTutorialStorageKey(childId),
   `luganda_total_score_${childId}`,
   `luganda_completed_levels_${childId}`,
   `luganda_stages_${childId}`,

@@ -23,11 +23,11 @@ export const getWordGameSizing = (
 ): WordGameSizing => {
   const shortSide = Math.min(windowWidth, windowHeight)
   const titleFontSize = clamp(shortSide * 0.058, 20, 26)
-  const choiceButtonSize = clamp(shortSide * 0.15, 52, 60)
-  const choiceLetterFontSize = clamp(choiceButtonSize * 0.46, 24, 28)
-  const answerSlotWidth = clamp(shortSide * 0.13, 44, 52)
-  const answerSlotHeight = clamp(shortSide * 0.14, 48, 56)
-  const answerLetterFontSize = clamp(answerSlotWidth * 0.57, 24, 30)
+  const choiceButtonSize = clamp(shortSide * 0.155, 54, 64)
+  const choiceLetterFontSize = clamp(choiceButtonSize * 0.47, 26, 30)
+  const answerSlotWidth = clamp(shortSide * 0.135, 46, 56)
+  const answerSlotHeight = clamp(shortSide * 0.145, 50, 60)
+  const answerLetterFontSize = clamp(answerSlotWidth * 0.58, 26, 32)
 
   return {
     answerLetterFontSize,

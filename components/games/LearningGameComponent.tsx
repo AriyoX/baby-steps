@@ -1631,7 +1631,7 @@ const LugandaLearningGame: React.FC = () => {
                       Translate this phrase
                     </Text>
                   </View>
-                  <Text className="text-sm text-slate-500 mb-2 text-center" numberOfLines={2}>
+                  <Text className="text-base text-slate-500 mb-2 text-center" numberOfLines={2}>
                     What is the English translation of:
                   </Text>
 
@@ -1639,7 +1639,7 @@ const LugandaLearningGame: React.FC = () => {
                     <View className="flex-row items-center">
                       <Text
                         variant="bold"
-                        className="text-3xl text-indigo-700 text-center flex-1"
+                        className="text-4xl text-indigo-700 text-center flex-1"
                         numberOfLines={2}
                         adjustsFontSizeToFit
                         minimumFontScale={0.78}
@@ -1647,7 +1647,7 @@ const LugandaLearningGame: React.FC = () => {
                         {currentWord.targetText}
                       </Text>
                       <TouchableOpacity
-                        className="ml-3 w-11 h-11 bg-indigo-100 rounded-2xl items-center justify-center"
+                        className="ml-3 w-12 h-12 bg-indigo-100 rounded-2xl items-center justify-center"
                         onPress={() => {
                           void playWordSound().catch((error) => {
                             console.warn("Could not play legacy Learning word sound:", error)
@@ -1656,7 +1656,7 @@ const LugandaLearningGame: React.FC = () => {
                         accessibilityRole="button"
                         accessibilityLabel={`Hear ${currentWord.targetText}`}
                       >
-                        <Ionicons name="volume-high" size={20} color="#6366f1" />
+                        <Ionicons name="volume-high" size={22} color="#6366f1" />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -1664,7 +1664,7 @@ const LugandaLearningGame: React.FC = () => {
                   {/* Feedback */}
                   {isCorrect !== null && (
                     <View className={`items-center mt-3 rounded-full px-4 py-1.5 ${isCorrect ? "bg-emerald-50" : "bg-red-50"}`}>
-                      <Text className={`text-sm ${isCorrect ? "text-emerald-600" : "text-red-600"}`} variant="bold">
+                      <Text className={`text-base ${isCorrect ? "text-emerald-600" : "text-red-600"}`} variant="bold">
                         {isCorrect ? "Correct!" : "Try again!"}
                       </Text>
                       <Text className="hidden" variant="bold">
@@ -1700,8 +1700,7 @@ const LugandaLearningGame: React.FC = () => {
                         activeOpacity={0.8}
                       >
                         <Text
-                          className={`
-                          ${
+                          className={`text-lg ${
                             selectedOption === null
                               ? "text-slate-700"
                               : option === currentWord.english
@@ -1709,8 +1708,7 @@ const LugandaLearningGame: React.FC = () => {
                                 : option === selectedOption
                                   ? "text-red-700"
                                   : "text-slate-700"
-                          }
-                        `}
+                          }`}
                           variant="bold"
                           numberOfLines={2}
                           adjustsFontSizeToFit

@@ -3,8 +3,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage"
 export type GameGuideId =
   | "cards-matching"
   | "counting"
+  | "learning-hub"
   | "learning-quiz"
   | "puzzle"
+  | "stories"
   | "word"
 
 const GAME_GUIDE_STORAGE_PREFIX = "@BabySteps:GameGuide:v1"
@@ -32,4 +34,3 @@ export const markGameGuideSeen = async (
 ): Promise<void> => {
   await AsyncStorage.setItem(getGameGuideStorageKey(gameId, childId), "seen")
 }
-

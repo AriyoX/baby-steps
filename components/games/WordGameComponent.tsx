@@ -58,6 +58,11 @@ const WORD_GAME_MODAL_ORIENTATIONS: ModalProps["supportedOrientations"] = [
   "landscape-right",
 ];
 
+const WORD_GAME_MODAL_SYSTEM_PROPS = {
+  navigationBarTranslucent: true,
+  statusBarTranslucent: true,
+} as const;
+
 interface WordCompletionOrderOptions {
   persistProgress: (progress: WordGameProgress) => Promise<void>;
   revealCompletion: (progress: WordGameProgress) => void;
@@ -108,10 +113,10 @@ const WordGame: React.FC = () => {
   const wordGameSizing = getWordGameSizing(windowWidth, windowHeight);
   const isCompactLandscape = windowHeight < 400;
   const sideVisualSize = Math.min(
-    isCompactLandscape ? 104 : 128,
-    Math.max(92, windowWidth * 0.15),
+    isCompactLandscape ? 110 : 136,
+    Math.max(98, windowWidth * 0.155),
   );
-  const hintButtonSize = isCompactLandscape ? 52 : 58;
+  const hintButtonSize = isCompactLandscape ? 56 : 62;
   const previewImageSize = Math.max(
     176,
     Math.min(windowHeight * 0.6, windowWidth * 0.48, 360),
@@ -993,6 +998,14 @@ const WordGame: React.FC = () => {
   }
 
   const currentLevel = gameLevels[currentLevelIndex] ?? gameLevels[0];
+  const hasOpenModal =
+    showSuccessModal ||
+    isGameCompleted ||
+    showLevelIntroModal ||
+    showHintModal ||
+    showImagePreview ||
+    showLevelSelect ||
+    wordGuide.visible;
 
   return (
     <SafeAreaView
@@ -1000,7 +1013,7 @@ const WordGame: React.FC = () => {
       className="flex-1 bg-blue-50"
       edges={["top", "bottom", "left", "right"]}
     >
-      <StatusBar style="dark" />
+      <StatusBar style={hasOpenModal ? "light" : "dark"} />
       <GameHeader
         title={currentQuestion}
         subtitle="Tap the letters in order to complete the word"
@@ -1010,13 +1023,13 @@ const WordGame: React.FC = () => {
         trailing={
           <>
           <TouchableOpacity
-            className="w-11 h-11 rounded-2xl bg-white items-center justify-center border border-blue-100 ml-2"
+            className="w-12 h-12 rounded-2xl bg-white items-center justify-center border border-blue-100 ml-2"
             onPress={() => setShowLevelSelect(true)}
             activeOpacity={0.76}
             accessibilityRole="button"
             accessibilityLabel="Choose word game level"
           >
-            <Ionicons name="list" size={21} color="#0274BB" />
+            <Ionicons name="list" size={23} color="#0274BB" />
           </TouchableOpacity>
             <GameStatChip
               icon="flag-outline"
@@ -1047,8 +1060,8 @@ const WordGame: React.FC = () => {
               resizeMode="cover"
               accessibilityLabel={`${currentLevel.question} picture`}
             />
-            <View className="absolute right-1.5 bottom-1.5 w-7 h-7 rounded-full bg-primary-700/90 items-center justify-center border border-white/80">
-              <Ionicons name="expand" size={15} color="white" />
+            <View className="absolute right-1.5 bottom-1.5 w-8 h-8 rounded-full bg-primary-700/90 items-center justify-center border border-white/80">
+              <Ionicons name="expand" size={17} color="white" />
             </View>
           </TouchableOpacity>
         </View>
@@ -1214,13 +1227,14 @@ const WordGame: React.FC = () => {
 
       {/* Success Modal */}
       <Modal
+        {...WORD_GAME_MODAL_SYSTEM_PROPS}
         transparent={true}
         visible={showSuccessModal}
         animationType="fade"
         presentationStyle="overFullScreen"
         supportedOrientations={WORD_GAME_MODAL_ORIENTATIONS}
       >
-        <View className="flex-1 justify-center items-center bg-black/50 px-5">
+        <View className="flex-1 justify-center items-center px-5" style={{ backgroundColor: "#020617B3" }}>
           <View className="bg-white rounded-3xl p-6 pt-8 w-4/5 max-w-xl items-center shadow-xl border-4 border-primary-100">
             <View className="absolute -top-6 left-1/2 -ml-12 w-24 h-24 bg-primary-100 rounded-full items-center justify-center border-4 border-white shadow-lg">
               <Ionicons
@@ -1319,6 +1333,7 @@ const WordGame: React.FC = () => {
 
       {/* Game Completed Modal */}
       <Modal
+        {...WORD_GAME_MODAL_SYSTEM_PROPS}
         transparent={true}
         visible={isGameCompleted}
         animationType="fade"
@@ -1327,7 +1342,8 @@ const WordGame: React.FC = () => {
       >
         <ScrollView
           contentContainerStyle={{ flexGrow: 1 }}
-          className="flex-1 bg-black/50"
+          className="flex-1"
+          style={{ backgroundColor: "#020617B3" }}
         >
           <View className="flex-1 justify-center items-center px-4 py-10">
             <View className="bg-white rounded-3xl p-6 w-[70%] max-w-xl items-center shadow-xl border-4 border-primary-100">
@@ -1398,6 +1414,7 @@ const WordGame: React.FC = () => {
 
       {/* Level Intro Modal */}
       <Modal
+        {...WORD_GAME_MODAL_SYSTEM_PROPS}
         transparent={true}
         visible={showLevelIntroModal}
         animationType="fade"
@@ -1405,7 +1422,7 @@ const WordGame: React.FC = () => {
         supportedOrientations={WORD_GAME_MODAL_ORIENTATIONS}
         onShow={() => console.log("Word game level intro modal shown")}
       >
-        <View className="flex-1 justify-center items-center bg-black/50 px-4">
+        <View className="flex-1 justify-center items-center px-4" style={{ backgroundColor: "#020617B3" }}>
           <View className="bg-white rounded-2xl p-4 w-[80%] max-w-md items-center shadow-xl border-4 border-primary-100">
             {/* Close button - repositioned to be more visible */}
             <TouchableOpacity
@@ -1471,13 +1488,14 @@ const WordGame: React.FC = () => {
 
       {/* Hint Modal */}
       <Modal
+        {...WORD_GAME_MODAL_SYSTEM_PROPS}
         transparent={true}
         visible={showHintModal}
         animationType="fade"
         presentationStyle="overFullScreen"
         supportedOrientations={WORD_GAME_MODAL_ORIENTATIONS}
       >
-        <View className="flex-1 justify-center items-center bg-black/50 px-4">
+        <View className="flex-1 justify-center items-center px-4" style={{ backgroundColor: "#020617B3" }}>
           <View className="bg-white rounded-2xl p-4 w-[80%] max-w-md items-center shadow-xl border-4 border-primary-100">
             {/* Close button */}
             <TouchableOpacity
@@ -1499,7 +1517,7 @@ const WordGame: React.FC = () => {
                 color="#7b5af0"
                 style={{ marginRight: 6 }}
               />
-              <Text variant="bold" className="text-xl text-primary-600">
+              <Text variant="bold" className="text-2xl text-primary-600">
                 Hint
               </Text>
             </View>
@@ -1508,7 +1526,7 @@ const WordGame: React.FC = () => {
             <View className="bg-primary-50/80 w-full rounded-xl px-3 py-2.5 mb-3 border-2 border-primary-100">
               <Text
                 variant="medium"
-                className="text-base text-primary-700 text-center"
+                className="text-lg text-primary-700 text-center"
                 numberOfLines={4}
               >
                 {currentLevel.hint}
@@ -1522,7 +1540,7 @@ const WordGame: React.FC = () => {
                 onPress={() => setShowSubHint(true)}
                 activeOpacity={0.7}
               >
-                <Text variant="bold" className="text-white text-sm">
+                <Text variant="bold" className="text-white text-base">
                   Need More Help?
                 </Text>
               </TouchableOpacity>
@@ -1533,13 +1551,13 @@ const WordGame: React.FC = () => {
               <View className="bg-secondary-50/80 w-full rounded-xl px-3 py-2.5 mb-4 border-2 border-secondary-100">
                 <Text
                   variant="bold"
-                  className="text-sm text-secondary-700 text-center mb-1"
+                  className="text-base text-secondary-700 text-center mb-1"
                 >
                   Additional Hint:
                 </Text>
                 <Text
                   variant="medium"
-                  className="text-sm text-secondary-700 text-center"
+                  className="text-base text-secondary-700 text-center"
                   numberOfLines={4}
                 >
                   {currentLevel.subHint}
@@ -1556,7 +1574,7 @@ const WordGame: React.FC = () => {
               }}
               activeOpacity={0.7}
             >
-              <Text variant="bold" className="text-white text-sm">
+              <Text variant="bold" className="text-white text-base">
                 Got it!
               </Text>
             </TouchableOpacity>
@@ -1566,6 +1584,7 @@ const WordGame: React.FC = () => {
 
       {/* Enlarged prompt image */}
       <Modal
+        {...WORD_GAME_MODAL_SYSTEM_PROPS}
         transparent={true}
         visible={showImagePreview}
         animationType="fade"
@@ -1573,7 +1592,7 @@ const WordGame: React.FC = () => {
         supportedOrientations={WORD_GAME_MODAL_ORIENTATIONS}
         onRequestClose={() => setShowImagePreview(false)}
       >
-        <View className="flex-1 justify-center items-center bg-black/70 px-5">
+        <View className="flex-1 justify-center items-center px-5" style={{ backgroundColor: "#020617B3" }}>
           <TouchableOpacity
             className="absolute inset-0"
             onPress={() => setShowImagePreview(false)}
@@ -1605,7 +1624,7 @@ const WordGame: React.FC = () => {
             </View>
             <Text
               variant="bold"
-              className="text-primary-700 text-base text-center mt-2 px-3"
+              className="text-primary-700 text-lg text-center mt-2 px-3"
               numberOfLines={2}
             >
               {currentQuestion}
@@ -1616,13 +1635,14 @@ const WordGame: React.FC = () => {
 
       {/* Level Select Modal */}
       <Modal
+        {...WORD_GAME_MODAL_SYSTEM_PROPS}
         transparent={true}
         visible={showLevelSelect}
         animationType="fade"
         presentationStyle="overFullScreen"
         supportedOrientations={WORD_GAME_MODAL_ORIENTATIONS}
       >
-        <View className="flex-1 justify-center items-center bg-black/50 px-4">
+        <View className="flex-1 justify-center items-center px-4" style={{ backgroundColor: "#020617B3" }}>
           <View className="bg-white rounded-2xl p-4 max-h-[80%] w-[80%] items-center shadow-xl border-4 border-primary-100">
             {/* Close button */}
             <TouchableOpacity
@@ -1633,7 +1653,7 @@ const WordGame: React.FC = () => {
               <Ionicons name="close" size={20} color="#7b5af0" />
             </TouchableOpacity>
 
-            <Text variant="bold" className="text-xl text-primary-600 mb-2">
+            <Text variant="bold" className="text-2xl text-primary-600 mb-2">
               Select Level
             </Text>
 

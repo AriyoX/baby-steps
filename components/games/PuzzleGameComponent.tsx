@@ -1054,14 +1054,14 @@ const PuzzleGame: React.FC = () => {
             <GameStatChip icon="footsteps-outline" label={`${moves}`} accessibilityLabel={`${moves} moves`} />
             {gameStarted && !showPreview ? (
               <TouchableOpacity
-                className="w-11 h-11 rounded-2xl bg-white items-center justify-center border border-blue-100 ml-2"
+                className="w-12 h-12 rounded-2xl bg-white items-center justify-center border border-blue-100 ml-2"
                 onPress={handleReset}
                 accessibilityLabel="Reset Puzzle"
                 accessibilityHint="Starts a new shuffled puzzle"
                 accessibilityRole="button"
                 activeOpacity={0.76}
               >
-                <Ionicons name="refresh" size={19} color="#0274BB" />
+                <Ionicons name="refresh" size={21} color="#0274BB" />
               </TouchableOpacity>
             ) : null}
           </>
@@ -1128,18 +1128,18 @@ const PuzzleGame: React.FC = () => {
 
         <View className="justify-center pl-3 pr-2" style={{ flex: 0.88 }}>
           <View className="bg-white rounded-3xl border border-blue-100 shadow-sm px-5 py-5">
-            <View className="w-11 h-11 rounded-2xl bg-blue-50 items-center justify-center self-center mb-3">
-              <Ionicons name="images-outline" size={23} color="#0274BB" />
+            <View className="w-12 h-12 rounded-2xl bg-blue-50 items-center justify-center self-center mb-3">
+              <Ionicons name="images-outline" size={25} color="#0274BB" />
             </View>
-            <Text variant="bold" className="text-xl text-indigo-800 mb-2 text-center" numberOfLines={2}>
+            <Text variant="bold" className="text-2xl text-indigo-800 mb-2 text-center" numberOfLines={2}>
               {puzzleImages[currentPuzzle].name}
             </Text>
-            <Text className="text-sm text-center text-slate-500" numberOfLines={4}>
+            <Text className="text-base text-center text-slate-500" numberOfLines={4}>
               {puzzleImages[currentPuzzle].description}
             </Text>
             <View className="flex-row items-center justify-center mt-4 bg-blue-50 rounded-xl px-3 py-2.5">
-              <Ionicons name="hand-left-outline" size={18} color="#0274BB" />
-              <Text variant="medium" className="text-xs text-primary-700 ml-2" numberOfLines={2}>
+              <Ionicons name="hand-left-outline" size={20} color="#0274BB" />
+              <Text variant="medium" className="text-sm text-primary-700 ml-2" numberOfLines={2}>
                 Tap or swipe a tile beside the empty space
               </Text>
             </View>

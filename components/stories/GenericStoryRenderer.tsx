@@ -3,6 +3,7 @@ import * as Speech from "expo-speech";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Modal,
   ScrollView,
   TouchableOpacity,
   useWindowDimensions,
@@ -14,6 +15,10 @@ import { ChildLoadingState } from "@/components/child/ChildLoadingState";
 import { ComingSoonState } from "@/components/child/ComingSoonState";
 import { ChildCompletionCard } from "@/components/child/ChildCompletionCard";
 import { CachedImage } from "@/components/common/CachedImage";
+import {
+  GameGuideOverlay,
+  useFirstPlayGuide,
+} from "@/components/games/GameGuide";
 import { useAudio } from "@/context/AudioContext";
 import { useChild } from "@/context/ChildContext";
 import { resolveImageSource } from "@/content/contentRepository";
@@ -58,30 +63,30 @@ const TEXT_SIZE_OPTIONS: {
   {
     value: "small",
     label: "Small",
-    fontSize: 15,
-    lineHeight: 23,
-    translationFontSize: 13,
-    translationLineHeight: 20,
+    fontSize: 16,
+    lineHeight: 24,
+    translationFontSize: 14,
+    translationLineHeight: 21,
     textPanelFlex: 0.94,
     portraitImageHeight: 232,
   },
   {
     value: "medium",
     label: "Medium",
-    fontSize: 17,
-    lineHeight: 27,
-    translationFontSize: 15,
-    translationLineHeight: 23,
+    fontSize: 18,
+    lineHeight: 28,
+    translationFontSize: 16,
+    translationLineHeight: 24,
     textPanelFlex: 1,
     portraitImageHeight: 224,
   },
   {
     value: "large",
     label: "Large",
-    fontSize: 20,
-    lineHeight: 32,
-    translationFontSize: 17,
-    translationLineHeight: 26,
+    fontSize: 21,
+    lineHeight: 33,
+    translationFontSize: 18,
+    translationLineHeight: 27,
     textPanelFlex: 1.12,
     portraitImageHeight: 204,
   },
@@ -146,6 +151,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
   const { activeChild } = useChild();
   const { settings: audioSettings } = useAudio();
   const { width, height } = useWindowDimensions();
+  const storyGuide = useFirstPlayGuide("stories", activeChild?.id);
   const [pageIndex, setPageIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, number>>({});
   const [hasSavedCompletion, setHasSavedCompletion] = useState(false);
@@ -154,6 +160,8 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
   const [textSize, setTextSize] = useState<StoryTextSize>("medium");
   const [readingSpeed, setReadingSpeed] = useState<ReadingSpeed>("normal");
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [storyViewportHeight, setStoryViewportHeight] = useState(0);
+  const [storyContentHeight, setStoryContentHeight] = useState(0);
   const [isReading, setIsReading] = useState(false);
   const [highlightedWordIndex, setHighlightedWordIndex] = useState<number | null>(null);
   const startedAtRef = useRef(Date.now());
@@ -188,6 +196,8 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
   const storyText = page?.text.trim() ?? "";
   const spokenWordRanges = useMemo(() => getSpokenWordRanges(storyText), [storyText]);
   const isCompactReader = height < 430;
+  const storyCanScroll =
+    storyViewportHeight > 0 && storyContentHeight > storyViewportHeight + 2;
   const outerPadding = isCompactReader ? 10 : 16;
   const availableContentWidth = Math.max(0, width - outerPadding * 2);
   const readerStageWidth = useSplitLayout
@@ -195,11 +205,11 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
     : Math.min(availableContentWidth, 620);
   // Tweak this number to nudge the whole story reader left/right.
   const readerStageOffsetX = useSplitLayout ? 14 : 0;
-  const headerButtonSize = isCompactReader ? 36 : 40;
-  const headerIconSize = isCompactReader ? 20 : 22;
+  const headerButtonSize = isCompactReader ? 44 : 48;
+  const headerIconSize = isCompactReader ? 22 : 24;
   const imagePanelPadding = isCompactReader ? 8 : 12;
-  const footerButtonSize = isCompactReader ? 40 : 44;
-  const footerIconSize = isCompactReader ? 20 : 22;
+  const footerButtonSize = isCompactReader ? 44 : 48;
+  const footerIconSize = isCompactReader ? 22 : 24;
   const textPanelMinHeight = useSplitLayout
     ? Math.max(112, Math.min(isCompactReader ? 150 : 204, height - 220))
     : 0;
@@ -620,7 +630,8 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
     >
       <Text
         variant="bold"
-        className={`text-center text-sm ${isSelected ? "text-white" : "text-slate-700"}`}
+        className={`text-center ${isSelected ? "text-white" : "text-slate-700"}`}
+        style={{ fontSize: 15 }}
       >
         {label}
       </Text>
@@ -743,7 +754,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
               variant="bold"
               className="text-amber-900"
               numberOfLines={1}
-              style={{ fontSize: isCompactReader ? 16 : 18 }}
+              style={{ fontSize: isCompactReader ? 18 : 20 }}
             >
               {story.title}
             </Text>
@@ -757,18 +768,33 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
             </View>
           </View>
 
-          <TouchableOpacity
-            className="rounded-full bg-white items-center justify-center shadow-sm border border-amber-200"
-            style={{
-              width: headerButtonSize,
-              height: headerButtonSize,
-            }}
-            onPress={() => setSettingsVisible(true)}
-            accessibilityLabel="Open accessibility options"
-            accessibilityRole="button"
-          >
-            <Ionicons name="options-outline" size={headerIconSize} color="#8B4513" />
-          </TouchableOpacity>
+          <View className="flex-row items-center">
+            <TouchableOpacity
+              className="rounded-full bg-white items-center justify-center shadow-sm border border-amber-200"
+              style={{
+                width: headerButtonSize,
+                height: headerButtonSize,
+              }}
+              onPress={storyGuide.open}
+              accessibilityLabel="Show story guide"
+              accessibilityRole="button"
+            >
+              <Ionicons name="help-circle-outline" size={headerIconSize} color="#8B4513" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              className="rounded-full bg-white items-center justify-center shadow-sm border border-amber-200 ml-2"
+              style={{
+                width: headerButtonSize,
+                height: headerButtonSize,
+              }}
+              onPress={() => setSettingsVisible(true)}
+              accessibilityLabel="Open accessibility options"
+              accessibilityRole="button"
+            >
+              <Ionicons name="options-outline" size={headerIconSize} color="#8B4513" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View
@@ -815,7 +841,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                 }`}
                 style={{
                   paddingHorizontal: isCompactReader ? 16 : 20,
-                  paddingVertical: isCompactReader ? 10 : 12,
+                  paddingVertical: isCompactReader ? 11 : 13,
                 }}
                 onPress={toggleReading}
                 accessibilityLabel={isReading ? "Stop reading aloud" : "Read page aloud"}
@@ -823,10 +849,14 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
               >
                 <Ionicons
                   name={isReading ? "stop-circle-outline" : "volume-high-outline"}
-                  size={isCompactReader ? 18 : 20}
+                  size={isCompactReader ? 20 : 22}
                   color="#fff"
                 />
-                <Text variant="bold" className="text-white ml-2">
+                <Text
+                  variant="bold"
+                  className="text-white ml-2"
+                  style={{ fontSize: isCompactReader ? 16 : 17 }}
+                >
                   {isReading ? "Stop" : "Read"}
                 </Text>
               </TouchableOpacity>
@@ -854,12 +884,28 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
               }}
             >
               <ScrollView
+                alwaysBounceVertical={false}
+                bounces={storyCanScroll}
                 className="flex-1"
                 contentContainerStyle={{
                   padding: isCompactReader ? 16 : 22,
                   paddingBottom: isCompactReader ? 20 : 30,
                 }}
-                showsVerticalScrollIndicator
+                onContentSizeChange={(_, nextContentHeight) => {
+                  const roundedHeight = Math.round(nextContentHeight);
+                  setStoryContentHeight((currentHeight) =>
+                    currentHeight === roundedHeight ? currentHeight : roundedHeight,
+                  );
+                }}
+                onLayout={(event) => {
+                  const roundedHeight = Math.round(event.nativeEvent.layout.height);
+                  setStoryViewportHeight((currentHeight) =>
+                    currentHeight === roundedHeight ? currentHeight : roundedHeight,
+                  );
+                }}
+                overScrollMode={storyCanScroll ? "auto" : "never"}
+                scrollEnabled={storyCanScroll}
+                showsVerticalScrollIndicator={storyCanScroll}
               >
                 {!isCompactReader ? (
                   <Text
@@ -1052,33 +1098,70 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
         </View>
         </View>
       </View>
-      {settingsVisible ? (
-        <View
-          className="absolute inset-0 bg-black/40 justify-center items-center px-6"
-          style={{ zIndex: 20, elevation: 20 }}
+      <GameGuideOverlay
+        visible={storyGuide.visible}
+        onDismiss={storyGuide.dismiss}
+        title="How to read a story"
+        description="Move through each page at your own pace."
+        accentColor="#8B4513"
+        actionLabel="Start reading"
+        actionAccessibilityLabel="Close guide and start reading"
+        steps={[
+          {
+            icon: "volume-high-outline",
+            title: "Listen or read",
+            description: "Tap Read to hear the page aloud. Tap it again whenever you want to stop.",
+          },
+          {
+            icon: "arrow-forward-circle-outline",
+            title: "Move through pages",
+            description: "Use Next or the arrow buttons when you are ready for another page.",
+          },
+          {
+            icon: "checkmark-circle-outline",
+            title: "Finish the story",
+            description: "Answer any final questions, then tap Finish to complete your story.",
+          },
+        ]}
+      />
+      <Modal
+        testID="story-settings-modal"
+        animationType="fade"
+        navigationBarTranslucent
+        onRequestClose={() => setSettingsVisible(false)}
+        presentationStyle="overFullScreen"
+        statusBarTranslucent
+        supportedOrientations={["landscape", "landscape-left", "landscape-right"]}
+        transparent
+        visible={settingsVisible}
+      >
+        <SafeAreaView
+          className="flex-1 bg-black/50 justify-center items-center px-6"
+          edges={["top", "bottom", "left", "right"]}
+          accessibilityViewIsModal
         >
           <View className="bg-white rounded-3xl p-5 w-full max-w-md shadow-lg border border-amber-200">
             <View className="flex-row items-center justify-between mb-5">
               <View className="flex-row items-center flex-1">
-                <View className="w-10 h-10 rounded-full bg-amber-100 items-center justify-center mr-3">
-                  <Ionicons name="options" size={22} color="#8B4513" />
+                <View className="w-11 h-11 rounded-full bg-amber-100 items-center justify-center mr-3">
+                  <Ionicons name="options" size={24} color="#8B4513" />
                 </View>
-                <Text variant="bold" className="text-xl text-amber-900" numberOfLines={1}>
+                <Text variant="bold" className="text-2xl text-amber-900" numberOfLines={1}>
                   Accessibility
                 </Text>
               </View>
               <TouchableOpacity
-                className="w-10 h-10 rounded-full bg-slate-100 items-center justify-center"
+                className="w-11 h-11 rounded-full bg-slate-100 items-center justify-center"
                 onPress={() => setSettingsVisible(false)}
                 accessibilityLabel="Close accessibility options"
                 accessibilityRole="button"
               >
-                <Ionicons name="close" size={22} color="#334155" />
+                <Ionicons name="close" size={24} color="#334155" />
               </TouchableOpacity>
             </View>
 
             <View className="mb-5">
-              <Text variant="bold" className="text-slate-800 mb-2">
+              <Text variant="bold" className="text-slate-800 text-base mb-2">
                 Text Size
               </Text>
               <View className="flex-row -mx-1">
@@ -1091,7 +1174,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
             </View>
 
             <View className="mb-5">
-              <Text variant="bold" className="text-slate-800 mb-2">
+              <Text variant="bold" className="text-slate-800 text-base mb-2">
                 Reading Speed
               </Text>
               <View className="flex-row -mx-1">
@@ -1109,13 +1192,13 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
               accessibilityRole="button"
               accessibilityLabel="Close accessibility options"
             >
-              <Text variant="bold" className="text-white">
+              <Text variant="bold" className="text-white text-base">
                 Done
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
-      ) : null}
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }

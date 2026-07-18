@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage"
 
 import {
-  COLORING_STUDIO_TUTORIAL_KEY,
+  getColoringStudioTutorialStorageKey,
   hasSeenColoringStudioTutorial,
   markColoringStudioTutorialSeen,
 } from "@/lib/coloringStudioTutorial"
@@ -26,18 +26,35 @@ describe("coloring studio tutorial persistence", () => {
     await AsyncStorage.clear()
   })
 
-  it("is unseen until the child finishes or skips it", async () => {
-    expect(await hasSeenColoringStudioTutorial()).toBe(false)
-    expect(await markColoringStudioTutorialSeen()).toBe(true)
-    expect(await AsyncStorage.getItem(COLORING_STUDIO_TUTORIAL_KEY)).toBe("seen")
-    expect(await hasSeenColoringStudioTutorial()).toBe(true)
+  it("keeps tutorial state separate for each child", async () => {
+    expect(await hasSeenColoringStudioTutorial("child-1")).toBe(false)
+    expect(await markColoringStudioTutorialSeen("child-1")).toBe(true)
+    expect(
+      await AsyncStorage.getItem(
+        getColoringStudioTutorialStorageKey("child-1"),
+      ),
+    ).toBe("seen")
+    expect(await hasSeenColoringStudioTutorial("child-1")).toBe(true)
+    expect(await hasSeenColoringStudioTutorial("child-2")).toBe(false)
+  })
+
+  it("uses a safe guest key when no child is active", () => {
+    expect(getColoringStudioTutorialStorageKey()).toBe(
+      "@baby_steps_coloring_studio_tutorial_v2:guest",
+    )
+  })
+
+  it("encodes child IDs before using them in storage keys", () => {
+    expect(getColoringStudioTutorialStorageKey("child/profile 1")).toBe(
+      "@baby_steps_coloring_studio_tutorial_v2:child%2Fprofile%201",
+    )
   })
 
   it("fails open when tutorial storage cannot be read", async () => {
     const warning = jest.spyOn(console, "warn").mockImplementation(() => undefined)
     ;(AsyncStorage.getItem as jest.Mock).mockRejectedValueOnce(new Error("storage unavailable"))
 
-    expect(await hasSeenColoringStudioTutorial()).toBe(true)
+    expect(await hasSeenColoringStudioTutorial("child-1")).toBe(true)
     expect(warning).toHaveBeenCalledWith(
       "Could not load coloring tutorial status:",
       expect.any(Error),

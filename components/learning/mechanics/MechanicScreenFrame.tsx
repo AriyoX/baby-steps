@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { ScrollView, View } from "react-native";
 
 type MechanicScreenFrameProps = {
@@ -12,10 +12,15 @@ export function MechanicScreenFrame({
   footer,
   isShortScreen,
 }: MechanicScreenFrameProps) {
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const [contentHeight, setContentHeight] = useState(0);
+  const shouldScroll = viewportHeight > 0 && contentHeight > viewportHeight + 2;
+
   return (
     <View className="flex-1" style={{ paddingVertical: isShortScreen ? 0 : 4 }}>
       <ScrollView
         alwaysBounceVertical={false}
+        bounces={shouldScroll}
         contentContainerStyle={{
           alignItems: "center",
           flexGrow: 1,
@@ -23,7 +28,21 @@ export function MechanicScreenFrame({
           paddingVertical: isShortScreen ? 0 : 3,
         }}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+        onContentSizeChange={(_, nextContentHeight) => {
+          const roundedHeight = Math.round(nextContentHeight);
+          setContentHeight((currentHeight) =>
+            currentHeight === roundedHeight ? currentHeight : roundedHeight,
+          );
+        }}
+        onLayout={(event) => {
+          const roundedHeight = Math.round(event.nativeEvent.layout.height);
+          setViewportHeight((currentHeight) =>
+            currentHeight === roundedHeight ? currentHeight : roundedHeight,
+          );
+        }}
+        overScrollMode={shouldScroll ? "auto" : "never"}
+        scrollEnabled={shouldScroll}
+        showsVerticalScrollIndicator={shouldScroll}
         style={{ flex: 1, width: "100%" }}
       >
         <View className="items-center" style={{ width: "100%" }}>

@@ -13,7 +13,7 @@ import {
   useWindowDimensions,
   // ScrollView - Will be removed if FlatList replaces its primary use here
 } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import type { Audio } from "expo-av"
 import { StatusBar } from "expo-status-bar"
 import { useRouter } from "expo-router"
@@ -119,6 +119,7 @@ const LugandaCountingGame: React.FC = () => {
   const languageCode = activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE
   const countingGuide = useFirstPlayGuide("counting", activeChild?.id)
   const { width: windowWidth, height: windowHeight } = useWindowDimensions()
+  const insets = useSafeAreaInsets()
   const landscapeWidth = Math.max(windowWidth, windowHeight)
   const landscapeHeight = Math.min(windowWidth, windowHeight)
   const stageCardGap = 16
@@ -1395,8 +1396,9 @@ const LugandaCountingGame: React.FC = () => {
 
   // Render the game screen
   return (
-    <SafeAreaView className="flex-1 bg-blue-50">
-      <StatusBar style="dark" />
+    <View className="flex-1 bg-blue-50">
+      <SafeAreaView className="flex-1">
+      <StatusBar style={stageCompleted ? "light" : "dark"} />
 
       <GameHeader
         title={activeStage.title}
@@ -1435,7 +1437,7 @@ const LugandaCountingGame: React.FC = () => {
         {/* Center section - Items to count */}
         <View className="items-center justify-center pr-2" style={{ flex: 2.7 }}>
           <View className="w-full items-center mb-2 bg-white px-5 py-2 rounded-2xl shadow-sm border border-blue-100">
-            <Text variant="bold" className="text-lg text-slate-800 text-center" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.84}>
+            <Text variant="bold" className="text-xl text-slate-800 text-center" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.84}>
               {getQuestionText()}
             </Text>
           </View>
@@ -1444,8 +1446,8 @@ const LugandaCountingGame: React.FC = () => {
           <View className="w-full relative bg-white rounded-3xl p-4 shadow-sm border border-blue-100 overflow-hidden" style={{ height: countingCanvasHeight }}>
             <Text className="hidden">{getNumberLabel(targetNumber)} = {targetNumber}</Text>
             <View className="absolute top-3 left-3 flex-row items-center bg-blue-50 rounded-full px-2.5 py-1">
-              <Ionicons name="eye-outline" size={14} color="#0274BB" />
-              <Text variant="medium" className="text-[11px] text-primary-600 ml-1">Count carefully</Text>
+              <Ionicons name="eye-outline" size={16} color="#0274BB" />
+              <Text variant="medium" className="text-xs text-primary-600 ml-1">Count carefully</Text>
             </View>
             {/* Render counting items */}
             {renderItemsToCount()}
@@ -1455,10 +1457,10 @@ const LugandaCountingGame: React.FC = () => {
         {/* Right section - Number options */}
         <View className="items-center justify-center pl-2" style={{ flex: 1 }}>
           <View className="bg-white rounded-3xl shadow-sm px-3 py-3 w-full border border-blue-100 justify-center">
-            <Text variant="bold" className="text-center text-sm text-primary-700 mb-2" numberOfLines={1}>
+            <Text variant="bold" className="text-center text-base text-primary-700 mb-2" numberOfLines={1}>
               BALANGA EMEKA?
             </Text>
-            <Text className="text-center text-[11px] text-slate-400 mb-2" numberOfLines={1}>
+            <Text className="text-center text-xs text-slate-400 mb-2" numberOfLines={1}>
               How many do you see?
             </Text>
 
@@ -1478,10 +1480,10 @@ const LugandaCountingGame: React.FC = () => {
                     disabled={showFeedback && isCorrect}
                     activeOpacity={0.78}
                   >
-                    <Text variant="bold" className="text-xl text-white" numberOfLines={1}>
+                    <Text variant="bold" className="text-2xl text-white" numberOfLines={1}>
                       {number}
                     </Text>
-                    <Text className="text-xs text-white opacity-90" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}>
+                    <Text className="text-sm text-white opacity-90" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}>
                       {getNumberLabel(number).split(" ")[0]}
                     </Text>
                   </TouchableOpacity>
@@ -1493,6 +1495,7 @@ const LugandaCountingGame: React.FC = () => {
           </View>
         </View>
       </Animated.View>
+      </SafeAreaView>
 
       {/* Feedback animation */}
       {showFeedback && (
@@ -1539,7 +1542,16 @@ const LugandaCountingGame: React.FC = () => {
 
       {/* Stage completion overlay */}
       {stageCompleted && (
-        <View className="absolute inset-0 bg-black/50 items-center justify-center pt-12">
+        <View
+          className="absolute inset-0 items-center justify-center"
+          style={{
+            backgroundColor: "#020617B3",
+            paddingBottom: Math.max(insets.bottom, 16),
+            paddingLeft: Math.max(insets.left, 20),
+            paddingRight: Math.max(insets.right, 20),
+            paddingTop: Math.max(insets.top, 16),
+          }}
+        >
           <View className="bg-white rounded-2xl p-6 w-3/5 max-w-md items-center shadow-xl">
             <View className="absolute -top-10 bg-indigo-500 w-20 h-20 rounded-full items-center justify-center border-4 border-white">
               <Ionicons name="trophy" size={38} color="#ffffff" />
@@ -1594,7 +1606,7 @@ const LugandaCountingGame: React.FC = () => {
           { icon: "trending-up-outline", title: "Keep progressing", description: "Finish each level to move through the counting stages." },
         ]}
       />
-    </SafeAreaView>
+    </View>
   )
 }
 

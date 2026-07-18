@@ -1,5 +1,6 @@
 import React from "react";
 import { Text, TouchableOpacity } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import renderer, { act, type ReactTestInstance } from "react-test-renderer";
 import { registerLearningHubTestFixture } from "@/content/testFixtures/learningHubTestFixture";
 import {
@@ -8,6 +9,7 @@ import {
   getLessonStatus,
 } from "@/content/learningHubRepository";
 import LearningLessonSessionScreen from "../[stageId]/lesson/[lessonId]";
+import { getGameGuideStorageKey } from "@/lib/gameGuide";
 
 const mockRouterBack = jest.fn();
 const mockRouterReplace = jest.fn();
@@ -156,6 +158,7 @@ jest.mock("expo-status-bar", () => ({
 
 jest.mock("react-native-safe-area-context", () => ({
   SafeAreaView: "SafeAreaView",
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
 
 jest.mock("@expo/vector-icons", () => ({
@@ -238,9 +241,14 @@ const completeRenderedItem = async (
   });
 };
 
-beforeEach(() => {
+beforeEach(async () => {
   registerLearningHubTestFixture();
   jest.clearAllMocks();
+  await AsyncStorage.clear();
+  await AsyncStorage.setItem(
+    getGameGuideStorageKey("learning-hub", "child-1"),
+    "seen",
+  );
   mockSelectedLanguageCode = "luganda";
   mockCompletedLearningLessonIds = getLearningLanguageContent("lg")!.stages.flatMap(
     (stage) =>
@@ -284,6 +292,43 @@ beforeEach(() => {
 });
 
 describe("Learning lesson completion persistence", () => {
+  it("shows Learning Hub onboarding once and lets the child reopen it", async () => {
+    let tree: renderer.ReactTestRenderer | undefined;
+
+    await AsyncStorage.removeItem(
+      getGameGuideStorageKey("learning-hub", "child-1"),
+    );
+
+    await act(async () => {
+      tree = renderer.create(<LearningLessonSessionScreen />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    if (!tree) {
+      throw new Error("LearningLessonSessionScreen did not render");
+    }
+    const renderedTree = tree;
+
+    expect(JSON.stringify(renderedTree.toJSON())).toContain("How Learning Hub lessons work");
+
+    await act(async () => {
+      findButtonByAccessibilityLabel(renderedTree.root, "Close guide and start learning").props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(
+      await AsyncStorage.getItem(getGameGuideStorageKey("learning-hub", "child-1")),
+    ).toBe("seen");
+    expect(JSON.stringify(renderedTree.toJSON())).not.toContain("How Learning Hub lessons work");
+
+    act(() => {
+      findButtonByAccessibilityLabel(renderedTree.root, "Show lesson guide").props.onPress();
+    });
+
+    expect(JSON.stringify(renderedTree.toJSON())).toContain("How Learning Hub lessons work");
+  });
+
   it("does not start a Luganda mechanic for a direct Runyankole lesson route", async () => {
     mockSelectedLanguageCode = "nyn";
     let tree: renderer.ReactTestRenderer | undefined;

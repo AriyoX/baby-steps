@@ -137,7 +137,7 @@ export function MiniQuizCard({
       isShortScreen={isShortScreen}
       footer={
         <TouchableOpacity
-          className="rounded-full px-5 py-3 flex-row items-center justify-center"
+          className="rounded-full px-6 py-3 flex-row items-center justify-center"
           style={{
             backgroundColor: isLastItem && isFinalQuizQuestion
               ? brandColors.success
@@ -153,14 +153,14 @@ export function MiniQuizCard({
         >
           <Text
             variant="bold"
-            className="text-white text-base mr-1"
+            className="text-white text-lg mr-1"
             numberOfLines={1}
             adjustsFontSizeToFit
             minimumFontScale={0.82}
           >
             {actionLabel}
           </Text>
-          <Ionicons name={actionIcon} size={18} color="#ffffff" />
+          <Ionicons name={actionIcon} size={20} color="#ffffff" />
         </TouchableOpacity>
       }
     >

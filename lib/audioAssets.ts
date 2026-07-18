@@ -38,71 +38,71 @@ export const LEARNING_AUDIO_ASSETS = {
     isPlaceholder: true,
   },
   "lg.stage1.oli_otya": {
-    source: require("@/assets/audio/learning/lg/stage-1/oli-otya.mp3"),
+    source: LEARNING_PLACEHOLDER_SOUND,
     isPlaceholder: true,
   },
   "lg.stage1.gyendi": {
-    source: require("@/assets/audio/learning/lg/stage-1/gyendi.mp3"),
+    source: LEARNING_PLACEHOLDER_SOUND,
     isPlaceholder: true,
   },
   "lg.stage1.gyebale_ko": {
-    source: require("@/assets/audio/learning/lg/stage-1/gyebale-ko.mp3"),
+    source: LEARNING_PLACEHOLDER_SOUND,
     isPlaceholder: true,
   },
   "lg.stage1.webale": {
-    source: require("@/assets/audio/learning/lg/stage-1/webale.mp3"),
+    source: LEARNING_PLACEHOLDER_SOUND,
     isPlaceholder: true,
   },
   "lg.stage1.story.1": {
-    source: require("@/assets/audio/learning/lg/stage-1/story-greeting-1.mp3"),
+    source: LEARNING_PLACEHOLDER_SOUND,
     isPlaceholder: true,
   },
   "lg.stage1.story.2": {
-    source: require("@/assets/audio/learning/lg/stage-1/story-greeting-2.mp3"),
+    source: LEARNING_PLACEHOLDER_SOUND,
     isPlaceholder: true,
   },
   "lg.stage1.story.3": {
-    source: require("@/assets/audio/learning/lg/stage-1/story-greeting-3.mp3"),
+    source: LEARNING_PLACEHOLDER_SOUND,
     isPlaceholder: true,
   },
   "lg.stage2.maama": {
-    source: require("@/assets/audio/learning/lg/stage-2/maama.mp3"),
+    source: LEARNING_PLACEHOLDER_SOUND,
     isPlaceholder: true,
   },
   "lg.stage2.taata": {
-    source: require("@/assets/audio/learning/lg/stage-2/taata.mp3"),
+    source: LEARNING_PLACEHOLDER_SOUND,
     isPlaceholder: true,
   },
   "lg.stage2.omwana": {
-    source: require("@/assets/audio/learning/lg/stage-2/omwana.mp3"),
+    source: LEARNING_PLACEHOLDER_SOUND,
     isPlaceholder: true,
   },
   "lg.stage2.ennyumba": {
-    source: require("@/assets/audio/learning/lg/stage-2/ennyumba.mp3"),
+    source: LEARNING_PLACEHOLDER_SOUND,
     isPlaceholder: true,
   },
   "lg.stage2.amazzi": {
-    source: require("@/assets/audio/learning/lg/stage-2/amazzi.mp3"),
+    source: LEARNING_PLACEHOLDER_SOUND,
     isPlaceholder: true,
   },
   "lg.stage2.ekitabo": {
-    source: require("@/assets/audio/learning/lg/stage-2/ekitabo.mp3"),
+    source: LEARNING_PLACEHOLDER_SOUND,
     isPlaceholder: true,
   },
   "lg.stage2.story.1": {
-    source: require("@/assets/audio/learning/lg/stage-2/story-home-1.mp3"),
+    source: LEARNING_PLACEHOLDER_SOUND,
     isPlaceholder: true,
   },
   "lg.stage2.story.2": {
-    source: require("@/assets/audio/learning/lg/stage-2/story-home-2.mp3"),
+    source: LEARNING_PLACEHOLDER_SOUND,
     isPlaceholder: true,
   },
   "lg.stage2.story.3": {
-    source: require("@/assets/audio/learning/lg/stage-2/story-home-3.mp3"),
+    source: LEARNING_PLACEHOLDER_SOUND,
     isPlaceholder: true,
   },
   "lg.stage2.story.4": {
-    source: require("@/assets/audio/learning/lg/stage-2/story-home-4.mp3"),
+    source: LEARNING_PLACEHOLDER_SOUND,
     isPlaceholder: true,
   },
   amazzi: { source: require("@/assets/audio/Amazzi.mp3") },
@@ -110,10 +110,7 @@ export const LEARNING_AUDIO_ASSETS = {
   "oli-otya": { source: require("@/assets/audio/oli-otya.m4a") },
   omwana: { source: require("@/assets/audio/omwana.m4a") },
   webale: { source: require("@/assets/audio/webale.m4a") },
-  // Future reviewed recording:
-  // "luganda.first_words.greetings.gyebale_ko": {
-  //   source: require("@/assets/audio/learning/luganda/first_words/greetings/gyebale-ko.mp3"),
-  // },
+  // Register future reviewed recordings here only after a non-empty file is bundled.
 } satisfies Record<string, LearningAudioAssetEntry>
 
 const normalizeAudioAssetKey = (audioAsset: unknown): string | null => {
@@ -133,7 +130,7 @@ const normalizeAudioAssetKey = (audioAsset: unknown): string | null => {
 }
 
 const buildLearningAudioAssetMap = (): Record<string, LearningAudioAssetEntry> => {
-  const entries: Array<[string, LearningAudioAssetEntry]> = []
+  const entries: [string, LearningAudioAssetEntry][] = []
 
   const addEntry = (
     key: string,
@@ -142,9 +139,10 @@ const buildLearningAudioAssetMap = (): Record<string, LearningAudioAssetEntry> =
     entries.push([key, entry])
   }
 
-  const manifestEntries = Object.entries(LEARNING_AUDIO_ASSETS) as Array<
-    [string, LearningAudioAssetEntry]
-  >
+  const manifestEntries = Object.entries(LEARNING_AUDIO_ASSETS) as [
+    string,
+    LearningAudioAssetEntry,
+  ][]
 
   for (const [key, entry] of manifestEntries) {
     addEntry(key, entry)

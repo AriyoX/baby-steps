@@ -7,14 +7,17 @@ import {
 } from "@/content/learningHubRepository"
 import { registerLearningHubTestFixture } from "@/content/testFixtures/learningHubTestFixture"
 import LearningTab from "../learning"
+import ColoringTab from "../coloring"
 
 const mockRouterPush = jest.fn()
 const mockLoadContentBundle = jest.fn()
+const mockGetColoringProgress = jest.fn()
 let mockSelectedLanguageCode = "lg"
 let mockChildId = "child-1"
 let mockChildAvatar = "👧"
 let mockChildGender = "female"
 let mockCompletedLearningLessonIds: string[] = []
+let mockPathname = "/child/learning"
 
 jest.mock("@/content/contentRepository", () => ({
   loadContentBundle: (...args: unknown[]) => mockLoadContentBundle(...args),
@@ -30,7 +33,7 @@ jest.mock("expo-router", () => ({
     const ReactModule = jest.requireActual("react")
     ReactModule.useEffect(callback, [callback])
   },
-  usePathname: () => "/child/learning",
+  usePathname: () => mockPathname,
   useRouter: () => ({ push: mockRouterPush }),
 }))
 
@@ -101,6 +104,36 @@ jest.mock("@/lib/audioManager", () => ({
   audioManager: { speakAppText: jest.fn() },
 }))
 
+jest.mock("@/lib/coloringProgress", () => ({
+  COLORING_ACHIEVEMENTS: [
+    {
+      id: "first-masterpiece",
+      title: "First masterpiece",
+      description: "Save your first picture",
+      icon: "star",
+    },
+    {
+      id: "color-explorer",
+      title: "Color explorer",
+      description: "Use 3 colors in one picture",
+      icon: "color-palette",
+    },
+    {
+      id: "gallery-star",
+      title: "Gallery star",
+      description: "Save 3 different pictures",
+      icon: "images",
+    },
+  ],
+  EMPTY_COLORING_PROGRESS: {
+    savedArtworkCount: 0,
+    savedPages: [],
+    maxColorsInArtwork: 0,
+    unlockedAchievementIds: [],
+  },
+  getColoringProgress: (...args: unknown[]) => mockGetColoringProgress(...args),
+}))
+
 jest.mock("@/lib/learningProgressRepository", () => ({
   getLearningProgressChildId: (childId?: string | null) =>
     childId || "local-demo-child",
@@ -128,6 +161,16 @@ const renderLearningTab = async () => {
   return tree
 }
 
+const renderColoringTab = async () => {
+  let tree: renderer.ReactTestRenderer | undefined
+  await act(async () => {
+    tree = renderer.create(<ColoringTab />)
+    await Promise.resolve()
+  })
+  if (!tree) throw new Error("Coloring tab did not render")
+  return tree
+}
+
 beforeEach(() => {
   registerLearningHubTestFixture()
   jest.clearAllMocks()
@@ -136,6 +179,13 @@ beforeEach(() => {
   mockChildAvatar = "👧"
   mockChildGender = "female"
   mockCompletedLearningLessonIds = []
+  mockPathname = "/child/learning"
+  mockGetColoringProgress.mockResolvedValue({
+    savedArtworkCount: 0,
+    savedPages: [],
+    maxColorsInArtwork: 0,
+    unlockedAchievementIds: [],
+  })
   mockLoadContentBundle.mockImplementation(async (languageCode: string) => {
     const content = getLearningLanguageContent(languageCode)
     return content
@@ -153,6 +203,58 @@ afterEach(() => {
 })
 
 describe("Learning tab shared African interface", () => {
+  it("uses the same African interface for Coloring and shows local art progress", async () => {
+    mockPathname = "/child/coloring"
+    mockGetColoringProgress.mockResolvedValue({
+      savedArtworkCount: 2,
+      savedPages: ["Cow", "Shapes"],
+      maxColorsInArtwork: 4,
+      unlockedAchievementIds: ["first-masterpiece", "color-explorer"],
+    })
+    mockLoadContentBundle.mockResolvedValue({
+      bundle: {
+        contentVersion: "coloring-test",
+        languageCode: "lg",
+        menuCardsByTab: {
+          coloring: [
+            {
+              id: "cow",
+              title: "Friendly Cow",
+              description: "Add bright colors to the cow.",
+              image: "cow.png",
+              targetPage: "child/games/coloring/animals",
+            },
+          ],
+        },
+        source: "database",
+      },
+      languageCode: "lg",
+      source: "network",
+    })
+
+    const tree = await renderColoringTab()
+    const visibleText = tree.root
+      .findAllByType(Text)
+      .map((node) => React.Children.toArray(node.props.children).join(""))
+      .join(" ")
+
+    expect(visibleText).toContain("Coloring")
+    expect(visibleText).toContain("Art journey")
+    expect(visibleText).toContain("2 saved")
+    expect(visibleText).toContain("2/3 badges")
+    expect(visibleText).toContain("Creative spark: try 3 colors!")
+    expect(visibleText).toContain("Friendly Cow")
+    expect(mockGetColoringProgress).toHaveBeenCalledWith("child-1")
+
+    const coloringCard = tree.root.findAllByType(TouchableOpacity).find(
+      (candidate) => candidate.props.accessibilityLabel?.startsWith("Friendly Cow. Open."),
+    )
+    act(() => coloringCard?.props.onPress())
+    expect(mockRouterPush).toHaveBeenCalledWith("/child/games/coloring/animals")
+
+    act(() => tree.unmount())
+  })
+
   it("shows the selected child emoji and learning language in profile stats", async () => {
     mockSelectedLanguageCode = "nyn"
     const tree = await renderLearningTab()

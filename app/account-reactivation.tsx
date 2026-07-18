@@ -20,6 +20,7 @@ import {
   reactivateAccount,
   type AccountDeletionState,
 } from "@/lib/accountManagement";
+import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network";
 import { BABY_STEPS_SUPPORT_EMAIL, getSupportMailtoUrl } from "@/lib/support";
 import { supabase } from "@/lib/supabase";
 
@@ -91,6 +92,7 @@ export default function AccountReactivationScreen() {
   const loadState = React.useCallback(async () => {
     setLoading(true);
     try {
+      if (!(await requireInternet("Checking your account status"))) return;
       const { data } = await supabase.auth.getSession();
       if (!data.session) {
         router.replace("/login");
@@ -105,6 +107,7 @@ export default function AccountReactivationScreen() {
       }
     } catch (error) {
       console.error("Could not load account reactivation state:", error);
+      if (await showNetworkErrorIfNeeded(error, "Checking your account status")) return;
       Alert.alert("Could not load account status", "Please try signing in again.");
       await supabase.auth.signOut();
       router.replace("/login");
@@ -127,6 +130,7 @@ export default function AccountReactivationScreen() {
       });
     } catch (error) {
       console.error("Could not sign out:", error);
+      if (await showNetworkErrorIfNeeded(error, "Signing out")) return;
       Alert.alert("Could not sign out", "Please try again.");
     } finally {
       setSubmittingAction(null);
@@ -138,6 +142,7 @@ export default function AccountReactivationScreen() {
 
     setSubmittingAction("keep");
     try {
+      if (!(await requireInternet("Reactivating your account"))) return;
       const result = await reactivateAccount();
       setActiveChild(null);
       Alert.alert(
@@ -149,7 +154,11 @@ export default function AccountReactivationScreen() {
       );
     } catch (error) {
       console.error("Could not reactivate account:", error);
-      Alert.alert("Could not reactivate", "Please contact support if you need help.");
+      if (await showNetworkErrorIfNeeded(error, "Reactivating your account")) return;
+      Alert.alert(
+        "Could not reactivate",
+        "Please try again. If the problem continues, contact support.",
+      );
     } finally {
       setSubmittingAction(null);
     }

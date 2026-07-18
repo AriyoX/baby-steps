@@ -10,6 +10,8 @@ type ProgressScope = {
   key: string
 }
 
+const EMPTY_COMPLETED_LESSON_IDS: string[] = []
+
 const sameLessonIds = (left: string[], right: string[]): boolean =>
   left.length === right.length &&
   left.every((lessonId, index) => lessonId === right[index])
@@ -69,5 +71,5 @@ export function useLearningHubProgress(
 
   return progressScope.key === scopeKey
     ? progressScope.completedLessonIds
-    : []
+    : EMPTY_COMPLETED_LESSON_IDS
 }

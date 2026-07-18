@@ -14,6 +14,7 @@ import {
   isChildDeleteConfirmationValid,
   type ChildProfile,
 } from "@/lib/accountManagement";
+import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network";
 
 export default function ChildProfileDeleteScreen() {
   const router = useRouter();
@@ -32,10 +33,12 @@ export default function ChildProfileDeleteScreen() {
     const loadChild = async () => {
       setLoading(true);
       try {
+        if (!(await requireInternet("Loading this child profile"))) return;
         const profile = await fetchActiveChildProfile(childId);
         if (isMounted) setChild(profile);
       } catch (error) {
         console.error("Could not load child profile:", error);
+        if (await showNetworkErrorIfNeeded(error, "Loading this child profile")) return;
         Alert.alert("Could not load profile", "Please try again.");
       } finally {
         if (isMounted) setLoading(false);
@@ -51,6 +54,7 @@ export default function ChildProfileDeleteScreen() {
 
   const handleArchiveChild = async () => {
     if (!child || !canSubmit || submitting) return;
+    if (!(await requireInternet("Archiving this child profile"))) return;
 
     setSubmitting(true);
     try {
@@ -66,6 +70,7 @@ export default function ChildProfileDeleteScreen() {
       );
     } catch (error) {
       console.error("Could not archive child profile:", error);
+      if (await showNetworkErrorIfNeeded(error, "Archiving this child profile")) return;
       Alert.alert("Could not archive profile", "Please try again.");
     } finally {
       setSubmitting(false);

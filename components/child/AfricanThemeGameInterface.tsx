@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useRef } from "react"
+import { useCallback, useState, useEffect, useMemo, useRef } from "react"
 import {
   View,
   TouchableOpacity,
@@ -13,7 +13,7 @@ import {
   useWindowDimensions,
 } from "react-native"
 import { StatusBar } from "expo-status-bar"
-import { useRouter, usePathname } from "expo-router"
+import { useFocusEffect, useRouter, usePathname } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import { Text } from "@/components/StyledText"
 import { TranslatedText } from "@/components/translated-text"
@@ -42,6 +42,12 @@ import {
 import { useLearningHubProgress } from "@/hooks/useLearningHubProgress"
 import { getLearningProgressChildId } from "@/lib/learningProgressRepository"
 import { getLearningStageAccessStates } from "@/lib/learningStageAccess"
+import {
+  COLORING_ACHIEVEMENTS,
+  EMPTY_COLORING_PROGRESS,
+  getColoringProgress,
+  type ColoringProgress,
+} from "@/lib/coloringProgress"
 
 // Define types
 type LearningCard = {
@@ -59,12 +65,6 @@ type LearningCard = {
     label: string
   }
   progressLabel?: string
-}
-
-type NavItem = {
-  id: string
-  icon: any
-  label: string
 }
 
 const CHILD_TAB_BAR_CLEARANCE = 86
@@ -167,12 +167,12 @@ const toLearningHubCards = (
 }
 
 const AfricanThemeGameInterface: React.FC = () => {
-  const [selectedLevel, setSelectedLevel] = useState<string>("Basic")
-  const [selectedNavItem, setSelectedNavItem] = useState<string>("home")
-  const [learningCards, setLearningCards] = useState<LearningCard[]>([])
   const [contentBundle, setContentBundle] = useState<ContentBundle | undefined>()
   const [isContentLoading, setIsContentLoading] = useState(true)
   const [contentRetrySequence, setContentRetrySequence] = useState(0)
+  const [coloringProgress, setColoringProgress] = useState<ColoringProgress>(
+    EMPTY_COLORING_PROGRESS,
+  )
   const router = useRouter()
   const { activeChild } = useChild()
   const {
@@ -232,7 +232,7 @@ const AfricanThemeGameInterface: React.FC = () => {
       pulseSequence.stop()
       bounceSequence.stop()
     }
-  }, [])
+  }, [bounceAnim, pulseAnim])
 
   // Add this effect to handle hardware back button
   useEffect(() => {
@@ -250,6 +250,7 @@ const AfricanThemeGameInterface: React.FC = () => {
   const pathSegments = pathname.split("/").filter(Boolean)
   const tabId = pathSegments.length <= 1 ? "index" : pathSegments[pathSegments.length - 1]
   const isLearningTab = tabId === "learning"
+  const isColoringTab = tabId === "coloring"
   const learningLanguageCode =
     contentBundle?.learningHub?.languageCode ??
     activeChild?.selected_language_code ??
@@ -261,8 +262,26 @@ const AfricanThemeGameInterface: React.FC = () => {
     contentBundle?.progressRevisions?.learning_hub,
   )
 
-  // Set the title based on the tab
-  const [screenTitle, setScreenTitle] = useState("Games")
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true
+
+      if (!isColoringTab || !activeChild?.id) {
+        setColoringProgress(EMPTY_COLORING_PROGRESS)
+        return () => {
+          isActive = false
+        }
+      }
+
+      void getColoringProgress(activeChild.id).then((progress) => {
+        if (isActive) setColoringProgress(progress)
+      })
+
+      return () => {
+        isActive = false
+      }
+    }, [activeChild?.id, isColoringTab]),
+  )
 
   useEffect(() => {
     let isMounted = true
@@ -294,18 +313,18 @@ const AfricanThemeGameInterface: React.FC = () => {
     }
   }, [activeChild?.selected_language_code, contentRetrySequence])
 
-  useEffect(() => {
-    const contentSlug = TAB_CONTENT_SLUGS[tabId] ?? "games"
-    setScreenTitle(TAB_TITLES[contentSlug] ?? "Games")
-    setLearningCards(
+  const contentSlug = TAB_CONTENT_SLUGS[tabId] ?? "games"
+  const screenTitle = TAB_TITLES[contentSlug] ?? "Games"
+  const learningCards = useMemo(
+    () =>
       contentSlug === "learning"
         ? toLearningHubCards(
             contentBundle?.learningHub?.stages ?? [],
             completedLearningLessonIds,
           )
         : toLearningCards(contentBundle?.menuCardsByTab[contentSlug] ?? []),
-    )
-  }, [completedLearningLessonIds, contentBundle, tabId])
+    [completedLearningLessonIds, contentBundle, contentSlug],
+  )
 
   const handleParentalPress = () => {
     audioManager.speakAppText("For parents only", {
@@ -453,6 +472,56 @@ const AfricanThemeGameInterface: React.FC = () => {
                 contentContainerStyle={{ alignItems: "center", paddingTop: 12, paddingBottom: 16 }}
               >
                 {/* Start card */}
+                {isColoringTab ? (
+                  <View
+                    className="bg-white/15 rounded-2xl p-4 mr-2.5 w-[200px]"
+                    style={{ height: cardLayout.cardHeight }}
+                    accessibilityLabel={`${coloringProgress.savedArtworkCount} saved pictures. ${coloringProgress.unlockedAchievementIds.length} of ${COLORING_ACHIEVEMENTS.length} coloring badges unlocked. Creative spark: try 3 colors today.`}
+                  >
+                    <Text variant="bold" className="text-white text-xl" numberOfLines={1}>
+                      Art journey
+                    </Text>
+                    <View className="flex-row mt-2">
+                      <View className="flex-1 rounded-xl bg-white/15 px-2 py-1.5 mr-1">
+                        <Text variant="bold" className="text-white text-base" numberOfLines={1}>
+                          {coloringProgress.savedArtworkCount} saved
+                        </Text>
+                      </View>
+                      <View className="flex-1 rounded-xl bg-white/15 px-2 py-1.5 ml-1">
+                        <Text variant="bold" className="text-white text-base" numberOfLines={1}>
+                          {coloringProgress.unlockedAchievementIds.length}/{COLORING_ACHIEVEMENTS.length} badges
+                        </Text>
+                      </View>
+                    </View>
+                    <View className="flex-row items-center mt-2">
+                      {COLORING_ACHIEVEMENTS.map((achievement) => {
+                        const unlocked = coloringProgress.unlockedAchievementIds.includes(
+                          achievement.id,
+                        )
+                        return (
+                          <View
+                            key={achievement.id}
+                            accessible
+                            accessibilityLabel={`${achievement.title}. ${unlocked ? "Unlocked" : achievement.description}`}
+                            className="w-8 h-8 rounded-full bg-white/20 items-center justify-center mr-1.5"
+                          >
+                            <Ionicons
+                              name={unlocked ? achievement.icon : "lock-closed"}
+                              size={16}
+                              color={unlocked ? brandColors.equatorialGold : brandColors.white}
+                            />
+                          </View>
+                        )
+                      })}
+                    </View>
+                    <View className="flex-row items-center mt-2">
+                      <Ionicons name="color-palette" size={15} color={brandColors.equatorialGold} />
+                      <Text variant="medium" className="text-white text-xs ml-1" numberOfLines={1}>
+                        Creative spark: try 3 colors!
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
                 <View className="bg-white/15 rounded-2xl p-4 mr-2.5 w-[200px]" style={{ height: cardLayout.cardHeight }}>
                   <TranslatedText variant="bold" className="text-white text-2xl">
                     Start
@@ -468,6 +537,7 @@ const AfricanThemeGameInterface: React.FC = () => {
                     <Text className="text-white text-3xl">✨</Text>
                   </View>
                 </View>
+                )}
 
                 {/* Learning cards */}
                 {learningCards.map((card) => (

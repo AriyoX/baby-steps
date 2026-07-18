@@ -1,21 +1,9 @@
 "use client"
 
-import ColoringGameScreen from "./coloring-game-base"
+import ColoringGameScreen from "@/components/coloring/ColoringGameScreen"
 
-// Load image from local assets
-const COLORING_IMAGE = require("@/assets/images/mask.png")
-
-// Define colors for this specific coloring page
-const COLORS = [
-  "#FFEB3B", // Yellow
-  "#4CAF50", // Green
-  "#2196F3", // Blue
-  "#795548", // Brown
-  "#607D8B", // Gray
-  "#000000", // Black
-  "#FFFFFF", // White
-]
+const COLORING_IMAGE = require("@/assets/images/coloring-pattern-mask-v2.png")
 
 export default function MaskColoringScreen() {
-  return <ColoringGameScreen imageSource={COLORING_IMAGE} pageName="Mask" colors={COLORS} />
+  return <ColoringGameScreen imageSource={COLORING_IMAGE} pageName="Mask" />
 }

@@ -42,6 +42,22 @@ const ProgressHarness = ({
   return <Text>{completedLessonIds.join(",")}</Text>
 }
 
+const DerivedProgressHarness = (props: HarnessProps) => {
+  const completedLessonIds = useLearningHubProgress(
+    props.childId,
+    props.languageCode,
+    props.contentReady ?? true,
+    props.contentRevision,
+  )
+  const [derivedLessonIds, setDerivedLessonIds] = React.useState<string[]>([])
+
+  React.useEffect(() => {
+    setDerivedLessonIds([...completedLessonIds])
+  }, [completedLessonIds])
+
+  return <Text>{derivedLessonIds.join(",")}</Text>
+}
+
 beforeEach(() => {
   jest.clearAllMocks()
   mockHydrateLearningProgressFromRemote.mockResolvedValue({
@@ -131,6 +147,49 @@ describe("useLearningHubProgress", () => {
 
     expect(JSON.stringify(tree?.toJSON())).not.toContain("greetings-1")
     act(() => tree?.unmount())
+  })
+
+  it("keeps the empty transition result stable for effects while a new revision loads", async () => {
+    const consoleError = jest.spyOn(console, "error").mockImplementation((...args) => {
+      const message = args.map(String).join(" ")
+      if (message.includes("Maximum update depth exceeded")) {
+        throw new Error(message)
+      }
+    })
+    mockGetCompletedLearningLessonIds.mockResolvedValue(["greetings-1"])
+    let tree: renderer.ReactTestRenderer | undefined
+
+    try {
+      await act(async () => {
+        tree = renderer.create(
+          <DerivedProgressHarness
+            childId="child-1"
+            contentRevision="learning_hub/curriculum#1"
+            languageCode="lg"
+          />,
+        )
+        await Promise.resolve()
+      })
+
+      mockGetCompletedLearningLessonIds.mockReturnValue(
+        new Promise(() => undefined),
+      )
+
+      act(() => {
+        tree?.update(
+          <DerivedProgressHarness
+            childId="child-1"
+            contentRevision="learning_hub/curriculum#2"
+            languageCode="lg"
+          />,
+        )
+      })
+
+      expect(JSON.stringify(tree?.toJSON())).not.toContain("greetings-1")
+      act(() => tree?.unmount())
+    } finally {
+      consoleError.mockRestore()
+    }
   })
 
   it("does not hydrate before exact-language content is ready", async () => {

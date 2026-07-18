@@ -1,96 +1,139 @@
 # Coloring
 
-## Current Status
+## Current status
 
-Database-menu-backed prototype with bundled canvases.
+The Coloring tab uses the same African-themed child activity interface as Games, Stories, and Learning. Its menu comes from the exact-language `child_menu/coloring` content row, while each playable canvas and its bundled image stay in code.
 
-## Purpose
+## Child experience
 
-Coloring gives children a drawing surface over bundled templates, with brush, eraser, fill, undo/redo, save, and share tools.
+1. The child opens Coloring and chooses a picture from the shared African-themed activity card rail. The leading journey card shows local saved-art and badge progress.
+2. The studio opens in landscape with a large canvas, Crayon, real segment Eraser, Flower stamp, ten colors, three brush sizes, undo, redo, and protected Start over.
+3. Two in-session creative goals encourage experimentation without grading the artwork.
+4. Save writes only the finished canvas to the device photo library. Share opens the system share sheet without photo-library permission.
+5. Local child-scoped progress unlocks First masterpiece, Color explorer, and Gallery star badges.
 
-## User Flow
+Coloring remains optional creative reinforcement. Its badges and saves do not count as proof of curriculum knowledge.
 
-1. Child opens the Coloring tab.
-2. Child selects one of the coloring cards.
-3. The shared coloring screen opens with a template image.
-4. Child draws with color and brush controls.
-5. Child can undo, redo, clear, save to gallery, or share.
+## Main files
 
-## Main Files Involved
+- `components/child/AfricanThemeGameInterface.tsx`: active Coloring selection interface, exact-language menu cards, audio/parent controls, and local art progress summary.
+- `components/coloring/ColoringGameScreen.tsx`: shared drawing studio and native save/share flow.
+- `components/coloring/ColoringGallery.tsx`: retained standalone gallery prototype; it is not rendered by the Coloring tab.
+- `lib/coloringDrawing.ts`: pure drawing history, undo/redo, clear, and eraser logic.
+- `lib/coloringProgress.ts`: local saved-art and badge progress.
+- `content/assets.ts`: static image-key registry used by dynamic menu cards.
+- `app/child/games/coloring/*.tsx`: one small route wrapper per bundled page.
 
-- `components/child/AfricanThemeGameInterface.tsx`
-- `app/child/games/coloring/coloring-game-base.tsx`
-- `app/child/games/coloring/emblem.tsx`
-- `app/child/games/coloring/king.tsx`
-- `app/child/games/coloring/animals.tsx`
-- `app/child/games/coloring/shapes.tsx`
-- `app/child/games/coloring/mask.tsx`
-- `components/child/AfricanColoringGame.tsx`
+## Drawing and save behavior
 
-## Key Components, Screens, And Functions
+- Marks are rendered as React Native SVG paths over the bundled line art using multiply blending so dark outlines stay visible.
+- Erasing removes touched portions of earlier paths; it does not paint an opaque white line over the template.
+- Every drawing-changing operation stores a history snapshot, so undo/redo remains consistent after drawing, erasing, stamping, or clearing.
+- `react-native-view-shot` captures only the white artwork canvas. Toolbars, goals, loaders, and success messages are never included in the saved file.
+- `expo-media-library.saveToLibraryAsync` writes the PNG to the normal Photos/gallery destination.
+- Saving the file and syncing remote progress are separate. A progress-sync failure cannot turn a successful device save into a false save error.
 
-- `ColoringGameScreen`
-- `smoothPath`
-- `handleUndo`
-- `handleRedo`
-- `handleFill`
-- `saveToGallery`
-- `shareImage`
+## Permissions
 
-## Data And Content Used
+Coloring requests no permission when the page opens and no permission for Share.
 
-The exact-language Coloring menu is dynamic through the `content_items` `child_menu/coloring` row. It contains stable card IDs, order, copy, image keys, and route targets. The five currently published Luganda cards point to bundled template routes:
+Save requests write/add-only photo permission at the moment the child taps Save. The app does not request permission to read existing photos. `app.json` provides the iOS `NSPhotoLibraryAddUsageDescription`, configures no Android granular read permissions, and explicitly removes Android photo/video read permissions. Older supported Android versions retain the write permission required by Expo Media Library.
 
-Active templates:
+If permission is denied, the artwork stays on the canvas. If the OS no longer allows another prompt, the message offers a route to device Settings.
 
-- Buganda Emblem: `assets/images/emblem.png`
-- King: `assets/images/king.jpg`
-- Cow/Animals: `assets/images/cow.png`
-- Shapes: `assets/images/shapes.jpg`
-- Mask: `assets/images/mask.png`
+## Adding a new bundled coloring page
 
-Each route still provides its own bundled template and palette. Those static assets and drawing configuration remain code-owned because the renderer and React Native asset bundler require them. Direct Coloring routes render their bundled canvas without waiting for database content; the database controls menu discovery, not the drawing mechanic. A language with no published Coloring menu receives no Luganda cards.
+### 1. Prepare the image
 
-## State Management And Logic Notes
+Use a valid, non-empty PNG or JPG. A strong child coloring page has:
 
-- Drawing paths live in local component state.
-- Undo/redo stacks store previous path arrays.
-- Drawing is rendered with `react-native-svg`.
-- The canvas is wrapped with `react-native-view-shot` for capture.
-- `expo-media-library` saves captures to a `ColoringBook` album.
-- `expo-sharing` opens the device share sheet when available.
-- `@openspacelabs/react-native-zoomable-view` provides zooming.
+- bold dark outlines on a clean white background;
+- large closed shapes with little interior detail;
+- no labels or text baked into the image;
+- the full subject inside a generous margin;
+- approximately 1024 px on the long edge;
+- portrait `2:3` or landscape `4:3` proportions.
 
-## API Or Database Usage
+Place it under `assets/images/coloring/`, for example:
 
-The menu is read through the shared exact-language content repository/cache. Saving artwork updates existing Coloring progress/activity behavior; the drawing surface does not edit database content.
+```text
+assets/images/coloring/friendly-drum.png
+```
 
-## Tests
+Never leave a zero-byte placeholder behind a static `require()`: Metro rejects empty bundled media during production export.
 
-`app/child/games/coloring/__tests__/bundledColoringRoutes.test.tsx` verifies that all five direct Coloring routes render their bundled canvas without waiting for database content. Drawing gestures, undo/redo, saving, sharing, and native media permissions still require device coverage.
+### 2. Register the thumbnail image key
 
-## Known Limitations Or Bugs
+Add a stable key to `IMAGE_ASSETS` in `content/assets.ts`:
 
-- `components/child/AfricanColoringGame.tsx` appears to be an older fully commented prototype, not the active implementation.
-- Media-library permission behavior must be verified on native Android/iOS builds.
-- `app.json` blocks some Android media read permissions, so save/share needs device QA.
-- In-progress drawing paths are not restored after the screen closes. Saving artwork still uses the existing progress/activity behavior.
+```ts
+"coloring/friendly-drum.png": require("@/assets/images/coloring/friendly-drum.png"),
+```
 
-## Future MVP Improvements
+The dynamic menu uses this key to resolve its card thumbnail.
 
-- Add save/share permission testing.
-- Consider restoring an unsaved drawing session if pilot feedback requires it.
-- Consider a generic template payload only if future Coloring content outgrows the current route/asset map.
-- Remove or archive the commented prototype file if no longer needed.
+### 3. Add the route wrapper
 
-## Manual QA Checklist
+Create `app/child/games/coloring/friendly-drum.tsx`:
 
-- [ ] Open every coloring template from the Coloring tab.
-- [ ] Draw with each visible color.
-- [ ] Change brush size.
-- [ ] Use brush, eraser, and fill.
-- [ ] Test undo and redo.
-- [ ] Clear canvas.
-- [ ] Save artwork on Android and iOS.
-- [ ] Share artwork on Android and iOS.
-- [ ] Deny media permission and confirm the app handles it.
+```tsx
+"use client"
+
+import ColoringGameScreen from "@/components/coloring/ColoringGameScreen"
+
+const COLORING_IMAGE = require("@/assets/images/coloring/friendly-drum.png")
+
+export default function FriendlyDrumColoringScreen() {
+  return (
+    <ColoringGameScreen
+      imageSource={COLORING_IMAGE}
+      pageName="Friendly Drum"
+    />
+  )
+}
+```
+
+`pageName` is also used as the stable coloring completion ID, so do not casually rename it after release.
+
+An optional `colors={[...]}` prop can supply a page-specific palette. White is automatically omitted because it would be invisible on the white canvas.
+
+### 4. Publish the menu card
+
+Add the card to the correct language's `child_menu/coloring` payload in the content source/database:
+
+```json
+{
+  "id": "friendly-drum",
+  "order": 6,
+  "title": "Friendly Drum",
+  "description": "Make a bright rhythm pattern.",
+  "image": "coloring/friendly-drum.png",
+  "targetPage": "child/games/coloring/friendly-drum"
+}
+```
+
+The app intentionally does not show another language's coloring menu as a fallback.
+
+### 5. Add route coverage and verify
+
+Add the route to `app/child/games/coloring/__tests__/bundledColoringRoutes.test.tsx`, then run:
+
+```bash
+npm run typecheck
+npm test -- --runInBand app/child/games/coloring/__tests__/bundledColoringRoutes.test.tsx
+npx expo export --platform all
+```
+
+On physical Android and iOS devices, also draw near every edge, erase, undo/redo, save once with permission granted, deny permission once, open Settings from a blocked state, and use Share.
+
+## QA checklist
+
+- [ ] Every published card opens the intended canvas.
+- [ ] Crayon, Eraser, Flower stamp, all colors, and all sizes respond to touch.
+- [ ] Eraser removes paint without covering the template outline.
+- [ ] Undo/redo works after draw, erase, stamp, and Start over.
+- [ ] Save captures artwork only and shows the correct success or failure message.
+- [ ] Share works without requesting photo permission.
+- [ ] Denied and permanently blocked save permission leave the drawing intact.
+- [ ] Compact landscape phones and larger tablets show the entire tool and color docks.
+- [ ] New badges appear once and persist for the active child.

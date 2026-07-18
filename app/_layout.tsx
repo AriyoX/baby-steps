@@ -19,7 +19,10 @@ import { hasCompletedOnboarding } from "@/lib/onboarding";
 import "@/global.css";
 import { ChildProvider } from '@/context/ChildContext';
 import { AudioProvider } from "@/context/AudioContext";
-import { NetworkStatusNotice } from "@/components/common/NetworkStatusNotice";
+import {
+  NetworkStatusNotice,
+  shouldShowPersistentNetworkBanner,
+} from "@/components/common/NetworkStatusNotice";
 import {
   configureNotificationPresentation,
   observeNotificationOpens,
@@ -283,7 +286,10 @@ export default function RootLayout() {
           {showSplashTransition ? (
             <AnimatedSplashTransition onDone={handleSplashTransitionDone} />
           ) : null}
-          <NetworkStatusNotice ready={!showSplashTransition} />
+          <NetworkStatusNotice
+            ready={!showSplashTransition}
+            showPersistentBanner={shouldShowPersistentNetworkBanner(pathname)}
+          />
         </View>
       </ChildProvider>
     </AudioProvider>

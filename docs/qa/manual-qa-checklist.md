@@ -31,7 +31,7 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Mechanic content normally fits without vertical scrolling; long authored copy can still scroll.
 - [ ] Lesson and game header controls sit comfortably below the top edge without safe-area changes.
 - [ ] Word, Matching, Counting, Learning, Puzzle, Ball Trail, and Coloring use the available horizontal space without clipped right-side controls.
-- [ ] Coloring palette opens as a compact horizontal panel and leaves most of the canvas visible.
+- [ ] Coloring tool and color docks leave most of the canvas visible on compact landscape phones.
 - [ ] Puzzle tiles remain aligned after entering the route at different landscape sizes.
 
 ## Onboarding
@@ -120,6 +120,9 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Color palette and brush size controls work.
 - [ ] Save to gallery works after granting permission.
 - [ ] Save handles denied permission gracefully.
+- [ ] Share does not request photo-library permission.
+- [ ] Eraser removes paint without drawing white over the template lines.
+- [ ] Saved pictures contain the artwork only, with no toolbar, loader, or message overlay.
 - [ ] Share works where device sharing is available.
 
 ## Museum

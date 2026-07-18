@@ -14,6 +14,7 @@ import {
   isAccountDeleteConfirmationValid,
   requestAccountDeletion,
 } from "@/lib/accountManagement";
+import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network";
 
 export default function AccountDeleteScreen() {
   const router = useRouter();
@@ -31,6 +32,7 @@ export default function AccountDeleteScreen() {
 
   const handleRequestDeletion = async () => {
     if (!canSubmit || submitting) return;
+    if (!(await requireInternet("Scheduling account deletion"))) return;
 
     setSubmitting(true);
     try {
@@ -45,6 +47,7 @@ export default function AccountDeleteScreen() {
       );
     } catch (error) {
       console.error("Could not request account deletion:", error);
+      if (await showNetworkErrorIfNeeded(error, "Scheduling account deletion")) return;
       Alert.alert("Could not schedule deletion", "Please try again or contact support if you need help.");
     } finally {
       setSubmitting(false);

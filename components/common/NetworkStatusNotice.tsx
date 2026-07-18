@@ -8,12 +8,25 @@ import { OFFLINE_ALERT_TITLE } from "@/lib/network"
 
 type NetworkStatusNoticeProps = {
   ready?: boolean
+  showPersistentBanner?: boolean
 }
+
+export const OFFLINE_BANNER_MESSAGE =
+  "Sign-in, syncing and fresh updates will resume when you reconnect."
+
+export const OFFLINE_POPUP_MESSAGE =
+  "Saved activities may still work. Sign-in, syncing and fresh updates will wait until you reconnect."
+
+export const shouldShowPersistentNetworkBanner = (pathname: string): boolean =>
+  !pathname.startsWith("/child")
 
 const stateIsOffline = (state: NetInfoState) =>
   state.isConnected === false || state.isInternetReachable === false
 
-export function NetworkStatusNotice({ ready = true }: NetworkStatusNoticeProps) {
+export function NetworkStatusNotice({
+  ready = true,
+  showPersistentBanner = true,
+}: NetworkStatusNoticeProps) {
   const [isOffline, setIsOffline] = useState(false)
   const [showOfflinePopup, setShowOfflinePopup] = useState(false)
   const offlineEpisodeActive = useRef(false)
@@ -61,23 +74,25 @@ export function NetworkStatusNotice({ ready = true }: NetworkStatusNoticeProps) 
 
   return (
     <>
-      <View
-        className="absolute top-12 left-3 right-3 z-50 flex-row items-center rounded-2xl bg-neutral-900 px-4 py-3 shadow-lg"
-        style={{ elevation: 12 }}
-        pointerEvents="none"
-        accessibilityRole="alert"
-        accessibilityLiveRegion="assertive"
-      >
-        <View className="w-9 h-9 rounded-xl bg-secondary-500 items-center justify-center">
-          <Ionicons name="cloud-offline-outline" size={20} color={brandColors.white} />
+      {showPersistentBanner ? (
+        <View
+          className="absolute top-12 left-3 right-3 z-50 flex-row items-center rounded-2xl bg-neutral-900 px-4 py-3 shadow-lg"
+          style={{ elevation: 12 }}
+          pointerEvents="none"
+          accessibilityRole="alert"
+          accessibilityLiveRegion="assertive"
+        >
+          <View className="w-9 h-9 rounded-xl bg-secondary-500 items-center justify-center">
+            <Ionicons name="cloud-offline-outline" size={20} color={brandColors.white} />
+          </View>
+          <View className="flex-1 ml-3">
+            <Text variant="bold" className="text-white text-sm">You’re offline</Text>
+            <Text className="text-neutral-200 text-xs leading-4 mt-0.5">
+              {OFFLINE_BANNER_MESSAGE}
+            </Text>
+          </View>
         </View>
-        <View className="flex-1 ml-3">
-          <Text variant="bold" className="text-white text-sm">You’re offline</Text>
-          <Text className="text-neutral-200 text-xs leading-4 mt-0.5">
-            Account access and syncing will resume when you reconnect.
-          </Text>
-        </View>
-      </View>
+      ) : null}
 
       <Modal
         visible={showOfflinePopup}
@@ -100,7 +115,7 @@ export function NetworkStatusNotice({ ready = true }: NetworkStatusNoticeProps) 
               {OFFLINE_ALERT_TITLE}
             </Text>
             <Text className="text-sm leading-6 text-neutral-600 mt-2">
-              Baby Steps cannot reach the internet. Saved activities may still work, but account access, syncing, and fresh updates will wait until you reconnect.
+              {OFFLINE_POPUP_MESSAGE}
             </Text>
             <Pressable
               className="mt-6 min-h-[50px] rounded-2xl bg-primary-600 items-center justify-center px-5"

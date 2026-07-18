@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { View, ScrollView, TouchableOpacity } from "react-native"
+import { Alert, View, ScrollView, TouchableOpacity } from "react-native"
 import { Text } from "@/components/StyledText"
 import { TranslatedText } from "@/components/translated-text"
 import { useLocalSearchParams, useRouter } from "expo-router"
@@ -13,6 +13,7 @@ import { useChild } from "@/context/ChildContext"
 import { getLearningLanguage } from "@/content/languages"
 import { AchievementCard } from "@/components/games/achievements/AchievementCard"
 import { CHILD_HOME_ROUTE } from "@/constants/ChildNavigation"
+import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network"
 
 // Achievement imports
 import { useAchievements } from "@/components/games/achievements/useAchievements" // Ensure this path is correct
@@ -62,9 +63,12 @@ export default function ChildDetailScreen() {
   }, [childId])
 
   const fetchChildData = async () => {
-    // ... (your existing fetchChildData remains the same)
     try {
       setLoading(true)
+      if (!(await requireInternet("Loading this child profile"))) {
+        setChildData(null)
+        return
+      }
       const { data, error } = await supabase
         .from("children")
         .select("id, name, gender, age, selected_language_code")
@@ -78,7 +82,9 @@ export default function ChildDetailScreen() {
       });
     } catch (error) {
       console.error("Error fetching child data:", error);
-      setChildData(null); // Clear data on error
+      setChildData(null);
+      if (await showNetworkErrorIfNeeded(error, "Loading this child profile")) return
+      Alert.alert("Could not load child profile", "Please try again.")
     } finally {
       setLoading(false);
     }
@@ -116,9 +122,9 @@ export default function ChildDetailScreen() {
   }, [childId, definedAchievements, earnedChildAchievements, isLoadingAchievements]);
 
 
-  const handleLaunchChildMode = () => {
-    // ... (your existing handleLaunchChildMode remains the same)
+  const handleLaunchChildMode = async () => {
     if (childData) {
+      if (!(await requireInternet("Launching child mode"))) return
       setActiveChild(childData)
       router.push({
         pathname: CHILD_HOME_ROUTE as any,
@@ -187,7 +193,7 @@ export default function ChildDetailScreen() {
                     <View className="mt-3 flex-row">
                       <TouchableOpacity
                         className="bg-[#7b5af0] py-2 px-4 rounded-lg shadow"
-                        onPress={handleLaunchChildMode}
+                        onPress={() => void handleLaunchChildMode()}
                       >
                         <TranslatedText variant="medium" className="text-white text-sm">Launch Child Mode</TranslatedText>
                       </TouchableOpacity>

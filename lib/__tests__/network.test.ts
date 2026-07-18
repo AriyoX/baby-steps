@@ -45,10 +45,32 @@ describe("network helpers", () => {
     )
   })
 
-  it("recognizes common fetch failures returned by auth clients", async () => {
+  it("labels a fetch failure as a temporary connection problem while online", async () => {
     const error = new TypeError("Network request failed")
     expect(isLikelyNetworkError(error)).toBe(true)
     await expect(showNetworkErrorIfNeeded(error, "Signing in")).resolves.toBe(true)
-    expect(mockAlert).toHaveBeenCalled()
+    expect(mockAlert).toHaveBeenCalledWith(
+      "Can’t connect right now",
+      expect.stringContaining("The service may be temporarily unavailable"),
+    )
+  })
+
+  it("reserves the offline label for an explicit NetInfo offline result", async () => {
+    mockFetch.mockResolvedValue({ isConnected: false, isInternetReachable: false })
+
+    await expect(
+      showNetworkErrorIfNeeded(new TypeError("Failed to fetch"), "Signing in"),
+    ).resolves.toBe(true)
+    expect(mockAlert).toHaveBeenCalledWith(
+      "No internet connection",
+      expect.stringContaining("Signing in needs an internet connection"),
+    )
+  })
+
+  it("leaves non-network errors to the calling screen while online", async () => {
+    await expect(
+      showNetworkErrorIfNeeded(new Error("Invalid password"), "Signing in"),
+    ).resolves.toBe(false)
+    expect(mockAlert).not.toHaveBeenCalled()
   })
 })

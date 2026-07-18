@@ -5,6 +5,7 @@ import { Text } from "@/components/StyledText";
 import { CachedImage } from "@/components/common/CachedImage";
 import { brandColors } from "@/constants/Brand";
 import { useAudio } from "@/context/AudioContext";
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext";
 import { resolveImageSource } from "@/content/assets";
 import type {
   ItemResult,
@@ -36,6 +37,7 @@ export function StoryBiteCard({
   stageImageKey,
   onComplete,
 }: StoryBiteCardProps) {
+  const { t } = useChildUiLanguage();
   const { createAppSound, replayAppSound, unloadAppSound } = useAudio();
   const { width, height } = useWindowDimensions();
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
@@ -143,7 +145,9 @@ export function StoryBiteCard({
     });
   };
 
-  const actionLabel = isFinalPage ? "I finished the story" : "Next";
+  const actionLabel = t(
+    isFinalPage ? "learning.finishedStory" : "common.next",
+  );
   const actionIcon = isFinalPage ? "checkmark" : "chevron-forward";
   const actionColor = isFinalPage
     ? brandColors.success

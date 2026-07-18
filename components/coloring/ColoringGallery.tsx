@@ -28,6 +28,7 @@ import { preloadContentBundleImages } from "@/content/imagePreloader"
 import { brandColors, brandShadows } from "@/constants/Brand"
 import { useAudio } from "@/context/AudioContext"
 import { useChild } from "@/context/ChildContext"
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext"
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation"
 import { audioManager } from "@/lib/audioManager"
 import {
@@ -42,6 +43,7 @@ const TAB_BAR_CLEARANCE = 88
 export function ColoringGallery() {
   const router = useRouter()
   const { activeChild } = useChild()
+  const { t, translateAchievement } = useChildUiLanguage()
   const { width, height } = useWindowDimensions()
   const {
     settings: audioSettings,
@@ -128,10 +130,10 @@ export function ColoringGallery() {
             </View>
             <View style={styles.headerCopy}>
               <Text variant="display" numberOfLines={1} style={[styles.title, isCompact && styles.compactTitle]}>
-                Coloring Club
+                {t("coloring.title")}
               </Text>
               <Text variant="medium" numberOfLines={1} style={styles.subtitle}>
-                Pick a picture, play with color, and make it yours.
+                {t("coloring.subtitle")}
               </Text>
             </View>
           </View>
@@ -168,7 +170,7 @@ export function ColoringGallery() {
               style={styles.parentButton}
             >
               <Ionicons name="people" size={19} color={brandColors.orange[600]} />
-              {!isCompact ? <Text variant="bold" style={styles.parentButtonText}>For parents</Text> : null}
+              {!isCompact ? <Text variant="bold" style={styles.parentButtonText}>{t("child.forParents")}</Text> : null}
             </TouchableOpacity>
           </View>
         </View>
@@ -181,10 +183,12 @@ export function ColoringGallery() {
               </View>
               <View style={styles.welcomeCopy}>
                 <Text variant="bold" numberOfLines={1} style={styles.welcomeTitle}>
-                  {activeChild?.name ? `${activeChild.name}'s art shelf` : "Your art shelf"}
+                  {activeChild?.name
+                    ? t("coloring.childArtShelf", { name: activeChild.name })
+                    : t("coloring.yourArtShelf")}
                 </Text>
                 <Text variant="medium" style={styles.welcomeSubtitle}>
-                  Every picture can be different.
+                  {t("coloring.everyPictureDifferent")}
                 </Text>
               </View>
             </View>
@@ -192,24 +196,34 @@ export function ColoringGallery() {
             <View style={styles.statRow}>
               <View style={[styles.statCard, isCompact && styles.compactStatCard]}>
                 <Text variant="display" style={styles.statNumber}>{progress.savedArtworkCount}</Text>
-                <Text variant="bold" style={styles.statLabel}>saved</Text>
+                <Text variant="bold" style={styles.statLabel}>{t("coloring.saved")}</Text>
               </View>
               <View style={[styles.statCard, styles.statCardGold, isCompact && styles.compactStatCard]}>
                 <Text variant="display" style={styles.statNumber}>{progress.unlockedAchievementIds.length}</Text>
-                <Text variant="bold" style={styles.statLabel}>badges</Text>
+                <Text variant="bold" style={styles.statLabel}>{t("coloring.badges")}</Text>
               </View>
             </View>
 
             <Text variant="display" style={[styles.badgeHeading, isCompact && styles.compactBadgeHeading]}>
-              Your badges
+              {t("coloring.yourBadges")}
             </Text>
             <View style={[styles.badgeList, isCompact && styles.compactBadgeList]}>
               {COLORING_ACHIEVEMENTS.map((achievement) => {
                 const unlocked = progress.unlockedAchievementIds.includes(achievement.id)
+                const translatedAchievement = translateAchievement({
+                  id: achievement.id,
+                  name: achievement.title,
+                  description: achievement.description,
+                  game_key: "coloring",
+                })
                 return (
                   <View
                     key={achievement.id}
-                    accessibilityLabel={`${achievement.title}. ${unlocked ? "Unlocked" : achievement.description}`}
+                    accessibilityLabel={`${translatedAchievement.name}. ${
+                      unlocked
+                        ? t("common.unlocked")
+                        : translatedAchievement.description
+                    }`}
                     style={[
                       styles.badgeRow,
                       isCompact && styles.compactBadgeRow,
@@ -225,11 +239,11 @@ export function ColoringGallery() {
                     </View>
                     <View style={[styles.badgeCopy, isCompact && styles.compactBadgeCopy]}>
                       <Text variant="bold" numberOfLines={1} style={styles.badgeTitle}>
-                        {achievement.title}
+                        {translatedAchievement.name}
                       </Text>
                       {!isCompact ? (
                         <Text variant="medium" numberOfLines={1} style={styles.badgeDescription}>
-                          {unlocked ? "You did it!" : achievement.description}
+                          {unlocked ? t("coloring.youDidIt") : translatedAchievement.description}
                         </Text>
                       ) : null}
                     </View>
@@ -242,9 +256,9 @@ export function ColoringGallery() {
               <View style={styles.dailySpark}>
                 <Ionicons name="color-wand" size={19} color={brandColors.orange[600]} />
                 <View style={styles.dailySparkCopy}>
-                  <Text variant="bold" style={styles.dailySparkTitle}>Creative spark</Text>
+                  <Text variant="bold" style={styles.dailySparkTitle}>{t("coloring.creativeSpark")}</Text>
                   <Text variant="medium" numberOfLines={2} style={styles.dailySparkText}>
-                    Can you use 3 colors in your next picture?
+                    {t("coloring.creativeSparkHint")}
                   </Text>
                 </View>
               </View>
@@ -255,15 +269,17 @@ export function ColoringGallery() {
             <View style={styles.galleryHeadingRow}>
               <View>
                 <Text variant="display" style={[styles.galleryTitle, isCompact && styles.compactGalleryTitle]}>
-                  Choose a picture
+                  {t("coloring.choosePicture")}
                 </Text>
                 <Text variant="medium" style={styles.gallerySubtitle}>
-                  Tap any card to open the studio.
+                  {t("coloring.tapToOpen")}
                 </Text>
               </View>
               <View style={styles.pictureCountPill}>
                 <Ionicons name="images-outline" size={15} color={brandColors.blue[700]} />
-                <Text variant="bold" style={styles.pictureCountText}>{cards.length} pictures</Text>
+                <Text variant="bold" style={styles.pictureCountText}>
+                  {t("coloring.picturesCount", { count: cards.length })}
+                </Text>
               </View>
             </View>
 
@@ -306,7 +322,7 @@ export function ColoringGallery() {
                     </Text>
                     <View style={styles.openStudioPill}>
                       <Ionicons name="color-palette" size={15} color={brandColors.white} />
-                      <Text variant="bold" style={styles.openStudioText}>Color it</Text>
+                      <Text variant="bold" style={styles.openStudioText}>{t("coloring.colorIt")}</Text>
                       <Ionicons name="arrow-forward" size={14} color={brandColors.white} />
                     </View>
                   </View>
@@ -315,7 +331,7 @@ export function ColoringGallery() {
 
               {isLoading ? (
                 <ChildLoadingCard
-                  label="Opening the art shelf..."
+                  label={t("coloring.openingShelf")}
                   style={[styles.pictureCard, isCompact && styles.compactPictureCard]}
                 />
               ) : null}
@@ -323,9 +339,9 @@ export function ColoringGallery() {
               {!isLoading && cards.length === 0 ? (
                 <View style={[styles.emptyCard, isCompact && styles.compactPictureCard]}>
                   <BrandMark kind="mascot" width={43} height={58} />
-                  <Text variant="display" style={styles.emptyTitle}>Pictures are on the way</Text>
+                  <Text variant="display" style={styles.emptyTitle}>{t("coloring.picturesComing")}</Text>
                   <Text variant="medium" style={styles.emptyText}>
-                    We are preparing coloring pages for this learning language.
+                    {t("coloring.preparingPages")}
                   </Text>
                   <TouchableOpacity
                     accessibilityRole="button"
@@ -334,7 +350,7 @@ export function ColoringGallery() {
                     style={styles.tryAgainButton}
                   >
                     <Ionicons name="refresh" size={16} color={brandColors.white} />
-                    <Text variant="bold" style={styles.tryAgainText}>Try again</Text>
+                    <Text variant="bold" style={styles.tryAgainText}>{t("common.retry")}</Text>
                   </TouchableOpacity>
                 </View>
               ) : null}

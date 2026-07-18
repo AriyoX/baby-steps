@@ -10,16 +10,18 @@ import {
   Animated,
   Easing,
   BackHandler,
+  Modal,
+  Switch,
   useWindowDimensions,
 } from "react-native"
 import { StatusBar } from "expo-status-bar"
 import { useFocusEffect, useRouter, usePathname } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import { Text } from "@/components/StyledText"
-import { TranslatedText } from "@/components/translated-text"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useAudio } from "@/context/AudioContext"
 import { useChild } from "@/context/ChildContext"
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext"
 import { CachedImage } from "@/components/common/CachedImage"
 import {
   loadContentBundle,
@@ -54,6 +56,7 @@ import {
   getColoringProgress,
   type ColoringProgress,
 } from "@/lib/coloringProgress"
+import type { ChildUiTranslationKey } from "@/lib/childUiTranslations"
 
 // Define types
 type LearningCard = {
@@ -84,12 +87,12 @@ const TAB_CONTENT_SLUGS: Record<string, string> = {
   museum: "museum",
 }
 
-const TAB_TITLES: Record<string, string> = {
-  games: "Games",
-  learning: "Learning",
-  coloring: "Coloring",
-  stories: "Stories",
-  museum: "Museum",
+const TAB_TITLE_KEYS: Record<string, ChildUiTranslationKey> = {
+  games: "navigation.games",
+  learning: "navigation.learning",
+  coloring: "navigation.coloring",
+  stories: "navigation.stories",
+  museum: "navigation.museum",
 }
 
 const toLearningCards = (cards: ChildMenuCard[]): LearningCard[] =>
@@ -104,6 +107,7 @@ const toLearningCards = (cards: ChildMenuCard[]): LearningCard[] =>
 const toLearningHubCards = (
   stages: LearningHubStage[],
   completedLessonIds: string[],
+  t: (key: ChildUiTranslationKey, params?: Record<string, string | number | undefined>) => string,
 ): LearningCard[] => {
   return getLearningStageAccessStates(stages, completedLessonIds).map(
     ({
@@ -122,28 +126,28 @@ const toLearningHubCards = (
             backgroundColor: "rgba(71, 79, 94, 0.9)",
             color: brandColors.white,
             icon: "lock-closed" as const,
-            label: "Locked",
+            label: t("common.locked"),
           }
         : isCompleted
           ? {
               backgroundColor: "rgba(34, 197, 94, 0.92)",
               color: brandColors.white,
               icon: "checkmark-circle" as const,
-              label: "Completed",
+              label: t("learning.completed"),
             }
           : isCurrent
             ? {
                 backgroundColor: "rgba(248, 194, 62, 0.95)",
                 color: brandColors.neutral[800],
                 icon: "play-circle" as const,
-                label: `${completedLessonCount}/${totalLessonCount} Current`,
+                label: `${completedLessonCount}/${totalLessonCount} ${t("learning.current")}`,
               }
             : totalLessonCount === 0
               ? {
                   backgroundColor: "rgba(255, 123, 108, 0.94)",
                   color: brandColors.white,
                   icon: "construct" as const,
-                  label: "Coming soon",
+                  label: t("games.comingSoon"),
                 }
               : {
                   backgroundColor: "rgba(2, 116, 187, 0.92)",
@@ -163,9 +167,9 @@ const toLearningHubCards = (
         status,
         progressLabel:
           !isExplicitlyLocked && isProgressLocked && lockedByStageTitle
-            ? `Complete ${lockedByStageTitle} to unlock`
+            ? `${t("common.complete")} ${lockedByStageTitle}`
             : totalLessonCount > 0
-              ? `${completedLessonCount} of ${totalLessonCount} lessons complete`
+              ? `${t("learning.progressPosition", { current: completedLessonCount, total: totalLessonCount })} ${t("learning.completed")}`
               : status.label,
       }
     },
@@ -176,11 +180,19 @@ const AfricanThemeGameInterface: React.FC = () => {
   const [contentBundle, setContentBundle] = useState<ContentBundle | undefined>()
   const [isContentLoading, setIsContentLoading] = useState(true)
   const [contentRetrySequence, setContentRetrySequence] = useState(0)
+  const [profileSettingsVisible, setProfileSettingsVisible] = useState(false)
   const [coloringProgress, setColoringProgress] = useState<ColoringProgress>(
     EMPTY_COLORING_PROGRESS,
   )
   const router = useRouter()
   const { activeChild } = useChild()
+  const {
+    enabled: useLearningLanguage,
+    isLoading: isUiLanguagePreferenceLoading,
+    setEnabled: setUseLearningLanguage,
+    t,
+    translateAchievement,
+  } = useChildUiLanguage()
   const {
     settings: audioSettings,
     toggleBackgroundMusicMuted,
@@ -325,16 +337,17 @@ const AfricanThemeGameInterface: React.FC = () => {
   }, [activeChild?.selected_language_code, contentRetrySequence])
 
   const contentSlug = TAB_CONTENT_SLUGS[tabId] ?? "games"
-  const screenTitle = TAB_TITLES[contentSlug] ?? "Games"
+  const screenTitle = t(TAB_TITLE_KEYS[contentSlug] ?? "navigation.games")
   const learningCards = useMemo(
     () =>
       contentSlug === "learning"
         ? toLearningHubCards(
             contentBundle?.learningHub?.stages ?? [],
             completedLearningLessonIds,
+            t,
           )
         : toLearningCards(contentBundle?.menuCardsByTab[contentSlug] ?? []),
-    [completedLearningLessonIds, contentBundle, contentSlug],
+    [completedLearningLessonIds, contentBundle, contentSlug, t],
   )
 
   const handleParentalPress = () => {
@@ -399,16 +412,16 @@ const AfricanThemeGameInterface: React.FC = () => {
                   transform: [{ scale: pulseAnim }, { translateY: bounceAnim }],
                 }}
               >
-                <View
+                <TouchableOpacity
                   className="w-[70px] h-[70px] rounded-full border-3 border-accent-500 bg-primary-50 items-center justify-center"
-                  accessible
-                  accessibilityRole="image"
+                  onPress={() => setProfileSettingsVisible(true)}
+                  accessibilityRole="button"
                   accessibilityLabel={`${activeChild?.name || "Learner"} profile avatar`}
                 >
                   <Text className="text-[36px]" accessible={false}>
                     {childAvatar}
                   </Text>
-                </View>
+                </TouchableOpacity>
               </Animated.View>
               <View className="pl-3">
                 <Text variant="bold" className="text-white text-lg mt-2" numberOfLines={1}>
@@ -420,7 +433,7 @@ const AfricanThemeGameInterface: React.FC = () => {
                 <TourTarget id="learning-hub-language">
                   <View style={{ alignSelf: "flex-start" }}>
                     <Text className="text-white/80 text-sm" numberOfLines={1}>
-                      Learning {learningLanguageName}
+                      {t("learning.learningLanguage", { language: learningLanguageName })}
                     </Text>
                   </View>
                 </TourTarget>
@@ -432,9 +445,9 @@ const AfricanThemeGameInterface: React.FC = () => {
               {/* Header */}
               <View className="flex-row justify-between items-center mb-5 ml-[45%]">
                 <View className="flex-row items-center">
-                  <TranslatedText variant="bold" className="text-white text-3xl mr-2.5 pt-3" numberOfLines={1}>
+                  <Text variant="bold" className="text-white text-3xl mr-2.5 pt-3" numberOfLines={1}>
                     {screenTitle}
-                  </TranslatedText>
+                  </Text>
                 </View>
 
                 <View className="flex-row items-center">
@@ -487,9 +500,9 @@ const AfricanThemeGameInterface: React.FC = () => {
                     onPress={handleParentalPress}
                   >
                     <Ionicons name="people-sharp" size={30} color={brandColors.shanaOrange} />
-                    <TranslatedText variant="medium" className="text-primary-700 text-base ml-1">
-                      For parents
-                    </TranslatedText>
+                    <Text variant="medium" className="text-primary-700 text-base ml-1">
+                      {t("child.forParents")}
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -509,17 +522,17 @@ const AfricanThemeGameInterface: React.FC = () => {
                     accessibilityLabel={`${coloringProgress.savedArtworkCount} saved pictures. ${coloringProgress.unlockedAchievementIds.length} of ${COLORING_ACHIEVEMENTS.length} coloring badges unlocked. Creative spark: try 3 colors today.`}
                   >
                     <Text variant="bold" className="text-white text-xl" numberOfLines={1}>
-                      Art journey
+                      {t("coloring.artJourney")}
                     </Text>
                     <View className="flex-row mt-2">
                       <View className="flex-1 rounded-xl bg-white/15 px-2 py-1.5 mr-1">
                         <Text variant="bold" className="text-white text-base" numberOfLines={1}>
-                          {coloringProgress.savedArtworkCount} saved
+                          {coloringProgress.savedArtworkCount} {t("coloring.saved")}
                         </Text>
                       </View>
                       <View className="flex-1 rounded-xl bg-white/15 px-2 py-1.5 ml-1">
                         <Text variant="bold" className="text-white text-base" numberOfLines={1}>
-                          {coloringProgress.unlockedAchievementIds.length}/{COLORING_ACHIEVEMENTS.length} badges
+                          {coloringProgress.unlockedAchievementIds.length}/{COLORING_ACHIEVEMENTS.length} {t("coloring.badges")}
                         </Text>
                       </View>
                     </View>
@@ -528,11 +541,17 @@ const AfricanThemeGameInterface: React.FC = () => {
                         const unlocked = coloringProgress.unlockedAchievementIds.includes(
                           achievement.id,
                         )
+                        const translatedAchievement = translateAchievement({
+                          id: achievement.id,
+                          name: achievement.title,
+                          description: achievement.description,
+                          game_key: "coloring",
+                        })
                         return (
                           <View
                             key={achievement.id}
                             accessible
-                            accessibilityLabel={`${achievement.title}. ${unlocked ? "Unlocked" : achievement.description}`}
+                            accessibilityLabel={`${translatedAchievement.name}. ${unlocked ? t("common.unlocked") : translatedAchievement.description}`}
                             className="w-8 h-8 rounded-full bg-white/20 items-center justify-center mr-1.5"
                           >
                             <Ionicons
@@ -547,17 +566,18 @@ const AfricanThemeGameInterface: React.FC = () => {
                     <View className="flex-row items-center mt-2">
                       <Ionicons name="color-palette" size={15} color={brandColors.equatorialGold} />
                       <Text variant="medium" className="text-white text-xs ml-1" numberOfLines={1}>
-                        Creative spark: try 3 colors!
+                        {t("coloring.creativeSparkShort")}
                       </Text>
                     </View>
                   </View>
                 ) : (
                 <View className="bg-white/15 rounded-2xl p-4 mr-2.5 w-[200px]" style={{ height: cardLayout.cardHeight }}>
-                  <TranslatedText variant="bold" className="text-white text-2xl">
-                    Start
-                  </TranslatedText>
-                  <TranslatedText className="text-white text-base">of learning</TranslatedText>
-                  <TranslatedText className="text-white text-base">journey</TranslatedText>
+                  <Text variant="bold" className="text-white text-2xl">
+                    {t("common.start")}
+                  </Text>
+                  <Text className="text-white text-base" numberOfLines={2}>
+                    {t("child.learningJourney")}
+                  </Text>
 
                   {/* Optional Adinkra symbol */}
                   <View className="mt-2.5 w-12 h-12 rounded-full bg-white/20 items-center justify-center">
@@ -623,23 +643,27 @@ const AfricanThemeGameInterface: React.FC = () => {
                       ) : null}
                     </View>
                     <View className="p-3 bg-white justify-center" style={{ height: cardLayout.textHeight }}>
-                      <TranslatedText
+                      <Text
                         variant="bold"
                         className="text-base text-primary-700 mb-1"
                         numberOfLines={card.stageId ? 2 : 1}
                       >
                         {card.title}
-                      </TranslatedText>
-                      <TranslatedText className="text-xs text-neutral-600 leading-4" numberOfLines={2}>
+                      </Text>
+                      <Text className="text-xs text-neutral-600 leading-4" numberOfLines={2}>
                         {card.description}
-                      </TranslatedText>
+                      </Text>
                     </View>
                   </TouchableOpacity>
                   </TourTarget>
                 ))}
                 {isContentLoading && (
                   <ChildLoadingCard
-                    label={isLearningTab ? "Loading lessons..." : "Loading activities..."}
+                    label={t(
+                      isLearningTab
+                        ? "games.loadingLessons"
+                        : "games.loadingActivities",
+                    )}
                     style={{
                       height: cardLayout.cardHeight,
                       marginRight: cardLayout.cardGap,
@@ -658,12 +682,20 @@ const AfricanThemeGameInterface: React.FC = () => {
                   >
                     <BrandMark kind="mascot" width={54} height={72} />
                     <Text variant="display" className="text-xl text-primary-700 mt-3 text-center">
-                      {isLearningTab ? "Lessons coming soon" : "Coming soon"}
+                      {t(
+                        isLearningTab
+                          ? "games.lessonsComingSoon"
+                          : "games.comingSoon",
+                      )}
                     </Text>
                     <Text className="text-xs text-neutral-600 leading-4 mt-2 text-center">
                       {isLearningTab
-                        ? `${getLearningLanguage(activeChild?.selected_language_code)?.name ?? "Your language"} Learning Hub lessons are being prepared.`
-                        : "This activity is being prepared for your learning language."}
+                        ? t("learning.preparingHub", {
+                            language:
+                              getLearningLanguage(activeChild?.selected_language_code)?.name ??
+                              t("learning.yourLanguage"),
+                          })
+                        : t("games.preparingLanguage")}
                     </Text>
                     <TouchableOpacity
                       className="mt-3 rounded-full bg-primary-600 px-4 py-2"
@@ -678,7 +710,7 @@ const AfricanThemeGameInterface: React.FC = () => {
                       }
                     >
                       <Text variant="bold" className="text-xs text-white">
-                        Try again
+                        {t("common.retry")}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -692,26 +724,76 @@ const AfricanThemeGameInterface: React.FC = () => {
         visible={learningHubTour.visible}
         onCancel={learningHubTour.close}
         onComplete={learningHubTour.complete}
-        finishLabel="Start learning"
+        finishLabel={t("games.startLearning")}
         steps={[
           {
             id: "language",
             targetId: "learning-hub-language",
             icon: "language-outline",
             placement: "right",
-            title: "Your language",
-            description: `These lessons are in ${learningLanguageName}.`,
+            title: t("learning.yourLanguage"),
+            description: t("learning.lessonsInLanguage", { language: learningLanguageName }),
           },
           {
             id: "stages",
             targetId: "learning-hub-stages",
             icon: "map-outline",
             placement: "top",
-            title: "Choose a stage",
-            description: "Swipe, then tap a stage.",
+            title: t("learning.chooseStage"),
+            description: t("learning.chooseStageHint"),
           },
         ]}
       />
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setProfileSettingsVisible(false)}
+        supportedOrientations={["landscape", "landscape-left", "landscape-right"]}
+        transparent
+        visible={profileSettingsVisible}
+      >
+        <SafeAreaView
+          className="flex-1 bg-black/50 items-center justify-center px-6"
+          edges={["top", "bottom", "left", "right"]}
+          accessibilityViewIsModal
+        >
+          <View className="bg-white rounded-3xl p-5 w-full max-w-lg border-2 border-accent-200">
+            <View className="flex-row items-center justify-between mb-4">
+              <Text variant="bold" className="text-2xl text-primary-700">
+                {t("child.profileSettings")}
+              </Text>
+              <TouchableOpacity
+                className="w-11 h-11 rounded-full bg-neutral-100 items-center justify-center"
+                onPress={() => setProfileSettingsVisible(false)}
+                accessibilityRole="button"
+                accessibilityLabel={t("common.close")}
+              >
+                <Ionicons name="close" size={24} color={brandColors.neutral[700]} />
+              </TouchableOpacity>
+            </View>
+            <View className="flex-row items-center rounded-2xl bg-primary-50 px-4 py-4">
+              <View className="flex-1 pr-4">
+                <Text variant="bold" className="text-primary-800 text-lg">
+                  {t("profile.useLearningLanguage")}
+                </Text>
+                <Text className="text-neutral-600 text-sm mt-1 leading-5">
+                  {t("profile.useLearningLanguageDescription")}
+                </Text>
+              </View>
+              <Switch
+                accessibilityLabel={t("profile.useLearningLanguage")}
+                accessibilityRole="switch"
+                accessibilityState={{
+                  checked: useLearningLanguage,
+                  disabled: isUiLanguagePreferenceLoading,
+                }}
+                disabled={isUiLanguagePreferenceLoading}
+                onValueChange={(enabled) => void setUseLearningLanguage(enabled)}
+                value={useLearningLanguage}
+              />
+            </View>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </>
     </GameTourProvider>
   )

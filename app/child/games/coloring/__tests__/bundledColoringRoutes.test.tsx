@@ -33,14 +33,14 @@ describe("bundled Coloring routes", () => {
 
   it.each([
     ["Cow", AnimalsColoringScreen],
-    ["Omwana — Child", ChildColoringScreen],
+    ["Omwana: Child", ChildColoringScreen],
     ["Emblem", EmblemColoringScreen],
-    ["Taata — Father", FatherColoringScreen],
-    ["Oli otya? — How are you?", GreetingColoringScreen],
-    ["Ennyumba — House", HouseColoringScreen],
+    ["Taata: Father", FatherColoringScreen],
+    ["Oli otya?: How are you?", GreetingColoringScreen],
+    ["Ennyumba: House", HouseColoringScreen],
     ["King", KingColoringScreen],
     ["Mask", MaskColoringScreen],
-    ["Maama — Mother", MotherColoringScreen],
+    ["Maama: Mother", MotherColoringScreen],
     ["Shapes", ShapesColoringScreen],
   ])("renders the %s canvas without a database content gate", async (pageName, Screen) => {
     let tree: renderer.ReactTestRenderer

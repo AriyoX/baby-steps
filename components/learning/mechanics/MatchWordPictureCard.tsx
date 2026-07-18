@@ -4,6 +4,7 @@ import { TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { Text } from "@/components/StyledText";
 import { CachedImage } from "@/components/common/CachedImage";
 import { brandColors } from "@/constants/Brand";
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext";
 import { resolveImageSource } from "@/content/assets";
 import type {
   ItemResult,
@@ -33,6 +34,7 @@ export function MatchWordPictureCard({
   stageImageKey,
   onComplete,
 }: MatchWordPictureCardProps) {
+  const { t } = useChildUiLanguage();
   const { width, height } = useWindowDimensions();
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [answerState, setAnswerState] = useState<AnswerState>("idle");
@@ -116,7 +118,7 @@ export function MatchWordPictureCard({
           onPress={completeItem}
           disabled={!canComplete || isCompleting}
           accessibilityRole="button"
-          accessibilityLabel={isLastItem ? "Finish" : "Next"}
+          accessibilityLabel={t(isLastItem ? "common.finish" : "common.next")}
           accessibilityState={{ disabled: !canComplete || isCompleting }}
         >
           <Text
@@ -126,7 +128,7 @@ export function MatchWordPictureCard({
             adjustsFontSizeToFit
             minimumFontScale={0.82}
           >
-            {isLastItem ? "Finish" : "Next"}
+            {t(isLastItem ? "common.finish" : "common.next")}
           </Text>
           <Ionicons
             name={isLastItem ? "checkmark" : "chevron-forward"}

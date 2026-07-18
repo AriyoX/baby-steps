@@ -1,16 +1,17 @@
 import { Tabs } from "expo-router"
 import { Image, View } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
-import { TranslatedText } from "@/components/translated-text"
+import { Text } from "@/components/StyledText"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
-import { LanguageProvider } from "@/context/language-context"
 import { brandColors } from "@/constants/Brand"
 import { CHILD_TAB_ITEMS, type ChildTabId } from "@/constants/ChildNavigation"
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext"
+import type { ChildUiTranslationKey } from "@/lib/childUiTranslations"
 
 type NavItem = {
   href: (typeof CHILD_TAB_ITEMS)[number]["href"]
   id: ChildTabId
-  label: string
+  labelKey: ChildUiTranslationKey
   icon?: any
   iconName?: keyof typeof Ionicons.glyphMap
   activeIconName?: keyof typeof Ionicons.glyphMap
@@ -40,9 +41,9 @@ const navigationItems: NavItem[] = CHILD_TAB_ITEMS.map((item) => {
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets()
+  const { t } = useChildUiLanguage()
   return (
-    <LanguageProvider>
-      <Tabs
+    <Tabs
         initialRouteName="learning"
         detachInactiveScreens={false}
         screenOptions={{
@@ -84,13 +85,13 @@ export default function TabLayout() {
             options={{
               href: item.href,
               tabBarLabel: ({ focused, color }) => (
-                <TranslatedText
+                <Text
                   variant={focused ? "bold" : "regular"}
                   className={`${focused ? "text-accent-500" : "text-white"}`}
                   style={{ textAlign: "center", marginBottom: 4 }}
                 >
-                  {item.label}
-                </TranslatedText>
+                  {t(item.labelKey)}
+                </Text>
               ),
               tabBarIcon: ({ color, size, focused }) => {
                 const iconName = focused ? item.activeIconName ?? item.iconName : item.iconName
@@ -132,7 +133,6 @@ export default function TabLayout() {
             href: null,
           }}
         />
-      </Tabs>
-    </LanguageProvider>
+    </Tabs>
   )
 }

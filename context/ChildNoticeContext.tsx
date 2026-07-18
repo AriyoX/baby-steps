@@ -25,6 +25,7 @@ import {
   brandShadows,
 } from "@/constants/Brand";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext";
 
 const DEFAULT_NOTICE_DURATION_MS = 4500;
 const CHILD_HEADER_CLEARANCE = 56;
@@ -84,6 +85,7 @@ const getNoticeKey = (childId: string, notice: ChildNoticeInput): string => {
 export function ChildNoticeHost({ notice, onDismiss }: ChildNoticeHostProps) {
   const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
+  const { t, translateAchievement } = useChildUiLanguage();
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(-16)).current;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -182,7 +184,8 @@ export function ChildNoticeHost({ notice, onDismiss }: ChildNoticeHostProps) {
   }
 
   const { achievement } = notice;
-  const accessibilityLabel = `Achievement unlocked: ${achievement.name}`;
+  const translatedAchievement = translateAchievement(achievement);
+  const accessibilityLabel = `${t("achievements.unlocked")}: ${translatedAchievement.name}`;
 
   return (
     <View
@@ -220,13 +223,17 @@ export function ChildNoticeHost({ notice, onDismiss }: ChildNoticeHostProps) {
         </View>
         <View style={styles.copy}>
           <Text variant="bold" style={styles.kicker}>
-            Achievement unlocked
-            {achievement.points > 0 ? `  |  +${achievement.points} points` : ""}
+            {t("achievements.unlocked")}
+            {achievement.points > 0
+              ? `  |  +${achievement.points} ${t("achievements.points")}`
+              : ""}
           </Text>
           <Text variant="bold" style={styles.title}>
-            {achievement.name}
+            {translatedAchievement.name}
           </Text>
-          <Text style={styles.description}>{achievement.description}</Text>
+          <Text style={styles.description}>
+            {translatedAchievement.description}
+          </Text>
         </View>
         <TouchableOpacity
           accessibilityLabel="Dismiss achievement notice"
@@ -258,10 +265,11 @@ export function ChildNoticeProvider({
 
   useEffect(() => {
     mountedRef.current = true;
+    const seenNoticeKeys = seenNoticeKeysRef.current;
 
     return () => {
       mountedRef.current = false;
-      seenNoticeKeysRef.current.clear();
+      seenNoticeKeys.clear();
     };
   }, []);
 

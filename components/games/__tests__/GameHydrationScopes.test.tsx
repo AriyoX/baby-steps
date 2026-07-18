@@ -788,7 +788,7 @@ describe("synchronous game completion locks", () => {
       "stage_completed",
     ]);
     expect(mockEnqueueAchievementUnlocked).toHaveBeenCalledTimes(1);
-    expect((renderedText(tree.toJSON()).match(/Stage 1 Complete!/g) ?? [])).toHaveLength(1);
+    expect((renderedText(tree.toJSON()).match(/Stage 1 done!/g) ?? [])).toHaveLength(1);
 
     act(() => tree.unmount());
   });
@@ -881,7 +881,7 @@ describe("synchronous game completion locks", () => {
       ]),
     );
     expect(mockEnqueueAchievementUnlocked).toHaveBeenCalledTimes(1);
-    expect((renderedText(tree.toJSON()).match(/Level Complete!/g) ?? [])).toHaveLength(1);
+    expect((renderedText(tree.toJSON()).match(/Level done!/g) ?? [])).toHaveLength(1);
 
     act(() => tree.unmount());
   });
@@ -942,7 +942,7 @@ describe("synchronous game completion locks", () => {
     );
     expect(mockSaveActivity).toHaveBeenCalledTimes(1);
     expect(mockCheckAndGrantNewAchievements).toHaveBeenCalledTimes(5);
-    expect(renderedText(tree.toJSON())).toContain("Level Complete!");
+    expect(renderedText(tree.toJSON())).toContain("Level done!");
 
     warnSpy.mockRestore();
     act(() => tree.unmount());

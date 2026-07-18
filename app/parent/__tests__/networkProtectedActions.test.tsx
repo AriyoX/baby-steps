@@ -250,4 +250,17 @@ describe("network-protected account and child actions", () => {
     expect(mockSetActiveChild).not.toHaveBeenCalled()
     expect(mockRouter.push).not.toHaveBeenCalled()
   })
+
+  it("opens settings for the child shown on the profile screen", async () => {
+    const tree = await renderScreen(<ChildDetailScreen />)
+
+    act(() => {
+      findButtonByText(tree.root, "Settings").props.onPress()
+    })
+
+    expect(mockRouter.push).toHaveBeenCalledWith({
+      pathname: "/parent/settings/child-profile-detail",
+      params: { childId: "child-1" },
+    })
+  })
 })

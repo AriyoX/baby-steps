@@ -4,6 +4,7 @@ import { TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { Text } from "@/components/StyledText";
 import { CachedImage } from "@/components/common/CachedImage";
 import { brandColors } from "@/constants/Brand";
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext";
 import { resolveImageSource } from "@/content/assets";
 import type { CulturalCardItem, ItemResult } from "@/content/learningHubTypes";
 import { MechanicScreenFrame } from "./MechanicScreenFrame";
@@ -24,6 +25,7 @@ export function CulturalCard({
   stageImageKey,
   onComplete,
 }: CulturalCardProps) {
+  const { t } = useChildUiLanguage();
   const { width, height } = useWindowDimensions();
   const [isCompleting, setIsCompleting] = useState(false);
   const completionCalledRef = useRef(false);
@@ -35,7 +37,7 @@ export function CulturalCard({
     isShortScreen ? 116 : 154,
     Math.max(94, height * 0.28),
   );
-  const actionLabel = isLastItem ? "Finish" : "Continue";
+  const actionLabel = t(isLastItem ? "common.finish" : "common.continue");
 
   useEffect(() => {
     completionCalledRef.current = false;

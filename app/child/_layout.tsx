@@ -5,8 +5,8 @@ import { useCallback, useEffect, useRef } from "react"
 import { AppState } from "react-native"
 import * as ScreenOrientation from "expo-screen-orientation"
 import { useChild } from "@/context/ChildContext"
-import { LanguageProvider } from "@/context/language-context"
 import { ChildNoticeProvider } from "@/context/ChildNoticeContext"
+import { ChildUiLanguageProvider } from "@/context/ChildUiLanguageProvider"
 
 const CHILD_ROUTE_ORIENTATION = "landscape_left" as const
 const CHILD_ORIENTATION_LOCK = ScreenOrientation.OrientationLock.LANDSCAPE_LEFT
@@ -72,8 +72,8 @@ export default function TabLayout() {
   }
 
   return (
-    <ChildNoticeProvider key={activeChild.id} childId={activeChild.id}>
-      <LanguageProvider>
+    <ChildUiLanguageProvider key={activeChild.id}>
+      <ChildNoticeProvider childId={activeChild.id}>
         <Stack
           screenOptions={{
             headerShown: false,
@@ -107,7 +107,7 @@ export default function TabLayout() {
             }}
           />
         </Stack>
-      </LanguageProvider>
-    </ChildNoticeProvider>
+      </ChildNoticeProvider>
+    </ChildUiLanguageProvider>
   )
 }

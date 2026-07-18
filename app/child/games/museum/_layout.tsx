@@ -12,6 +12,7 @@ import {
   normalizeLearningLanguageCode,
 } from "@/content/languages"
 import { useChild } from "@/context/ChildContext"
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext"
 
 type MuseumGateStatus = "loading" | "allowed" | "unavailable"
 
@@ -24,6 +25,7 @@ export const hasExactMuseumContent = (
 
 export default function MuseumRouteLayout() {
   const { activeChild } = useChild()
+  const { t } = useChildUiLanguage()
   const requestSequence = useRef(0)
   const [status, setStatus] = useState<MuseumGateStatus>("loading")
 
@@ -70,8 +72,8 @@ export default function MuseumRouteLayout() {
   if (status === "loading") {
     return (
       <ChildLoadingState
-        title="Getting the museum ready"
-        message="Loading exhibits for your learning language."
+        title={t("museum.gettingReady")}
+        message={t("museum.loadingExhibits")}
         icon="business-outline"
       />
     )
@@ -79,8 +81,8 @@ export default function MuseumRouteLayout() {
 
   return (
     <ComingSoonState
-      title="Museum is not available yet"
-      message="Museum activities are not available in the selected learning language."
+      title={t("museum.notAvailable")}
+      message={t("museum.languageUnavailable")}
       onRetry={() => void load(true)}
     />
   )

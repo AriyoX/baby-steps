@@ -22,7 +22,7 @@ const duplicateValues = (values) =>
   [...new Set(values.filter((value, index) => values.indexOf(value) !== index))];
 
 check(manifest.languageCode === "lg", "Manifest language must be exact-language code lg.");
-check(manifest.contentVersion === 2, "Content version must be 2.");
+check(manifest.contentVersion === 3, "Content version must be 3.");
 check(manifest.bundles.length === 11, "Expected 11 exact-language content rows.");
 
 const bundleKeys = manifest.bundles.map(
@@ -156,11 +156,21 @@ check(
   learningGame?.stages?.every((stage) => stage.isLocked === false),
   "Supplementary Learning Game stages must remain free-play unlocked.",
 );
+check(
+  JSON.stringify(learningGame?.stages?.map((stage) => stage.levels.length)) ===
+    JSON.stringify([3, 3]),
+  "Learning Game must provide three small practice levels in each stage.",
+);
+check(
+  learningGame?.stages?.every((stage) =>
+    stage.levels.every((level, index) => level.order === index + 1 && level.words.length >= 2)),
+  "Learning Game levels must be ordered and contain at least two words.",
+);
 
 const wordGame = manifest.bundles.find(
   (bundle) => bundle.contentType === "word_game",
 )?.payload;
-check(wordGame?.levels?.length === 8, "Word Game should contain the eight single-word Stage 1–2 concepts.");
+check(wordGame?.levels?.length === 10, "Word Game should contain ten short Stage 1–2 words.");
 check(
   duplicateValues(wordGame?.levels?.map((level) => level.id) ?? []).length === 0,
   "Word Game IDs must be stable and unique.",
@@ -169,7 +179,19 @@ check(
 const countingGame = manifest.bundles.find(
   (bundle) => bundle.contentType === "counting_game",
 )?.payload;
-check(countingGame?.stages?.length === 1, "Counting Game should contain only the 1–5 starter stage.");
+check(countingGame?.stages?.length === 2, "Counting Game should contain 1–3 and 1–5 stages.");
+check(
+  JSON.stringify(countingGame?.stages?.map((stage) => ({
+    id: stage.id,
+    min: stage.numbersRange.min,
+    max: stage.numbersRange.max,
+    levels: stage.levels,
+  }))) === JSON.stringify([
+    { id: 1, min: 1, max: 3, levels: 3 },
+    { id: 2, min: 1, max: 5, levels: 5 },
+  ]),
+  "Counting Game stages must progress from 1–3 to 1–5.",
+);
 check(
   JSON.stringify(countingGame?.numbers?.map((entry) => entry.number)) === JSON.stringify([1, 2, 3, 4, 5]),
   "Counting Game numbers must be exactly 1–5.",
@@ -188,7 +210,7 @@ check(
 const puzzleGame = manifest.bundles.find(
   (bundle) => bundle.contentType === "puzzle_game",
 )?.payload;
-check(puzzleGame?.puzzles?.length === 3, "Puzzle Game must contain three Stage 1–2 scenes.");
+check(puzzleGame?.puzzles?.length === 5, "Puzzle Game must contain five Stage 1–2 pictures.");
 
 const forbiddenLegacyCopy = [
   "Intermediate",

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-15T21:00:00+03:00",
+  "generatedAt": "2026-07-18T12:00:00+03:00",
   "languageCode": "lg",
-  "contentVersion": 2,
+  "contentVersion": 3,
   "curriculumGuide": "curriculum_guide/learning-hub-curriculum-analysis.md",
   "scope": "Luganda stages 1 and 2 plus directly related optional reinforcement",
   "publicationBoundary": "Development seed only. Empty media placeholders and named review gates prevent a production-readiness claim.",
@@ -419,47 +419,47 @@
       "isActive": true,
       "editorialStatus": "published",
       "isStartable": true,
-      "contentVersion": 2,
-      "publishedAt": "2026-07-15 18:00:00+00",
+      "contentVersion": 3,
+      "publishedAt": "2026-07-18 09:00:00+00",
       "payload": {
         "cards": [
           {
             "id": "words",
             "order": 1,
-            "title": "Ebigambo — Words",
-            "description": "Build reviewed Stage 1–2 words; best for emerging readers.",
+            "title": "Ebigambo: Words",
+            "description": "Build Luganda words, one letter at a time.",
             "image": "learning/lg/menus/words.png",
             "targetPage": "child/games/wordgame"
           },
           {
             "id": "logic",
             "order": 2,
-            "title": "Ebifaananyi — Puzzles",
-            "description": "Explore greeting and home scenes; puzzle completion is not language mastery.",
+            "title": "Ebifaananyi: Puzzles",
+            "description": "Put the Luganda pictures back together.",
             "image": "learning/lg/menus/puzzles.png",
             "targetPage": "child/games/puzzlegame"
           },
           {
             "id": "cards",
             "order": 3,
-            "title": "Okugatta Kaadi — Match Cards",
-            "description": "Match the ten phrases and words introduced in Stages 1–2.",
+            "title": "Okugatta Kaadi: Match Cards",
+            "description": "Turn over cards and find matching Luganda words.",
             "image": "learning/lg/menus/cards.png",
             "targetPage": "child/games/cardgame"
           },
           {
             "id": "learning",
             "order": 4,
-            "title": "Okuyiga — Learning Practice",
-            "description": "Replay Stage 1–2 words with pictures, meanings, and audio placeholders.",
+            "title": "Okuyiga: Learn and Play",
+            "description": "See a word, hear it, then pick its meaning.",
             "image": "learning/lg/menus/learning.png",
             "targetPage": "child/games/learninggame"
           },
           {
             "id": "numbers",
             "order": 5,
-            "title": "Okubala 1–5 — Counting",
-            "description": "Optional number-word practice from one to five with familiar home objects.",
+            "title": "Okubala 1–5: Counting",
+            "description": "Count from 1 to 5 in Luganda.",
             "image": "learning/lg/menus/numbers.png",
             "targetPage": "child/games/lugandacountinggame"
           }
@@ -475,23 +475,23 @@
       "isActive": true,
       "editorialStatus": "published",
       "isStartable": true,
-      "contentVersion": 2,
-      "publishedAt": "2026-07-15 18:00:00+00",
+      "contentVersion": 3,
+      "publishedAt": "2026-07-18 09:00:00+00",
       "payload": {
         "cards": [
           {
             "id": "greetings-at-work",
             "order": 1,
-            "title": "Oli otya? — A Greeting",
-            "description": "A three-page Stage 1 dialogue using Oli otya, Gyendi, and Gyebale ko.",
+            "title": "Oli otya?: A Greeting",
+            "description": "Say hello with Kato in three short pages.",
             "image": "learning/lg/stage-1/story-greeting-1.png",
             "targetPage": "child/stories/greetings-at-work"
           },
           {
             "id": "family-at-home",
             "order": 2,
-            "title": "Awaka — At Home",
-            "description": "A four-page Stage 2 story about family, a book, and water at home.",
+            "title": "Awaka: At Home",
+            "description": "Find family, a book, and water at home.",
             "image": "learning/lg/stage-2/story-home-1.png",
             "targetPage": "child/stories/family-at-home"
           }
@@ -507,15 +507,15 @@
       "isActive": true,
       "editorialStatus": "published",
       "isStartable": true,
-      "contentVersion": 2,
-      "publishedAt": "2026-07-15 18:00:00+00",
+      "contentVersion": 3,
+      "publishedAt": "2026-07-18 09:00:00+00",
       "payload": {
         "cards": [
           {
             "id": "greeting",
             "order": 1,
             "title": "Oli otya?",
-            "description": "Color a greeting scene and say the phrase together if you wish.",
+            "description": "Color the hello picture.",
             "image": "learning/lg/coloring/greeting.png",
             "targetPage": "child/games/coloring/greeting"
           },
@@ -523,7 +523,7 @@
             "id": "maama",
             "order": 2,
             "title": "Maama",
-            "description": "Color the Maama picture; this is optional fine-motor play.",
+            "description": "Color the Maama picture.",
             "image": "learning/lg/coloring/maama.png",
             "targetPage": "child/games/coloring/mother"
           },
@@ -531,7 +531,7 @@
             "id": "taata",
             "order": 3,
             "title": "Taata",
-            "description": "Color the Taata picture; this is optional fine-motor play.",
+            "description": "Color the Taata picture.",
             "image": "learning/lg/coloring/taata.png",
             "targetPage": "child/games/coloring/father"
           },
@@ -539,7 +539,7 @@
             "id": "omwana",
             "order": 4,
             "title": "Omwana",
-            "description": "Color the Omwana picture; coloring does not prove word knowledge.",
+            "description": "Color the Omwana picture.",
             "image": "learning/lg/coloring/omwana.png",
             "targetPage": "child/games/coloring/child"
           },
@@ -547,7 +547,7 @@
             "id": "ennyumba",
             "order": 5,
             "title": "Ennyumba",
-            "description": "Color the Ennyumba picture and point to parts of the home.",
+            "description": "Color the house picture.",
             "image": "learning/lg/coloring/ennyumba.png",
             "targetPage": "child/games/coloring/house"
           }
@@ -558,18 +558,18 @@
       "languageCode": "lg",
       "contentType": "learning_hub",
       "slug": "curriculum",
-      "title": "Luganda Curriculum — Stages 1–2",
+      "title": "Luganda Curriculum: Stages 1–2",
       "sortOrder": 20,
       "isActive": true,
       "editorialStatus": "published",
       "isStartable": true,
-      "contentVersion": 2,
-      "publishedAt": "2026-07-15 18:00:00+00",
+      "contentVersion": 3,
+      "publishedAt": "2026-07-18 09:00:00+00",
       "payload": {
         "languageCode": "lg",
         "displayName": "Luganda",
         "localName": "Oluganda",
-        "pathTitle": "Ekkubo ly'Okuyiga Oluganda — Luganda Learning Path",
+        "pathTitle": "Yiga Oluganda: Learn Luganda",
         "metadata": {
           "curriculumGuide": "curriculum_guide/learning-hub-curriculum-analysis.md",
           "scope": "Stages 1 and 2 only",
@@ -581,8 +581,8 @@
             "id": "first-words",
             "order": 1,
             "stageNumber": 1,
-            "title": "Okulamusa n'Okwebaza — Greetings & Thanks",
-            "description": "Meet four everyday Luganda greeting and gratitude phrases, recognize them, use them in a tiny dialogue, and review them.",
+            "title": "Okulamusa n'Okwebaza: Greetings & Thanks",
+            "description": "Learn four Luganda phrases for saying hello and thank you.",
             "imageKey": "learning/lg/stage-1/stage-card.png",
             "status": "preview",
             "estimatedMinutes": 18,
@@ -619,8 +619,8 @@
               {
                 "id": "greetings-1",
                 "order": 1,
-                "title": "Wuliriza era Olabe — Meet the Phrases",
-                "description": "Look, listen, and optionally repeat four everyday phrases.",
+                "title": "Wuliriza era Olabe: Look and Listen",
+                "description": "Tap each picture and listen to the Luganda words.",
                 "mechanic": "tap_to_learn",
                 "isStartable": true,
                 "readiness": "placeholder",
@@ -718,8 +718,8 @@
               {
                 "id": "listen-greetings-1",
                 "order": 2,
-                "title": "Wuliriza Olonde — Listen and Choose",
-                "description": "Hear a placeholder clip and select the matching supported phrase.",
+                "title": "Wuliriza Olonde: Listen and Pick",
+                "description": "Listen. Then tap the words you hear.",
                 "mechanic": "listen_and_choose",
                 "isStartable": true,
                 "readiness": "placeholder",
@@ -732,7 +732,7 @@
                     "id": "listen-oli-otya",
                     "mechanic": "listen_and_choose",
                     "order": 1,
-                    "promptText": "Listen, then choose the matching phrase.",
+                    "promptText": "Listen. Tap the words you hear.",
                     "audioKey": "lg.stage1.oli_otya",
                     "audioAsset": "assets/audio/learning/lg/stage-1/oli-otya.mp3",
                     "imageKey": "learning/lg/stage-1/greeting-oli-otya.png",
@@ -780,7 +780,7 @@
                     "id": "listen-gyendi",
                     "mechanic": "listen_and_choose",
                     "order": 2,
-                    "promptText": "Listen, then choose the matching phrase.",
+                    "promptText": "Listen. Tap the words you hear.",
                     "audioKey": "lg.stage1.gyendi",
                     "audioAsset": "assets/audio/learning/lg/stage-1/gyendi.mp3",
                     "imageKey": "learning/lg/stage-1/reply-gyendi.png",
@@ -828,7 +828,7 @@
                     "id": "listen-gyebale-ko",
                     "mechanic": "listen_and_choose",
                     "order": 3,
-                    "promptText": "Listen, then choose the matching phrase.",
+                    "promptText": "Listen. Tap the words you hear.",
                     "audioKey": "lg.stage1.gyebale_ko",
                     "audioAsset": "assets/audio/learning/lg/stage-1/gyebale-ko.mp3",
                     "imageKey": "learning/lg/stage-1/work-greeting-gyebale-ko.png",
@@ -876,7 +876,7 @@
                     "id": "listen-webale",
                     "mechanic": "listen_and_choose",
                     "order": 4,
-                    "promptText": "Listen, then choose the matching phrase.",
+                    "promptText": "Listen. Tap the words you hear.",
                     "audioKey": "lg.stage1.webale",
                     "audioAsset": "assets/audio/learning/lg/stage-1/webale.mp3",
                     "imageKey": "learning/lg/stage-1/thanks-webale.png",
@@ -925,8 +925,8 @@
               {
                 "id": "first-words-picture-match",
                 "order": 3,
-                "title": "Gatta Ekifaananyi — Match the Scene",
-                "description": "Match two familiar greeting phrases to their scenes.",
+                "title": "Gatta Ekifaananyi: Match the Scene",
+                "description": "Tap the picture that matches the words.",
                 "mechanic": "match_word_picture",
                 "isStartable": true,
                 "readiness": "placeholder",
@@ -938,7 +938,7 @@
                     "id": "match-how-are-you-picture",
                     "mechanic": "match_word_picture",
                     "order": 1,
-                    "promptText": "Choose the picture that matches the phrase.",
+                    "promptText": "Tap the picture that matches.",
                     "targetText": "Oli otya?",
                     "targetEnglishText": "How are you?",
                     "correctOptionId": "oli-otya",
@@ -985,7 +985,7 @@
                     "id": "match-work-greeting-picture",
                     "mechanic": "match_word_picture",
                     "order": 2,
-                    "promptText": "Choose the picture that matches the phrase.",
+                    "promptText": "Tap the picture that matches.",
                     "targetText": "Gyebale ko.",
                     "targetEnglishText": "Thank you for your work.",
                     "correctOptionId": "gyebale-ko",
@@ -1033,8 +1033,8 @@
               {
                 "id": "first-words-word-check",
                 "order": 4,
-                "title": "Londa Ekigambo — Supported Word Check",
-                "description": "Optional early-reader practice with two already introduced phrases.",
+                "title": "Londa Ekigambo: Pick the Words",
+                "description": "Find two Luganda phrases you know.",
                 "mechanic": "choose_correct_word",
                 "isStartable": true,
                 "readiness": "placeholder",
@@ -1047,7 +1047,7 @@
                     "id": "choose-thank-you",
                     "mechanic": "choose_correct_word",
                     "order": 1,
-                    "promptText": "Which reviewed phrase means “Thank you”?",
+                    "promptText": "What means “Thank you” in Luganda?",
                     "questionText": "Thank you.",
                     "correctOptionId": "webale",
                     "options": [
@@ -1089,7 +1089,7 @@
                     "id": "choose-i-am-fine",
                     "mechanic": "choose_correct_word",
                     "order": 2,
-                    "promptText": "Which reviewed phrase means “I am fine”?",
+                    "promptText": "What means “I am fine” in Luganda?",
                     "questionText": "I am fine.",
                     "correctOptionId": "gyendi",
                     "options": [
@@ -1132,8 +1132,8 @@
               {
                 "id": "first-words-greeting-story",
                 "order": 5,
-                "title": "Olugero Olutono — A Tiny Greeting Story",
-                "description": "Meet the four phrases in a short, caregiver-supported dialogue.",
+                "title": "Olugero Olutono: A Tiny Greeting Story",
+                "description": "Read a short hello story.",
                 "mechanic": "story_bite",
                 "isStartable": true,
                 "readiness": "placeholder",
@@ -1147,7 +1147,7 @@
                     "mechanic": "story_bite",
                     "order": 1,
                     "title": "Oli otya?",
-                    "instructions": "Listen or read together. Point to each speaker and repeat only if the child wants to.",
+                    "instructions": "Listen or read. Point to each speaker.",
                     "pages": [
                       {
                         "id": "greeting-story-page-1",
@@ -1189,8 +1189,8 @@
               {
                 "id": "first-words-quick-review",
                 "order": 6,
-                "title": "Okwejjukanya — Friendly Review",
-                "description": "Revisit the four phrases in a short supplied-choice review.",
+                "title": "Okwejjukanya: Quick Review",
+                "description": "Pick the right Luganda phrase.",
                 "mechanic": "mini_quiz",
                 "isStartable": true,
                 "readiness": "placeholder",
@@ -1203,12 +1203,12 @@
                     "id": "first-words-review-questions",
                     "mechanic": "mini_quiz",
                     "order": 1,
-                    "title": "Stage 1 Review",
-                    "instructions": "Choose the best answer. You can try again.",
+                    "title": "Stage 1 Check",
+                    "instructions": "Tap the right answer. Try again if you need to.",
                     "questions": [
                       {
                         "id": "stage-1-review-oli-otya",
-                        "promptText": "Which Luganda phrase means “How are you?”?",
+                        "promptText": "What means “How are you?” in Luganda?",
                         "promptEnglishText": "How are you?",
                         "correctOptionId": "oli-otya",
                         "options": [
@@ -1233,11 +1233,11 @@
                             "englishText": "Thank you."
                           }
                         ],
-                        "explanationText": "Oli otya? — How are you?"
+                        "explanationText": "Oli otya?: How are you?"
                       },
                       {
                         "id": "stage-1-review-gyendi",
-                        "promptText": "Which Luganda phrase means “I am fine”?",
+                        "promptText": "What means “I am fine” in Luganda?",
                         "promptEnglishText": "I am fine.",
                         "correctOptionId": "gyendi",
                         "options": [
@@ -1262,11 +1262,11 @@
                             "englishText": "How are you?"
                           }
                         ],
-                        "explanationText": "Gyendi. — I am fine."
+                        "explanationText": "Gyendi.: I am fine."
                       },
                       {
                         "id": "stage-1-review-gyebale-ko",
-                        "promptText": "Which Luganda phrase means “Thank you for your work”?",
+                        "promptText": "What means “Thank you for your work” in Luganda?",
                         "promptEnglishText": "Thank you for your work.",
                         "correctOptionId": "gyebale-ko",
                         "options": [
@@ -1291,11 +1291,11 @@
                             "englishText": "I am fine."
                           }
                         ],
-                        "explanationText": "Gyebale ko. — Thank you for your work."
+                        "explanationText": "Gyebale ko.: Thank you for your work."
                       },
                       {
                         "id": "stage-1-review-webale",
-                        "promptText": "Which Luganda phrase means “Thank you”?",
+                        "promptText": "What means “Thank you” in Luganda?",
                         "promptEnglishText": "Thank you.",
                         "correctOptionId": "webale",
                         "options": [
@@ -1320,7 +1320,7 @@
                             "englishText": "Thank you for your work."
                           }
                         ],
-                        "explanationText": "Webale. — Thank you."
+                        "explanationText": "Webale.: Thank you."
                       }
                     ],
                     "readiness": "placeholder",
@@ -1340,8 +1340,8 @@
             "id": "family-home",
             "order": 2,
             "stageNumber": 2,
-            "title": "Ab'omu Maka — Family & Home",
-            "description": "Meet six concrete family and home words, recognize them in pictures and print, see them in a tiny home story, and review them.",
+            "title": "Ab'omu Maka: Family & Home",
+            "description": "Learn six Luganda words about family and home.",
             "imageKey": "learning/lg/stage-2/stage-card.png",
             "status": "preview",
             "estimatedMinutes": 20,
@@ -1378,8 +1378,8 @@
               {
                 "id": "family-names-1",
                 "order": 1,
-                "title": "Ab'omu Maka — Meet Family & Home Words",
-                "description": "Look, listen, and optionally repeat six concrete words.",
+                "title": "Ab'omu Maka: Family and Home Words",
+                "description": "Tap each picture and listen to the Luganda word.",
                 "mechanic": "tap_to_learn",
                 "isStartable": true,
                 "readiness": "placeholder",
@@ -1519,8 +1519,8 @@
               {
                 "id": "home-things-1",
                 "order": 2,
-                "title": "Gatta Ekifaananyi — Match Words & Pictures",
-                "description": "Match three reviewed words to their pictures.",
+                "title": "Gatta Ekifaananyi: Match the Picture",
+                "description": "Tap the picture that matches the word.",
                 "mechanic": "match_word_picture",
                 "isStartable": true,
                 "readiness": "placeholder",
@@ -1532,7 +1532,7 @@
                     "id": "match-home-mother",
                     "mechanic": "match_word_picture",
                     "order": 1,
-                    "promptText": "Choose the picture that matches the word.",
+                    "promptText": "Tap the picture that matches.",
                     "targetText": "Maama",
                     "targetEnglishText": "Mother",
                     "correctOptionId": "maama",
@@ -1572,7 +1572,7 @@
                     "id": "match-home-house",
                     "mechanic": "match_word_picture",
                     "order": 2,
-                    "promptText": "Choose the picture that matches the word.",
+                    "promptText": "Tap the picture that matches.",
                     "targetText": "Ennyumba",
                     "targetEnglishText": "House",
                     "correctOptionId": "ennyumba",
@@ -1612,7 +1612,7 @@
                     "id": "match-home-book",
                     "mechanic": "match_word_picture",
                     "order": 3,
-                    "promptText": "Choose the picture that matches the word.",
+                    "promptText": "Tap the picture that matches.",
                     "targetText": "Ekitabo",
                     "targetEnglishText": "Book",
                     "correctOptionId": "ekitabo",
@@ -1653,8 +1653,8 @@
               {
                 "id": "family-pick-word",
                 "order": 3,
-                "title": "Londa Ekigambo — Supported Word Check",
-                "description": "Optional early-reader practice with three already introduced words.",
+                "title": "Londa Ekigambo: Pick the Word",
+                "description": "Find three Luganda words you know.",
                 "mechanic": "choose_correct_word",
                 "isStartable": true,
                 "readiness": "placeholder",
@@ -1667,7 +1667,7 @@
                     "id": "choose-family-father",
                     "mechanic": "choose_correct_word",
                     "order": 1,
-                    "promptText": "Which reviewed word means “Father”?",
+                    "promptText": "What is “Father” in Luganda?",
                     "questionText": "Father",
                     "correctOptionId": "taata",
                     "options": [
@@ -1709,7 +1709,7 @@
                     "id": "choose-family-child",
                     "mechanic": "choose_correct_word",
                     "order": 2,
-                    "promptText": "Which reviewed word means “Child”?",
+                    "promptText": "What is “Child” in Luganda?",
                     "questionText": "Child",
                     "correctOptionId": "omwana",
                     "options": [
@@ -1751,7 +1751,7 @@
                     "id": "choose-home-water",
                     "mechanic": "choose_correct_word",
                     "order": 3,
-                    "promptText": "Which reviewed word means “Water”?",
+                    "promptText": "What is “Water” in Luganda?",
                     "questionText": "Water",
                     "correctOptionId": "amazzi",
                     "options": [
@@ -1794,8 +1794,8 @@
               {
                 "id": "home-greeting-card",
                 "order": 4,
-                "title": "Okulamusa Awaka — Greeting at Home",
-                "description": "A short shared prompt about greeting and thanking people at home.",
+                "title": "Okulamusa Awaka: Greeting at Home",
+                "description": "Use kind words at home.",
                 "mechanic": "cultural_card",
                 "isStartable": true,
                 "readiness": "placeholder",
@@ -1808,13 +1808,13 @@
                     "id": "morning-greeting-home",
                     "mechanic": "cultural_card",
                     "order": 1,
-                    "title": "Kind words at home",
+                    "title": "Kind Words at Home",
                     "localTitle": "Okulamusa Awaka",
                     "localText": "Oli otya? Gyendi. Webale.",
-                    "bodyText": "Greetings and thanks can be part of caring everyday talk. Practice the reviewed phrases with a willing family member.",
+                    "bodyText": "Say Oli otya? to greet someone. Say Webale to thank them.",
                     "imageKey": "learning/lg/stage-2/story-home-1.png",
                     "reflectionPrompt": "Who could you greet or thank today?",
-                    "funFact": "The app records that this card was viewed; it does not score spoken practice.",
+                    "funFact": "Kind words help people feel welcome.",
                     "readiness": "placeholder",
                     "metadata": {
                       "conceptId": "lg.s2.context.greeting-home",
@@ -1829,8 +1829,8 @@
               {
                 "id": "thank-you-at-home-story",
                 "order": 5,
-                "title": "Awaka — A Tiny Home Story",
-                "description": "Meet family and home words in four short pages.",
+                "title": "Awaka: A Tiny Home Story",
+                "description": "Read a short story about a family at home.",
                 "mechanic": "story_bite",
                 "isStartable": true,
                 "readiness": "placeholder",
@@ -1843,8 +1843,8 @@
                     "id": "thank-you-at-home-pages",
                     "mechanic": "story_bite",
                     "order": 1,
-                    "title": "Awaka — At Home",
-                    "instructions": "Listen or read together. Point to the people and things in each picture.",
+                    "title": "Awaka: At Home",
+                    "instructions": "Listen or read. Point to the people and things.",
                     "pages": [
                       {
                         "id": "helping-at-home",
@@ -1894,8 +1894,8 @@
               {
                 "id": "family-mini-quiz",
                 "order": 6,
-                "title": "Okwejjukanya — Friendly Review",
-                "description": "Revisit all six family and home words in a short supplied-choice review.",
+                "title": "Okwejjukanya: Quick Review",
+                "description": "Pick the right family and home words.",
                 "mechanic": "mini_quiz",
                 "isStartable": true,
                 "readiness": "placeholder",
@@ -1908,12 +1908,12 @@
                     "id": "family-words-review",
                     "mechanic": "mini_quiz",
                     "order": 1,
-                    "title": "Family Words Review",
-                    "instructions": "Choose the best answer. You can try again.",
+                    "title": "Family Word Check",
+                    "instructions": "Tap the right answer. Try again if you need to.",
                     "questions": [
                       {
                         "id": "stage-2-review-maama",
-                        "promptText": "Which Luganda word means “Mother”?",
+                        "promptText": "What is “Mother” in Luganda?",
                         "promptEnglishText": "Mother",
                         "correctOptionId": "maama",
                         "options": [
@@ -1938,11 +1938,11 @@
                             "englishText": "House"
                           }
                         ],
-                        "explanationText": "Maama — Mother"
+                        "explanationText": "Maama: Mother"
                       },
                       {
                         "id": "stage-2-review-taata",
-                        "promptText": "Which Luganda word means “Father”?",
+                        "promptText": "What is “Father” in Luganda?",
                         "promptEnglishText": "Father",
                         "correctOptionId": "taata",
                         "options": [
@@ -1967,11 +1967,11 @@
                             "englishText": "Water"
                           }
                         ],
-                        "explanationText": "Taata — Father"
+                        "explanationText": "Taata: Father"
                       },
                       {
                         "id": "stage-2-review-omwana",
-                        "promptText": "Which Luganda word means “Child”?",
+                        "promptText": "What is “Child” in Luganda?",
                         "promptEnglishText": "Child",
                         "correctOptionId": "omwana",
                         "options": [
@@ -1996,7 +1996,7 @@
                             "englishText": "Book"
                           }
                         ],
-                        "explanationText": "Omwana — Child"
+                        "explanationText": "Omwana: Child"
                       }
                     ],
                     "readiness": "placeholder",
@@ -2012,12 +2012,12 @@
                     "id": "home-words-review",
                     "mechanic": "mini_quiz",
                     "order": 2,
-                    "title": "Home Words Review",
-                    "instructions": "Choose the best answer. You can try again.",
+                    "title": "Home Word Check",
+                    "instructions": "Tap the right answer. Try again if you need to.",
                     "questions": [
                       {
                         "id": "stage-2-review-ennyumba",
-                        "promptText": "Which Luganda word means “House”?",
+                        "promptText": "What is “House” in Luganda?",
                         "promptEnglishText": "House",
                         "correctOptionId": "ennyumba",
                         "options": [
@@ -2042,11 +2042,11 @@
                             "englishText": "Mother"
                           }
                         ],
-                        "explanationText": "Ennyumba — House"
+                        "explanationText": "Ennyumba: House"
                       },
                       {
                         "id": "stage-2-review-amazzi",
-                        "promptText": "Which Luganda word means “Water”?",
+                        "promptText": "What is “Water” in Luganda?",
                         "promptEnglishText": "Water",
                         "correctOptionId": "amazzi",
                         "options": [
@@ -2071,11 +2071,11 @@
                             "englishText": "Father"
                           }
                         ],
-                        "explanationText": "Amazzi — Water"
+                        "explanationText": "Amazzi: Water"
                       },
                       {
                         "id": "stage-2-review-ekitabo",
-                        "promptText": "Which Luganda word means “Book”?",
+                        "promptText": "What is “Book” in Luganda?",
                         "promptEnglishText": "Book",
                         "correctOptionId": "ekitabo",
                         "options": [
@@ -2100,7 +2100,7 @@
                             "englishText": "Child"
                           }
                         ],
-                        "explanationText": "Ekitabo — Book"
+                        "explanationText": "Ekitabo: Book"
                       }
                     ],
                     "readiness": "placeholder",
@@ -2117,7 +2117,7 @@
             ]
           }
         ],
-        "progressRevision": 2
+        "progressRevision": 3
       }
     },
     {
@@ -2129,10 +2129,10 @@
       "isActive": true,
       "editorialStatus": "published",
       "isStartable": true,
-      "contentVersion": 2,
-      "publishedAt": "2026-07-15 18:00:00+00",
+      "contentVersion": 3,
+      "publishedAt": "2026-07-18 09:00:00+00",
       "payload": {
-        "title": "Okuyiga Oluganda — Stages 1–2 Practice",
+        "title": "Okuyiga Oluganda: Learn Luganda",
         "metadata": {
           "curriculumScope": "Stages 1–2 optional reinforcement",
           "evidenceBoundary": "Game completion is not curriculum mastery.",
@@ -2142,17 +2142,77 @@
           {
             "id": 1,
             "order": 1,
-            "title": "Stage 1: Okulamusa n'Okwebaza",
-            "description": "Practice the four greeting and gratitude phrases from Stage 1.",
+            "title": "Stage 1: Hello and Thanks",
+            "description": "Learn four phrases for saying hello and thank you.",
             "isLocked": false,
             "requiredScore": 0,
             "image": "learning/lg/stage-1/stage-card.png",
             "color": "#0274BB",
             "levels": [
               {
-                "id": 1,
+                "id": 3,
                 "order": 1,
-                "title": "Greetings & Thanks",
+                "title": "Hello",
+                "isLocked": false,
+                "words": [
+                  {
+                    "id": "lg-s1-oli-otya-hello-v1",
+                    "order": 1,
+                    "targetText": "Oli otya?",
+                    "english": "How are you?",
+                    "example": "Oli otya?",
+                    "exampleTranslation": "How are you?",
+                    "audio": "assets/audio/learning/lg/stage-1/oli-otya.mp3",
+                    "image": "learning/lg/stage-1/greeting-oli-otya.png",
+                    "notes": "Small practice set; reuses the concept recording placeholder."
+                  },
+                  {
+                    "id": "lg-s1-gyendi-hello-v1",
+                    "order": 2,
+                    "targetText": "Gyendi",
+                    "english": "I am fine",
+                    "example": "Gyendi.",
+                    "exampleTranslation": "I am fine.",
+                    "audio": "assets/audio/learning/lg/stage-1/gyendi.mp3",
+                    "image": "learning/lg/stage-1/reply-gyendi.png",
+                    "notes": "Small practice set; reuses the concept recording placeholder."
+                  }
+                ]
+              },
+              {
+                "id": 4,
+                "order": 2,
+                "title": "Kind Words",
+                "isLocked": false,
+                "words": [
+                  {
+                    "id": "lg-s1-gyebale-ko-kind-words-v1",
+                    "order": 1,
+                    "targetText": "Gyebale ko",
+                    "english": "Thank you for your work",
+                    "example": "Gyebale ko.",
+                    "exampleTranslation": "Thank you for your work.",
+                    "audio": "assets/audio/learning/lg/stage-1/gyebale-ko.mp3",
+                    "image": "learning/lg/stage-1/work-greeting-gyebale-ko.png",
+                    "notes": "Small practice set; reuses the concept recording placeholder."
+                  },
+                  {
+                    "id": "lg-s1-webale-kind-words-v1",
+                    "order": 2,
+                    "targetText": "Webale",
+                    "english": "Thank you",
+                    "example": "Webale.",
+                    "exampleTranslation": "Thank you.",
+                    "audio": "assets/audio/learning/lg/stage-1/webale.mp3",
+                    "image": "learning/lg/stage-1/thanks-webale.png",
+                    "notes": "Small practice set; reuses the concept recording placeholder."
+                  }
+                ]
+              },
+              {
+                "id": 1,
+                "order": 3,
+                "title": "All 4 Words",
                 "isLocked": false,
                 "words": [
                   {
@@ -2164,7 +2224,7 @@
                     "exampleTranslation": "How are you?",
                     "audio": "assets/audio/learning/lg/stage-1/oli-otya.mp3",
                     "image": "learning/lg/stage-1/greeting-oli-otya.png",
-                    "notes": "Curriculum-linked optional practice; recording is an empty placeholder."
+                    "notes": "Full review set; reuses the concept recording placeholder."
                   },
                   {
                     "id": "lg-s1-gyendi-practice-v1",
@@ -2175,7 +2235,7 @@
                     "exampleTranslation": "I am fine.",
                     "audio": "assets/audio/learning/lg/stage-1/gyendi.mp3",
                     "image": "learning/lg/stage-1/reply-gyendi.png",
-                    "notes": "Curriculum-linked optional practice; recording is an empty placeholder."
+                    "notes": "Full review set; reuses the concept recording placeholder."
                   },
                   {
                     "id": "lg-s1-gyebale-ko-practice-v1",
@@ -2186,7 +2246,7 @@
                     "exampleTranslation": "Thank you for your work.",
                     "audio": "assets/audio/learning/lg/stage-1/gyebale-ko.mp3",
                     "image": "learning/lg/stage-1/work-greeting-gyebale-ko.png",
-                    "notes": "Curriculum-linked optional practice; recording is an empty placeholder."
+                    "notes": "Full review set; reuses the concept recording placeholder."
                   },
                   {
                     "id": "lg-s1-webale-practice-v1",
@@ -2197,7 +2257,7 @@
                     "exampleTranslation": "Thank you.",
                     "audio": "assets/audio/learning/lg/stage-1/webale.mp3",
                     "image": "learning/lg/stage-1/thanks-webale.png",
-                    "notes": "Curriculum-linked optional practice; recording is an empty placeholder."
+                    "notes": "Full review set; reuses the concept recording placeholder."
                   }
                 ]
               }
@@ -2206,17 +2266,99 @@
           {
             "id": 2,
             "order": 2,
-            "title": "Stage 2: Ab'omu Maka",
-            "description": "Practice the six family and home words from Stage 2.",
+            "title": "Stage 2: Family and Home",
+            "description": "Learn six words about family and home.",
             "isLocked": false,
             "requiredScore": 0,
             "image": "learning/lg/stage-2/stage-card.png",
             "color": "#2E7D32",
             "levels": [
               {
-                "id": 2,
+                "id": 5,
                 "order": 1,
-                "title": "Family & Home",
+                "title": "Family",
+                "isLocked": false,
+                "words": [
+                  {
+                    "id": "lg-s2-maama-family-v1",
+                    "order": 1,
+                    "targetText": "Maama",
+                    "english": "Mother",
+                    "example": "Maama.",
+                    "exampleTranslation": "Mother.",
+                    "audio": "assets/audio/learning/lg/stage-2/maama.mp3",
+                    "image": "learning/lg/stage-2/maama.png",
+                    "notes": "Small practice set; reuses the concept recording placeholder."
+                  },
+                  {
+                    "id": "lg-s2-taata-family-v1",
+                    "order": 2,
+                    "targetText": "Taata",
+                    "english": "Father",
+                    "example": "Taata.",
+                    "exampleTranslation": "Father.",
+                    "audio": "assets/audio/learning/lg/stage-2/taata.mp3",
+                    "image": "learning/lg/stage-2/taata.png",
+                    "notes": "Small practice set; reuses the concept recording placeholder."
+                  },
+                  {
+                    "id": "lg-s2-omwana-family-v1",
+                    "order": 3,
+                    "targetText": "Omwana",
+                    "english": "Child",
+                    "example": "Omwana.",
+                    "exampleTranslation": "Child.",
+                    "audio": "assets/audio/learning/lg/stage-2/omwana.mp3",
+                    "image": "learning/lg/stage-2/omwana.png",
+                    "notes": "Small practice set; reuses the concept recording placeholder."
+                  }
+                ]
+              },
+              {
+                "id": 6,
+                "order": 2,
+                "title": "Home Things",
+                "isLocked": false,
+                "words": [
+                  {
+                    "id": "lg-s2-ennyumba-home-v1",
+                    "order": 1,
+                    "targetText": "Ennyumba",
+                    "english": "House",
+                    "example": "Ennyumba.",
+                    "exampleTranslation": "House.",
+                    "audio": "assets/audio/learning/lg/stage-2/ennyumba.mp3",
+                    "image": "learning/lg/stage-2/ennyumba.png",
+                    "notes": "Small practice set; reuses the concept recording placeholder."
+                  },
+                  {
+                    "id": "lg-s2-amazzi-home-v1",
+                    "order": 2,
+                    "targetText": "Amazzi",
+                    "english": "Water",
+                    "example": "Amazzi.",
+                    "exampleTranslation": "Water.",
+                    "audio": "assets/audio/learning/lg/stage-2/amazzi.mp3",
+                    "image": "learning/lg/stage-2/amazzi.png",
+                    "notes": "Small practice set; reuses the concept recording placeholder."
+                  },
+                  {
+                    "id": "lg-s2-ekitabo-home-v1",
+                    "order": 3,
+                    "targetText": "Ekitabo",
+                    "english": "Book",
+                    "example": "Ekitabo.",
+                    "exampleTranslation": "Book.",
+                    "audio": "assets/audio/learning/lg/stage-2/ekitabo.mp3",
+                    "image": "learning/lg/stage-2/ekitabo.png",
+                    "notes": "Small practice set; reuses the concept recording placeholder."
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "order": 3,
+                "title": "All 6 Words",
                 "isLocked": false,
                 "words": [
                   {
@@ -2228,7 +2370,7 @@
                     "exampleTranslation": "Mother.",
                     "audio": "assets/audio/learning/lg/stage-2/maama.mp3",
                     "image": "learning/lg/stage-2/maama.png",
-                    "notes": "Curriculum-linked optional practice; recording is an empty placeholder."
+                    "notes": "Full review set; reuses the concept recording placeholder."
                   },
                   {
                     "id": "lg-s2-taata-practice-v1",
@@ -2239,7 +2381,7 @@
                     "exampleTranslation": "Father.",
                     "audio": "assets/audio/learning/lg/stage-2/taata.mp3",
                     "image": "learning/lg/stage-2/taata.png",
-                    "notes": "Curriculum-linked optional practice; recording is an empty placeholder."
+                    "notes": "Full review set; reuses the concept recording placeholder."
                   },
                   {
                     "id": "lg-s2-omwana-practice-v1",
@@ -2250,7 +2392,7 @@
                     "exampleTranslation": "Child.",
                     "audio": "assets/audio/learning/lg/stage-2/omwana.mp3",
                     "image": "learning/lg/stage-2/omwana.png",
-                    "notes": "Curriculum-linked optional practice; recording is an empty placeholder."
+                    "notes": "Full review set; reuses the concept recording placeholder."
                   },
                   {
                     "id": "lg-s2-ennyumba-practice-v1",
@@ -2261,7 +2403,7 @@
                     "exampleTranslation": "House.",
                     "audio": "assets/audio/learning/lg/stage-2/ennyumba.mp3",
                     "image": "learning/lg/stage-2/ennyumba.png",
-                    "notes": "Curriculum-linked optional practice; recording is an empty placeholder."
+                    "notes": "Full review set; reuses the concept recording placeholder."
                   },
                   {
                     "id": "lg-s2-amazzi-practice-v1",
@@ -2272,7 +2414,7 @@
                     "exampleTranslation": "Water.",
                     "audio": "assets/audio/learning/lg/stage-2/amazzi.mp3",
                     "image": "learning/lg/stage-2/amazzi.png",
-                    "notes": "Curriculum-linked optional practice; recording is an empty placeholder."
+                    "notes": "Full review set; reuses the concept recording placeholder."
                   },
                   {
                     "id": "lg-s2-ekitabo-practice-v1",
@@ -2283,14 +2425,14 @@
                     "exampleTranslation": "Book.",
                     "audio": "assets/audio/learning/lg/stage-2/ekitabo.mp3",
                     "image": "learning/lg/stage-2/ekitabo.png",
-                    "notes": "Curriculum-linked optional practice; recording is an empty placeholder."
+                    "notes": "Full review set; reuses the concept recording placeholder."
                   }
                 ]
               }
             ]
           }
         ],
-        "progressRevision": 2
+        "progressRevision": 3
       }
     },
     {
@@ -2302,12 +2444,13 @@
       "isActive": true,
       "editorialStatus": "published",
       "isStartable": true,
-      "contentVersion": 2,
-      "publishedAt": "2026-07-15 18:00:00+00",
+      "contentVersion": 3,
+      "publishedAt": "2026-07-18 09:00:00+00",
       "payload": {
-        "title": "Ebigambo — Stage 1–2 Words",
+        "title": "Ebigambo: Luganda Words",
         "metadata": {
           "ageSupport": "optional-early-reader",
+          "scope": "Eight core words plus two contextual review words",
           "evidenceBoundary": "guided construction, not independent recall"
         },
         "levels": [
@@ -2315,76 +2458,94 @@
             "id": "lg-word-game-webale-v1",
             "order": 1,
             "targetText": "WEBALE",
-            "question": "Which Stage 1 word means ‘thank you’?",
-            "hint": "It is used to show gratitude.",
-            "subHint": "This is the reviewed Stage 1 gratitude word.",
+            "question": "Make the Luganda word for ‘thank you’.",
+            "hint": "You say it when someone helps you.",
+            "subHint": "It starts with W.",
             "image": "learning/lg/stage-1/thanks-webale.png"
           },
           {
             "id": "lg-word-game-gyendi-v1",
             "order": 2,
             "targetText": "GYENDI",
-            "question": "Which Stage 1 reply means ‘I am fine’?",
+            "question": "Make the Luganda word for ‘I am fine’.",
             "hint": "It answers Oli otya?",
-            "subHint": "This is the reviewed Stage 1 reply.",
+            "subHint": "It starts with G.",
             "image": "learning/lg/stage-1/reply-gyendi.png"
           },
           {
             "id": "lg-word-game-maama-v1",
             "order": 3,
             "targetText": "MAAMA",
-            "question": "Which Stage 2 word means ‘mother’?",
-            "hint": "It names a parent.",
-            "subHint": "This is a reviewed family word.",
+            "question": "Make the Luganda word for ‘mother’.",
+            "hint": "It is a family word.",
+            "subHint": "It starts with M.",
             "image": "learning/lg/stage-2/maama.png"
           },
           {
             "id": "lg-word-game-taata-v1",
             "order": 4,
             "targetText": "TAATA",
-            "question": "Which Stage 2 word means ‘father’?",
-            "hint": "It names a parent.",
-            "subHint": "This is a reviewed family word.",
+            "question": "Make the Luganda word for ‘father’.",
+            "hint": "It is a family word.",
+            "subHint": "It starts with T.",
             "image": "learning/lg/stage-2/taata.png"
           },
           {
             "id": "lg-word-game-omwana-v1",
             "order": 5,
             "targetText": "OMWANA",
-            "question": "Which Stage 2 word means ‘child’?",
-            "hint": "It names a young person.",
-            "subHint": "This is a reviewed family word.",
+            "question": "Make the Luganda word for ‘child’.",
+            "hint": "It means a young person.",
+            "subHint": "It starts with O.",
             "image": "learning/lg/stage-2/omwana.png"
           },
           {
             "id": "lg-word-game-ennyumba-v1",
             "order": 6,
             "targetText": "ENNYUMBA",
-            "question": "Which Stage 2 word means ‘house’?",
+            "question": "Make the Luganda word for ‘house’.",
             "hint": "People can live in it.",
-            "subHint": "This is a reviewed home word.",
+            "subHint": "It starts with E.",
             "image": "learning/lg/stage-2/ennyumba.png"
           },
           {
             "id": "lg-word-game-amazzi-v1",
             "order": 7,
             "targetText": "AMAZZI",
-            "question": "Which Stage 2 word means ‘water’?",
-            "hint": "People drink it.",
-            "subHint": "This is a reviewed home word.",
+            "question": "Make the Luganda word for ‘water’.",
+            "hint": "You can drink it.",
+            "subHint": "It starts with A.",
             "image": "learning/lg/stage-2/amazzi.png"
           },
           {
             "id": "lg-word-game-ekitabo-v1",
             "order": 8,
             "targetText": "EKITABO",
-            "question": "Which Stage 2 word means ‘book’?",
-            "hint": "It has pages to read or look at.",
-            "subHint": "This is a reviewed home word.",
+            "question": "Make the Luganda word for ‘book’.",
+            "hint": "It has pages.",
+            "subHint": "It starts with E.",
             "image": "learning/lg/stage-2/ekitabo.png"
+          },
+          {
+            "id": "lg-word-game-awaka-v1",
+            "order": 9,
+            "targetText": "AWAKA",
+            "question": "Make the Luganda word for ‘at home’.",
+            "hint": "You hear it in the home story.",
+            "subHint": "It starts with A.",
+            "image": "learning/lg/stage-2/story-home-1.png"
+          },
+          {
+            "id": "lg-word-game-abaana-v1",
+            "order": 10,
+            "targetText": "ABAANA",
+            "question": "Make the Luganda word for ‘children’.",
+            "hint": "Count the children in the picture.",
+            "subHint": "It starts with A.",
+            "image": "learning/lg/counting/children.png"
           }
         ],
-        "progressRevision": 2
+        "progressRevision": 3
       }
     },
     {
@@ -2396,10 +2557,10 @@
       "isActive": true,
       "editorialStatus": "published",
       "isStartable": true,
-      "contentVersion": 2,
-      "publishedAt": "2026-07-15 18:00:00+00",
+      "contentVersion": 3,
+      "publishedAt": "2026-07-18 09:00:00+00",
       "payload": {
-        "title": "Okubala 1–5 — Count One to Five",
+        "title": "Okubala: Count 1 to 5",
         "metadata": {
           "curriculumScope": "Optional reinforcement alongside Stages 1–2",
           "linguisticCaveat": "Standalone number labels are provided; noun-class agreement must be reviewed before expanding to counted Luganda noun phrases.",
@@ -2409,8 +2570,22 @@
           {
             "id": 1,
             "order": 1,
-            "title": "Okubala 1–5 — Count 1–5",
-            "description": "Count familiar home objects from one to five and see the standalone Luganda number label.",
+            "title": "Okubala 1–3: Count 1–3",
+            "description": "Start by counting 1, 2, and 3.",
+            "numbersRange": {
+              "min": 1,
+              "max": 3
+            },
+            "levels": 3,
+            "useBunches": false,
+            "usesCurrency": false,
+            "prompt": "Bala ebintu. Count the pictures."
+          },
+          {
+            "id": 2,
+            "order": 2,
+            "title": "Okubala 1–5: Count 1–5",
+            "description": "Now count all the way to 5.",
             "numbersRange": {
               "min": 1,
               "max": 5
@@ -2418,7 +2593,7 @@
             "levels": 5,
             "useBunches": false,
             "usesCurrency": false,
-            "prompt": "Bala ebintu. — Count the objects."
+            "prompt": "Bala ebintu. Count the pictures."
           }
         ],
         "numbers": [
@@ -2457,13 +2632,13 @@
           {
             "id": "counting-item-children",
             "order": 1,
-            "name": "children / abaana",
+            "name": "abaana (children)",
             "image": "learning/lg/counting/children.png"
           },
           {
             "id": "counting-item-books",
             "order": 2,
-            "name": "books / ebitabo",
+            "name": "ebitabo (books)",
             "image": "learning/lg/counting/books.png"
           },
           {
@@ -2475,18 +2650,18 @@
           {
             "id": "counting-item-houses",
             "order": 4,
-            "name": "houses / ennyumba",
+            "name": "ennyumba (houses)",
             "image": "learning/lg/counting/houses.png"
           },
           {
             "id": "counting-item-water-cups",
             "order": 5,
-            "name": "cups of water / amazzi",
+            "name": "cups of amazzi (water)",
             "image": "learning/lg/counting/water-cups.png"
           }
         ],
         "currency": [],
-        "progressRevision": 2
+        "progressRevision": 3
       }
     },
     {
@@ -2498,8 +2673,8 @@
       "isActive": true,
       "editorialStatus": "published",
       "isStartable": true,
-      "contentVersion": 2,
-      "publishedAt": "2026-07-15 18:00:00+00",
+      "contentVersion": 3,
+      "publishedAt": "2026-07-18 09:00:00+00",
       "payload": {
         "title": "Stage 1–2 Luganda Matching Cards",
         "metadata": {
@@ -2511,74 +2686,74 @@
             "id": "card-lg-concept-oli-otya-v1",
             "order": 1,
             "value": "Oli otya?",
-            "info": "How are you? Curriculum-linked optional practice; pronunciation and usage still require native review.",
+            "info": "How are you?",
             "imageSymbol": "👋"
           },
           {
             "id": "card-lg-concept-gyendi-v1",
             "order": 2,
             "value": "Gyendi",
-            "info": "I am fine. Curriculum-linked optional practice; pronunciation and usage still require native review.",
+            "info": "I am fine.",
             "imageSymbol": "🙂"
           },
           {
             "id": "card-lg-concept-gyebale-ko-v1",
             "order": 3,
             "value": "Gyebale ko",
-            "info": "Thank you for your work. Curriculum-linked optional practice; pronunciation and usage still require native review.",
+            "info": "Thank you for your work.",
             "imageSymbol": "🤝"
           },
           {
             "id": "card-lg-concept-webale-v1",
             "order": 4,
             "value": "Webale",
-            "info": "Thank you. Curriculum-linked optional practice; pronunciation and usage still require native review.",
+            "info": "Thank you.",
             "imageSymbol": "🙏"
           },
           {
             "id": "card-lg-concept-maama-v1",
             "order": 5,
             "value": "Maama",
-            "info": "Mother Curriculum-linked optional practice; pronunciation and usage still require native review.",
+            "info": "Mother",
             "imageSymbol": "👩"
           },
           {
             "id": "card-lg-concept-taata-v1",
             "order": 6,
             "value": "Taata",
-            "info": "Father Curriculum-linked optional practice; pronunciation and usage still require native review.",
+            "info": "Father",
             "imageSymbol": "👨"
           },
           {
             "id": "card-lg-concept-omwana-v1",
             "order": 7,
             "value": "Omwana",
-            "info": "Child Curriculum-linked optional practice; pronunciation and usage still require native review.",
+            "info": "Child",
             "imageSymbol": "🧒"
           },
           {
             "id": "card-lg-concept-ennyumba-v1",
             "order": 8,
             "value": "Ennyumba",
-            "info": "House Curriculum-linked optional practice; pronunciation and usage still require native review.",
+            "info": "House",
             "imageSymbol": "🏠"
           },
           {
             "id": "card-lg-concept-amazzi-v1",
             "order": 9,
             "value": "Amazzi",
-            "info": "Water Curriculum-linked optional practice; pronunciation and usage still require native review.",
+            "info": "Water",
             "imageSymbol": "💧"
           },
           {
             "id": "card-lg-concept-ekitabo-v1",
             "order": 10,
             "value": "Ekitabo",
-            "info": "Book Curriculum-linked optional practice; pronunciation and usage still require native review.",
+            "info": "Book",
             "imageSymbol": "📘"
           }
         ],
-        "progressRevision": 2
+        "progressRevision": 3
       }
     },
     {
@@ -2590,10 +2765,10 @@
       "isActive": true,
       "editorialStatus": "published",
       "isStartable": true,
-      "contentVersion": 2,
-      "publishedAt": "2026-07-15 18:00:00+00",
+      "contentVersion": 3,
+      "publishedAt": "2026-07-18 09:00:00+00",
       "payload": {
-        "title": "Stage 1–2 Scene Puzzles",
+        "title": "Luganda Picture Puzzles",
         "metadata": {
           "curriculumScope": "Greeting and home settings from Stages 1–2",
           "evidenceBoundary": "Puzzle completion is visual/spatial play, not language evidence."
@@ -2603,42 +2778,56 @@
             "id": 1,
             "order": 1,
             "name": "Oli otya?",
-            "description": "A greeting scene from Stage 1",
+            "description": "Put the hello picture together.",
             "image": "learning/lg/puzzles/greeting.png"
           },
           {
             "id": 2,
             "order": 2,
             "name": "Maama, Taata n'Omwana",
-            "description": "A family-at-home scene from Stage 2",
+            "description": "Put the family picture together.",
             "image": "learning/lg/puzzles/family-home.png"
           },
           {
             "id": 3,
             "order": 3,
             "name": "Ennyumba, Amazzi n'Ekitabo",
-            "description": "A house, water, and book scene from Stage 2",
+            "description": "Find the house, water, and book.",
             "image": "learning/lg/puzzles/book-and-water.png"
+          },
+          {
+            "id": 4,
+            "order": 4,
+            "name": "Maama",
+            "description": "Put the Maama picture together.",
+            "image": "learning/lg/stage-2/maama.png"
+          },
+          {
+            "id": 5,
+            "order": 5,
+            "name": "Ekitabo",
+            "description": "Put the book picture together.",
+            "image": "learning/lg/stage-2/ekitabo.png"
           }
         ],
-        "progressRevision": 2
+        "progressRevision": 3
       }
     },
     {
       "languageCode": "lg",
       "contentType": "story",
       "slug": "greetings-at-work",
-      "title": "Oli otya? — A Greeting",
+      "title": "Oli otya?: A Greeting",
       "sortOrder": 100,
       "isActive": true,
       "editorialStatus": "published",
       "isStartable": true,
-      "contentVersion": 2,
-      "publishedAt": "2026-07-15 18:00:00+00",
+      "contentVersion": 3,
+      "publishedAt": "2026-07-18 09:00:00+00",
       "payload": {
         "id": "greetings-at-work",
-        "title": "Oli otya? — A Greeting",
-        "summary": "A short Stage 1 greeting dialogue.",
+        "title": "Oli otya?: A Greeting",
+        "summary": "Kato says hello and answers a greeting.",
         "metadata": {
           "status": "placeholder",
           "notes": "Curriculum-linked draft. Empty images and native-language, educator, cultural, and accessibility review are required before production.",
@@ -2679,7 +2868,7 @@
         "questions": [
           {
             "id": "greeting-story-q1",
-            "question": "Which phrase asks ‘How are you?’",
+            "question": "Tap the words for ‘How are you?’",
             "options": [
               "Oli otya?",
               "Gyendi.",
@@ -2689,7 +2878,7 @@
           },
           {
             "id": "greeting-story-q2",
-            "question": "Which reply means ‘I am fine’ ?",
+            "question": "Tap the words for ‘I am fine.’",
             "options": [
               "Gyebale ko.",
               "Gyendi.",
@@ -2698,24 +2887,24 @@
             "correctAnswer": 1
           }
         ],
-        "progressRevision": 2
+        "progressRevision": 3
       }
     },
     {
       "languageCode": "lg",
       "contentType": "story",
       "slug": "family-at-home",
-      "title": "Awaka — At Home",
+      "title": "Awaka: At Home",
       "sortOrder": 101,
       "isActive": true,
       "editorialStatus": "published",
       "isStartable": true,
-      "contentVersion": 2,
-      "publishedAt": "2026-07-15 18:00:00+00",
+      "contentVersion": 3,
+      "publishedAt": "2026-07-18 09:00:00+00",
       "payload": {
         "id": "family-at-home",
-        "title": "Awaka — At Home",
-        "summary": "A short Stage 2 family-and-home story.",
+        "title": "Awaka: At Home",
+        "summary": "A family shares a book and water at home.",
         "metadata": {
           "status": "placeholder",
           "notes": "Curriculum-linked draft. Empty images and native-language, educator, cultural, and accessibility review are required before production.",
@@ -2763,7 +2952,7 @@
         "questions": [
           {
             "id": "home-story-q1",
-            "question": "Which Luganda word in the story means ‘child’?",
+            "question": "Tap the Luganda word for ‘child’.",
             "options": [
               "Maama",
               "Omwana",
@@ -2773,7 +2962,7 @@
           },
           {
             "id": "home-story-q2",
-            "question": "Which Luganda word means ‘book’?",
+            "question": "Tap the Luganda word for ‘book’.",
             "options": [
               "Amazzi",
               "Ennyumba",
@@ -2783,7 +2972,7 @@
           },
           {
             "id": "home-story-q3",
-            "question": "Which Luganda word means ‘water’?",
+            "question": "Tap the Luganda word for ‘water’.",
             "options": [
               "Amazzi",
               "Maama",
@@ -2792,7 +2981,7 @@
             "correctAnswer": 0
           }
         ],
-        "progressRevision": 2
+        "progressRevision": 3
       }
     }
   ]

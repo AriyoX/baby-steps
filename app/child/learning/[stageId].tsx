@@ -21,6 +21,7 @@ import {
 import { LearningLanguageUnavailableState } from "@/components/learning/LearningLanguageUnavailableState";
 import { brandColors } from "@/constants/Brand";
 import { useChild } from "@/context/ChildContext";
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext";
 import {
   DEFAULT_LEARNING_LANGUAGE_CODE,
   getLearningLanguage,
@@ -40,6 +41,7 @@ import {
   getLearningStageAccessState,
   type LearningLessonAccessState,
 } from "@/lib/learningStageAccess";
+import type { ChildUiTranslationKey } from "@/lib/childUiTranslations";
 
 const getRouteStageId = (value: unknown): string => {
   if (Array.isArray(value)) {
@@ -50,7 +52,7 @@ const getRouteStageId = (value: unknown): string => {
 };
 
 type LessonCardStatus = {
-  label: "Start" | "Review" | "Coming soon" | "Locked" | "Unsupported" | "Needs cards";
+  label: string;
   icon: keyof typeof Ionicons.glyphMap;
   color: string;
   backgroundColor: string;
@@ -60,10 +62,11 @@ type LessonCardStatus = {
 const getLessonCardStatus = (
   status: LessonStatus,
   isCompleted = false,
+  t: (key: ChildUiTranslationKey) => string,
 ): LessonCardStatus => {
   if (status === "locked") {
     return {
-      label: "Locked",
+      label: t("common.locked"),
       icon: "lock-closed",
       color: brandColors.neutral[600],
       backgroundColor: brandColors.neutral[100],
@@ -73,7 +76,7 @@ const getLessonCardStatus = (
 
   if (status === "unsupported") {
     return {
-      label: "Unsupported",
+      label: t("learning.unsupported"),
       icon: "alert-circle",
       color: brandColors.neutral[600],
       backgroundColor: brandColors.neutral[100],
@@ -83,7 +86,7 @@ const getLessonCardStatus = (
 
   if (status === "empty") {
     return {
-      label: "Needs cards",
+      label: t("learning.needsCards"),
       icon: "images",
       color: brandColors.shanaOrange,
       backgroundColor: brandColors.orange[50],
@@ -93,7 +96,7 @@ const getLessonCardStatus = (
 
   if (status === "coming_soon") {
     return {
-      label: "Coming soon",
+      label: t("games.comingSoon"),
       icon: "construct",
       color: brandColors.shanaOrange,
       backgroundColor: brandColors.orange[50],
@@ -103,7 +106,7 @@ const getLessonCardStatus = (
 
   if (isCompleted) {
     return {
-      label: "Review",
+      label: t("learning.review"),
       icon: "checkmark-circle",
       color: brandColors.success,
       backgroundColor: "#DCFCE7",
@@ -112,7 +115,7 @@ const getLessonCardStatus = (
   }
 
   return {
-    label: "Start",
+    label: t("common.start"),
     icon: "play-circle",
     color: brandColors.success,
     backgroundColor: "#DCFCE7",
@@ -143,9 +146,11 @@ const LessonPathCard = ({
   onPress,
   tourTargetId,
 }: LessonPathCardProps) => {
+  const { t } = useChildUiLanguage();
   const status = getLessonCardStatus(
     lessonAccess.effectiveStatus,
     lessonAccess.isCompleted,
+    t,
   );
   const mechanicLabel = getMechanicLabel(lesson.mechanic);
   const progressLockLabel =
@@ -162,7 +167,7 @@ const LessonPathCard = ({
         height,
         marginRight: gap,
         borderColor: status.disabled ? brandColors.neutral[200] : brandColors.equatorialGold,
-        opacity: status.label === "Locked" ? 0.72 : 1,
+        opacity: lessonAccess.effectiveStatus === "locked" ? 0.72 : 1,
       }}
       onPress={() => onPress(lesson)}
       disabled={status.disabled}
@@ -185,7 +190,7 @@ const LessonPathCard = ({
               </View>
               <View className="flex-1">
                 <Text variant="bold" className="text-primary-700 text-xs uppercase" numberOfLines={1}>
-                  Stage {stage.stageNumber}.{lesson.order}
+                  {t("learning.stage")} {stage.stageNumber}.{lesson.order}
                 </Text>
                 <Text
                   variant="bold"
@@ -217,7 +222,7 @@ const LessonPathCard = ({
             <View className="flex-row items-center mt-2">
               <Ionicons name="checkmark-done" size={14} color={brandColors.success} />
               <Text variant="bold" className="text-success text-xs ml-1" numberOfLines={1}>
-                Completed
+                {t("learning.completed")}
               </Text>
             </View>
           ) : progressLockLabel ? (
@@ -240,7 +245,7 @@ const LessonPathCard = ({
           <View className="flex-row items-center">
             <Ionicons name="albums-outline" size={15} color={brandColors.neutral[600]} />
             <Text className="text-neutral-600 text-xs ml-1" numberOfLines={1}>
-              {itemCount} {itemCount === 1 ? "item" : "items"}
+              {itemCount} {t(itemCount === 1 ? "learning.item" : "learning.items")}
             </Text>
           </View>
         </View>
@@ -257,7 +262,10 @@ type StageStateProps = {
   title: string;
 };
 
-const StageState = ({ icon, message, onBack, title }: StageStateProps) => (
+const StageState = ({ icon, message, onBack, title }: StageStateProps) => {
+  const { t } = useChildUiLanguage();
+
+  return (
   <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
     <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
       <View className="flex-1 items-center justify-center px-8">
@@ -275,22 +283,24 @@ const StageState = ({ icon, message, onBack, title }: StageStateProps) => (
             className="bg-primary-600 rounded-full px-6 py-3"
             onPress={onBack}
             accessibilityRole="button"
-            accessibilityLabel="Back to Learning"
+            accessibilityLabel={t("learning.backToLearning")}
           >
             <Text variant="bold" className="text-white text-base">
-              Back to Learning
+              {t("learning.backToLearning")}
             </Text>
           </TouchableOpacity>
         </View>
       </View>
     </SafeAreaView>
   </ImageBackground>
-);
+  );
+};
 
 export default function LearningStagePathScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { activeChild } = useChild();
+  const { t } = useChildUiLanguage();
   const stageTour = useGameTour("learning-hub-stage", activeChild?.id);
   const { width, height } = useWindowDimensions();
   const stageId = getRouteStageId(params.stageId);
@@ -386,11 +396,11 @@ export default function LearningStagePathScreen() {
         <>
           <Stack.Screen options={{ headerShown: false, animation: "slide_from_right" }} />
           <ChildLoadingState
-            title="Getting your lessons ready"
-            message="Loading this learning path and your saved progress."
+            title={t("learning.gettingLessonsReady")}
+            message={t("learning.loadingPath")}
             icon="school-outline"
             onBack={goBackToLearning}
-            backLabel="Back to Learning"
+            backLabel={t("learning.backToLearning")}
           />
         </>
       );
@@ -402,9 +412,9 @@ export default function LearningStagePathScreen() {
         <StatusBar style="light" translucent backgroundColor="transparent" />
         <LearningLanguageUnavailableState
           languageName={languageName}
-          actionLabel="Try again"
+          actionLabel={t("common.retry")}
           onAction={retry}
-          secondaryActionLabel="Back to Learning"
+          secondaryActionLabel={t("learning.backToLearning")}
           onSecondaryAction={goBackToLearning}
         />
       </>
@@ -418,8 +428,8 @@ export default function LearningStagePathScreen() {
         <StatusBar style="light" translucent backgroundColor="transparent" />
         <StageState
           icon="search-outline"
-          title="Learning area not found"
-          message="This Learning path is not available right now."
+          title={t("learning.areaNotFound")}
+          message={t("learning.pathUnavailable")}
           onBack={goBackToLearning}
         />
       </>
@@ -428,10 +438,13 @@ export default function LearningStagePathScreen() {
 
   if (stageAccess?.isLocked) {
     const lockMessage = stageAccess.isExplicitlyLocked
-      ? `${stage.title} is locked for now.`
+      ? t("learning.stageLockedForNow", { stage: stage.title })
       : stageAccess.isProgressLocked && stageAccess.lockedByStageTitle
-        ? `Complete ${stageAccess.lockedByStageTitle} to unlock ${stage.title}.`
-        : `${stage.title} is locked for now.`;
+        ? t("learning.completeToUnlock", {
+            required: stageAccess.lockedByStageTitle,
+            target: stage.title,
+          })
+        : t("learning.stageLockedForNow", { stage: stage.title });
 
     return (
       <>
@@ -439,7 +452,7 @@ export default function LearningStagePathScreen() {
         <StatusBar style="light" translucent backgroundColor="transparent" />
         <StageState
           icon="lock-closed-outline"
-          title="Stage locked"
+          title={t("learning.stageLocked")}
           message={lockMessage}
           onBack={goBackToLearning}
         />
@@ -460,7 +473,7 @@ export default function LearningStagePathScreen() {
                 className="w-12 h-12 rounded-full bg-white items-center justify-center border-2 border-accent-500"
                 onPress={goBackToLearning}
                 accessibilityRole="button"
-                accessibilityLabel="Back to Learning"
+                accessibilityLabel={t("learning.backToLearning")}
               >
                 <Ionicons name="arrow-back" size={22} color={brandColors.victoriaBlue} />
               </TouchableOpacity>
@@ -491,7 +504,9 @@ export default function LearningStagePathScreen() {
                     color={brandColors.victoriaBlue}
                   />
                   <Text variant="bold" className="text-primary-700 text-sm ml-1" numberOfLines={1}>
-                    {stage.isPractice ? "Practice" : `Stage ${stage.stageNumber}`}
+                    {stage.isPractice
+                      ? t("learning.practice")
+                      : `${t("learning.stage")} ${stage.stageNumber}`}
                   </Text>
                 </View>
                 </TourTarget>
@@ -502,10 +517,10 @@ export default function LearningStagePathScreen() {
               <View className="flex-row items-center justify-between">
                 <View className="flex-1 pr-4">
                   <Text variant="bold" className="text-white text-lg" numberOfLines={1}>
-                    Choose a lesson
+                    {t("learning.chooseLesson")}
                   </Text>
                   <Text className="text-white/85 text-sm" numberOfLines={2}>
-                    Swipe through the lesson path and continue from saved progress.
+                    {t("learning.swipePath")}
                   </Text>
                 </View>
                 <View className="flex-row items-center">
@@ -515,7 +530,7 @@ export default function LearningStagePathScreen() {
                     color="#ffffff"
                   />
                   <Text variant="bold" className="text-white text-sm ml-2" numberOfLines={1}>
-                    {lessons.length} {lessons.length === 1 ? "step" : "steps"}
+                    {t("learning.stepsCount", { count: lessons.length })}
                   </Text>
                 </View>
               </View>
@@ -557,23 +572,25 @@ export default function LearningStagePathScreen() {
         visible={stageTour.visible}
         onCancel={stageTour.close}
         onComplete={stageTour.complete}
-        finishLabel="Choose a lesson"
+        finishLabel={t("learning.chooseLesson")}
         steps={[
           {
             id: "stage",
             targetId: "learning-stage-info",
             icon: "map-outline",
             placement: "bottom",
-            title: "Your stage",
-            description: stage.isPractice ? "This is your practice stage." : `You are on Stage ${stage.stageNumber}.`,
+            title: t("learning.yourStage"),
+            description: stage.isPractice
+              ? t("learning.practiceStage")
+              : t("learning.stagePosition", { stage: stage.stageNumber }),
           },
           {
             id: "lessons",
             targetId: "learning-stage-lessons",
             icon: "albums-outline",
             placement: "top",
-            title: "Pick a lesson",
-            description: "Swipe, then tap an open lesson.",
+            title: t("learning.pickLesson"),
+            description: t("learning.openLessonHint"),
           },
         ]}
       />

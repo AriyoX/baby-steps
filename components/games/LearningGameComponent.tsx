@@ -23,6 +23,7 @@ import { ChildLoadingState } from "@/components/child/ChildLoadingState"
 import { ComingSoonState } from "@/components/child/ComingSoonState"
 import { CachedImage } from "@/components/common/CachedImage"
 import { useChild } from "@/context/ChildContext"
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext"
 import { useChildNotice } from "@/context/ChildNoticeContext"
 import { brandColors } from "@/constants/Brand"
 import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages"
@@ -153,6 +154,7 @@ const unlockNextStage = (
 const LugandaLearningGame: React.FC = () => {
   const router = useRouter()
   const { activeChild } = useChild()
+  const { t } = useChildUiLanguage()
   const languageCode = activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE
   const learningTour = useGameTour("learning-quiz", activeChild?.id)
   const achievementGameKey = languageCode === "lg" ? "luganda_learning_game" : "learning_game"
@@ -969,7 +971,7 @@ const LugandaLearningGame: React.FC = () => {
                   {gameTitle}
                 </Text>
                 <Text className="text-white/85 text-sm text-center" numberOfLines={2}>
-                  Pick a word stage, review the cards, then play the quiz.
+                  Pick a stage. Learn the words. Play the quiz.
                 </Text>
               </View>
 
@@ -992,7 +994,7 @@ const LugandaLearningGame: React.FC = () => {
                     Choose a stage
                   </Text>
                   <Text className="text-white/85 text-sm" numberOfLines={2}>
-                    Swipe through friendly practice sets and continue where you left off.
+                    Swipe and tap a stage to start.
                   </Text>
                 </View>
                 <View className="flex-row items-center">
@@ -1034,7 +1036,7 @@ const LugandaLearningGame: React.FC = () => {
                 renderItem={({ item: stage }) => {
                   const completedLevelCount = stage.levels.filter((level) => completedLevels.includes(level.id)).length
                   const isCompleted = completedLevelCount === stage.levels.length
-                  const statusLabel = stage.isLocked ? `${stage.requiredScore} pts` : isCompleted ? "Done" : "Start"
+                  const statusLabel = stage.isLocked ? `${stage.requiredScore} pts` : isCompleted ? t("common.done") : t("common.start")
                   const statusIcon: keyof typeof Ionicons.glyphMap = stage.isLocked
                     ? "lock-closed"
                     : isCompleted
@@ -1155,7 +1157,7 @@ const LugandaLearningGame: React.FC = () => {
                   {selectedStage.title}
                 </Text>
                 <Text className="text-white/85 text-sm text-center" numberOfLines={2}>
-                  Choose a level to review its word cards.
+                  Pick a small group of words.
                 </Text>
               </View>
 
@@ -1229,7 +1231,7 @@ const LugandaLearningGame: React.FC = () => {
               >
                 <View className="flex-row justify-between items-center mb-3">
                   <Text variant="bold" className="text-white text-lg" numberOfLines={1}>
-                    Select a level
+                    Pick a level
                   </Text>
                   <Text className="text-white/85 text-xs" numberOfLines={1}>
                     {selectedStage.levels.length} levels
@@ -1239,7 +1241,7 @@ const LugandaLearningGame: React.FC = () => {
                 <View className="flex-row flex-wrap justify-between">
                   {selectedStage.levels.map((level) => {
                     const isCompleted = completedLevels.includes(level.id)
-                    const statusLabel = level.isLocked ? "Locked" : isCompleted ? "Review" : "Start"
+                    const statusLabel = level.isLocked ? t("common.locked") : isCompleted ? t("learning.review") : t("common.start")
                     const statusIcon: keyof typeof Ionicons.glyphMap = level.isLocked
                       ? "lock-closed"
                       : isCompleted
@@ -1280,7 +1282,7 @@ const LugandaLearningGame: React.FC = () => {
                               style={{ backgroundColor: level.isLocked ? brandColors.neutral[100] : brandColors.blue[50] }}
                             >
                               <Text variant="bold" className="text-primary-700 text-lg" numberOfLines={1}>
-                                {level.id}
+                                {level.order}
                               </Text>
                             </View>
                             <View className="rounded-full px-3 py-1.5 flex-row items-center" style={{ backgroundColor: level.isLocked ? brandColors.neutral[100] : brandColors.blue[50] }}>
@@ -1589,7 +1591,7 @@ const LugandaLearningGame: React.FC = () => {
 
         <GameHeader
           title={`${selectedLevel?.title} Quiz`}
-          subtitle={`Choose the English meaning • Question ${currentWordIndex + 1} of ${currentWords.length}`}
+          subtitle={`Pick the English meaning • ${currentWordIndex + 1} of ${currentWords.length}`}
           onBack={() => {
             clearGameTimers()
             answerLockRef.current = false
@@ -1634,11 +1636,11 @@ const LugandaLearningGame: React.FC = () => {
                 <View className="bg-white p-4 rounded-3xl shadow-sm border border-blue-100 min-h-[184px] justify-center">
                   <View className="self-center bg-blue-50 rounded-full px-3 py-1 mb-3">
                     <Text variant="medium" className="text-xs text-primary-600" numberOfLines={1}>
-                      Translate this phrase
+                      Pick the meaning
                     </Text>
                   </View>
                   <Text className="text-base text-slate-500 mb-2 text-center" numberOfLines={2}>
-                    What is the English translation of:
+                    What does this mean?
                   </Text>
 
                   <View className="items-center">
@@ -1737,7 +1739,7 @@ const LugandaLearningGame: React.FC = () => {
               <TourTarget id="learning-quiz-prompt">
               <View className="bg-white p-6 rounded-2xl shadow-sm mb-5 border border-blue-100">
                 <Text className="text-base text-slate-600 mb-5 text-center" numberOfLines={2}>
-                  What is the English translation of:
+                  What does this mean?
                 </Text>
 
                 <View className="items-center mb-5">
@@ -1889,16 +1891,16 @@ const LugandaLearningGame: React.FC = () => {
             </View>
 
             <Text variant="bold" className="text-xl text-white mb-2">
-              Level Complete!
+              Level done!
             </Text>
             <Text className="text-white text-center  mb-2">
-              {`Congratulations, you've completed ${selectedLevel?.title}!`}
+              {`You finished ${selectedLevel?.title}!`}
             </Text>
 
             <View className="bg-white/20 w-full rounded-2xl p-5 mb-2">
               <View className="flex-row justify-between mb-2">
                 <Text variant="bold" className="text-white">
-                  Words Learned:
+                  Words:
                 </Text>
                 <Text variant="bold" className="text-white">
                   {currentWords.length}
@@ -1906,7 +1908,7 @@ const LugandaLearningGame: React.FC = () => {
               </View>
               <View className="flex-row justify-between mb-2">
                 <Text variant="bold" className="text-white ">
-                  Score Earned:
+                  Stars:
                 </Text>
                 <Text variant="bold" className="text-white">
                   {levelScore}
@@ -1914,7 +1916,7 @@ const LugandaLearningGame: React.FC = () => {
               </View>
               <View className="flex-row justify-between">
                 <Text variant="bold" className="text-white">
-                  Total Score:
+                  All stars:
                 </Text>
                 <Text variant="bold" className="text-white">
                   {totalScore}
@@ -1932,7 +1934,7 @@ const LugandaLearningGame: React.FC = () => {
                 }}
               >
                 <Text variant="bold" className="text-indigo-600">
-                  Choose Level
+                  Pick a level
                 </Text>
               </TouchableOpacity>
 
@@ -1945,7 +1947,7 @@ const LugandaLearningGame: React.FC = () => {
                 }}
               >
                 <Text variant="bold" className="text-white">
-                  Home
+                  {t("navigation.home")}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1959,8 +1961,8 @@ const LugandaLearningGame: React.FC = () => {
   if (isLoading) {
     return (
       <ChildLoadingState
-        title="Getting your learning journey ready"
-        message="Loading lessons and your saved progress."
+        title={t("games.gettingWordsReady")}
+        message={t("games.loadingGame")}
         icon="school-outline"
       />
     )
@@ -1969,7 +1971,7 @@ const LugandaLearningGame: React.FC = () => {
   if (stages.length === 0) {
     return (
       <ComingSoonState
-        title="Learning coming soon"
+        title={t("games.learningComingSoon")}
         onRetry={() => setContentRetrySequence((current) => current + 1)}
       />
     )

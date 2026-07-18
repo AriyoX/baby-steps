@@ -30,6 +30,7 @@ import Svg, { Defs, Mask, Rect as SvgRect } from "react-native-svg"
 
 import { Text } from "@/components/StyledText"
 import { brandColors, brandShadows } from "@/constants/Brand"
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext"
 import {
   hasSeenGameGuide,
   markGameGuideSeen,
@@ -378,6 +379,7 @@ export function GameTour({
   steps,
   visible,
 }: GameTourProps) {
+  const { t } = useChildUiLanguage()
   const registry = useContext(TourTargetRegistryContext)
   const insets = useTourSafeAreaInsets()
   const { height, width } = useWindowDimensions()
@@ -667,13 +669,13 @@ export function GameTour({
 
           <View style={styles.actions}>
             <TouchableOpacity
-              accessibilityLabel="Skip tour"
+              accessibilityLabel={t("common.skip")}
               accessibilityRole="button"
               activeOpacity={0.75}
               onPress={onComplete}
               style={styles.skipButton}
             >
-              <Text variant="bold" style={styles.skipText}>Skip</Text>
+              <Text variant="bold" style={styles.skipText}>{t("common.skip")}</Text>
             </TouchableOpacity>
 
             <View style={styles.navigationActions}>
@@ -687,7 +689,7 @@ export function GameTour({
                 style={[styles.backButton, isFirst && styles.disabledButton]}
               >
                 <Ionicons name="arrow-back" size={17} color={brandColors.neutral[700]} />
-                <Text variant="bold" style={styles.backText}>Back</Text>
+                <Text variant="bold" style={styles.backText}>{t("common.back")}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -704,7 +706,7 @@ export function GameTour({
                 style={[styles.nextButton, { backgroundColor: accentColor }]}
               >
                 <Text variant="bold" style={styles.nextText}>
-                  {isLast ? finishLabel : "Next"}
+                  {isLast ? finishLabel : t("common.next")}
                 </Text>
                 <Ionicons
                   name={isLast ? "sparkles" : "arrow-forward"}
@@ -736,7 +738,10 @@ export const GameHeader = ({
   subtitle,
   title,
   trailing,
-}: GameHeaderProps) => (
+}: GameHeaderProps) => {
+  const { t } = useChildUiLanguage()
+
+  return (
   <View className="flex-row items-center px-4 py-2 min-h-[64px]">
     <TouchableOpacity
       className="w-12 h-12 rounded-2xl bg-white items-center justify-center border border-blue-100"
@@ -779,13 +784,14 @@ export const GameHeader = ({
         onPress={onHelp}
         activeOpacity={0.76}
         accessibilityRole="button"
-        accessibilityLabel="Show how to play"
+        accessibilityLabel={t("games.howToPlay")}
       >
         <Ionicons name="help-circle-outline" size={25} color={brandColors.victoriaBlue} />
       </TouchableOpacity>
     </View>
   </View>
-)
+  )
+}
 
 type GameStatChipProps = {
   accessibilityLabel?: string

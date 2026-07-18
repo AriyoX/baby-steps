@@ -67,4 +67,37 @@ describe("Luganda Stage 1–2 curriculum seed", () => {
       }
     }
   });
+
+  it("uses small game steps before combined review levels", () => {
+    const payloadFor = (contentType: string) =>
+      manifest.bundles.find((bundle) => bundle.contentType === contentType)?.payload;
+
+    const learningGame = payloadFor("learning_game") as {
+      stages: Array<{ levels: Array<{ words: unknown[] }> }>;
+    };
+    const wordGame = payloadFor("word_game") as { levels: unknown[] };
+    const countingGame = payloadFor("counting_game") as {
+      stages: Array<{
+        levels: number;
+        numbersRange: { min: number; max: number };
+      }>;
+    };
+    const puzzleGame = payloadFor("puzzle_game") as { puzzles: unknown[] };
+
+    expect(learningGame.stages.map((stage) => stage.levels.length)).toEqual([3, 3]);
+    expect(
+      learningGame.stages.map((stage) =>
+        stage.levels.map((level) => level.words.length),
+      ),
+    ).toEqual([
+      [2, 2, 4],
+      [3, 3, 6],
+    ]);
+    expect(wordGame.levels).toHaveLength(10);
+    expect(countingGame.stages).toEqual([
+      expect.objectContaining({ levels: 3, numbersRange: { min: 1, max: 3 } }),
+      expect.objectContaining({ levels: 5, numbersRange: { min: 1, max: 5 } }),
+    ]);
+    expect(puzzleGame.puzzles).toHaveLength(5);
+  });
 });

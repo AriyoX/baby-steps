@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { Text } from "@/components/StyledText";
 import { brandColors } from "@/constants/Brand";
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext";
 import type {
   ItemResult,
   MiniQuizItem,
@@ -27,6 +28,7 @@ export function MiniQuizCard({
   isLastItem,
   onComplete,
 }: MiniQuizCardProps) {
+  const { t } = useChildUiLanguage();
   const { width, height } = useWindowDimensions();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
@@ -122,10 +124,10 @@ export function MiniQuizCard({
   };
 
   const actionLabel = !isFinalQuizQuestion
-    ? "Next question"
+    ? t("learning.nextQuestion")
     : isLastItem
-      ? "Finish"
-      : "Next";
+      ? t("common.finish")
+      : t("common.next");
   const actionIcon = !isFinalQuizQuestion
     ? "chevron-forward"
     : isLastItem

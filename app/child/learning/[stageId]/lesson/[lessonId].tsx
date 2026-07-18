@@ -22,6 +22,7 @@ import { getMechanicRenderer } from "@/components/learning/mechanics/mechanicReg
 import { brandColors } from "@/constants/Brand";
 import { useChild } from "@/context/ChildContext";
 import { useChildNotice } from "@/context/ChildNoticeContext";
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext";
 import {
   DEFAULT_LEARNING_LANGUAGE_CODE,
   getLearningLanguage,
@@ -160,6 +161,7 @@ export default function LearningLessonSessionScreen() {
   const params = useLocalSearchParams();
   const { height, width } = useWindowDimensions();
   const { activeChild } = useChild();
+  const { t } = useChildUiLanguage();
   const lessonTour = useGameTour("learning-hub", activeChild?.id);
   const { enqueueAchievementUnlocks } = useChildNotice();
   const stageId = getRouteParam(params.stageId);
@@ -426,11 +428,11 @@ export default function LearningLessonSessionScreen() {
         <>
           <Stack.Screen options={{ headerShown: false, animation: "slide_from_right" }} />
           <ChildLoadingState
-            title="Getting your lesson ready"
-            message="Loading the activity and your saved progress."
+            title={t("learning.gettingLessonReady")}
+            message={t("learning.loadingActivity")}
             icon="book-outline"
             onBack={goBackToLearning}
-            backLabel="Back to Learning"
+            backLabel={t("learning.backToLearning")}
           />
         </>
       );
@@ -442,9 +444,9 @@ export default function LearningLessonSessionScreen() {
         <StatusBar style="light" translucent backgroundColor="transparent" />
         <LearningLanguageUnavailableState
           languageName={languageName}
-          actionLabel="Try again"
+          actionLabel={t("common.retry")}
           onAction={retry}
-          secondaryActionLabel="Back to Learning"
+          secondaryActionLabel={t("learning.backToLearning")}
           onSecondaryAction={goBackToLearning}
         />
       </>
@@ -458,9 +460,9 @@ export default function LearningLessonSessionScreen() {
         <StatusBar style="light" translucent backgroundColor="transparent" />
         <LessonState
           icon="search-outline"
-          title="Lesson not found"
-          message="This Learning stage is not available right now."
-          buttonLabel="Back to Learning"
+          title={t("learning.lessonNotFound")}
+          message={t("learning.stageUnavailable")}
+          buttonLabel={t("learning.backToLearning")}
           onButtonPress={goBackToLearning}
         />
       </>
@@ -474,9 +476,9 @@ export default function LearningLessonSessionScreen() {
         <StatusBar style="light" translucent backgroundColor="transparent" />
         <LessonState
           icon="search-outline"
-          title="Lesson not found"
-          message={`${stage.title} does not have that lesson yet.`}
-          buttonLabel="Back to Lessons"
+          title={t("learning.lessonNotFound")}
+          message={t("learning.stageUnavailable")}
+          buttonLabel={t("learning.backToLessons")}
           onButtonPress={goBackToStagePath}
         />
       </>
@@ -486,26 +488,37 @@ export default function LearningLessonSessionScreen() {
   if (lessonStatus !== "startable") {
     const title =
       lessonStatus === "locked"
-        ? "Locked for now"
+        ? t("learning.lockedForNow")
         : lessonStatus === "empty"
-          ? "Cards coming soon"
+          ? t("learning.cardsComingSoon")
           : lessonStatus === "unsupported"
-            ? "Not ready yet"
-            : "Coming soon";
+            ? t("learning.notReadyYet")
+            : t("games.comingSoon");
     const message =
       lessonStatus === "locked"
         ? stageAccess?.isExplicitlyLocked
-          ? `${stage.title} will unlock later.`
+          ? t("learning.stageWillUnlock", { stage: stage.title })
           : stageAccess?.isProgressLocked && stageAccess.lockedByStageTitle
-            ? `Complete ${stageAccess.lockedByStageTitle} to unlock ${stage.title}.`
+            ? t("learning.completeToUnlock", {
+                required: stageAccess.lockedByStageTitle,
+                target: stage.title,
+              })
             : lessonAccess?.isProgressLocked && lessonAccess.lockedByLessonTitle
-              ? `Complete ${lessonAccess.lockedByLessonTitle} to unlock ${lesson.title}.`
-            : `${stage.title} will unlock later.`
+              ? t("learning.completeToUnlock", {
+                  required: lessonAccess.lockedByLessonTitle,
+                  target: lesson.title,
+                })
+            : t("learning.stageWillUnlock", { stage: stage.title })
         : lessonStatus === "empty"
-          ? `${lesson.title} needs learning items before it can start.`
+          ? t("learning.needsItems", { lesson: lesson.title })
           : lessonStatus === "unsupported"
-            ? `${getMechanicLabel(lesson.mechanic)} is not supported in the lesson player yet.`
-            : `${getMechanicLabel(lesson.mechanic)} is being prepared for ${stage.title}.`;
+            ? t("learning.mechanicUnsupported", {
+                mechanic: getMechanicLabel(lesson.mechanic),
+              })
+            : t("learning.mechanicPreparing", {
+                mechanic: getMechanicLabel(lesson.mechanic),
+                stage: stage.title,
+              });
 
     return (
       <>
@@ -515,7 +528,7 @@ export default function LearningLessonSessionScreen() {
           icon={lessonStatus === "locked" ? "lock-closed-outline" : "construct-outline"}
           title={title}
           message={message}
-          buttonLabel="Back to Lessons"
+          buttonLabel={t("learning.backToLessons")}
           onButtonPress={goBackToStagePath}
         />
       </>
@@ -529,9 +542,9 @@ export default function LearningLessonSessionScreen() {
         <StatusBar style="light" translucent backgroundColor="transparent" />
         <LessonState
           icon="images-outline"
-          title="Cards coming soon"
-          message={`${lesson.title} needs learning items before it can start.`}
-          buttonLabel="Back to Lessons"
+          title={t("learning.cardsComingSoon")}
+          message={t("learning.needsItems", { lesson: lesson.title })}
+          buttonLabel={t("learning.backToLessons")}
           onButtonPress={goBackToStagePath}
         />
       </>
@@ -575,22 +588,26 @@ export default function LearningLessonSessionScreen() {
                   className="text-primary-700 text-center mb-2"
                   style={{ fontSize: isCompactLessonScreen ? 28 : 31 }}
                 >
-                  Great learning!
+                  {t("learning.greatLearning")}
                 </Text>
                 <Text
                   className="text-neutral-600 text-center mb-5"
                   style={{ fontSize: 17, lineHeight: 24 }}
                 >
-                  You finished {lesson.title} in {stage.title}. {results.length} items complete.
+                  {t("learning.finishedLesson", {
+                    lesson: lesson.title,
+                    stage: stage.title,
+                    count: results.length,
+                  })}
                 </Text>
                 <TouchableOpacity
                   className="bg-primary-600 rounded-full px-7 py-3"
                   onPress={goBackToStagePath}
                   accessibilityRole="button"
-                  accessibilityLabel="Continue"
+                  accessibilityLabel={t("common.continue")}
                 >
                   <Text variant="bold" className="text-white" style={{ fontSize: 17 }}>
-                    Continue
+                    {t("common.continue")}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -626,7 +643,7 @@ export default function LearningLessonSessionScreen() {
                 }}
                 onPress={goBackToStagePath}
                 accessibilityRole="button"
-                accessibilityLabel="Back to Lessons"
+                accessibilityLabel={t("learning.backToLessons")}
               >
                 <Ionicons name="arrow-back" size={24} color={brandColors.victoriaBlue} />
               </TouchableOpacity>
@@ -674,7 +691,10 @@ export default function LearningLessonSessionScreen() {
                     adjustsFontSizeToFit
                     minimumFontScale={0.76}
                   >
-                    {currentIndex + 1} of {items.length}
+                    {t("learning.progressPosition", {
+                      current: currentIndex + 1,
+                      total: items.length,
+                    })}
                   </Text>
                 </View>
                 </TourTarget>
@@ -718,31 +738,34 @@ export default function LearningLessonSessionScreen() {
         visible={lessonTour.visible}
         onCancel={lessonTour.close}
         onComplete={lessonTour.complete}
-        finishLabel="Start learning"
+        finishLabel={t("games.startLearning")}
         steps={[
           {
             id: "content",
             targetId: "learning-lesson-content",
             icon: "eye-outline",
             placement: "auto",
-            title: "Try this",
-            description: "Look, listen, or read here.",
+            title: t("learning.tryThis"),
+            description: t("learning.tryDescription"),
           },
           {
             id: "action",
             targetId: "learning-lesson-action",
             icon: "hand-left-outline",
             placement: "top",
-            title: "Next",
-            description: "Tap this button when you are ready.",
+            title: t("common.next"),
+            description: t("learning.nextHint"),
           },
           {
             id: "progress",
             targetId: "learning-lesson-progress",
             icon: "trending-up-outline",
             placement: "bottom",
-            title: "Your progress",
-            description: `You are on activity ${currentIndex + 1} of ${items.length}.`,
+            title: t("learning.yourProgress"),
+            description: t("learning.progressDescription", {
+              current: currentIndex + 1,
+              total: items.length,
+            }),
           },
         ]}
       />

@@ -40,6 +40,7 @@ describe("child-mode navigation", () => {
       href: CHILD_GAMES_ROUTE,
       id: "index",
       label: "Games",
+      labelKey: "navigation.games",
     })
 
     const layoutSource = readProjectFile("app", "child", "(tabs)", "_layout.tsx")

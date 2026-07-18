@@ -23,6 +23,7 @@ import {
 } from "@/components/games/GameTour";
 import { useAudio } from "@/context/AudioContext";
 import { useChild } from "@/context/ChildContext";
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext";
 import { resolveImageSource } from "@/content/contentRepository";
 import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages";
 import { preloadStoryImages } from "@/content/imagePreloader";
@@ -151,6 +152,7 @@ const getBoundaryWordIndex = (
 export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryRendererProps) {
   const router = useRouter();
   const { activeChild } = useChild();
+  const { t } = useChildUiLanguage();
   const { settings: audioSettings } = useAudio();
   const { width, height } = useWindowDimensions();
   const storyTour = useGameTour("stories", activeChild?.id);
@@ -643,8 +645,8 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
   if (isLoading) {
     return (
       <ChildLoadingState
-        title="Opening your story"
-        message="Preparing the pages and pictures for your learning language."
+        title={t("stories.opening")}
+        message={t("stories.preparing")}
         icon="book-outline"
       />
     );
@@ -653,8 +655,8 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
   if (!story) {
     return (
       <ComingSoonState
-        title="Story not ready"
-        message="We could not find this story for your learning language yet."
+        title={t("stories.notReady")}
+        message={t("stories.missingLanguage")}
       />
     );
   }
@@ -662,8 +664,8 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
   if (!page) {
     return (
       <ComingSoonState
-        title="Story not ready"
-        message="This story is missing pages, so it cannot be opened yet."
+        title={t("stories.notReady")}
+        message={t("stories.missingPages")}
       />
     );
   }
@@ -673,20 +675,20 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
       <SafeAreaView className="flex-1 bg-amber-50">
         <View className="flex-1 items-center justify-center px-6 py-4">
           <ChildCompletionCard
-            title="Story complete!"
-            message={`You finished ${story.title}. Great reading!`}
+            title={t("stories.complete")}
+            message={t("stories.finished", { story: story.title })}
             icon="book"
             accentColor="#8B4513"
             availableWidth={width}
             metrics={[
               {
-                label: "Pages read",
+                label: t("stories.pagesRead"),
                 value: story.pages.length,
                 icon: "book-outline",
               },
               ...(hasQuiz && quizScore !== undefined
                 ? [{
-                    label: "Quiz result",
+                    label: t("stories.quizResult"),
                     value: `${quizScore}/${totalQuestions}`,
                     icon: "checkmark-circle" as const,
                   }]
@@ -694,13 +696,13 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
             ]}
             actions={[
               {
-                label: "Read Again",
+                label: t("stories.readAgain"),
                 icon: "refresh",
                 onPress: readAgain,
                 variant: "secondary",
               },
               {
-                label: "Back to Stories",
+                label: t("stories.backToStories"),
                 icon: "arrow-back",
                 onPress: () => router.back(),
                 variant: "quiet",
@@ -746,7 +748,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
               stopReading();
               router.back();
             }}
-            accessibilityLabel="Go back"
+            accessibilityLabel={t("stories.goBack")}
             accessibilityRole="button"
           >
             <Ionicons name="arrow-back" size={headerIconSize} color="#8B4513" />
@@ -779,7 +781,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                 height: headerButtonSize,
               }}
               onPress={storyTour.open}
-              accessibilityLabel="Show story guide"
+              accessibilityLabel={t("stories.showGuide")}
               accessibilityRole="button"
             >
               <Ionicons name="help-circle-outline" size={headerIconSize} color="#8B4513" />
@@ -792,7 +794,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                 height: headerButtonSize,
               }}
               onPress={() => setSettingsVisible(true)}
-              accessibilityLabel="Open accessibility options"
+              accessibilityLabel={t("stories.openAccessibility")}
               accessibilityRole="button"
             >
               <Ionicons name="options-outline" size={headerIconSize} color="#8B4513" />
@@ -848,7 +850,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                   paddingVertical: isCompactReader ? 11 : 13,
                 }}
                 onPress={toggleReading}
-                accessibilityLabel={isReading ? "Stop reading aloud" : "Read page aloud"}
+                accessibilityLabel={isReading ? t("stories.stopAloud") : t("stories.readAloud")}
                 accessibilityRole="button"
               >
                 <Ionicons
@@ -861,7 +863,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                   className="text-white ml-2"
                   style={{ fontSize: isCompactReader ? 16 : 17 }}
                 >
-                  {isReading ? "Stop" : "Read"}
+                  {isReading ? t("common.stop") : t("common.read")}
                 </Text>
               </TouchableOpacity>
               </TourTarget>
@@ -938,7 +940,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                 {isLastPage && story.questions?.length ? (
                   <View className="mt-6">
                     <Text variant="bold" className="text-xl text-amber-800 mb-4 text-center">
-                      {story.title} - Quiz
+                      {story.title} - {t("stories.quiz")}
                     </Text>
                     {story.questions.map((question, questionIndex) => (
                       <View key={question.id} className="mb-5 bg-amber-50 rounded-xl p-4">
@@ -985,13 +987,13 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                     {quizScore !== undefined ? (
                       <View className="bg-indigo-50 p-4 rounded-xl items-center">
                         <Text variant="bold" className="text-xl text-indigo-700">
-                          Score: {quizScore}/{story.questions.length}
+                          {t("stories.score")}: {quizScore}/{story.questions.length}
                         </Text>
                       </View>
                     ) : null}
                     {!hasAnsweredAllQuestions ? (
                       <Text className="text-amber-700 text-center mt-3 italic">
-                        Answer all questions to finish the story.
+                        {t("stories.answerAll")}
                       </Text>
                     ) : null}
                   </View>
@@ -1015,7 +1017,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                 }}
                 onPress={() => setPageIndex((current) => Math.max(0, current - 1))}
                 disabled={pageIndex === 0}
-                accessibilityLabel="Previous page"
+                accessibilityLabel={t("stories.previousPage")}
                 accessibilityRole="button"
                 accessibilityState={{ disabled: pageIndex === 0 }}
               >
@@ -1043,7 +1045,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                     }`}
                     style={{ fontSize: isCompactReader ? 16 : 18 }}
                   >
-                    Finish
+                    {t("common.finish")}
                   </Text>
                 </TouchableOpacity>
               ) : (
@@ -1063,7 +1065,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                     className="text-white"
                     style={{ fontSize: isCompactReader ? 16 : 18 }}
                   >
-                    Next
+                    {t("common.next")}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -1080,7 +1082,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                   setPageIndex((current) => Math.min(story.pages.length - 1, current + 1))
                 }
                 disabled={isLastPage}
-                accessibilityLabel="Next page"
+                accessibilityLabel={t("stories.nextPage")}
                 accessibilityRole="button"
                 accessibilityState={{ disabled: isLastPage }}
               >
@@ -1112,31 +1114,31 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
         onCancel={storyTour.close}
         onComplete={storyTour.complete}
         accentColor="#8B4513"
-        finishLabel="Start reading"
+        finishLabel={t("stories.startReading")}
         steps={[
           {
             id: "content",
             targetId: "story-content",
             icon: "volume-high-outline",
             placement: "auto",
-            title: "Read the story",
-            description: "Read the words on this page.",
+            title: t("stories.readStory"),
+            description: t("stories.readWords"),
           },
           {
             id: "audio",
             targetId: "story-audio",
             icon: "volume-high-outline",
             placement: "bottom",
-            title: "Listen",
-            description: "Tap Read to hear the page.",
+            title: t("stories.listen"),
+            description: t("stories.listenHint"),
           },
           {
             id: "navigation",
             targetId: "story-navigation",
             icon: "arrow-forward-circle-outline",
             placement: "top",
-            title: "Turn the page",
-            description: "Tap Next when you are ready.",
+            title: t("stories.turnPage"),
+            description: t("stories.turnPageHint"),
           },
         ]}
       />
@@ -1163,13 +1165,13 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                   <Ionicons name="options" size={24} color="#8B4513" />
                 </View>
                 <Text variant="bold" className="text-2xl text-amber-900" numberOfLines={1}>
-                  Accessibility
+                  {t("stories.accessibility")}
                 </Text>
               </View>
               <TouchableOpacity
                 className="w-11 h-11 rounded-full bg-slate-100 items-center justify-center"
                 onPress={() => setSettingsVisible(false)}
-                accessibilityLabel="Close accessibility options"
+                accessibilityLabel={t("stories.closeAccessibility")}
                 accessibilityRole="button"
               >
                 <Ionicons name="close" size={24} color="#334155" />
@@ -1178,11 +1180,11 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
 
             <View className="mb-5">
               <Text variant="bold" className="text-slate-800 text-base mb-2">
-                Text Size
+                {t("stories.textSize")}
               </Text>
               <View className="flex-row -mx-1">
                 {TEXT_SIZE_OPTIONS.map((option) =>
-                  renderOptionButton(option.label, textSize === option.value, () =>
+                  renderOptionButton(t(`stories.${option.value}`), textSize === option.value, () =>
                     setTextSize(option.value),
                   ),
                 )}
@@ -1191,11 +1193,11 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
 
             <View className="mb-5">
               <Text variant="bold" className="text-slate-800 text-base mb-2">
-                Reading Speed
+                {t("stories.readingSpeed")}
               </Text>
               <View className="flex-row -mx-1">
                 {READING_SPEED_OPTIONS.map((option) =>
-                  renderOptionButton(option.label, readingSpeed === option.value, () =>
+                  renderOptionButton(t(`stories.${option.value}`), readingSpeed === option.value, () =>
                     handleReadingSpeedChange(option.value),
                   ),
                 )}
@@ -1206,10 +1208,10 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
               className="bg-indigo-700 py-3 rounded-xl items-center shadow-sm"
               onPress={() => setSettingsVisible(false)}
               accessibilityRole="button"
-              accessibilityLabel="Close accessibility options"
+              accessibilityLabel={t("stories.closeAccessibility")}
             >
               <Text variant="bold" className="text-white text-base">
-                Done
+                {t("common.done")}
               </Text>
             </TouchableOpacity>
           </View>

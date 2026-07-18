@@ -133,6 +133,13 @@ export default function ChildDetailScreen() {
     }
   }
 
+  const handleOpenChildSettings = () => {
+    router.push({
+      pathname: "/parent/settings/child-profile-detail" as any,
+      params: { childId },
+    })
+  }
+
   const formatDate = (dateString: string) => {
     if (!dateString) return 'N/A';
     try {
@@ -190,12 +197,23 @@ export default function ChildDetailScreen() {
                     <Text className="text-gray-500 text-sm">
                       Language: {selectedLanguage ? selectedLanguage.name : childData.selected_language_code || "Not set"}
                     </Text>
-                    <View className="mt-3 flex-row">
+                    <View className="mt-3 flex-row flex-wrap">
                       <TouchableOpacity
                         className="bg-[#7b5af0] py-2 px-4 rounded-lg shadow"
                         onPress={() => void handleLaunchChildMode()}
                       >
                         <TranslatedText variant="medium" className="text-white text-sm">Launch Child Mode</TranslatedText>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        accessibilityLabel={`Open settings for ${childData.name}`}
+                        accessibilityRole="button"
+                        className="bg-white border border-[#7b5af0] py-2 px-4 rounded-lg ml-2 flex-row items-center"
+                        onPress={handleOpenChildSettings}
+                      >
+                        <Ionicons name="settings-outline" size={16} color="#6d49e8" />
+                        <TranslatedText variant="medium" className="text-[#6d49e8] text-sm ml-1.5">
+                          Settings
+                        </TranslatedText>
                       </TouchableOpacity>
                     </View>
                   </View>

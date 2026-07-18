@@ -50,6 +50,7 @@ import {
 import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages"
 import { brandColors, brandFonts, brandShadows } from "@/constants/Brand"
 import { useChild } from "@/context/ChildContext"
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext"
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation"
 import { useReducedMotion } from "@/hooks/useReducedMotion"
 import {
@@ -230,6 +231,7 @@ export default function ColoringGameScreen({
   pageName,
   colors = DEFAULT_COLORS,
 }: ColoringGameProps) {
+  const { t } = useChildUiLanguage()
   const insets = useSafeAreaInsets()
   const { width, height } = useWindowDimensions()
   const router = useRouter()
@@ -739,7 +741,7 @@ export default function ColoringGameScreen({
         <View style={[styles.titleBlock, isSmallPhone && styles.smallPhoneTitleBlock]}>
           {!isSmallPhone ? (
             <Text variant="display" numberOfLines={1} style={styles.studioTitle}>
-              Coloring Studio
+              {t("coloring.studio")}
             </Text>
           ) : null}
           <Text
@@ -762,7 +764,7 @@ export default function ColoringGameScreen({
           </TouchableOpacity>
           <TouchableOpacity
             accessibilityRole="button"
-            accessibilityLabel="Undo"
+            accessibilityLabel={t("common.undo")}
             accessibilityState={{ disabled: history.undoStack.length === 0 }}
             disabled={history.undoStack.length === 0 || exportAction !== null}
             onPress={() => updateHistory(undoColoringHistory)}
@@ -776,7 +778,7 @@ export default function ColoringGameScreen({
           </TouchableOpacity>
           <TouchableOpacity
             accessibilityRole="button"
-            accessibilityLabel="Redo"
+            accessibilityLabel={t("common.redo")}
             accessibilityState={{ disabled: history.redoStack.length === 0 }}
             disabled={history.redoStack.length === 0 || exportAction !== null}
             onPress={() => updateHistory(redoColoringHistory)}
@@ -804,7 +806,7 @@ export default function ColoringGameScreen({
             ) : (
               <Ionicons name="share-outline" size={20} color={brandColors.blue[700]} />
             )}
-            {!isCompact ? <Text variant="bold" style={styles.shareText}>Share</Text> : null}
+            {!isCompact ? <Text variant="bold" style={styles.shareText}>{t("common.share")}</Text> : null}
           </TouchableOpacity>
           <TourTarget id="coloring-save">
           <TouchableOpacity
@@ -823,7 +825,7 @@ export default function ColoringGameScreen({
             ) : (
               <Ionicons name="download-outline" size={20} color={brandColors.white} />
             )}
-            {!isSmallPhone ? <Text variant="bold" style={styles.saveText}>Save</Text> : null}
+            {!isSmallPhone ? <Text variant="bold" style={styles.saveText}>{t("common.save")}</Text> : null}
           </TouchableOpacity>
           </TourTarget>
         </View>
@@ -846,7 +848,7 @@ export default function ColoringGameScreen({
         >
           {showDockTitles ? (
             <Text variant="display" style={[styles.dockTitle, isCompact && styles.compactDockTitle]}>
-              Tools
+              {t("coloring.tools")}
             </Text>
           ) : null}
           {toolButton(
@@ -878,7 +880,7 @@ export default function ColoringGameScreen({
             ]}
           >
             <Ionicons name="refresh" size={18} color={brandColors.orange[700]} />
-            {!isCompact ? <Text variant="bold" style={styles.clearText}>Start over</Text> : null}
+            {!isCompact ? <Text variant="bold" style={styles.clearText}>{t("coloring.startOver")}</Text> : null}
           </TouchableOpacity>
         </View>
         </TourTarget>
@@ -1034,7 +1036,7 @@ export default function ColoringGameScreen({
 
             {!imageLoaded && !imageLoadFailed ? (
               <View style={styles.canvasOverlay}>
-                <ChildLoadingCard label="Opening your coloring page..." style={styles.loadingCard} />
+                <ChildLoadingCard label={t("coloring.openingPage")} style={styles.loadingCard} />
               </View>
             ) : null}
 
@@ -1042,8 +1044,8 @@ export default function ColoringGameScreen({
               <View style={styles.canvasOverlay} accessibilityRole="alert">
                 <View style={styles.errorCard}>
                   <Ionicons name="image-outline" size={34} color={brandColors.victoriaBlue} />
-                  <Text variant="display" style={styles.errorTitle}>Picture needs another try</Text>
-                  <Text variant="medium" style={styles.errorMessage}>Reload it, or choose a different coloring page.</Text>
+                  <Text variant="display" style={styles.errorTitle}>{t("coloring.pictureRetry")}</Text>
+                  <Text variant="medium" style={styles.errorMessage}>{t("coloring.reloadOrChoose")}</Text>
                   <View style={styles.errorActions}>
                     <TouchableOpacity
                       accessibilityRole="button"
@@ -1056,10 +1058,10 @@ export default function ColoringGameScreen({
                       style={styles.retryButton}
                     >
                       <Ionicons name="refresh" size={17} color={brandColors.white} />
-                      <Text variant="bold" style={styles.retryText}>Try again</Text>
+                      <Text variant="bold" style={styles.retryText}>{t("common.retry")}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => router.back()} style={styles.chooseAnotherButton}>
-                      <Text variant="bold" style={styles.chooseAnotherText}>Choose another</Text>
+                      <Text variant="bold" style={styles.chooseAnotherText}>{t("coloring.chooseAnother")}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1099,7 +1101,7 @@ export default function ColoringGameScreen({
           {showDockTitles ? (
             <>
               <View style={styles.dockHeadingRow}>
-                <Text variant="display" style={[styles.dockTitle, isCompact && styles.compactDockTitle]}>Colors</Text>
+                <Text variant="display" style={[styles.dockTitle, isCompact && styles.compactDockTitle]}>{t("coloring.colors")}</Text>
                 <View style={[styles.activeColorDot, { backgroundColor: selectedColor }]} />
               </View>
               <Text variant="bold" numberOfLines={1} style={styles.colorName}>
@@ -1147,7 +1149,7 @@ export default function ColoringGameScreen({
           </View>
 
           <Text variant="display" style={[styles.sizeTitle, isCompact && styles.compactSizeTitle]}>
-            Brush size
+            {t("coloring.brushSize")}
           </Text>
           <View style={[styles.sizeRow, isSmallPhone && styles.smallPhoneSizeRow]}>
             <Pressable

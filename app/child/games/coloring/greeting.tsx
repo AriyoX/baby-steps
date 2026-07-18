@@ -8,7 +8,7 @@ export default function GreetingColoringScreen() {
   return (
     <ColoringGameScreen
       imageSource={COLORING_IMAGE}
-      pageName="Oli otya? — How are you?"
+      pageName="Oli otya?: How are you?"
     />
   )
 }

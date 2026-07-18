@@ -12,6 +12,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Text } from "@/components/StyledText";
 import { ChildLoadingState } from "@/components/child/ChildLoadingState";
 import { useChild } from "@/context/ChildContext";  
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext";
 import {
   DEFAULT_LEARNING_LANGUAGE_CODE,
   getDbLanguageCodeForLearningLanguage,
@@ -275,6 +276,7 @@ export const buildCardsMatchingCompletionData = (
 const CardsMatchingGame: React.FC = () => {
   const router = useRouter();
   const { activeChild } = useChild();
+  const { t } = useChildUiLanguage();
   const languageCode = getDbLanguageCodeForLearningLanguage(
     activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE,
   );
@@ -949,8 +951,8 @@ const CardsMatchingGame: React.FC = () => {
   if (isLoading || hydratedScope !== contentScope) {
     return (
       <ChildLoadingState
-        title="Getting the matching cards ready"
-        message="Loading card pictures and your saved game."
+        title={t("games.gettingCardsReady")}
+        message={t("games.loadingGame")}
         icon="copy-outline"
       />
     );
@@ -962,19 +964,19 @@ const CardsMatchingGame: React.FC = () => {
         <StatusBar style="dark" />
         <Ionicons name="cloud-offline-outline" size={52} color="#7b5af0" />
         <Text className="text-primary-700 text-2xl mt-4 text-center" variant="bold">
-          Cards Matching is unavailable
+          {t("games.cardsNotReady")}
         </Text>
         <Text className="text-neutral-600 mt-2 text-center">
-          This activity is not ready for your learning language yet. Check your connection and try again.
+          {t("games.checkConnection")}
         </Text>
         <View className="flex-row mt-6">
           <TouchableOpacity
             className="bg-white border-2 border-primary-200 rounded-xl px-5 py-3 mr-3"
             onPress={() => router.back()}
             accessibilityRole="button"
-            accessibilityLabel="Back to Games"
+            accessibilityLabel={t("games.backToGames")}
           >
-            <Text className="text-primary-700" variant="bold">Back</Text>
+            <Text className="text-primary-700" variant="bold">{t("common.back")}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             className="bg-primary-600 rounded-xl px-5 py-3"
@@ -982,7 +984,7 @@ const CardsMatchingGame: React.FC = () => {
             accessibilityRole="button"
             accessibilityLabel="Retry Cards Matching content"
           >
-            <Text className="text-white" variant="bold">Retry</Text>
+            <Text className="text-white" variant="bold">{t("common.retry")}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -1015,9 +1017,9 @@ const CardsMatchingGame: React.FC = () => {
       <StatusBar style={infoModal.show || gameOver ? "light" : "dark"} />
       <GameHeader
         title={gameTitle}
-        subtitle="Turn over two cards and find every matching pair"
+        subtitle={t("games.matchingHint")}
         onBack={() => router.back()}
-        backAccessibilityLabel="Back to Games"
+        backAccessibilityLabel={t("games.backToGames")}
         onHelp={matchingTour.open}
         trailing={
           <>
@@ -1205,7 +1207,7 @@ const CardsMatchingGame: React.FC = () => {
               accessibilityRole="button"
               accessibilityLabel="Continue matching game"
             >
-              <Text variant="bold" className="text-white text-lg" numberOfLines={1}>Continue</Text>
+              <Text variant="bold" className="text-white text-lg" numberOfLines={1}>{t("common.continue")}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1232,12 +1234,12 @@ const CardsMatchingGame: React.FC = () => {
             </View>
 
             <Text variant="bold" className="text-3xl text-primary-600 mb-2 mt-6 text-center" numberOfLines={1}>
-              Congratulations!
+              You found every pair!
             </Text>
 
             <View className="bg-primary-50 w-full rounded-xl p-4 mb-5">
               <Text className="text-xl text-primary-700 text-center font-medium" numberOfLines={3}>
-                {`You've completed the game in ${moves} moves!`}
+                {`${moves} moves`}
               </Text>
             </View>
 

@@ -17,6 +17,7 @@ import { ChildLoadingState } from "@/components/child/ChildLoadingState";
 import { ComingSoonState } from "@/components/child/ComingSoonState";
 import { CachedImage } from "@/components/common/CachedImage";
 import { useChild } from "@/context/ChildContext"; // Import useChild context
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext";
 import { brandColors } from "@/constants/Brand";
 import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages";
 import {
@@ -111,6 +112,7 @@ const getImageSource = (imageName: string | undefined) => {
 const WordGame: React.FC = () => {
   // Add child context
   const { activeChild } = useChild();
+  const { t } = useChildUiLanguage();
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const wordGameSizing = getWordGameSizing(windowWidth, windowHeight);
   const isCompactLandscape = windowHeight < 400;
@@ -983,8 +985,8 @@ const WordGame: React.FC = () => {
   if (isLoading) {
     return (
       <ChildLoadingState
-        title="Getting your word game ready"
-        message="Loading words and your saved progress."
+        title={t("games.gettingWordsReady")}
+        message={t("games.loadingGame")}
         icon="chatbubble-ellipses-outline"
       />
     );
@@ -993,7 +995,7 @@ const WordGame: React.FC = () => {
   if (gameLevels.length === 0) {
     return (
       <ComingSoonState
-        title="Word game coming soon"
+        title={t("games.wordComingSoon")}
         onRetry={() => setContentRetrySequence((current) => current + 1)}
       />
     );
@@ -1019,7 +1021,7 @@ const WordGame: React.FC = () => {
       <StatusBar style={hasOpenModal ? "light" : "dark"} />
       <GameHeader
         title={currentQuestion}
-        subtitle="Tap the letters in order to complete the word"
+        subtitle={t("games.wordHint")}
         onBack={() => router.back()}
         backAccessibilityLabel="Back to Games"
         onHelp={wordTour.open}
@@ -1263,7 +1265,7 @@ const WordGame: React.FC = () => {
               className="text-3xl text-primary-600 mb-3 mt-2"
               numberOfLines={1}
             >
-              Good Job!
+              Great job!
             </Text>
 
             {/* Word display with highlight */}
@@ -1273,7 +1275,7 @@ const WordGame: React.FC = () => {
                 className="text-lg text-primary-700 text-center mb-2"
                 numberOfLines={2}
               >
-                You correctly guessed the word:
+                You made the word:
               </Text>
               <View className="flex-row flex-wrap justify-center items-center">
                 {currentWord.split("").map((letter, index) => (
@@ -1375,7 +1377,7 @@ const WordGame: React.FC = () => {
                 className="text-2xl text-primary-600 mb-3 mt-8"
                 numberOfLines={1}
               >
-                Congratulations!
+                You did it!
               </Text>
 
               {/* Completion message - made more compact */}
@@ -1385,7 +1387,7 @@ const WordGame: React.FC = () => {
                   className="text-lg text-primary-700 text-center"
                   numberOfLines={2}
                 >
-                  You have completed all levels!
+                  You finished every word!
                 </Text>
 
                 {/* Badge or achievement indicator */}
@@ -1472,7 +1474,7 @@ const WordGame: React.FC = () => {
                 variant="medium"
                 className="text-xs text-primary-700 text-center"
               >
-                Find the word:
+                Make this word:
               </Text>
               <Text
                 variant="bold"
@@ -1492,7 +1494,7 @@ const WordGame: React.FC = () => {
               activeOpacity={0.7}
             >
               <Text variant="bold" className="text-white text-sm">
-                Start Level
+                Start
               </Text>
             </TouchableOpacity>
           </View>
@@ -1554,7 +1556,7 @@ const WordGame: React.FC = () => {
                 activeOpacity={0.7}
               >
                 <Text variant="bold" className="text-white text-base">
-                  Need More Help?
+                  More help
                 </Text>
               </TouchableOpacity>
             )}
@@ -1566,7 +1568,7 @@ const WordGame: React.FC = () => {
                   variant="bold"
                   className="text-base text-secondary-700 text-center mb-1"
                 >
-                  Additional Hint:
+                  One more clue:
                 </Text>
                 <Text
                   variant="medium"
@@ -1588,7 +1590,7 @@ const WordGame: React.FC = () => {
               activeOpacity={0.7}
             >
               <Text variant="bold" className="text-white text-base">
-                Got it!
+                {"Let's play"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1667,7 +1669,7 @@ const WordGame: React.FC = () => {
             </TouchableOpacity>
 
             <Text variant="bold" className="text-2xl text-primary-600 mb-2">
-              Select Level
+              Pick a level
             </Text>
 
             <ScrollView className="w-full max-h-[260px]">

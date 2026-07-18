@@ -19,6 +19,7 @@ import { StatusBar } from "expo-status-bar"
 import { useRouter } from "expo-router"
 import { Ionicons } from "@expo/vector-icons" // Already imported
 import { useChild } from "@/context/ChildContext"
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext"
 import { brandColors } from "@/constants/Brand"
 import { ChildLoadingState } from "@/components/child/ChildLoadingState"
 import { ComingSoonState } from "@/components/child/ComingSoonState"
@@ -118,6 +119,7 @@ type GameState = "stageSelect" | "playing" | "stageComplete"
 const LugandaCountingGame: React.FC = () => {
   const router = useRouter()
   const { activeChild } = useChild()
+  const { t } = useChildUiLanguage()
   const languageCode = activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE
   const countingTour = useGameTour("counting", activeChild?.id)
   const { width: windowWidth, height: windowHeight } = useWindowDimensions()
@@ -1174,7 +1176,7 @@ const LugandaCountingGame: React.FC = () => {
                 className="w-12 h-12 rounded-full bg-white justify-center items-center border-2 border-accent-500"
                 onPress={() => router.back()}
                 accessibilityRole="button"
-                accessibilityLabel="Back to Games"
+                accessibilityLabel={t("games.backToGames")}
               >
                 <Ionicons name="arrow-back" size={22} color={brandColors.victoriaBlue} />
               </TouchableOpacity>
@@ -1184,7 +1186,7 @@ const LugandaCountingGame: React.FC = () => {
                   {countingContent?.title ?? "Counting Game"}
                 </Text>
                 <Text className="text-white/85 text-sm text-center" numberOfLines={2}>
-                  Pick a number stage and count the items you see.
+                  {t("games.chooseStageIntro")}
                 </Text>
               </View>
 
@@ -1200,16 +1202,16 @@ const LugandaCountingGame: React.FC = () => {
               <View className="flex-row items-center justify-between">
                 <View className="flex-1 pr-4">
                   <Text variant="bold" className="text-white text-lg" numberOfLines={1}>
-                    Choose a stage
+                    {t("learning.chooseStage")}
                   </Text>
                   <Text className="text-white/85 text-sm" numberOfLines={2}>
-                    Swipe through counting practice sets and continue from saved progress.
+                    {t("games.countingStageHint")}
                   </Text>
                 </View>
                 <View className="flex-row items-center">
                   <Ionicons name="calculator-outline" size={22} color="#ffffff" />
                   <Text variant="bold" className="text-white text-sm ml-2" numberOfLines={1}>
-                    {countingStages.length} stages
+                    {t("games.stagesCount", { count: countingStages.length })}
                   </Text>
                 </View>
               </View>
@@ -1259,12 +1261,12 @@ const LugandaCountingGame: React.FC = () => {
                       ? "checkmark-circle"
                       : stageIconName
                   const statusLabel = !isUnlocked
-                    ? "Locked"
+                    ? t("common.locked")
                     : isCompleted
-                      ? "Done"
+                      ? t("common.done")
                       : progress.lastPlayedLevel[stage.id]
-                        ? `Lvl ${progress.lastPlayedLevel[stage.id]}`
-                        : "Start"
+                        ? `${t("learning.levelShort")} ${progress.lastPlayedLevel[stage.id]}`
+                        : t("common.start")
                   const statusColor = !isUnlocked
                     ? brandColors.neutral[600]
                     : isCompleted
@@ -1301,7 +1303,7 @@ const LugandaCountingGame: React.FC = () => {
                         {!isUnlocked ? <View className="absolute top-0 bottom-0 left-0 right-0 bg-black/20" /> : null}
                         <View className="absolute top-2 left-2 bg-white/95 px-2.5 py-1 rounded-full">
                           <Text variant="bold" className="text-[11px] text-primary-700" numberOfLines={1}>
-                            Stage {stage.id}
+                            {t("learning.stage")} {stage.id}
                           </Text>
                         </View>
                         <View className="absolute top-2 right-2 bg-white/95 w-9 h-9 rounded-full items-center justify-center">
@@ -1329,7 +1331,7 @@ const LugandaCountingGame: React.FC = () => {
                           <View className="flex-row items-center flex-1 pr-2">
                             <Ionicons name="layers-outline" size={14} color={brandColors.victoriaBlue} />
                             <Text variant="medium" className="text-[11px] text-primary-700 ml-1" numberOfLines={1}>
-                              {stage.levels} levels
+                              {t("games.levelsCount", { count: stage.levels })}
                             </Text>
                           </View>
                           <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: !isUnlocked ? brandColors.neutral[100] : brandColors.blue[50] }}>
@@ -1357,8 +1359,8 @@ const LugandaCountingGame: React.FC = () => {
   if (isLoading) {
     return (
       <ChildLoadingState
-        title="Getting your counting adventure ready"
-        message="Loading number activities and your saved progress."
+        title={t("games.gettingNumbersReady")}
+        message={t("games.loadingGame")}
         icon="calculator-outline"
       />
     )
@@ -1367,7 +1369,7 @@ const LugandaCountingGame: React.FC = () => {
   if (!countingContent || countingStages.length === 0) {
     return (
       <ComingSoonState
-        title="Counting game coming soon"
+        title={t("games.countingComingSoon")}
         onRetry={() => setContentRetrySequence((current) => current + 1)}
       />
     )
@@ -1381,14 +1383,14 @@ const LugandaCountingGame: React.FC = () => {
   if (levelSetupError) {
     return (
       <ComingSoonState
-        title="This counting question is not ready"
+        title={t("games.questionNotReady")}
         message={levelSetupError}
         showBackButton={false}
         onRetry={() => {
           setLevelSetupError(null)
           setGameState("stageSelect")
         }}
-        actionLabel="Choose another stage"
+        actionLabel={t("games.chooseAnotherStage")}
         actionAccessibilityLabel="Return to the counting stage list"
       />
     )
@@ -1405,7 +1407,11 @@ const LugandaCountingGame: React.FC = () => {
 
       <GameHeader
         title={activeStage.title}
-        subtitle={`Stage ${currentStage} • Level ${currentLevel} of ${activeStage.levels}`}
+        subtitle={t("games.levelProgress", {
+          stage: currentStage,
+          level: currentLevel,
+          total: activeStage.levels,
+        })}
         onBack={() => setGameState("stageSelect")}
         backAccessibilityLabel="Back to counting stages"
         onHelp={countingTour.open}
@@ -1457,7 +1463,7 @@ const LugandaCountingGame: React.FC = () => {
             <Text className="hidden">{getNumberLabel(targetNumber)} = {targetNumber}</Text>
             <View className="absolute top-3 left-3 flex-row items-center bg-blue-50 rounded-full px-2.5 py-1">
               <Ionicons name="eye-outline" size={16} color="#0274BB" />
-              <Text variant="medium" className="text-xs text-primary-600 ml-1">Count carefully</Text>
+              <Text variant="medium" className="text-xs text-primary-600 ml-1">{t("games.countPictures")}</Text>
             </View>
             {/* Render counting items */}
             {renderItemsToCount()}
@@ -1470,10 +1476,10 @@ const LugandaCountingGame: React.FC = () => {
           <TourTarget id="counting-answers">
           <View className="bg-white rounded-3xl shadow-sm px-3 py-3 w-full border border-blue-100 justify-center">
             <Text variant="bold" className="text-center text-base text-primary-700 mb-2" numberOfLines={1}>
-              BALANGA EMEKA?
+              {t("games.howMany")}
             </Text>
             <Text className="text-center text-xs text-slate-400 mb-2" numberOfLines={1}>
-              How many do you see?
+              {t("games.howMany")}
             </Text>
 
             <View className="items-center justify-center py-1">
@@ -1546,9 +1552,11 @@ const LugandaCountingGame: React.FC = () => {
               variant="bold"
               className={`text-xl text-center mb-1 ${isCorrect ? "text-emerald-600" : "text-red-600"}`}
             >
-              {isCorrect ? "Kirungi!" : "Gezaako nela!"}
+              {isCorrect ? t("common.great") : t("common.retry")}
             </Text>
-            <Text className="text-slate-600 text-center">{isCorrect ? "Correct!" : "Try again!"}</Text>
+            <Text className="text-slate-600 text-center">
+              {isCorrect ? t("common.correct") : t("common.retry")}
+            </Text>
           </View>
         </Animated.View>
       )}
@@ -1571,18 +1579,21 @@ const LugandaCountingGame: React.FC = () => {
             </View>
 
             <Text variant="bold" className="text-2xl text-indigo-800 mt-6 mb-3 text-center">
-              Stage {currentStage} Complete!
+              {t("games.stageDone", { stage: currentStage })}
             </Text>
 
             <Text className="text-slate-600 text-center mb-5 text-base">
-              {`You've mastered counting from ${activeStage.numbersRange.min} to ${activeStage.numbersRange.max}!`}
+              {t("games.countedRange", {
+                min: activeStage.numbersRange.min,
+                max: activeStage.numbersRange.max,
+              })}
             </Text>
 
             <View className="bg-blue-50 w-full rounded-xl p-4 mb-5">
               <View className="flex-row justify-between items-center mb-3">
                 <View className="flex-row items-center">
                   <Ionicons name="star" size={20} color="#f59e0b" />
-                  <Text className="ml-2 text-slate-700">Score</Text>
+                  <Text className="ml-2 text-slate-700">{t("common.score")}</Text>
                 </View>
                 <Text variant="bold" className="text-amber-500 text-lg">
                   {score + 10}
@@ -1592,7 +1603,7 @@ const LugandaCountingGame: React.FC = () => {
               <View className="flex-row justify-between items-center">
                 <View className="flex-row items-center">
                   <Ionicons name="checkmark-circle" size={20} color="#10b981" />
-                  <Text className="ml-2 text-slate-700">Levels Completed</Text>
+                  <Text className="ml-2 text-slate-700">{t("common.levels")}</Text>
                 </View>
                 <Text variant="bold" className="text-emerald-600 text-lg">
                   {activeStage.levels}
@@ -1602,7 +1613,7 @@ const LugandaCountingGame: React.FC = () => {
 
             <TouchableOpacity className="bg-indigo-500 py-4 px-6 rounded-xl shadow-md" onPress={continueStage}>
               <Text variant="bold" className="text-white text-lg text-center">
-                {currentStage < countingStages.length ? "Next Stage" : "Play Again"}
+                {currentStage < countingStages.length ? t("games.nextStage") : t("common.playAgain")}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1613,9 +1624,9 @@ const LugandaCountingGame: React.FC = () => {
         onCancel={countingTour.close}
         onComplete={countingTour.complete}
         steps={[
-          { id: "objects", targetId: "counting-objects", icon: "eye-outline", placement: "right", title: "Count", description: "Count each picture once." },
-          { id: "answers", targetId: "counting-answers", icon: "calculator-outline", placement: "left", title: "Pick a number", description: "Tap the number you counted." },
-          { id: "score", targetId: "counting-score", icon: "star-outline", placement: "bottom", title: "Your stars", description: "Right answers add stars." },
+          { id: "objects", targetId: "counting-objects", icon: "eye-outline", placement: "right", title: t("games.count"), description: t("games.countOnce") },
+          { id: "answers", targetId: "counting-answers", icon: "calculator-outline", placement: "left", title: t("games.pickNumber"), description: t("games.pickNumberHint") },
+          { id: "score", targetId: "counting-score", icon: "star-outline", placement: "bottom", title: t("games.yourStars"), description: t("games.starsHint") },
         ]}
       />
       </View>

@@ -6,6 +6,7 @@ import { Text } from "@/components/StyledText";
 import { CachedImage } from "@/components/common/CachedImage";
 import { brandColors } from "@/constants/Brand";
 import { useAudio } from "@/context/AudioContext";
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext";
 import { resolveImageSource } from "@/content/assets";
 import type {
   ItemResult,
@@ -44,6 +45,7 @@ export function ListenAndChooseCard({
   stageImageKey,
   onComplete,
 }: ListenAndChooseCardProps) {
+  const { t } = useChildUiLanguage();
   const { createAppSound, replayAppSound, unloadAppSound } = useAudio();
   const { width, height } = useWindowDimensions();
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
@@ -258,7 +260,7 @@ export function ListenAndChooseCard({
           onPress={completeItem}
           disabled={!canComplete || isCompleting}
           accessibilityRole="button"
-          accessibilityLabel={isLastItem ? "Finish" : "Next"}
+          accessibilityLabel={t(isLastItem ? "common.finish" : "common.next")}
           accessibilityState={{ disabled: !canComplete || isCompleting }}
         >
           <Text
@@ -268,7 +270,7 @@ export function ListenAndChooseCard({
             adjustsFontSizeToFit
             minimumFontScale={0.82}
           >
-            {isLastItem ? "Finish" : "Next"}
+            {t(isLastItem ? "common.finish" : "common.next")}
           </Text>
           <Ionicons
             name={isLastItem ? "checkmark" : "chevron-forward"}

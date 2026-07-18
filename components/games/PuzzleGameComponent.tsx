@@ -28,6 +28,7 @@ import {
 } from "@/content/contentRepository";
 import { saveActivity } from "@/lib/utils"; // Import saveActivity
 import { useChild } from "@/context/ChildContext"; // Import useChild context
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext";
 import { useChildNotice } from "@/context/ChildNoticeContext";
 import { useAchievements } from "./achievements/useAchievements"; 
 import { 
@@ -258,6 +259,7 @@ const PuzzleGame: React.FC = () => {
   );
   const tileSize = (puzzleContainerSize - PUZZLE_PADDING * 2) / GRID_SIZE;
   const { activeChild } = useChild(); // Get active child from context
+  const { t } = useChildUiLanguage();
   const puzzleTour = useGameTour("puzzle", activeChild?.id);
   const languageCode = getDbLanguageCodeForLearningLanguage(
     activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE,
@@ -998,8 +1000,8 @@ const PuzzleGame: React.FC = () => {
   if (isContentLoading || hydratedScope !== contentScope) {
     return (
       <ChildLoadingState
-        title="Getting your puzzles ready"
-        message="Loading puzzle pictures and your saved progress."
+        title={t("games.gettingPuzzlesReady")}
+        message={t("games.loadingGame")}
         icon="extension-puzzle-outline"
       />
     );
@@ -1015,19 +1017,19 @@ const PuzzleGame: React.FC = () => {
         <StatusBar style="dark" />
         <Ionicons name="cloud-offline-outline" size={52} color="#7b5af0" />
         <Text className="text-primary-700 text-2xl mt-4 text-center" variant="bold">
-          Logic Puzzle is unavailable
+          {t("games.puzzlesNotReady")}
         </Text>
         <Text className="text-slate-600 mt-2 text-center">
-          This activity is not ready for your learning language yet. Check your connection and try again.
+          {t("games.checkConnection")}
         </Text>
         <View className="flex-row mt-6">
           <TouchableOpacity
             className="bg-white border-2 border-primary-200 rounded-xl px-5 py-3 mr-3"
             onPress={() => router.back()}
             accessibilityRole="button"
-            accessibilityLabel="Back to Games"
+            accessibilityLabel={t("games.backToGames")}
           >
-            <Text className="text-primary-700" variant="bold">Back</Text>
+            <Text className="text-primary-700" variant="bold">{t("common.back")}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             className="bg-primary-600 rounded-xl px-5 py-3"
@@ -1035,7 +1037,7 @@ const PuzzleGame: React.FC = () => {
             accessibilityRole="button"
             accessibilityLabel="Retry Puzzle content"
           >
-            <Text className="text-white" variant="bold">Retry</Text>
+            <Text className="text-white" variant="bold">{t("common.retry")}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -1048,9 +1050,9 @@ const PuzzleGame: React.FC = () => {
       <StatusBar style="dark" />
       <GameHeader
         title={puzzleTitle}
-        subtitle="Slide a tile into the empty space to rebuild the picture"
+        subtitle={t("games.puzzleHint")}
         onBack={() => router.back()}
-        backAccessibilityLabel="Back to Games"
+        backAccessibilityLabel={t("games.backToGames")}
         onHelp={puzzleTour.open}
         trailing={
           <>
@@ -1097,7 +1099,7 @@ const PuzzleGame: React.FC = () => {
                   resizeMode="contain"
                 />
                 <Text variant="bold" className="text-lg text-primary-700 mt-2.5 text-center" numberOfLines={2}>
-                  Memorize the image
+                  Look at the picture
                 </Text>
               </Animated.View>
             )}
@@ -1151,7 +1153,7 @@ const PuzzleGame: React.FC = () => {
             <View className="flex-row items-center justify-center mt-4 bg-blue-50 rounded-xl px-3 py-2.5">
               <Ionicons name="hand-left-outline" size={20} color="#0274BB" />
               <Text variant="medium" className="text-sm text-primary-700 ml-2" numberOfLines={2}>
-                Tap or swipe a tile beside the empty space
+                Tap a tile next to the empty space
               </Text>
             </View>
           </View>

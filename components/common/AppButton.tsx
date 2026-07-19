@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { ActivityIndicator, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, StyleSheet, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Text } from "@/components/StyledText";
 import { brandColors } from "@/constants/Brand";
@@ -67,6 +67,8 @@ const variantStyles: Record<
   },
 };
 
+const protectLabelEdges = (label: string) => `\u00A0${label}\u00A0`;
+
 export function AppButton({
   label,
   variant = "primary",
@@ -115,6 +117,7 @@ export function AppButton({
       ) : null}
       <Text
         variant="bold"
+        style={buttonStyles.label}
         className={[
           "text-base text-center",
           isDisabled ? styles.disabledText : styles.text,
@@ -123,7 +126,7 @@ export function AppButton({
           .filter(Boolean)
           .join(" ")}
       >
-        {displayedLabel}
+        {protectLabelEdges(displayedLabel)}
       </Text>
       {!loading && icon && iconPosition === "right" ? (
         <View className="ml-2">
@@ -133,3 +136,10 @@ export function AppButton({
     </TouchableOpacity>
   );
 }
+
+const buttonStyles = StyleSheet.create({
+  label: {
+    paddingHorizontal: 3,
+    paddingVertical: 1,
+  },
+});

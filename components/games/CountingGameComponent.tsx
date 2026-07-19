@@ -38,7 +38,9 @@ import { syncProgressNow } from "@/lib/progressRepository"
 import {
   completeLocallyFirst,
   type LocalFirstCompletionResult,
+  type LocalPersistenceStatus,
 } from "@/lib/completionReliability"
+import { recordQualifiedStreakActivity } from "@/lib/streakRepository"
 import { Text } from "@/components/StyledText"
 import {
   type CountingGameProgress,
@@ -68,7 +70,10 @@ const GAME_SCREEN_OVERLAY = "rgba(2, 116, 187, 0.88)"
 interface CountingCompletionOrderOptions {
   persistProgress: (progress: CountingGameProgress) => Promise<void>
   revealCompletion: (progress: CountingGameProgress) => void
-  runBestEffortNetworkWork: (progress: CountingGameProgress) => Promise<void>
+  runBestEffortNetworkWork: (
+    progress: CountingGameProgress,
+    persistence: LocalPersistenceStatus,
+  ) => Promise<void>
   onLocalError?: (error: unknown) => void
   onNetworkError?: (error: unknown) => void
 }
@@ -84,7 +89,8 @@ const completeCountingProgressLocallyFirst = (
     },
     fallbackValue: completedProgress,
     revealCompletion: (progress) => options.revealCompletion(progress),
-    runBestEffortNetworkWork: (progress) => options.runBestEffortNetworkWork(progress),
+    runBestEffortNetworkWork: (progress, persistence) =>
+      options.runBestEffortNetworkWork(progress, persistence),
     onLocalError: options.onLocalError,
     onNetworkError: options.onNetworkError,
   })
@@ -379,6 +385,8 @@ const LugandaCountingGame: React.FC = () => {
     const completionChildId = activeChild.id
     const completionLanguageCode = languageCode
     const completionStageId = currentStage
+    const completionSessionStartedAt = gameStartTime.current
+    const streakCompletedAt = new Date().toISOString()
     const progressAtCompletion = progressRef.current
     const completedProgress = updateProgressForStageCompletion(
       {
@@ -427,7 +435,7 @@ const LugandaCountingGame: React.FC = () => {
         completionRevision = updateProgressState(savedProgress)
         setStageCompleted(true)
       },
-      runBestEffortNetworkWork: async (savedProgress) => {
+      runBestEffortNetworkWork: async (savedProgress, persistence) => {
         const achievementWork = async () => {
           const outcomes = await Promise.allSettled(
             achievementEvents.map((event) => checkAndGrantNewAchievements(event)),
@@ -485,6 +493,15 @@ const LugandaCountingGame: React.FC = () => {
           trackActivity(true, completedStageScore),
           achievementWork(),
           syncProgressNow(completionChildId),
+          persistence.persisted
+            ? recordQualifiedStreakActivity({
+                childId: completionChildId,
+                sourceType: "game",
+                sourceId: `counting-stage-${completionStageId}`,
+                completionId: `counting:${completionStageId}:${completionSessionStartedAt}`,
+                completedAt: streakCompletedAt,
+              })
+            : Promise.resolve(),
         ])
 
         outcomes.forEach((outcome) => {

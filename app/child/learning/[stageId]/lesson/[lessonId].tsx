@@ -50,6 +50,7 @@ import {
   getLearningLessonAccessState,
   getLearningStageAccessState,
 } from "@/lib/learningStageAccess";
+import { recordQualifiedStreakActivity } from "@/lib/streakRepository";
 
 const getRouteParam = (value: unknown): string => {
   if (Array.isArray(value)) {
@@ -365,6 +366,16 @@ export default function LearningLessonSessionScreen() {
           contentVersion: lessonContentVersion,
         },
         readiness: "local_only",
+      });
+
+      void recordQualifiedStreakActivity({
+        childId,
+        sourceType: "learning_hub",
+        sourceId: lesson.id,
+        completionId: `learning-hub:${savedCompletion.localId}:${completedAt}:${attempts}`,
+        completedAt: new Date(completedAt).toISOString(),
+      }).catch((error) => {
+        console.warn("Could not record the Learning Hub streak day:", error);
       });
 
       void awardLearningLessonCompletionAchievements(savedCompletion)

@@ -23,6 +23,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { useAudio } from "@/context/AudioContext"
 import { useChild } from "@/context/ChildContext"
 import { useChildUiLanguage } from "@/context/ChildUiLanguageContext"
+import { useStreak } from "@/context/StreakContext"
 import { CachedImage } from "@/components/common/CachedImage"
 import {
   loadContentBundle,
@@ -58,6 +59,7 @@ import {
   type ColoringProgress,
 } from "@/lib/coloringProgress"
 import type { ChildUiTranslationKey } from "@/lib/childUiTranslations"
+import { ChildHeaderStreak } from "@/components/child/ChildHeaderStreak"
 
 // Define types
 type LearningCard = {
@@ -168,7 +170,10 @@ const toLearningHubCards = (
         status,
         progressLabel:
           !isExplicitlyLocked && isProgressLocked && lockedByStageTitle
-            ? `${t("common.complete")} ${lockedByStageTitle}`
+            ? t("learning.completeToUnlock", {
+                required: lockedByStageTitle,
+                target: stage.title,
+              })
             : totalLessonCount > 0
               ? `${t("learning.progressPosition", { current: completedLessonCount, total: totalLessonCount })} ${t("learning.completed")}`
               : status.label,
@@ -379,6 +384,7 @@ const AfricanThemeGameInterface: React.FC = () => {
   }
 
   const { height, width } = useWindowDimensions()
+  const { snapshot: streakSnapshot, isLoading: isStreakLoading } = useStreak()
   const cardLayout = getChildInterfaceCardLayout(width, height)
   const childGender = activeChild?.gender?.trim().toLowerCase()
   const childAvatar =
@@ -432,9 +438,22 @@ const AfricanThemeGameInterface: React.FC = () => {
                 >
                   {activeChild?.name || "Learner"}
                 </MarqueeText>
-                <MarqueeText className="text-white/80 text-sm">
-                  {activeChild ? `Age ${activeChild.age}` : "Age 9+"}
-                </MarqueeText>
+                <View className="flex-row items-center">
+                  <MarqueeText
+                    className="text-white/80 text-sm"
+                    containerStyle={{ flex: 1 }}
+                  >
+                    {activeChild ? `Age ${activeChild.age}` : "Age 9+"}
+                  </MarqueeText>
+                  <ChildHeaderStreak
+                    activeChildId={activeChild?.id ?? null}
+                    accessibilityLabel={t("streak.accessibilityLabel", {
+                      count: streakSnapshot?.summary.currentStreak ?? 0,
+                    })}
+                    isLoading={isStreakLoading}
+                    snapshot={streakSnapshot}
+                  />
+                </View>
                 <TourTarget id="learning-hub-language">
                   <View style={{ width: "100%" }}>
                     <MarqueeText className="text-white/80 text-sm">

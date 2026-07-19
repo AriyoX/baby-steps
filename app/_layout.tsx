@@ -18,6 +18,7 @@ import { rememberAuthRedirectUrl } from "@/lib/authRedirectEvents";
 import { hasCompletedOnboarding } from "@/lib/onboarding";
 import "@/global.css";
 import { ChildProvider } from '@/context/ChildContext';
+import { StreakProvider } from '@/context/StreakContext';
 import { AudioProvider } from "@/context/AudioContext";
 import {
   NetworkStatusNotice,
@@ -25,9 +26,11 @@ import {
 } from "@/components/common/NetworkStatusNotice";
 import {
   configureNotificationPresentation,
+  deactivateAccountLearningReminders,
   observeNotificationOpens,
   syncRecurringRemindersIfEnabled,
 } from "@/lib/notifications";
+import { cancelScheduledStreakSync, clearStreakMemory } from "@/lib/streakRepository";
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -52,6 +55,7 @@ export default function RootLayout() {
   const pathnameRef = useRef("/");
   const blockedRouteRefreshPathRef = useRef<string | null>(null);
   const lastRequestedOrientationMode = useRef<RouteOrientationMode | null>(null);
+  const previousReminderAccountRef = useRef<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -80,14 +84,30 @@ export default function RootLayout() {
 
   useEffect(() => {
     configureNotificationPresentation();
-    void syncRecurringRemindersIfEnabled().catch((error) => {
-      console.warn("Could not sync learning reminders:", error);
-    });
 
     return observeNotificationOpens((url) => {
       router.push(url as any);
     });
   }, [router]);
+
+  useEffect(() => {
+    const accountId = session?.user.id ?? null;
+    const previousAccountId = previousReminderAccountRef.current;
+    previousReminderAccountRef.current = accountId;
+
+    if (previousAccountId && previousAccountId !== accountId) {
+      cancelScheduledStreakSync();
+      clearStreakMemory(previousAccountId);
+      void deactivateAccountLearningReminders(previousAccountId).catch((error) => {
+        console.warn("Could not deactivate the previous account's learning reminder:", error);
+      });
+    }
+    if (accountId) {
+      void syncRecurringRemindersIfEnabled(accountId).catch((error) => {
+        console.warn("Could not sync learning reminders:", error);
+      });
+    }
+  }, [session?.user.id]);
 
   useEffect(() => {
     let isMounted = true;
@@ -246,13 +266,18 @@ export default function RootLayout() {
     const subscription = AppState.addEventListener("change", (nextAppState) => {
       if (nextAppState === "active") {
         void applyRouteOrientation(pathnameRef.current, "app resume", true);
+        if (session?.user.id) {
+          void syncRecurringRemindersIfEnabled(session.user.id).catch((error) => {
+            console.warn("Could not refresh learning reminders on app resume:", error);
+          });
+        }
       }
     });
 
     return () => {
       subscription.remove();
     };
-  }, [applyRouteOrientation, fontsLoaded, isAccountStateLoading, isLoading]);
+  }, [applyRouteOrientation, fontsLoaded, isAccountStateLoading, isLoading, session?.user.id]);
 
   // Return null until everything is ready
   if (!fontsLoaded || isLoading) {
@@ -262,7 +287,8 @@ export default function RootLayout() {
   return (
     <AudioProvider>
       <ChildProvider>
-        <View style={{ flex: 1 }}>
+        <StreakProvider>
+          <View style={{ flex: 1 }}>
           <Stack
             screenOptions={{
               animation: "fade_from_bottom",
@@ -290,7 +316,8 @@ export default function RootLayout() {
             ready={!showSplashTransition}
             showPersistentBanner={shouldShowPersistentNetworkBanner(pathname)}
           />
-        </View>
+          </View>
+        </StreakProvider>
       </ChildProvider>
     </AudioProvider>
   );

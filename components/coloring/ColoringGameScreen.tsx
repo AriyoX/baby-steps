@@ -75,6 +75,7 @@ import {
   syncProgressNow,
   updateActivityProgress,
 } from "@/lib/progressRepository"
+import { recordQualifiedStreakActivity } from "@/lib/streakRepository"
 
 interface ColoringGameProps {
   imageSource: number
@@ -284,6 +285,7 @@ export default function ColoringGameScreen({
   } | null>(null)
   const markSequenceRef = useRef(0)
   const celebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const coloringSessionIdRef = useRef(`coloring:${pageName}:${Date.now()}`)
   const celebrationAnimation = useRef(new Animated.Value(0)).current
 
   historyRef.current = history
@@ -614,6 +616,17 @@ export default function ColoringGameScreen({
         ? await recordColoringSave(activeChild.id, pageName, usedColorCount)
         : undefined
       void syncSavedProgress(savedAt)
+      if (activeChild && localResult?.didPersist !== false) {
+        void recordQualifiedStreakActivity({
+          childId: activeChild.id,
+          sourceType: "coloring",
+          sourceId: pageName,
+          completionId: coloringSessionIdRef.current,
+          completedAt: savedAt,
+        }).catch((error) => {
+          console.warn("Could not record the coloring streak day:", error)
+        })
+      }
 
       const newAchievementNames =
         localResult?.newlyUnlockedIds

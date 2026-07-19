@@ -14,6 +14,7 @@ import { getLearningLanguage } from "@/content/languages"
 import { AchievementCard } from "@/components/games/achievements/AchievementCard"
 import { CHILD_HOME_ROUTE } from "@/constants/ChildNavigation"
 import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network"
+import { ChildStreakSection } from "@/components/parent/ChildStreakSection"
 
 // Achievement imports
 import { useAchievements } from "@/components/games/achievements/useAchievements" // Ensure this path is correct
@@ -218,6 +219,10 @@ export default function ChildDetailScreen() {
                     </View>
                   </View>
                 </View>
+              </View>
+
+              <View className="px-4">
+                <ChildStreakSection childId={childId} />
               </View>
 
               {/* Achievements Section */}

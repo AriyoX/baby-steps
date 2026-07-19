@@ -40,7 +40,9 @@ import { syncProgressNow } from "@/lib/progressRepository"
 import {
   completeLocallyFirst,
   type LocalFirstCompletionResult,
+  type LocalPersistenceStatus,
 } from "@/lib/completionReliability"
+import { recordQualifiedStreakActivity } from "@/lib/streakRepository"
 import { useAchievements } from "./achievements/useAchievements"
 import type { AchievementDefinition } from "./achievements/achievementTypes"
 import { playWordAudio, loadGameSounds } from "./utils/audioManager"
@@ -66,7 +68,10 @@ type GameState = "menu" | "stageSelect" | "levelSelect" | "learning" | "playing"
 interface LearningGameCompletionOrderOptions {
   persistProgress: (totalScore: number) => Promise<unknown>
   revealCompletion: (totalScore: number) => void
-  runBestEffortNetworkWork: (totalScore: number) => Promise<void>
+  runBestEffortNetworkWork: (
+    totalScore: number,
+    persistence: LocalPersistenceStatus,
+  ) => Promise<void>
   onLocalError?: (error: unknown) => void
   onNetworkError?: (error: unknown) => void
 }
@@ -85,7 +90,8 @@ const completeLearningGameProgressLocallyFirst = (
     },
     fallbackValue: completedTotalScore,
     revealCompletion: (totalScore) => options.revealCompletion(totalScore),
-    runBestEffortNetworkWork: (totalScore) => options.runBestEffortNetworkWork(totalScore),
+    runBestEffortNetworkWork: (totalScore, persistence) =>
+      options.runBestEffortNetworkWork(totalScore, persistence),
     onLocalError: options.onLocalError,
     onNetworkError: options.onNetworkError,
   })
@@ -720,6 +726,7 @@ const LugandaLearningGame: React.FC = () => {
 
     const completionChildId = activeChild.id
     const completionLanguageCode = languageCode
+    const completionSessionStartedAt = gameStartTime.current
     const newTotalScoreState = totalScore + completedLevelScore
     const newCompletedLevelsState = [...completedLevels]
     if (!newCompletedLevelsState.includes(selectedLevel.id)) {
@@ -850,7 +857,7 @@ const LugandaLearningGame: React.FC = () => {
         setGameState("levelComplete")
         gameStartTime.current = Date.now()
       },
-      runBestEffortNetworkWork: async (completedTotalScore) => {
+      runBestEffortNetworkWork: async (completedTotalScore, persistence) => {
         const achievementWork = async () => {
           const outcomes = await Promise.allSettled(
             eventsForAchievements.map((event) => checkAndGrantNewAchievements(event)),
@@ -907,6 +914,15 @@ const LugandaLearningGame: React.FC = () => {
           trackActivity(nextStageUnlocked, completedLevelScore),
           achievementWork(),
           syncProgressNow(completionChildId),
+          persistence.persisted
+            ? recordQualifiedStreakActivity({
+                childId: completionChildId,
+                sourceType: "game",
+                sourceId: `learning-game:${selectedStage.id}:${selectedLevel.id}`,
+                completionId: `learning-game:${selectedStage.id}:${selectedLevel.id}:${completionSessionStartedAt}`,
+                completedAt: today.toISOString(),
+              })
+            : Promise.resolve(),
         ])
 
         outcomes.forEach((outcome) => {

@@ -11,6 +11,7 @@ import { clearLearningProgressForChild } from "@/lib/learningProgressRepository"
 import { clearProgressRepositoryStorageForChild } from "@/lib/progressRepository";
 import { supabase } from "@/lib/supabase";
 import { clearRecentActivitiesCache } from "@/lib/utils";
+import { clearChildStreakLocalData } from "@/lib/streakRepository";
 import { clearChildData, STORAGE_KEYS } from "@/utils/storage";
 
 export interface ChildProfile {
@@ -372,6 +373,7 @@ export const clearChildLocalData = async (childId: string): Promise<string[]> =>
     clearAchievementCaches(childId),
     clearLearningProgressForChild(childId),
     clearProgressRepositoryStorageForChild(childId),
+    clearChildStreakLocalData(childId),
   ]);
 
   const keys = await AsyncStorage.getAllKeys();
@@ -521,6 +523,13 @@ export const archiveChildProfile = async (
   }
 
   await clearChildLocalData(childId);
+  if (process.env.NODE_ENV !== "test") {
+    void import("@/lib/notifications").then(({ syncRecurringRemindersIfEnabled }) =>
+      syncRecurringRemindersIfEnabled(resolvedParentId),
+    ).catch((error) => {
+      console.warn("Could not refresh learning reminders after child archiving:", error);
+    });
+  }
   return { archivedAt };
 };
 

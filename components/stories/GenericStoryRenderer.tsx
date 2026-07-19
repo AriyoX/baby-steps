@@ -35,7 +35,7 @@ import {
   updateActivityProgress,
 } from "@/lib/progressRepository";
 import { audioManager } from "@/lib/audioManager";
-import { completeLocallyFirst } from "@/lib/completionReliability";
+import { recordQualifiedStreakActivity } from "@/lib/streakRepository";
 import { saveActivity } from "@/lib/utils";
 import type { LocalStory } from "@/content/types";
 
@@ -539,9 +539,9 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
     };
 
     try {
-      await completeLocallyFirst({
-        persistLocal: async () => {
-          await updateActivityProgress(childId, languageCode, "stories", {
+      let localCompletionPersisted = false;
+      try {
+        await updateActivityProgress(childId, languageCode, "stories", {
             status: "completed",
             score: percentage,
             last_stage_id: story.id,
@@ -557,8 +557,8 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
               completedAt,
               contentRevision,
             },
-          });
-          await markStageCompleted(childId, languageCode, "stories", story.id, {
+        });
+        await markStageCompleted(childId, languageCode, "stories", story.id, {
             score: percentage,
             progress_payload: {
               storyTitle: story.title,
@@ -568,28 +568,40 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
               quizCompletedAt: hasQuiz ? completedAt : undefined,
               contentRevision,
             },
+        });
+        localCompletionPersisted = true;
+      } catch (error) {
+        console.warn("Could not persist story completion locally:", error);
+      }
+
+      if (localCompletionPersisted) {
+        try {
+          await recordQualifiedStreakActivity({
+            childId,
+            sourceType: "story",
+            sourceId: story.id,
+            completionId: `story:${story.id}:${startedAtRef.current}`,
+            completedAt,
           });
-        },
-        fallbackValue: undefined,
-        revealCompletion: () => {
-          if (!isMountedRef.current) return;
-          setHasCompletedStory(true);
-          setHasSavedCompletion(true);
-          stopReading();
-          setShowCompletionCard(true);
-        },
-        runBestEffortNetworkWork: async () => {
-          await Promise.all([
-            saveActivity(activity),
-            syncProgressNow(childId),
-          ]);
-        },
-        onLocalError: (error) => {
-          console.warn("Could not persist story completion locally:", error);
-        },
-        onNetworkError: (error) => {
-          console.warn("Could not finish background story completion work:", error);
-        },
+        } catch (error) {
+          console.warn("Could not record the story streak day:", error);
+        }
+      }
+
+      if (isMountedRef.current) {
+        setHasCompletedStory(true);
+        setHasSavedCompletion(true);
+        stopReading();
+        setShowCompletionCard(true);
+      }
+      void Promise.allSettled([
+        saveActivity(activity),
+        syncProgressNow(childId),
+      ]).then((results) => {
+        const failure = results.find(
+          (result): result is PromiseRejectedResult => result.status === "rejected",
+        );
+        if (failure) console.warn("Could not finish background story completion work:", failure.reason);
       });
       return true;
     } finally {

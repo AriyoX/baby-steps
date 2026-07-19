@@ -44,6 +44,7 @@ import {
   type LocalFirstCompletionResult,
   type LocalPersistenceStatus,
 } from "@/lib/completionReliability";
+import { recordQualifiedStreakActivity } from "@/lib/streakRepository";
 import { getCardsMatchingGridSizing } from "./responsiveSizing";
 import {
   GameHeader,
@@ -195,6 +196,10 @@ export interface CardsMatchingCompletionOptions {
     overallStats: CardGameOverallStats,
     persistence: LocalPersistenceStatus,
   ) => Promise<unknown>;
+  recordStreakCompletion?: (
+    overallStats: CardGameOverallStats,
+    persistence: LocalPersistenceStatus,
+  ) => Promise<unknown>;
   onLocalError?: (error: unknown) => void;
   onNetworkError?: (error: unknown) => void;
 }
@@ -205,6 +210,7 @@ export const completeCardsMatchingGameLocallyFirst = async ({
   revealCompletion,
   evaluateAchievements,
   saveCompletionActivity,
+  recordStreakCompletion,
   onLocalError,
   onNetworkError,
 }: CardsMatchingCompletionOptions): Promise<
@@ -233,6 +239,7 @@ export const completeCardsMatchingGameLocallyFirst = async ({
       await Promise.all([
         evaluateAchievements(saved, persistence),
         saveCompletionActivity(saved, persistence),
+        recordStreakCompletion?.(saved, persistence),
       ]);
     },
     onLocalError,
@@ -662,6 +669,7 @@ const CardsMatchingGame: React.FC = () => {
       }
 
       const childId = activeChild.id;
+      const completionSessionStartedAt = gameStartTime.current;
       const duration = Math.round((Date.now() - gameStartTime.current) / 1000);
       const { achievementEvent, activity } = buildCardsMatchingCompletionData(
         childId,
@@ -686,6 +694,16 @@ const CardsMatchingGame: React.FC = () => {
           });
         },
         saveCompletionActivity: () => saveActivity(activity),
+        recordStreakCompletion: (_stats, persistence) =>
+          persistence.persisted
+            ? recordQualifiedStreakActivity({
+                childId,
+                sourceType: "game",
+                sourceId: "cards-matching",
+                completionId: `cards-matching:${completionSessionStartedAt}`,
+                completedAt: activity.completed_at,
+              })
+            : Promise.resolve(),
         onLocalError: (error) => {
           console.warn("Could not persist Cards Matching completion locally:", error);
         },

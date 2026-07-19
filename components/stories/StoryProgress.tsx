@@ -7,6 +7,7 @@ import {
   updateActivityProgress,
 } from '@/lib/progressRepository';
 import { saveActivity } from '@/lib/utils';
+import { recordQualifiedStreakActivity } from '@/lib/streakRepository';
 
 interface StoryProgressProps {
   storyId: string;
@@ -44,17 +45,6 @@ export const saveStoryQuizProgress = async ({
   const languageCode = activeChild.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE;
   const completedAt = new Date().toISOString();
 
-  await saveActivity({
-    child_id: activeChild.id,
-    activity_type: 'stories',
-    activity_name: `Completed Quiz for "${storyTitle}"`,
-    score: `${score}/${total}`,
-    duration,
-    completed_at: completedAt,
-    details: `Scored ${score}/${total} (${percentage}%) on the quiz for "${storyTitle}"`,
-    language_code: languageCode,
-  });
-
   await updateActivityProgress(activeChild.id, languageCode, 'stories', {
     status: 'completed',
     score: percentage,
@@ -79,7 +69,19 @@ export const saveStoryQuizProgress = async ({
       quizPercentage: percentage,
     },
   });
-  void syncProgressNow(activeChild.id);
+  void Promise.allSettled([
+    saveActivity({
+      child_id: activeChild.id,
+      activity_type: 'stories',
+      activity_name: `Completed Quiz for "${storyTitle}"`,
+      score: `${score}/${total}`,
+      duration,
+      completed_at: completedAt,
+      details: `Scored ${score}/${total} (${percentage}%) on the quiz for "${storyTitle}"`,
+      language_code: languageCode,
+    }),
+    syncProgressNow(activeChild.id),
+  ]);
 };
 
 export const StoryProgress: React.FC<StoryProgressProps> = ({
@@ -102,38 +104,60 @@ export const StoryProgress: React.FC<StoryProgressProps> = ({
         const duration = Math.round((Date.now() - startTime) / 1000);
         const languageCode = activeChild.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE;
         
-        await saveActivity({
-          child_id: activeChild.id,
-          activity_type: 'stories',
-          activity_name: `Read "${storyTitle}"`,
-          duration,
-          completed_at: new Date().toISOString(),
-          details: `Completed reading the story "${storyTitle}"`,
-          language_code: languageCode,
-        });
+        const completedAt = new Date().toISOString();
+        let localCompletionPersisted = false;
+        try {
+          await updateActivityProgress(activeChild.id, languageCode, 'stories', {
+            status: 'completed',
+            last_stage_id: storyId,
+            completed_stage_count: 1,
+            progress_payload: {
+              storyId,
+              storyTitle,
+              totalPages,
+              completedAt,
+              durationSeconds: duration,
+            },
+          });
+          await markStageCompleted(activeChild.id, languageCode, 'stories', storyId, {
+            progress_payload: {
+              storyTitle,
+              totalPages,
+              durationSeconds: duration,
+            },
+          });
+          localCompletionPersisted = true;
+        } catch (error) {
+          console.warn('Could not persist the story completion locally:', error);
+        }
 
-        await updateActivityProgress(activeChild.id, languageCode, 'stories', {
-          status: 'completed',
-          last_stage_id: storyId,
-          completed_stage_count: 1,
-          progress_payload: {
-            storyId,
-            storyTitle,
-            totalPages,
-            completedAt: new Date().toISOString(),
-            durationSeconds: duration,
-          },
-        });
-        await markStageCompleted(activeChild.id, languageCode, 'stories', storyId, {
-          progress_payload: {
-            storyTitle,
-            totalPages,
-            durationSeconds: duration,
-          },
-        });
-        void syncProgressNow(activeChild.id);
-        
+        if (localCompletionPersisted) {
+          try {
+            await recordQualifiedStreakActivity({
+              childId: activeChild.id,
+              sourceType: 'story',
+              sourceId: storyId,
+              completionId: `story:${storyId}:${startTime}`,
+              completedAt,
+            });
+          } catch (error) {
+            console.warn('Could not record the story streak day:', error);
+          }
+        }
+
         setHasTrackedCompletion(true);
+        void Promise.allSettled([
+          saveActivity({
+            child_id: activeChild.id,
+            activity_type: 'stories',
+            activity_name: `Read "${storyTitle}"`,
+            duration,
+            completed_at: completedAt,
+            details: `Completed reading the story "${storyTitle}"`,
+            language_code: languageCode,
+          }),
+          syncProgressNow(activeChild.id),
+        ]);
       }
     };
 

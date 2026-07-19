@@ -111,6 +111,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       console.log('Child profile added successfully!');
+      void import('@/lib/notifications').then(({ syncRecurringRemindersIfEnabled }) =>
+        syncRecurringRemindersIfEnabled(parent_id),
+      ).catch((error) => {
+        console.warn('Could not refresh learning reminders after child creation:', error);
+      });
       setOnboardingComplete(true); // Mark onboarding as complete
       return data as CreatedChildProfile;
     } catch (error) {

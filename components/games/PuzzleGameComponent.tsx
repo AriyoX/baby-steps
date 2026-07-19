@@ -43,6 +43,7 @@ import {
   type LocalFirstCompletionResult,
   type LocalPersistenceStatus,
 } from "@/lib/completionReliability";
+import { recordQualifiedStreakActivity } from "@/lib/streakRepository";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   GameHeader,
@@ -171,6 +172,10 @@ export interface PuzzleCompletionOptions {
     progress: PuzzleGameProgress,
     persistence: LocalPersistenceStatus,
   ) => Promise<void>;
+  recordStreakCompletion?: (
+    progress: PuzzleGameProgress,
+    persistence: LocalPersistenceStatus,
+  ) => Promise<unknown>;
   onLocalError?: (error: unknown) => void;
   onNetworkError?: (error: unknown) => void;
 }
@@ -215,6 +220,7 @@ export const completePuzzleLocallyFirst = async ({
   revealCompletion,
   saveCompletionActivity,
   evaluateAchievements,
+  recordStreakCompletion,
   onLocalError,
   onNetworkError,
 }: PuzzleCompletionOptions): Promise<LocalFirstCompletionResult<PuzzleGameProgress>> =>
@@ -229,6 +235,7 @@ export const completePuzzleLocallyFirst = async ({
       await Promise.all([
         saveCompletionActivity(saved, persistence),
         evaluateAchievements(saved, persistence),
+        recordStreakCompletion?.(saved, persistence),
       ]);
     },
     onLocalError,
@@ -827,6 +834,7 @@ const PuzzleGame: React.FC = () => {
         details: `Completed the ${completedPuzzle.name} puzzle in ${completedMoves} moves`,
         level: currentPuzzle + 1,
       };
+      const puzzleSessionStartedAt = gameStartTime.current;
 
       await completePuzzleLocallyFirst({
         progress: newProgress,
@@ -839,6 +847,16 @@ const PuzzleGame: React.FC = () => {
           ),
         revealCompletion: revealPuzzleCompletion,
         saveCompletionActivity: () => saveActivity(activity),
+        recordStreakCompletion: (_savedProgress, persistence) =>
+          persistence.persisted
+            ? recordQualifiedStreakActivity({
+                childId,
+                sourceType: "game",
+                sourceId: `puzzle:${currentPuzzleId}`,
+                completionId: `puzzle:${currentPuzzleId}:${puzzleSessionStartedAt}`,
+                completedAt: activity.completed_at,
+              })
+            : Promise.resolve(),
         evaluateAchievements: async (savedProgress) => {
           const eventComplete: Parameters<typeof checkAndGrantNewAchievements>[0] = {
             type: 'puzzle_game_completed_successfully',

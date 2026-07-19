@@ -7,6 +7,7 @@ import * as ScreenOrientation from "expo-screen-orientation"
 import { useChild } from "@/context/ChildContext"
 import { ChildNoticeProvider } from "@/context/ChildNoticeContext"
 import { ChildUiLanguageProvider } from "@/context/ChildUiLanguageProvider"
+import { StreakCelebrationHost } from "@/components/child/StreakCelebrationHost"
 
 const CHILD_ROUTE_ORIENTATION = "landscape_left" as const
 const CHILD_ORIENTATION_LOCK = ScreenOrientation.OrientationLock.LANDSCAPE_LEFT
@@ -73,7 +74,7 @@ export default function TabLayout() {
 
   return (
     <ChildUiLanguageProvider key={activeChild.id}>
-      <ChildNoticeProvider childId={activeChild.id}>
+      <ChildNoticeProvider key={activeChild.id} childId={activeChild.id}>
         <Stack
           screenOptions={{
             headerShown: false,
@@ -107,6 +108,7 @@ export default function TabLayout() {
             }}
           />
         </Stack>
+        <StreakCelebrationHost />
       </ChildNoticeProvider>
     </ChildUiLanguageProvider>
   )

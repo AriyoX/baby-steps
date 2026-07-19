@@ -32,7 +32,9 @@ import {
   completeLocallyFirst,
   runCompletionOnce,
   type LocalFirstCompletionResult,
+  type LocalPersistenceStatus,
 } from "@/lib/completionReliability";
+import { recordQualifiedStreakActivity } from "@/lib/streakRepository";
 import {
   WordGameProgress,
   DEFAULT_PROGRESS,
@@ -69,7 +71,10 @@ const WORD_GAME_MODAL_SYSTEM_PROPS = {
 interface WordCompletionOrderOptions {
   persistProgress: (progress: WordGameProgress) => Promise<void>;
   revealCompletion: (progress: WordGameProgress) => void;
-  runBestEffortNetworkWork: (progress: WordGameProgress) => Promise<void>;
+  runBestEffortNetworkWork: (
+    progress: WordGameProgress,
+    persistence: LocalPersistenceStatus,
+  ) => Promise<void>;
   onLocalError?: (error: unknown) => void;
   onNetworkError?: (error: unknown) => void;
 }
@@ -85,8 +90,8 @@ const completeWordProgressLocallyFirst = (
     },
     fallbackValue: completedProgress,
     revealCompletion: (progress) => options.revealCompletion(progress),
-    runBestEffortNetworkWork: (progress) =>
-      options.runBestEffortNetworkWork(progress),
+    runBestEffortNetworkWork: (progress, persistence) =>
+      options.runBestEffortNetworkWork(progress, persistence),
     onLocalError: options.onLocalError,
     onNetworkError: options.onNetworkError,
   });
@@ -376,6 +381,8 @@ const WordGame: React.FC = () => {
   const performNextLevelCompletion = async (): Promise<void> => {
     const completionChildId = activeChild?.id;
     const completionLanguageCode = languageCode;
+    const completionSessionStartedAt = levelStartTime.current;
+    const streakCompletedAt = new Date().toISOString();
     const nextLevelIdx = currentLevelIndex + 1;
     const isLastLevel = nextLevelIdx >= gameLevels.length;
     const nextCurrentLevel = Math.min(
@@ -484,7 +491,7 @@ const WordGame: React.FC = () => {
       revealCompletion: (savedProgress) => {
         completionRevision = revealCompletion(savedProgress);
       },
-      runBestEffortNetworkWork: async (savedProgress) => {
+      runBestEffortNetworkWork: async (savedProgress, persistence) => {
         const achievementWork = async () => {
           const outcomes = await Promise.allSettled(
             achievementEvents.map((event) =>
@@ -552,6 +559,15 @@ const WordGame: React.FC = () => {
         ];
         if (isLastLevel) {
           networkTasks.push(trackGameCompletion());
+        }
+        if (persistence.persisted) {
+          networkTasks.push(recordQualifiedStreakActivity({
+            childId: completionChildId,
+            sourceType: "game",
+            sourceId: `word-game:${gameLevels[currentLevelIndex]?.id ?? currentLevelIndex}`,
+            completionId: `word-game:${gameLevels[currentLevelIndex]?.id ?? currentLevelIndex}:${completionSessionStartedAt}`,
+            completedAt: streakCompletedAt,
+          }));
         }
 
         const outcomes = await Promise.allSettled(networkTasks);

@@ -8,6 +8,11 @@ import {
   hydrateProgressFromRemote,
   syncProgressNow,
 } from '@/lib/progressRepository';
+import {
+  cancelScheduledStreakSync,
+  clearStreakMemory,
+  syncDirtyStreakState,
+} from '@/lib/streakRepository';
 
 interface ChildProfile {
   id: string;
@@ -48,9 +53,12 @@ export const ChildProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     void (async () => {
       try {
         if (previousChild?.id) {
-          await syncProgressNow(previousChild.id, {
-            signal: workController.signal,
-          });
+          await Promise.all([
+            syncProgressNow(previousChild.id, {
+              signal: workController.signal,
+            }),
+            syncDirtyStreakState(),
+          ]);
         }
 
         if (
@@ -69,7 +77,6 @@ export const ChildProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             workController.signal.aborted ||
             childWorkGenerationRef.current !== workGeneration
           ) return;
-
           await hydrateProgressFromRemote(child.id, languageCode, {
             activityTypes: PROGRESS_ACTIVITY_TYPES,
             signal: workController.signal,
@@ -102,14 +109,19 @@ export const ChildProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     activeChildRef.current = null;
     setActiveChildState(null);
     cancelScheduledProgressSync();
+    cancelScheduledStreakSync();
+    clearStreakMemory();
 
     if (!previousChild?.id) return;
 
     const syncController = new AbortController();
     let timeout: ReturnType<typeof setTimeout> | null = null;
-    const synchronization = syncProgressNow(previousChild.id, {
-      signal: syncController.signal,
-    }).then(
+    const synchronization = Promise.all([
+      syncProgressNow(previousChild.id, {
+        signal: syncController.signal,
+      }),
+      syncDirtyStreakState(),
+    ]).then(
       () => undefined,
       () => undefined,
     );

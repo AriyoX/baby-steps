@@ -114,6 +114,10 @@ let mockStageProgress: {
   status: "in_progress" | "completed";
   progress_payload: Record<string, unknown>;
 } | null = null;
+const mockRecordQualifiedStreakActivity = jest.fn().mockResolvedValue({
+  recorded: true,
+  firstLocalQualification: true,
+});
 
 const deferred = <T,>() => {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -206,6 +210,11 @@ jest.mock("@/lib/utils", () => ({
   saveActivity: jest.fn().mockResolvedValue(true),
 }));
 
+jest.mock("@/lib/streakRepository", () => ({
+  recordQualifiedStreakActivity: (...args: unknown[]) =>
+    mockRecordQualifiedStreakActivity(...args),
+}));
+
 jest.mock("@/components/common/CachedImage", () => ({
   CachedImage: (props: Record<string, unknown>) => {
     const { View } = jest.requireActual("react-native");
@@ -281,6 +290,11 @@ beforeEach(async () => {
   await AsyncStorage.setItem(getGameGuideStorageKey("stories", "child-1"), "seen");
   mockActiveChild = null;
   mockStageProgress = null;
+  mockRecordQualifiedStreakActivity.mockReset();
+  mockRecordQualifiedStreakActivity.mockResolvedValue({
+    recorded: true,
+    firstLocalQualification: true,
+  });
 });
 
 describe("GenericStoryRenderer", () => {
@@ -661,6 +675,45 @@ describe("GenericStoryRenderer", () => {
       expect.any(Error),
     );
     expect(JSON.stringify(tree.toJSON())).toContain("story-completion-card");
+    warnSpy.mockRestore();
+  });
+
+  it("reveals authoritative local completion when streak persistence rejects", async () => {
+    mockActiveChild = {
+      id: "child-1",
+      selected_language_code: "nyn",
+    };
+    const story = {
+      ...runyankoleStoryFixture,
+      pages: [runyankoleStoryFixture.pages[0]],
+      questions: [],
+    };
+    const streakError = new Error("streak storage unavailable");
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    mockRecordQualifiedStreakActivity.mockRejectedValueOnce(streakError);
+    const tree = renderStory(story);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      findButtonByText(tree.root, "Finish").props.onPress();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(updateActivityProgress).toHaveBeenCalledWith(
+      "child-1",
+      "nyn",
+      "stories",
+      expect.objectContaining({ status: "completed" }),
+    );
+    expect(markStageCompleted).toHaveBeenCalled();
+    expect(mockRecordQualifiedStreakActivity).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith("Could not record the story streak day:", streakError);
+    expect(JSON.stringify(tree.toJSON())).toContain("story-completion-card");
+    expect(JSON.stringify(tree.toJSON())).toContain("Story complete!");
     warnSpy.mockRestore();
   });
 

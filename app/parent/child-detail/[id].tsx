@@ -38,8 +38,8 @@ interface DisplayableAchievement extends AchievementDefinition { // This carries
 
 export default function ChildDetailScreen() {
   const router = useRouter()
-  const params = useLocalSearchParams<{ childId: string }>()
-  const childId = params.childId
+  const params = useLocalSearchParams<{ id?: string; childId?: string }>()
+  const childId = params.id ?? params.childId ?? ""
   const { setActiveChild } = useChild()
 
   const [childData, setChildData] = useState<ChildData | null>(null)
@@ -222,7 +222,7 @@ export default function ChildDetailScreen() {
               </View>
 
               <View className="px-4">
-                <ChildStreakSection childId={childId} />
+                <ChildStreakSection childId={childId} mode="summary" />
               </View>
 
               {/* Achievements Section */}

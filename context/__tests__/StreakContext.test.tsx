@@ -3,6 +3,7 @@
 import React from "react"
 import renderer, { act } from "react-test-renderer"
 import { AppState } from "react-native"
+import type { ChildStreakSnapshot } from "@/lib/streakDate"
 
 let mockActiveChild: { id: string } | null = { id: "child-1" }
 const mockGetChildStreak = jest.fn().mockResolvedValue(null)
@@ -14,6 +15,7 @@ const mockSyncDirtyStreakState = jest.fn().mockResolvedValue({
   failed: 0,
   skipped: 0,
 })
+const mockGetSession = jest.fn()
 
 jest.mock("@/context/ChildContext", () => ({
   useChild: () => ({ activeChild: mockActiveChild }),
@@ -23,6 +25,7 @@ jest.mock("@/lib/streakRepository", () => ({
   cancelScheduledStreakSync: jest.fn(),
   disableChildStreak: jest.fn(),
   enableChildStreak: jest.fn(),
+  getCachedChildStreak: (...args: unknown[]) => mockGetChildStreak(...args),
   getChildStreak: (...args: unknown[]) => mockGetChildStreak(...args),
   hydrateChildStreak: (...args: unknown[]) => mockHydrateChildStreak(...args),
   repairStreakQueue: (...args: unknown[]) => mockRepairStreakQueue(...args),
@@ -36,9 +39,7 @@ jest.mock("@/lib/streakRepository", () => ({
 jest.mock("@/lib/supabase", () => ({
   supabase: {
     auth: {
-      getSession: jest.fn().mockResolvedValue({
-        data: { session: { user: { id: "parent-1" } } },
-      }),
+      getSession: (...args: unknown[]) => mockGetSession(...args),
     },
   },
 }))
@@ -47,7 +48,32 @@ jest.mock("@/lib/notifications", () => ({
   syncRecurringRemindersIfEnabled: jest.fn().mockResolvedValue(undefined),
 }))
 
-import { StreakProvider } from "../StreakContext"
+import { StreakProvider, useChildStreakSnapshot } from "../StreakContext"
+
+const snapshot = (childId: string, enabled: boolean): ChildStreakSnapshot => ({
+  persistenceProtocolVersion: 1,
+  accountId: "parent-1",
+  childId,
+  preferences: {
+    childId,
+    streakEnabled: enabled,
+    includeInReminders: true,
+    currentEpochId: enabled ? `epoch-${childId}` : null,
+    resetAt: "2026-07-19T08:00:00.000Z",
+    updatedAt: "2026-07-19T08:00:00.000Z",
+  },
+  epochs: [],
+  days: [],
+  pendingTransitions: [],
+  summary: {
+    currentStreak: enabled ? 1 : 0,
+    longestStreak: 1,
+    todayComplete: enabled,
+    lastQualifiedDate: enabled ? "2026-07-19" : null,
+    lastSevenDays: [],
+  },
+  hydratedAt: null,
+})
 
 describe("StreakProvider civil-midnight lifecycle", () => {
   beforeEach(() => {
@@ -58,6 +84,15 @@ describe("StreakProvider civil-midnight lifecycle", () => {
     mockHydrateChildStreak.mockClear()
     mockRepairStreakQueue.mockClear()
     mockSyncDirtyStreakState.mockClear()
+    const verified = {
+      ...snapshot("child-1", true),
+      hydratedAt: "2026-07-19T20:00:00.000Z",
+    }
+    mockGetChildStreak.mockResolvedValue(verified)
+    mockHydrateChildStreak.mockResolvedValue(verified)
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: "parent-1" } } },
+    })
   })
 
   afterEach(() => {
@@ -112,6 +147,136 @@ describe("StreakProvider civil-midnight lifecycle", () => {
       await Promise.resolve()
     })
     expect(mockHydrateChildStreak).toHaveBeenCalledTimes(afterSignOut)
+    act(() => tree.unmount())
+  })
+})
+
+describe("useChildStreakSnapshot child isolation", () => {
+  beforeEach(() => {
+    mockGetChildStreak.mockReset()
+    mockHydrateChildStreak.mockReset()
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: "parent-1" } } },
+    })
+  })
+
+  it("never publishes Child A after the route switches to Child B", async () => {
+    let resolveChildA!: (value: ChildStreakSnapshot) => void
+    const childARequest = new Promise<ChildStreakSnapshot>((resolve) => {
+      resolveChildA = resolve
+    })
+    const childB = snapshot("child-b", false)
+    mockGetChildStreak.mockImplementation((childId: string) =>
+      childId === "child-a" ? childARequest : Promise.resolve(childB))
+    mockHydrateChildStreak.mockImplementation((childId: string) =>
+      Promise.resolve(childId === "child-b" ? childB : snapshot("child-a", true)))
+
+    const latest: { current: ReturnType<typeof useChildStreakSnapshot> | null } = {
+      current: null,
+    }
+    const Probe = ({ childId }: { childId: string }) => {
+      latest.current = useChildStreakSnapshot(childId)
+      return null
+    }
+
+    let tree!: renderer.ReactTestRenderer
+    await act(async () => {
+      tree = renderer.create(<Probe childId="child-a" />)
+      await Promise.resolve()
+    })
+    await act(async () => {
+      tree.update(<Probe childId="child-b" />)
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(latest.current?.snapshot?.childId).toBe("child-b")
+    expect(latest.current?.snapshot?.preferences.streakEnabled).toBe(false)
+
+    await act(async () => {
+      resolveChildA(snapshot("child-a", true))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(latest.current?.snapshot?.childId).toBe("child-b")
+    expect(latest.current?.snapshot?.preferences.streakEnabled).toBe(false)
+    act(() => tree.unmount())
+  })
+
+  it("settles to a retryable error instead of loading forever without a session", async () => {
+    mockGetSession.mockResolvedValue({ data: { session: null } })
+    const latest: { current: ReturnType<typeof useChildStreakSnapshot> | null } = {
+      current: null,
+    }
+    const Probe = () => {
+      latest.current = useChildStreakSnapshot("child-a")
+      return null
+    }
+
+    let tree!: renderer.ReactTestRenderer
+    await act(async () => {
+      tree = renderer.create(<Probe />)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(latest.current?.loading).toBe(false)
+    expect(latest.current?.snapshot).toBeNull()
+    expect(latest.current?.error?.message).toContain("Sign in")
+    act(() => tree.unmount())
+  })
+
+  it("does not publish an unverified enabled default when remote hydration fails", async () => {
+    mockGetChildStreak.mockResolvedValue(snapshot("child-a", true))
+    mockHydrateChildStreak.mockRejectedValue(new Error("permission denied"))
+    const latest: { current: ReturnType<typeof useChildStreakSnapshot> | null } = {
+      current: null,
+    }
+    const Probe = () => {
+      latest.current = useChildStreakSnapshot("child-a")
+      return null
+    }
+
+    let tree!: renderer.ReactTestRenderer
+    await act(async () => {
+      tree = renderer.create(<Probe />)
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(latest.current?.loading).toBe(false)
+    expect(latest.current?.snapshot).toBeNull()
+    expect(latest.current?.error?.message).toContain("permission denied")
+    act(() => tree.unmount())
+  })
+
+  it("retains a verified disabled cache when a later refresh fails", async () => {
+    const cachedDisabled = {
+      ...snapshot("child-a", false),
+      hydratedAt: "2026-07-19T07:00:00.000Z",
+    }
+    mockGetChildStreak.mockResolvedValue(cachedDisabled)
+    mockHydrateChildStreak.mockRejectedValue(new Error("offline"))
+    const latest: { current: ReturnType<typeof useChildStreakSnapshot> | null } = {
+      current: null,
+    }
+    const Probe = () => {
+      latest.current = useChildStreakSnapshot("child-a")
+      return null
+    }
+
+    let tree!: renderer.ReactTestRenderer
+    await act(async () => {
+      tree = renderer.create(<Probe />)
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(latest.current?.loading).toBe(false)
+    expect(latest.current?.snapshot?.preferences.streakEnabled).toBe(false)
+    expect(latest.current?.error?.message).toContain("offline")
     act(() => tree.unmount())
   })
 })

@@ -52,6 +52,15 @@ export type LearningReminderCandidate = {
   completedToday: boolean;
 };
 
+export type HydrateChildStreakOptions = {
+  throwOnRemoteError?: boolean;
+};
+
+type ChildStreakHydrationOutcome = {
+  snapshot: ChildStreakSnapshot | null;
+  remoteError: Error | null;
+};
+
 type DayQueueItem = {
   kind: "day";
   mutationId: string;
@@ -106,8 +115,10 @@ let syncGeneration = 0;
 let persistenceFailureInjector: ((step: StreakPersistenceStep) => void | Promise<void>) | null = null;
 const queueTails = new Map<string, Promise<void>>();
 const snapshotTails = new Map<string, Promise<void>>();
-const hydrationPromises = new Map<string, Promise<ChildStreakSnapshot | null>>();
+const streakSyncTails = new Map<string, Promise<void>>();
+const hydrationPromises = new Map<string, Promise<ChildStreakHydrationOutcome>>();
 const memorySnapshots = new Map<string, ChildStreakSnapshot>();
+const recentMutationSyncOutcomes = new Map<string, "pushed" | "rejected">();
 const snapshotListeners = new Map<string, Set<(snapshot: ChildStreakSnapshot) => void>>();
 const celebrationListeners = new Set<(event: StreakCelebrationEvent) => void>();
 
@@ -138,6 +149,24 @@ export const getStreakQueueStorageKey = (accountId: string): string =>
 
 const snapshotIdentity = (accountId: string, childId: string): string =>
   `${accountId}:${childId}`;
+
+const mutationSyncIdentity = (accountId: string, mutationId: string): string =>
+  `${encode(accountId)}:${encode(mutationId)}`;
+
+const rememberMutationSyncOutcome = (
+  accountId: string,
+  mutationId: string,
+  outcome: "pushed" | "rejected",
+): void => {
+  const identity = mutationSyncIdentity(accountId, mutationId);
+  recentMutationSyncOutcomes.delete(identity);
+  recentMutationSyncOutcomes.set(identity, outcome);
+  while (recentMutationSyncOutcomes.size > 256) {
+    const oldest = recentMutationSyncOutcomes.keys().next().value;
+    if (typeof oldest !== "string") break;
+    recentMutationSyncOutcomes.delete(oldest);
+  }
+};
 
 const nowIso = (): string => new Date().toISOString();
 
@@ -554,6 +583,14 @@ export const getChildStreak = async (
   const accountId = await getSessionAccountId();
   if (!accountId || !childId) return null;
   return ensureLocalSnapshot(accountId, childId);
+};
+
+export const getCachedChildStreak = async (
+  childId: string,
+): Promise<ChildStreakSnapshot | null> => {
+  const accountId = await getSessionAccountId();
+  if (!accountId || !childId) return null;
+  return loadLocalSnapshot(accountId, childId);
 };
 
 export const getChildStreakPreferences = async (
@@ -983,9 +1020,9 @@ const dayMutationId = (
 const hydrateChildStreakImpl = async (
   accountId: string,
   childId: string,
-): Promise<ChildStreakSnapshot | null> => {
+): Promise<ChildStreakHydrationOutcome> => {
   await repairStreakQueue(accountId);
-  const local = await ensureLocalSnapshot(accountId, childId);
+  const local = await loadLocalSnapshot(accountId, childId);
   try {
     const [preferenceResponse, epochResponse, dayResponse] = await Promise.all([
       supabase.from("child_streak_preferences").select("*").eq("child_id", childId).maybeSingle(),
@@ -995,20 +1032,27 @@ const hydrateChildStreakImpl = async (
     if (preferenceResponse.error) throw preferenceResponse.error;
     if (epochResponse.error) throw epochResponse.error;
     if (dayResponse.error) throw dayResponse.error;
-    if ((await getSessionAccountId()) !== accountId) return null;
+    if ((await getSessionAccountId()) !== accountId) {
+      return { snapshot: null, remoteError: null };
+    }
 
     const remotePreferences = preferenceResponse.data
       ? preferencesFromRow(preferenceResponse.data as Record<string, unknown>)
       : null;
+    if (!remotePreferences) {
+      throw new Error("Learning streak preferences were not returned for this child.");
+    }
     const remoteEpochs = ((epochResponse.data ?? []) as Record<string, unknown>[])
       .map(epochFromRow).filter((epoch): epoch is ChildStreakEpoch => Boolean(epoch));
     const remoteDays = ((dayResponse.data ?? []) as Record<string, unknown>[])
       .map(dayFromRow).filter((day): day is ChildStreakDay => Boolean(day));
     const queue = await loadQueue(accountId);
     const childQueue = queue.filter((item) => item.childId === childId);
-    const hasTransition = childQueue.some((item) =>
+    const hasTransition = Boolean(local) && childQueue.some((item) =>
       item.kind === "set_enabled" || item.kind === "reset");
-    const hasReminderMutation = childQueue.some((item) => item.kind === "set_reminders");
+    const hasReminderMutation = Boolean(local) && childQueue.some(
+      (item) => item.kind === "set_reminders",
+    );
     const pendingEpochIds = new Set<string>();
     for (const item of childQueue) {
       if (item.kind === "create_default") pendingEpochIds.add(item.epochId);
@@ -1022,28 +1066,26 @@ const hydrateChildStreakImpl = async (
       }
     }
 
-    const preferences = remotePreferences
-      ? {
-          ...remotePreferences,
-          streakEnabled: hasTransition ? local.preferences.streakEnabled : remotePreferences.streakEnabled,
-          currentEpochId: hasTransition ? local.preferences.currentEpochId : remotePreferences.currentEpochId,
-          resetAt: hasTransition
-            ? maxIso(remotePreferences.resetAt, local.preferences.resetAt ?? remotePreferences.updatedAt)
-            : remotePreferences.resetAt,
-          includeInReminders: hasReminderMutation
-            ? local.preferences.includeInReminders
-            : remotePreferences.includeInReminders,
-          updatedAt: hasTransition || hasReminderMutation
-            ? maxIso(remotePreferences.updatedAt, local.preferences.updatedAt)
-            : remotePreferences.updatedAt,
-        }
-      : local.preferences;
+    const preferences = {
+      ...remotePreferences,
+      streakEnabled: hasTransition ? local!.preferences.streakEnabled : remotePreferences.streakEnabled,
+      currentEpochId: hasTransition ? local!.preferences.currentEpochId : remotePreferences.currentEpochId,
+      resetAt: hasTransition
+        ? maxIso(remotePreferences.resetAt, local!.preferences.resetAt ?? remotePreferences.updatedAt)
+        : remotePreferences.resetAt,
+      includeInReminders: hasReminderMutation
+        ? local!.preferences.includeInReminders
+        : remotePreferences.includeInReminders,
+      updatedAt: hasTransition || hasReminderMutation
+        ? maxIso(remotePreferences.updatedAt, local!.preferences.updatedAt)
+        : remotePreferences.updatedAt,
+    };
     const epochsById = new Map(remoteEpochs.map((epoch) => [epoch.id, epoch]));
-    for (const epoch of local.epochs) {
+    for (const epoch of local?.epochs ?? []) {
       if (pendingEpochIds.has(epoch.id)) epochsById.set(epoch.id, epoch);
     }
     const daysById = new Map(remoteDays.map((day) => [dayIdentity(day), day]));
-    for (const localDay of local.days) {
+    for (const localDay of local?.days ?? []) {
       if (!localDay.dirty) continue;
       const identity = dayIdentity(localDay);
       const remoteDay = daysById.get(identity);
@@ -1052,7 +1094,7 @@ const hydrateChildStreakImpl = async (
         : localDay);
     }
     const pendingVersions = new Set(childQueue.map((item) => `${item.mutationId}:${item.version}`));
-    const pendingTransitions = local.pendingTransitions.filter((item) =>
+    const pendingTransitions = (local?.pendingTransitions ?? []).filter((item) =>
       pendingVersions.has(`${item.mutationId}:${item.version}`));
     const snapshot: ChildStreakSnapshot = {
       accountId,
@@ -1061,30 +1103,44 @@ const hydrateChildStreakImpl = async (
       epochs: [...epochsById.values()].sort((a, b) => a.startedAt.localeCompare(b.startedAt)),
       days: [...daysById.values()].sort((a, b) => a.localDate.localeCompare(b.localDate)),
       pendingTransitions,
-      summary: local.summary,
+      summary: deriveStreakSummary(
+        [...daysById.values()],
+        [...epochsById.values()],
+        preferences,
+      ),
       hydratedAt: nowIso(),
     };
     await writeSnapshot(snapshot);
-    return memorySnapshots.get(snapshotIdentity(accountId, childId)) ?? snapshot;
+    return {
+      snapshot: memorySnapshots.get(snapshotIdentity(accountId, childId)) ?? snapshot,
+      remoteError: null,
+    };
   } catch (error) {
     console.warn("Could not refresh the child's learning streak; using local data:", error);
-    return local;
+    return {
+      snapshot: local,
+      remoteError: error instanceof Error
+        ? error
+        : new Error("Learning streak data could not be refreshed."),
+    };
   }
 };
 
 export const hydrateChildStreak = async (
   childId: string,
+  options: HydrateChildStreakOptions = {},
 ): Promise<ChildStreakSnapshot | null> => {
   const accountId = await getSessionAccountId();
   if (!accountId || !childId) return null;
   const key = snapshotIdentity(accountId, childId);
   const existing = hydrationPromises.get(key);
-  if (existing) return existing;
-  const promise = hydrateChildStreakImpl(accountId, childId).finally(() => {
+  const promise = existing ?? hydrateChildStreakImpl(accountId, childId).finally(() => {
     if (hydrationPromises.get(key) === promise) hydrationPromises.delete(key);
   });
-  hydrationPromises.set(key, promise);
-  return promise;
+  if (!existing) hydrationPromises.set(key, promise);
+  const outcome = await promise;
+  if (options.throwOnRemoteError && outcome.remoteError) throw outcome.remoteError;
+  return outcome.snapshot;
 };
 
 const rpcData = (value: unknown): StreakRpcResult =>
@@ -1327,14 +1383,16 @@ const syncQueueItem = async (
 const transitionPriority = (item: StreakTransitionQueueItem): number =>
   item.kind === "create_default" ? 0 : 1;
 
-export const syncDirtyStreakState = async (
+const syncDirtyStreakStateImpl = async (
   accountId?: string,
+  childId?: string,
+  mutationId?: string,
 ): Promise<StreakSyncResult> => {
   cancelScheduledStreakSync();
   const currentAccountId = await getSessionAccountId();
   const resolvedAccountId = accountId ?? currentAccountId;
   if (!resolvedAccountId || currentAccountId !== resolvedAccountId) {
-    return { pushed: 0, rejected: 0, failed: 0, skipped: 0 };
+    return { pushed: 0, rejected: 0, failed: 0, skipped: mutationId ? 1 : 0 };
   }
   await repairStreakQueue(resolvedAccountId);
 
@@ -1345,10 +1403,17 @@ export const syncDirtyStreakState = async (
   const blockedChildren = new Set<string>();
   const touchedChildren = new Set<string>();
   const attemptedTransitions = new Set<string>();
+  let targetMutationSeen = false;
+  const countsTowardResult = (item: StreakQueueItem): boolean => {
+    const matches = !mutationId || item.mutationId === mutationId;
+    if (mutationId && matches) targetMutationSeen = true;
+    return matches;
+  };
   while (true) {
     const item = (await loadQueue(resolvedAccountId))
       .filter((candidate): candidate is StreakTransitionQueueItem =>
         candidate.kind !== "day" &&
+        (!childId || candidate.childId === childId) &&
         !attemptedTransitions.has(`${candidate.mutationId}:${candidate.version}`))
       .sort((left, right) =>
         left.occurredAt.localeCompare(right.occurredAt) ||
@@ -1356,42 +1421,53 @@ export const syncDirtyStreakState = async (
     if (!item) break;
     attemptedTransitions.add(`${item.mutationId}:${item.version}`);
     if ((await getSessionAccountId()) !== resolvedAccountId) {
-      skipped += 1;
+      if (countsTowardResult(item)) skipped += 1;
       continue;
     }
     if (blockedChildren.has(item.childId)) {
-      skipped += 1;
+      if (countsTowardResult(item)) skipped += 1;
       continue;
     }
     try {
       const result = await syncQueueItem(item);
-      if (result.terminalRejected) rejected += 1;
-      else pushed += 1;
+      const outcome = result.terminalRejected ? "rejected" : "pushed";
+      rememberMutationSyncOutcome(resolvedAccountId, item.mutationId, outcome);
+      if (countsTowardResult(item)) {
+        if (outcome === "rejected") rejected += 1;
+        else pushed += 1;
+      }
       await removeConfirmedQueueItem(item);
       await confirmTransitionSnapshotCleanup(item);
       touchedChildren.add(item.childId);
     } catch (error) {
-      failed += 1;
+      if (countsTowardResult(item)) failed += 1;
       if (__DEV__) console.warn("Could not synchronize a streak transition:", error);
       if (item.kind !== "set_reminders") blockedChildren.add(item.childId);
     }
   }
 
   const days = (await loadQueue(resolvedAccountId))
-    .filter((item): item is DayQueueItem => item.kind === "day");
+    .filter((item): item is DayQueueItem =>
+      item.kind === "day" && (!childId || item.childId === childId));
   for (const item of days) {
     if (blockedChildren.has(item.childId) || (await getSessionAccountId()) !== resolvedAccountId) {
-      skipped += 1;
+      if (countsTowardResult(item)) skipped += 1;
       continue;
     }
     try {
       const result = await syncQueueItem(item);
-      if (result.terminalRejected || result.response.status === "stale") rejected += 1;
-      else pushed += 1;
+      const outcome = result.terminalRejected || result.response.status === "stale"
+        ? "rejected"
+        : "pushed";
+      rememberMutationSyncOutcome(resolvedAccountId, item.mutationId, outcome);
+      if (countsTowardResult(item)) {
+        if (outcome === "rejected") rejected += 1;
+        else pushed += 1;
+      }
       await removeConfirmedQueueItem(item);
       touchedChildren.add(item.childId);
     } catch (error) {
-      failed += 1;
+      if (countsTowardResult(item)) failed += 1;
       if (__DEV__) console.warn("Could not synchronize a streak day:", error);
     }
   }
@@ -1401,7 +1477,39 @@ export const syncDirtyStreakState = async (
     await hydrateChildStreak(childId);
   }
   if (failed > 0 || (await loadQueue(resolvedAccountId)).length > 0) scheduleStreakSync(15_000);
+  if (mutationId && !targetMutationSeen) {
+    const previousOutcome = recentMutationSyncOutcomes.get(
+      mutationSyncIdentity(resolvedAccountId, mutationId),
+    );
+    if (previousOutcome === "pushed") pushed += 1;
+    else if (previousOutcome === "rejected") rejected += 1;
+    else skipped += 1;
+  }
   return { pushed, rejected, failed, skipped };
+};
+
+export const syncDirtyStreakState = async (
+  accountId?: string,
+  childId?: string,
+  mutationId?: string,
+): Promise<StreakSyncResult> => {
+  const resolvedAccountId = accountId ?? (await getSessionAccountId());
+  if (!resolvedAccountId) {
+    return { pushed: 0, rejected: 0, failed: 0, skipped: mutationId ? 1 : 0 };
+  }
+  const previous = streakSyncTails.get(resolvedAccountId) ?? Promise.resolve();
+  const run = previous
+    .catch(() => undefined)
+    .then(() => syncDirtyStreakStateImpl(resolvedAccountId, childId, mutationId));
+  const tail = run.then(() => undefined, () => undefined);
+  streakSyncTails.set(resolvedAccountId, tail);
+  try {
+    return await run;
+  } finally {
+    if (streakSyncTails.get(resolvedAccountId) === tail) {
+      streakSyncTails.delete(resolvedAccountId);
+    }
+  }
 };
 
 export const getPendingStreakSyncCount = async (accountId?: string): Promise<number> => {

@@ -14,6 +14,7 @@ import {
   loadChildUiLanguagePreference,
   saveChildUiLanguagePreference,
 } from "@/lib/childUiLanguagePreference";
+import { ChildStreakSection } from "@/components/parent/ChildStreakSection";
 
 export default function ChildProfileDetailManagementScreen() {
   const router = useRouter();
@@ -95,6 +96,8 @@ export default function ChildProfileDetailManagementScreen() {
           <Text className="text-gray-500">Child profile was not found.</Text>
         )}
       </View>
+
+      {child ? <ChildStreakSection childId={child.id} mode="settings" /> : null}
 
       {child ? (
         <View className="mt-5 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">

@@ -29,8 +29,15 @@ describe("child learning streak migration", () => {
     expect(sql.match(/ENABLE ROW LEVEL SECURITY/g)).toHaveLength(3)
     expect(sql).toContain("child.parent_id = (SELECT auth.uid())")
     expect(sql).toContain("child.deleted_at IS NULL")
-    expect(sql).toContain("REVOKE ALL ON public.child_streak_days FROM PUBLIC, anon, authenticated")
-    expect(sql).toContain("GRANT SELECT ON public.child_streak_days TO authenticated")
+    for (const table of [
+      "child_streak_preferences",
+      "child_streak_epochs",
+      "child_streak_days",
+    ]) {
+      expect(sql).toContain(`REVOKE ALL ON public.${table} FROM PUBLIC, anon, authenticated`)
+      expect(sql).toContain(`GRANT SELECT ON public.${table} TO authenticated`)
+      expect(sql).toContain(`CREATE POLICY ${table}_parent_select`)
+    }
     expect(sql).not.toMatch(/CREATE POLICY[\s\S]{0,120}FOR (INSERT|UPDATE|DELETE)/)
   })
 
@@ -55,6 +62,14 @@ describe("child learning streak migration", () => {
     expect(sql).toContain("equal_timestamp_conflict")
     expect(sql).toContain("occurred_before_reset_at")
     expect(sql).toContain("no_valid_boundary")
+    for (const helper of [
+      "child_streak_state_result",
+      "normalize_child_streak_epoch_days",
+      "set_child_streak_updated_at",
+      "initialize_child_streak_after_insert",
+    ]) {
+      expect(sql).toMatch(new RegExp(`REVOKE (?:ALL|EXECUTE) ON FUNCTION public\\.${helper}`))
+    }
   })
 
   it("initializes existing children at launch and new children at creation", () => {

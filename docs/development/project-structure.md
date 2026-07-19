@@ -9,7 +9,7 @@ Baby Steps uses Expo Router, so most user-facing screens are file routes under `
 | Path | Purpose |
 | --- | --- |
 | `app/` | Expo Router routes and layouts. |
-| `app/_layout.tsx` | Root app setup: fonts, splash, session, onboarding routing, background music, child provider. |
+| `app/_layout.tsx` | Root app setup: an always-mounted Expo Router stack, fonts, splash, session, onboarding routing, background music, and child provider. |
 | `app/index.tsx` | First-run app onboarding. |
 | `app/login.tsx`, `app/signup.tsx`, `app/forgot-password.tsx`, `app/reset-password.tsx` | Auth routes. |
 | `app/parent/` | Parent dashboard, settings, activities, child detail, achievements, add-child flow. |
@@ -19,10 +19,11 @@ Baby Steps uses Expo Router, so most user-facing screens are file routes under `
 | `components/games/utils/` | Game-specific progress/audio managers. |
 | `components/games/achievements/` | Supabase achievement definitions, earned achievements, and awarding logic. |
 | `components/stories/` | Generic database-backed story renderer plus any deprecated route-compatibility components. |
-| `components/child/` | Child dashboard/card interface and older coloring prototype. |
+| `components/child/` | Child dashboard/card interface, streak header/celebration UI, and older coloring prototype. |
+| `components/parent/` | Shared parent-facing UI, including the child streak profile section. |
 | `content/` | Exact-language database repository/cache, Learning Hub validators/types, and bundled asset resolvers. |
-| `context/` | React contexts for active child, add-child flow, and language setting. |
-| `lib/` | Supabase client, activity helpers, translations, and Sunbird prototype helpers. |
+| `context/` | React contexts for active child, add-child flow, language setting, and the single active-child streak snapshot. |
+| `lib/` | Supabase client, activity helpers, streak date/repository logic, notifications, translations, and Sunbird prototype helpers. |
 | `utils/` | Generic AsyncStorage helpers for progress, activities, sessions, and weekly stats. |
 | `assets/` | Fonts, app icons, images, story media, puzzle images, audio, and sounds. |
 | `docs/` | Current documentation. |
@@ -37,6 +38,7 @@ Baby Steps uses Expo Router, so most user-facing screens are file routes under `
 - Story routes are under `app/child/stories/`.
 - Museum routes are archived under `app/child/games/museum/` and hidden from the current child tab bar.
 - Coloring routes are under `app/child/games/coloring/`.
+- `StreakProvider` and `StreakCelebrationHost` are mounted in `app/child/_layout.tsx`, inside the Expo Router navigator. Parent profile routes query child-scoped streak snapshots without creating a second provider or navigation container.
 
 ## Naming Conventions
 

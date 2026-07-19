@@ -17,6 +17,8 @@ END;
 $$;
 
 DO $$
+DECLARE
+  v_table text;
 BEGIN
   IF (SELECT count(*) FROM pg_catalog.pg_tables
       WHERE schemaname = 'public' AND tablename LIKE 'child_streak_%') <> 3 THEN
@@ -84,13 +86,18 @@ BEGIN
   ) <> 5 THEN
     RAISE EXCEPTION 'exposed RPC security-definer ownership or grants are unsafe';
   END IF;
-  IF NOT pg_catalog.has_table_privilege('authenticated', 'public.child_streak_days', 'SELECT')
-    OR pg_catalog.has_table_privilege('authenticated', 'public.child_streak_days', 'INSERT')
-    OR pg_catalog.has_table_privilege('authenticated', 'public.child_streak_days', 'UPDATE')
-    OR pg_catalog.has_table_privilege('authenticated', 'public.child_streak_days', 'DELETE')
-  THEN
-    RAISE EXCEPTION 'authenticated streak table grants are unsafe';
-  END IF;
+  FOREACH v_table IN ARRAY ARRAY[
+    'child_streak_preferences', 'child_streak_epochs', 'child_streak_days'
+  ] LOOP
+    IF NOT pg_catalog.has_table_privilege('authenticated', 'public.' || v_table, 'SELECT')
+      OR pg_catalog.has_table_privilege('authenticated', 'public.' || v_table, 'INSERT')
+      OR pg_catalog.has_table_privilege('authenticated', 'public.' || v_table, 'UPDATE')
+      OR pg_catalog.has_table_privilege('authenticated', 'public.' || v_table, 'DELETE')
+      OR pg_catalog.has_table_privilege('anon', 'public.' || v_table, 'SELECT')
+    THEN
+      RAISE EXCEPTION 'streak table grants are unsafe for %', v_table;
+    END IF;
+  END LOOP;
 END;
 $$;
 
@@ -110,6 +117,7 @@ BEGIN
   END;
 END;
 $$;
+
 RESET ROLE;
 
 SET ROLE authenticated;
@@ -136,13 +144,31 @@ END;
 $$;
 
 DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM public.child_streak_preferences
+    WHERE child_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+  ) OR EXISTS (
+    SELECT 1 FROM public.child_streak_epochs
+    WHERE child_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+  ) OR EXISTS (
+    SELECT 1 FROM public.child_streak_days
+    WHERE child_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+  ) THEN
+    RAISE EXCEPTION 'cross-account streak rows were visible';
+  END IF;
+END;
+$$;
+
+DO $$
 DECLARE
   v_result jsonb;
 BEGIN
   v_result := public.set_child_streak_reminder_participation(
     'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', false
   );
-  IF v_result->>'status' <> 'rejected' OR v_result->>'reason' <> 'child_not_owned' THEN
+  IF v_result->>'status' IS DISTINCT FROM 'rejected'
+    OR v_result->>'reason' IS DISTINCT FROM 'child_not_owned' THEN
     RAISE EXCEPTION 'cross-account RPC was not rejected: %', v_result;
   END IF;
 END;
@@ -162,15 +188,28 @@ BEGIN
     v_child, false, v_epoch, NULL,
     v_boundary + interval '10 minutes'
   );
-  IF v_result->>'status' <> 'applied' THEN
+  IF v_result->>'status' IS DISTINCT FROM 'applied' THEN
     RAISE EXCEPTION 'owned disable failed: %', v_result;
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM public.child_streak_preferences preference
+    WHERE preference.child_id = v_child
+      AND (preference.streak_enabled OR preference.current_epoch_id IS NOT NULL)
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.child_streak_epochs epoch
+    WHERE epoch.child_id = v_child
+      AND epoch.id = v_epoch
+      AND epoch.ended_at = v_boundary + interval '10 minutes'
+      AND epoch.end_reason = 'disabled'
+  ) THEN
+    RAISE EXCEPTION 'owned disable was not persisted consistently';
   END IF;
 
   v_result := public.set_child_streak_enabled(
     v_child, true, NULL, '00000000-0000-4000-8000-000000000011',
     v_boundary + interval '5 minutes'
   );
-  IF v_result->>'status' <> 'stale' THEN
+  IF v_result->>'status' IS DISTINCT FROM 'stale' THEN
     RAISE EXCEPTION 'older enable overrode newer disable: %', v_result;
   END IF;
 
@@ -178,7 +217,7 @@ BEGIN
     v_child, true, NULL, '00000000-0000-4000-8000-000000000012',
     v_boundary + interval '20 minutes'
   );
-  IF v_result->>'status' <> 'applied' THEN
+  IF v_result->>'status' IS DISTINCT FROM 'applied' THEN
     RAISE EXCEPTION 'newer re-enable failed: %', v_result;
   END IF;
 
@@ -186,7 +225,7 @@ BEGIN
     v_child, false, '00000000-0000-4000-8000-000000000012', NULL,
     v_boundary + interval '15 minutes'
   );
-  IF v_result->>'status' <> 'stale' THEN
+  IF v_result->>'status' IS DISTINCT FROM 'stale' THEN
     RAISE EXCEPTION 'older disable overrode newer re-enable: %', v_result;
   END IF;
 
@@ -195,7 +234,7 @@ BEGIN
     '00000000-0000-4000-8000-000000000013',
     v_boundary + interval '30 minutes'
   );
-  IF v_result->>'status' <> 'applied' THEN
+  IF v_result->>'status' IS DISTINCT FROM 'applied' THEN
     RAISE EXCEPTION 'reset failed: %', v_result;
   END IF;
 
@@ -204,7 +243,7 @@ BEGIN
     '00000000-0000-4000-8000-000000000013',
     v_boundary + interval '30 minutes'
   );
-  IF v_result->>'status' <> 'no_op' THEN
+  IF v_result->>'status' IS DISTINCT FROM 'no_op' THEN
     RAISE EXCEPTION 'exact reset retry was not idempotent: %', v_result;
   END IF;
 
@@ -212,7 +251,8 @@ BEGIN
     v_child, false, '00000000-0000-4000-8000-000000000013', NULL,
     v_boundary + interval '30 minutes'
   );
-  IF v_result->>'status' <> 'stale' OR v_result->>'reason' <> 'equal_timestamp_conflict' THEN
+  IF v_result->>'status' IS DISTINCT FROM 'stale'
+    OR v_result->>'reason' IS DISTINCT FROM 'equal_timestamp_conflict' THEN
     RAISE EXCEPTION 'equal timestamp conflict replaced accepted reset: %', v_result;
   END IF;
 
@@ -220,12 +260,12 @@ BEGIN
     v_child, true, NULL, '00000000-0000-4000-8000-000000000014',
     v_boundary + interval '25 minutes'
   );
-  IF v_result->>'status' <> 'stale' THEN
+  IF v_result->>'status' IS DISTINCT FROM 'stale' THEN
     RAISE EXCEPTION 'reset did not reject stale enable: %', v_result;
   END IF;
 
   IF (SELECT reset_at FROM public.child_streak_preferences WHERE child_id = v_child)
-     <> v_boundary + interval '30 minutes' THEN
+     IS DISTINCT FROM v_boundary + interval '30 minutes' THEN
     RAISE EXCEPTION 'reset_at moved backwards';
   END IF;
   IF (SELECT count(*) FROM public.child_streak_epochs
@@ -256,7 +296,8 @@ BEGIN
   v_result := public.set_child_streak_reminder_participation(
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', false
   );
-  IF v_result->>'status' <> 'rejected' OR v_result->>'reason' <> 'child_not_owned' THEN
+  IF v_result->>'status' IS DISTINCT FROM 'rejected'
+    OR v_result->>'reason' IS DISTINCT FROM 'child_not_owned' THEN
     RAISE EXCEPTION 'soft-deleted child accepted an RPC: %', v_result;
   END IF;
 END;
@@ -276,7 +317,8 @@ BEGIN
   v_result := public.set_child_streak_reminder_participation(
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', false
   );
-  IF v_result->>'status' NOT IN ('applied', 'no_op') THEN
+  IF v_result->>'status' IS DISTINCT FROM 'applied'
+    AND v_result->>'status' IS DISTINCT FROM 'no_op' THEN
     RAISE EXCEPTION 'reactivated child did not regain owned RPC access: %', v_result;
   END IF;
 END;
@@ -309,7 +351,7 @@ BEGIN
     'America/New_York', '2026-03-08T10:00:00Z',
     'game', 'tz-forward'
   );
-  IF v_result->>'status' <> 'applied' THEN
+  IF v_result->>'status' IS DISTINCT FROM 'applied' THEN
     RAISE EXCEPTION 'cross-timezone merge insert failed: %', v_result;
   END IF;
 
@@ -319,7 +361,7 @@ BEGIN
     'Africa/Kampala', '2026-03-07T22:30:00Z',
     'story', 'tz-reverse'
   );
-  IF v_result->>'status' <> 'applied' THEN
+  IF v_result->>'status' IS DISTINCT FROM 'applied' THEN
     RAISE EXCEPTION 'reverse timezone retry failed: %', v_result;
   END IF;
 
@@ -339,7 +381,7 @@ BEGIN
     v_child, v_epoch, '00000000-0000-4000-8000-000000000021',
     '2026-03-08T08:00:00Z'
   );
-  IF v_result->>'status' <> 'applied' THEN
+  IF v_result->>'status' IS DISTINCT FROM 'applied' THEN
     RAISE EXCEPTION 'same-day boundary reset failed: %', v_result;
   END IF;
 
@@ -351,11 +393,13 @@ BEGIN
     'America/New_York', '2026-03-08T09:00:00Z',
     'game', 'boundary-last'
   );
-  IF v_result->>'status' <> 'applied' OR
-     (v_result->'day'->>'first_completed_at')::timestamptz <> '2026-03-08T09:00:00Z' OR
-     (v_result->'day'->>'last_completed_at')::timestamptz <> '2026-03-08T09:00:00Z' OR
-     v_result->'day'->>'first_timezone' <> 'America/New_York' OR
-     v_result->'day'->>'last_timezone' <> 'America/New_York' THEN
+  IF v_result->>'status' IS DISTINCT FROM 'applied' OR
+     (v_result->'day'->>'first_completed_at')::timestamptz
+       IS DISTINCT FROM '2026-03-08T09:00:00Z'::timestamptz OR
+     (v_result->'day'->>'last_completed_at')::timestamptz
+       IS DISTINCT FROM '2026-03-08T09:00:00Z'::timestamptz OR
+     v_result->'day'->>'first_timezone' IS DISTINCT FROM 'America/New_York' OR
+     v_result->'day'->>'last_timezone' IS DISTINCT FROM 'America/New_York' THEN
     RAISE EXCEPTION 'invalid first / valid last was not normalized: %', v_result;
   END IF;
 
@@ -367,7 +411,7 @@ BEGIN
     'America/New_York', '2027-01-01T04:30:00Z',
     'story', 'year-boundary'
   );
-  IF v_result->>'status' <> 'applied' THEN
+  IF v_result->>'status' IS DISTINCT FROM 'applied' THEN
     RAISE EXCEPTION 'cross-timezone year-boundary day failed: %', v_result;
   END IF;
 
@@ -378,8 +422,9 @@ BEGIN
     'America/New_York', '2026-03-08T09:00:00Z',
     'game', 'boundary-first'
   );
-  IF v_result->>'status' <> 'applied' OR
-     (v_result->'day'->>'last_completed_at')::timestamptz <> '2026-03-08T07:00:00Z' OR
+  IF v_result->>'status' IS DISTINCT FROM 'applied' OR
+     (v_result->'day'->>'last_completed_at')::timestamptz
+       IS DISTINCT FROM '2026-03-08T07:00:00Z'::timestamptz OR
      (v_result->'day'->>'last_completed_at')::timestamptz >= '2026-03-08T08:00:00Z' THEN
     RAISE EXCEPTION 'valid first / invalid last was not normalized: %', v_result;
   END IF;
@@ -391,7 +436,8 @@ BEGIN
     'America/New_York', '2026-03-08T09:00:00Z',
     'game', 'boundary-none'
   );
-  IF v_result->>'status' <> 'rejected' OR v_result->>'reason' <> 'no_valid_boundary' THEN
+  IF v_result->>'status' IS DISTINCT FROM 'rejected'
+    OR v_result->>'reason' IS DISTINCT FROM 'no_valid_boundary' THEN
     RAISE EXCEPTION 'day with no valid boundary was accepted: %', v_result;
   END IF;
 END;

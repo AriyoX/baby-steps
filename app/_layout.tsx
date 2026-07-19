@@ -18,7 +18,6 @@ import { rememberAuthRedirectUrl } from "@/lib/authRedirectEvents";
 import { hasCompletedOnboarding } from "@/lib/onboarding";
 import "@/global.css";
 import { ChildProvider } from '@/context/ChildContext';
-import { StreakProvider } from '@/context/StreakContext';
 import { AudioProvider } from "@/context/AudioContext";
 import {
   NetworkStatusNotice,
@@ -279,16 +278,10 @@ export default function RootLayout() {
     };
   }, [applyRouteOrientation, fontsLoaded, isAccountStateLoading, isLoading, session?.user.id]);
 
-  // Return null until everything is ready
-  if (!fontsLoaded || isLoading) {
-    return null; // This keeps the splash screen visible
-  }
-
   return (
     <AudioProvider>
       <ChildProvider>
-        <StreakProvider>
-          <View style={{ flex: 1 }}>
+        <View style={{ flex: 1 }}>
           <Stack
             screenOptions={{
               animation: "fade_from_bottom",
@@ -309,15 +302,14 @@ export default function RootLayout() {
             <Stack.Screen name="parent" options={{ orientation: ADULT_ROUTE_ORIENTATION, animation: "none" }} />
             <Stack.Screen name="child" options={{ orientation: CHILD_ROUTE_ORIENTATION, animation: "none" }} />
           </Stack>
-          {showSplashTransition ? (
+          {fontsLoaded && !isLoading && showSplashTransition ? (
             <AnimatedSplashTransition onDone={handleSplashTransitionDone} />
           ) : null}
           <NetworkStatusNotice
-            ready={!showSplashTransition}
+            ready={fontsLoaded && !isLoading && !showSplashTransition}
             showPersistentBanner={shouldShowPersistentNetworkBanner(pathname)}
           />
-          </View>
-        </StreakProvider>
+        </View>
       </ChildProvider>
     </AudioProvider>
   );

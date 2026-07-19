@@ -13,7 +13,7 @@ import {
   cancelScheduledStreakSync,
   disableChildStreak,
   enableChildStreak,
-  getChildStreak,
+  getCachedChildStreak,
   hydrateChildStreak,
   repairStreakQueue,
   resetChildCurrentStreak,
@@ -76,14 +76,15 @@ export function StreakProvider({ children }: { children: React.ReactNode }) {
     if (!childId) return;
 
     await repairStreakQueue();
-    const local = await getChildStreak(childId);
+    const local = await getCachedChildStreak(childId);
     if (generationRef.current !== generation || activeChildId !== childId) return;
-    setSnapshot(local);
-    setIsLoading(false);
+    setSnapshot(local?.hydratedAt ? local : null);
 
-    const hydrated = await hydrateChildStreak(childId);
+    const hydrated = await hydrateChildStreak(childId, { throwOnRemoteError: true });
     if (generationRef.current !== generation || activeChildId !== childId) return;
-    if (hydrated) setSnapshot(hydrated);
+    if (!hydrated) throw new Error("Learning streak data is unavailable for this child.");
+    setSnapshot(hydrated);
+    setIsLoading(false);
     void syncDirtyStreakState().catch((error) => {
       console.warn("Could not finish detached streak synchronization:", error);
     });
@@ -135,16 +136,25 @@ export function StreakProvider({ children }: { children: React.ReactNode }) {
 
     let cancelled = false;
     let unsubscribe: () => void = () => undefined;
-    void getAccountId().then((accountId) => {
-      if (cancelled || !accountId || generationRef.current !== generation || !activeChildId) return;
-      unsubscribe = subscribeToChildStreak(accountId, activeChildId, (next) => {
-        if (generationRef.current === generation) setSnapshot(next);
+    void getAccountId()
+      .then((accountId) => {
+        if (cancelled || generationRef.current !== generation || !activeChildId) return;
+        if (!accountId) {
+          setIsLoading(false);
+          return;
+        }
+        unsubscribe = subscribeToChildStreak(accountId, activeChildId, (next) => {
+          if (generationRef.current === generation && next.hydratedAt) setSnapshot(next);
+        });
+        void load().catch((error) => {
+          if (generationRef.current === generation) setIsLoading(false);
+          console.warn("Could not load the active child's learning streak:", error);
+        });
+      })
+      .catch((error) => {
+        if (!cancelled && generationRef.current === generation) setIsLoading(false);
+        console.warn("Could not verify the account for learning streaks:", error);
       });
-      void load().catch((error) => {
-        if (generationRef.current === generation) setIsLoading(false);
-        console.warn("Could not load the active child's learning streak:", error);
-      });
-    });
 
     return () => {
       cancelled = true;
@@ -238,42 +248,109 @@ export const useStreak = (): StreakContextValue => useContext(StreakContext);
 export const useChildStreakSnapshot = (childId: string): {
   snapshot: ChildStreakSnapshot | null;
   loading: boolean;
+  error: Error | null;
   refresh: () => Promise<void>;
 } => {
-  const [snapshot, setSnapshot] = useState<ChildStreakSnapshot | null>(null);
-  const [loading, setLoading] = useState(Boolean(childId));
+  type QueryState = {
+    childId: string;
+    snapshot: ChildStreakSnapshot | null;
+    loading: boolean;
+    error: Error | null;
+  };
+  const [state, setState] = useState<QueryState>({
+    childId,
+    snapshot: null,
+    loading: Boolean(childId),
+    error: null,
+  });
   const generationRef = useRef(0);
 
   const refresh = useCallback(async () => {
     const generation = generationRef.current;
-    if (!childId) return;
-    const local = await getChildStreak(childId);
-    if (generationRef.current !== generation) return;
-    setSnapshot(local);
-    setLoading(false);
-    const hydrated = await hydrateChildStreak(childId);
-    if (generationRef.current === generation && hydrated) setSnapshot(hydrated);
+    if (!childId) {
+      setState({ childId, snapshot: null, loading: false, error: null });
+      return;
+    }
+
+    setState((current) => ({
+      childId,
+      snapshot: current.childId === childId ? current.snapshot : null,
+      loading: true,
+      error: null,
+    }));
+
+    try {
+      const local = await getCachedChildStreak(childId);
+      if (generationRef.current !== generation) return;
+      const verifiedLocal = local?.hydratedAt ? local : null;
+      setState({ childId, snapshot: verifiedLocal, loading: true, error: null });
+
+      const hydrated = await hydrateChildStreak(childId, { throwOnRemoteError: true });
+      if (generationRef.current !== generation) return;
+      if (!hydrated) {
+        throw new Error("Learning streak data is unavailable for this child.");
+      }
+      setState({ childId, snapshot: hydrated, loading: false, error: null });
+    } catch (error) {
+      if (generationRef.current !== generation) return;
+      const normalized = error instanceof Error
+        ? error
+        : new Error("Learning streak data could not be loaded.");
+      setState((current) => ({
+        childId,
+        snapshot: current.childId === childId ? current.snapshot : null,
+        loading: false,
+        error: normalized,
+      }));
+    }
   }, [childId]);
 
   useEffect(() => {
     generationRef.current += 1;
     const generation = generationRef.current;
-    setSnapshot(null);
-    setLoading(Boolean(childId));
+    setState({ childId, snapshot: null, loading: Boolean(childId), error: null });
     if (!childId) return;
     let cancelled = false;
     let unsubscribe: () => void = () => undefined;
 
-    void getAccountId().then((accountId) => {
-      if (cancelled || !accountId || generationRef.current !== generation) return;
-      unsubscribe = subscribeToChildStreak(accountId, childId, (next) => {
-        if (generationRef.current === generation) setSnapshot(next);
+    void getAccountId()
+      .then((accountId) => {
+        if (cancelled || generationRef.current !== generation) return;
+        if (!accountId) {
+          setState({
+            childId,
+            snapshot: null,
+            loading: false,
+            error: new Error("Sign in to manage this child's learning streak."),
+          });
+          return;
+        }
+        unsubscribe = subscribeToChildStreak(accountId, childId, (next) => {
+          if (
+            generationRef.current !== generation ||
+            next.childId !== childId ||
+            !next.hydratedAt
+          ) return;
+          setState((current) => ({
+            childId,
+            snapshot: next,
+            loading: current.childId === childId ? current.loading : false,
+            error: current.childId === childId ? current.error : null,
+          }));
+        });
+        void refresh();
+      })
+      .catch((error) => {
+        if (cancelled || generationRef.current !== generation) return;
+        setState({
+          childId,
+          snapshot: null,
+          loading: false,
+          error: error instanceof Error
+            ? error
+            : new Error("Learning streak data could not be loaded."),
+        });
       });
-      void refresh().catch((error) => {
-        if (generationRef.current === generation) setLoading(false);
-        console.warn("Could not load this child's learning streak:", error);
-      });
-    });
 
     return () => {
       cancelled = true;
@@ -281,5 +358,11 @@ export const useChildStreakSnapshot = (childId: string): {
     };
   }, [childId, refresh]);
 
-  return { snapshot: snapshot?.childId === childId ? snapshot : null, loading, refresh };
+  const stateMatchesChild = state.childId === childId;
+  return {
+    snapshot: stateMatchesChild && state.snapshot?.childId === childId ? state.snapshot : null,
+    loading: Boolean(childId) && (!stateMatchesChild || state.loading),
+    error: stateMatchesChild ? state.error : null,
+    refresh,
+  };
 };

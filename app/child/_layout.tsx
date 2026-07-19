@@ -7,6 +7,7 @@ import * as ScreenOrientation from "expo-screen-orientation"
 import { useChild } from "@/context/ChildContext"
 import { ChildNoticeProvider } from "@/context/ChildNoticeContext"
 import { ChildUiLanguageProvider } from "@/context/ChildUiLanguageProvider"
+import { StreakProvider } from "@/context/StreakContext"
 import { StreakCelebrationHost } from "@/components/child/StreakCelebrationHost"
 
 const CHILD_ROUTE_ORIENTATION = "landscape_left" as const
@@ -74,42 +75,44 @@ export default function TabLayout() {
 
   return (
     <ChildUiLanguageProvider key={activeChild.id}>
-      <ChildNoticeProvider key={activeChild.id} childId={activeChild.id}>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            orientation: CHILD_ROUTE_ORIENTATION,
-          }}
-        >
-          <Stack.Screen
-            name="(tabs)"
-            options={{
-              animation: "none",
-              orientation: CHILD_ROUTE_ORIENTATION,
-            }}
-          />
-          <Stack.Screen
-            name="games"
-            options={{
-              orientation: CHILD_ROUTE_ORIENTATION,
-            }}
-          />
-          <Stack.Screen
-            name="learning"
-            options={{
-              orientation: CHILD_ROUTE_ORIENTATION,
-            }}
-          />
-          <Stack.Screen
-            name="parent-gate"
-            options={{
+      <StreakProvider key={activeChild.id}>
+        <ChildNoticeProvider key={activeChild.id} childId={activeChild.id}>
+          <Stack
+            screenOptions={{
               headerShown: false,
               orientation: CHILD_ROUTE_ORIENTATION,
             }}
-          />
-        </Stack>
-        <StreakCelebrationHost />
-      </ChildNoticeProvider>
+          >
+            <Stack.Screen
+              name="(tabs)"
+              options={{
+                animation: "none",
+                orientation: CHILD_ROUTE_ORIENTATION,
+              }}
+            />
+            <Stack.Screen
+              name="games"
+              options={{
+                orientation: CHILD_ROUTE_ORIENTATION,
+              }}
+            />
+            <Stack.Screen
+              name="learning"
+              options={{
+                orientation: CHILD_ROUTE_ORIENTATION,
+              }}
+            />
+            <Stack.Screen
+              name="parent-gate"
+              options={{
+                headerShown: false,
+                orientation: CHILD_ROUTE_ORIENTATION,
+              }}
+            />
+          </Stack>
+          <StreakCelebrationHost />
+        </ChildNoticeProvider>
+      </StreakProvider>
     </ChildUiLanguageProvider>
   )
 }

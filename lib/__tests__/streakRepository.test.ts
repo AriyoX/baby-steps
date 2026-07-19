@@ -51,7 +51,7 @@ const completion = (
     completedAt,
   })
 
-const createRemoteQuery = (read: () => { data: unknown; error: null }) => {
+const createRemoteQuery = (read: () => { data: unknown; error: unknown }) => {
   const query: Record<string, unknown> = {}
   const chain = jest.fn(() => query)
   const resolve = () => Promise.resolve(read())
@@ -177,6 +177,59 @@ describe("local-first child streak repository", () => {
     expect(hydrated?.summary.todayComplete).toBe(true)
   })
 
+  it("uses the authoritative disabled preference on a device without a local cache", async () => {
+    const remotePreferences = {
+      child_id: "child-1",
+      streak_enabled: false,
+      include_in_reminders: true,
+      current_epoch_id: null,
+      reset_at: "2026-07-18T16:00:00.000Z",
+      updated_at: "2026-07-18T16:00:00.000Z",
+    }
+    const remoteEpochs = [{
+      id: "closed-epoch",
+      child_id: "child-1",
+      started_at: "2026-07-01T00:00:00.000Z",
+      ended_at: "2026-07-18T16:00:00.000Z",
+      end_reason: "disabled",
+      updated_at: "2026-07-18T16:00:00.000Z",
+    }]
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "child_streak_preferences") {
+        return createRemoteQuery(() => ({ data: remotePreferences, error: null }))
+      }
+      if (table === "child_streak_epochs") {
+        return createRemoteQuery(() => ({ data: remoteEpochs, error: null }))
+      }
+      return createRemoteQuery(() => ({ data: [], error: null }))
+    })
+
+    const hydrated = await hydrateChildStreak("child-1", { throwOnRemoteError: true })
+
+    expect(hydrated?.preferences.streakEnabled).toBe(false)
+    expect(hydrated?.preferences.currentEpochId).toBeNull()
+    expect(hydrated?.summary.currentStreak).toBe(0)
+    expect(hydrated?.hydratedAt).toBeTruthy()
+    expect(await getPendingStreakSyncCount("parent-1")).toBe(0)
+  })
+
+  it("does not fabricate an enabled preference when first remote hydration fails", async () => {
+    const warning = jest.spyOn(console, "warn").mockImplementation(() => undefined)
+    mockFrom.mockImplementation(() => createRemoteQuery(() => ({
+      data: null,
+      error: new Error("permission denied"),
+    })))
+
+    await expect(
+      hydrateChildStreak("child-1", { throwOnRemoteError: true }),
+    ).rejects.toThrow("permission denied")
+
+    expect(await AsyncStorage.getItem(getStreakStorageKeys("parent-1", "child-1").snapshot))
+      .toBeNull()
+    expect(await getPendingStreakSyncCount("parent-1")).toBe(0)
+    warning.mockRestore()
+  })
+
   it("recovers from a malformed child cache without leaking or crashing", async () => {
     const warning = jest.spyOn(console, "warn").mockImplementation(() => undefined)
     const keys = getStreakStorageKeys("parent-1", "child-1")
@@ -274,6 +327,47 @@ describe("local-first child streak repository", () => {
     expect(result.failed + result.skipped).toBe(before)
     expect(after).toBe(before)
     expect(storedQueue).toHaveLength(before)
+    warning.mockRestore()
+  })
+
+  it("reports only the edited mutation while replaying older work for that child", async () => {
+    const warning = jest.spyOn(console, "warn").mockImplementation(() => undefined)
+    await getChildStreak("child-1")
+    await disableChildStreak("child-1", "2026-07-19T08:01:00.000Z")
+    await getChildStreak("child-2")
+    const queuedBeforeSync = JSON.parse(
+      (await AsyncStorage.getItem(getStreakQueueStorageKey("parent-1"))) ?? "[]",
+    ) as { childId: string; kind: string; mutationId: string }[]
+    const editedMutation = queuedBeforeSync.find((item) =>
+      item.childId === "child-1" && item.kind === "set_enabled")!
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === "create_child_streak_state") {
+        return { data: { status: "rejected", reason: "stale" }, error: null }
+      }
+      return { data: { status: "applied" }, error: null }
+    })
+
+    const backgroundSync = syncDirtyStreakState("parent-1", "child-1")
+    const exactSync = syncDirtyStreakState(
+      "parent-1",
+      "child-1",
+      editedMutation.mutationId,
+    )
+    const [backgroundResult, result] = await Promise.all([backgroundSync, exactSync])
+    const remainingQueue = JSON.parse(
+      (await AsyncStorage.getItem(getStreakQueueStorageKey("parent-1"))) ?? "[]",
+    ) as { childId: string }[]
+
+    expect(backgroundResult).toEqual({ pushed: 1, rejected: 1, failed: 0, skipped: 0 })
+    expect(result).toEqual({ pushed: 1, rejected: 0, failed: 0, skipped: 0 })
+    expect(mockRpc).toHaveBeenCalledTimes(2)
+    expect(mockRpc.mock.calls.map((call) => call[1])).toEqual([
+      expect.objectContaining({ p_child_id: "child-1" }),
+      expect.objectContaining({ p_child_id: "child-1" }),
+    ])
+    expect(remainingQueue).toEqual([
+      expect.objectContaining({ childId: "child-2" }),
+    ])
     warning.mockRestore()
   })
 

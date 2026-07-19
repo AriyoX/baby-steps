@@ -73,7 +73,7 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] The `notification-test` profile still exposes manual test-notification controls.
 - [ ] Denying permission does not block signup or login.
 - [ ] Dashboard bell opens notification settings.
-- [ ] Settings toggle pauses and resumes the three recurring reminders.
+- [ ] Settings toggle pauses and resumes the grouped account/device learning reminder.
 - [ ] Blocked permission state offers a route to device settings.
 - [ ] Test reminder appears after approximately three seconds.
 - [ ] Tapping a reminder opens the appropriate signed-in or signed-out root flow.
@@ -89,6 +89,21 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Child appears in child list and parent dashboard.
 - [ ] Child detail opens for the correct child.
 - [ ] Launch child mode sets active child.
+
+## Child Learning Streaks
+
+- [ ] Cold-start signed out, signed in as a parent, signed in in child mode, and with a missing/invalid active child; no state requests navigation context before Expo Router is ready.
+- [ ] Open a child from the dashboard; the child profile shows current, best, today, and seven-day history without mutation controls.
+- [ ] Open Settings -> Child Profiles -> child; streak status, enable switch, reminder participation, and reset are present for that child.
+- [ ] Disable a child's streak; the controls remain visible, the child flame disappears, qualification stops, and that child leaves reminder eligibility.
+- [ ] Re-enable the streak; a clean current epoch starts without bridging the old streak.
+- [ ] Reset after adult confirmation, then complete again on the same local date; only the post-reset completion qualifies the new epoch.
+- [ ] Switch repeatedly between two children; neither preference, history, error, nor loading state flashes from the previously viewed child.
+- [ ] Test offline/failed hydration and mutation failure; the setting remains visible, retry works, and authoritative state is restored.
+- [ ] Complete each qualifying learning/game/story outcome and save coloring; partial progress and unsaved coloring do not qualify.
+- [ ] Confirm only the first qualification of the day celebrates, reduced-motion behavior is acceptable, and child header accessibility text is correct.
+- [ ] On a physical device, verify permission-denied startup, grouped generic reminder copy, optional first names, all-complete one-shot behavior, foreground refresh, and timezone/date-boundary behavior.
+- [ ] Follow the full contract and troubleshooting notes in [Child Learning Streaks](../features/child-streaks.md).
 
 ## Stories
 

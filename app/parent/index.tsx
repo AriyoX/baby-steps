@@ -294,11 +294,13 @@ const ParentDashboard = () => {
                     ? childProfiles.map((child) => (
                         <TouchableOpacity
                           key={child.id}
+                          accessibilityLabel={`Open profile for ${child.name}`}
+                          accessibilityRole="button"
                           className="bg-white rounded-xl p-4 w-[150px] shadow-sm border border-primary-100"
                           onPress={() =>
                             router.push({
-                              pathname: "/parent/child-detail/1" as any,
-                              params: { childId: child.id },
+                              pathname: "/parent/child-detail/[id]" as any,
+                              params: { id: child.id },
                             })
                           }
                           activeOpacity={0.8}

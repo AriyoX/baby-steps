@@ -16,7 +16,7 @@ import React, {
   type Ref,
 } from "react"
 import {
-  ActivityIndicator,
+  InteractionManager,
   Modal,
   Platform,
   ScrollView,
@@ -27,7 +27,7 @@ import {
   View,
 } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
-import Svg, { Path as SvgPath, Rect as SvgRect } from "react-native-svg"
+import Svg, { Defs, Mask, Rect as SvgRect } from "react-native-svg"
 
 import { Text } from "@/components/StyledText"
 import { brandColors, brandShadows } from "@/constants/Brand"
@@ -477,6 +477,16 @@ export function GameTour({
       return
     }
 
+    // Every consumer is hosted in a landscape-only game route. A target can
+    // briefly produce stable portrait measurements while iOS is still pushing
+    // the route; presenting Modal in that window races the native orientation
+    // transition. Wait for the route's requested orientation before measuring.
+    if (width <= height) {
+      setTargetRect(null)
+      setTooltipSize(null)
+      return
+    }
+
     const step = stepsRef.current[activeIndex]
     if (!registry || !step) {
       setTargetRect(null)
@@ -541,37 +551,29 @@ export function GameTour({
       setTargetRect(nextRect)
     }
 
-    void findTarget()
+    // Route navigation and the landscape lock are native interactions. Let
+    // those finish before the measurement loop can make the modal eligible to
+    // mount, even on fast devices where content is already cached.
+    const interactionTask = InteractionManager.runAfterInteractions(() => {
+      if (!cancelled) {
+        void findTarget()
+      }
+    })
 
     return () => {
       cancelled = true
+      interactionTask.cancel()
     }
   }, [activeIndex, height, onUnavailable, registry, stepsKey, visible, width])
 
   if (!visible || !currentStep) return null
 
-  if (!targetRect) {
-    return (
-      <Modal
-        animationType="fade"
-        navigationBarTranslucent
-        onRequestClose={onDismiss}
-        presentationStyle="overFullScreen"
-        statusBarTranslucent
-        transparent
-        visible
-      >
-        <ExpoStatusBar style="light" translucent backgroundColor="transparent" />
-        <View
-          accessibilityLabel="Preparing tour guide"
-          accessibilityViewIsModal
-          style={[styles.overlay, styles.loadingOverlay]}
-        >
-          <ActivityIndicator color={brandColors.white} size="large" />
-        </View>
-      </Modal>
-    )
-  }
+  // Do not present a native modal while a newly-pushed route is still
+  // measuring and rotating into landscape. In particular, iOS can terminate
+  // the route transition when an over-full-screen modal is presented during
+  // that orientation hand-off. The guide becomes visible as soon as its first
+  // stable target measurement is available.
+  if (!targetRect || width <= height) return null
 
   const target = getPaddedTarget(
     {
@@ -614,13 +616,6 @@ export function GameTour({
     target,
     tooltip: positionedTooltipSize,
   })
-  const spotlightPath = getTourSpotlightPath(target, width, height)
-  const spotlightRadius = Math.min(
-    GAME_TOUR_LAYOUT.spotlightCornerRadius,
-    target.width / 2,
-    target.height / 2,
-  )
-  const spotlightStrokeInset = GAME_TOUR_LAYOUT.spotlightBorderWidth / 2
   const isFirst = activeIndex === 0
   const isLast = activeIndex === steps.length - 1
 
@@ -632,9 +627,6 @@ export function GameTour({
       presentationStyle="overFullScreen"
       statusBarTranslucent
       supportedOrientations={[
-        "portrait",
-        "portrait-upside-down",
-        "landscape",
         "landscape-left",
         "landscape-right",
       ]}
@@ -651,34 +643,44 @@ export function GameTour({
           width={width}
           height={height}
         >
-          <SvgPath
-            d={spotlightPath}
+          <Defs>
+            <Mask id="game-tour-spotlight-mask">
+              <SvgRect x={0} y={0} width={width} height={height} fill="white" />
+              <SvgRect
+                x={target.x}
+                y={target.y}
+                width={target.width}
+                height={target.height}
+                rx={GAME_TOUR_LAYOUT.spotlightCornerRadius}
+                fill="black"
+              />
+            </Mask>
+          </Defs>
+          <SvgRect
+            x={0}
+            y={0}
+            width={width}
+            height={height}
             fill={GAME_TOUR_LAYOUT.dimColor}
             fillOpacity={GAME_TOUR_LAYOUT.dimOpacity}
-            fillRule="evenodd"
-          />
-          <SvgRect
-            x={target.x + spotlightStrokeInset}
-            y={target.y + spotlightStrokeInset}
-            width={Math.max(0, target.width - GAME_TOUR_LAYOUT.spotlightBorderWidth)}
-            height={Math.max(0, target.height - GAME_TOUR_LAYOUT.spotlightBorderWidth)}
-            rx={Math.max(0, spotlightRadius - spotlightStrokeInset)}
-            fill="none"
-            stroke={brandColors.equatorialGold}
-            strokeOpacity={GAME_TOUR_LAYOUT.spotlightGlowOpacity}
-            strokeWidth={GAME_TOUR_LAYOUT.spotlightGlowWidth}
-          />
-          <SvgRect
-            x={target.x + spotlightStrokeInset}
-            y={target.y + spotlightStrokeInset}
-            width={Math.max(0, target.width - GAME_TOUR_LAYOUT.spotlightBorderWidth)}
-            height={Math.max(0, target.height - GAME_TOUR_LAYOUT.spotlightBorderWidth)}
-            rx={Math.max(0, spotlightRadius - spotlightStrokeInset)}
-            fill="none"
-            stroke={brandColors.equatorialGold}
-            strokeWidth={GAME_TOUR_LAYOUT.spotlightBorderWidth}
+            mask="url(#game-tour-spotlight-mask)"
           />
         </Svg>
+
+            <View
+              accessible={false}
+              importantForAccessibility="no-hide-descendants"
+              pointerEvents="none"
+              style={[
+                styles.spotlightBorder,
+                {
+                  height: target.height,
+                  left: target.x,
+                  top: target.y,
+                  width: target.width,
+                },
+              ]}
+            />
 
             <View
               onLayout={({ nativeEvent }) => {
@@ -918,10 +920,16 @@ const styles = StyleSheet.create({
     elevation: 100,
     zIndex: 1000,
   },
-  loadingOverlay: {
-    alignItems: "center",
-    backgroundColor: `rgba(7, 24, 43, ${GAME_TOUR_LAYOUT.dimOpacity})`,
-    justifyContent: "center",
+  spotlightBorder: {
+    position: "absolute",
+    borderColor: brandColors.equatorialGold,
+    borderRadius: GAME_TOUR_LAYOUT.spotlightCornerRadius,
+    borderWidth: GAME_TOUR_LAYOUT.spotlightBorderWidth,
+    shadowColor: brandColors.equatorialGold,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.85,
+    shadowRadius: 7,
+    elevation: 12,
   },
   tooltip: {
     position: "absolute",

@@ -76,7 +76,9 @@ export const LEARNING_HUB_ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
   },
 ];
 
-const CACHE_VERSION = 1;
+// Version 2 drops cached definitions from the retired heritage-puzzle
+// achievement set (including Kasubi Tombs).
+const CACHE_VERSION = 2;
 const ACHIEVEMENT_DEFINITIONS_CACHE_KEY = 'cache:achievements:definitions';
 const CHILD_ACHIEVEMENTS_CACHE_PREFIX = 'cache:child_achievements';
 
@@ -196,6 +198,10 @@ const filterDefinitionsByGameKey = (
     ? definitions.filter((achievement) => achievement.game_key === gameKey)
     : definitions;
 
+const isRetiredAchievementDefinition = (
+  achievement: AchievementDefinition,
+): boolean => achievement.game_key === 'puzzle_game';
+
 const mergeBuiltInAchievementDefinitions = (
   definitions: AchievementDefinition[],
 ): AchievementDefinition[] => {
@@ -205,7 +211,9 @@ const mergeBuiltInAchievementDefinitions = (
     merged.set(achievement.id, achievement);
   });
   definitions.forEach((achievement) => {
-    merged.set(achievement.id, achievement);
+    if (!isRetiredAchievementDefinition(achievement)) {
+      merged.set(achievement.id, achievement);
+    }
   });
 
   return [...merged.values()].sort(
@@ -627,6 +635,13 @@ export const checkAndGrantNewAchievements = async ({
   earnedAchievementIds,
   event,
 }: CheckAchievementsArgs): Promise<AchievementDefinition[]> => {
+  // Puzzle achievements belong to the retired heritage puzzle set. Keep the
+  // client from granting one even if an already-running session still holds a
+  // pre-migration definition in memory.
+  if (event.gameKey === 'puzzle_game') {
+    return [];
+  }
+
   const newlyEarned: AchievementDefinition[] = [];
   
   // Filter definedAchievements to only those matching the event's gameKey

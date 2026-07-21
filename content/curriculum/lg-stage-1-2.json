@@ -2183,7 +2183,7 @@
                 "id": 4,
                 "order": 2,
                 "title": "Kind Words",
-                "isLocked": false,
+                "isLocked": true,
                 "words": [
                   {
                     "id": "lg-s1-gyebale-ko-kind-words-v1",
@@ -2213,7 +2213,7 @@
                 "id": 1,
                 "order": 3,
                 "title": "All 4 Words",
-                "isLocked": false,
+                "isLocked": true,
                 "words": [
                   {
                     "id": "lg-s1-oli-otya-practice-v1",
@@ -2268,7 +2268,7 @@
             "order": 2,
             "title": "Stage 2: Family and Home",
             "description": "Learn six words about family and home.",
-            "isLocked": false,
+            "isLocked": true,
             "requiredScore": 0,
             "image": "learning/lg/stage-2/stage-card.png",
             "color": "#2E7D32",
@@ -2277,7 +2277,7 @@
                 "id": 5,
                 "order": 1,
                 "title": "Family",
-                "isLocked": false,
+                "isLocked": true,
                 "words": [
                   {
                     "id": "lg-s2-maama-family-v1",
@@ -2318,7 +2318,7 @@
                 "id": 6,
                 "order": 2,
                 "title": "Home Things",
-                "isLocked": false,
+                "isLocked": true,
                 "words": [
                   {
                     "id": "lg-s2-ennyumba-home-v1",
@@ -2359,7 +2359,7 @@
                 "id": 2,
                 "order": 3,
                 "title": "All 6 Words",
-                "isLocked": false,
+                "isLocked": true,
                 "words": [
                   {
                     "id": "lg-s2-maama-practice-v1",

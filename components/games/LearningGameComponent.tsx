@@ -57,6 +57,7 @@ import {
 } from "./GameTour"
 
 import {
+  applyLegacyLearningAccessLocks,
   loadGameProgress as loadProgress,
   saveGameProgress as saveProgress,
   type UserStats,
@@ -115,46 +116,6 @@ const isStageCompleted = (
 ): boolean => {
   const stage = stages.find((item) => item.id === stageId)
   return stage ? stage.levels.every((level) => completedLevels.includes(level.id)) : false
-}
-
-const unlockNextLevel = (
-  currentStageId: number,
-  currentLevelId: number,
-  stages: LearningGameStage[],
-): LearningGameStage[] => {
-  return stages.map((stage) => {
-    if (stage.id !== currentStageId) return stage
-
-    return {
-      ...stage,
-      levels: stage.levels.map((level, index, levels) => {
-        if (levels[index - 1]?.id === currentLevelId && level.isLocked) {
-          return { ...level, isLocked: false }
-        }
-
-        return level
-      }),
-    }
-  })
-}
-
-const unlockNextStage = (
-  currentStageId: number,
-  stages: LearningGameStage[],
-): LearningGameStage[] => {
-  return stages.map((stage, index, allStages) => {
-    if (allStages[index - 1]?.id === currentStageId && stage.isLocked) {
-      return {
-        ...stage,
-        isLocked: false,
-        levels: stage.levels.map((level, levelIndex) =>
-          levelIndex === 0 ? { ...level, isLocked: false } : level,
-        ),
-      }
-    }
-
-    return stage
-  })
 }
 
 const LugandaLearningGame: React.FC = () => {
@@ -567,20 +528,23 @@ const LugandaLearningGame: React.FC = () => {
   // Generate options for the game
   const generateOptions = (word: LearningGameWord, wordList: LearningGameWord[]): void => {
     const correctAnswer = word.english
-    let optionsArray: string[] = [correctAnswer]
+    const allGameWords = stages.flatMap((stage) =>
+      stage.levels.flatMap((level) => level.words),
+    )
+    const distractors = [...new Set(
+      [...wordList, ...allGameWords]
+        .map((candidate) => candidate.english)
+        .filter((answer) => answer && answer !== correctAnswer),
+    )]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 3)
+    const optionsArray = [correctAnswer, ...distractors].sort(
+      () => Math.random() - 0.5,
+    )
 
-    // Add 3 random incorrect options
-    while (optionsArray.length < 4) {
-      const randomIndex = Math.floor(Math.random() * wordList.length)
-      const randomOption = wordList[randomIndex].english
-
-      if (!optionsArray.includes(randomOption)) {
-        optionsArray.push(randomOption)
-      }
-    }
-
-    // Shuffle options
-    optionsArray = optionsArray.sort(() => Math.random() - 0.5)
+    // Small replacement content sets can contain fewer than four unique
+    // answers. Building from a finite pool avoids the old unbounded loop that
+    // froze the game as soon as a two-word level started.
     setOptions(optionsArray)
   }
 
@@ -733,24 +697,39 @@ const LugandaLearningGame: React.FC = () => {
       newCompletedLevelsState.push(selectedLevel.id)
     }
 
-    let currentLocalStagesState = [...stages]
-    let wasStageNewlyCompleted = false
-    let nextStageUnlocked = false
+    const previousStageIndex = stages.findIndex(
+      (stage) => stage.id === selectedStage.id,
+    )
+    const previouslyLockedNextStage =
+      previousStageIndex >= 0
+        ? stages[previousStageIndex + 1]?.isLocked
+        : undefined
+    const wasCurrentStageCompleted = isStageCompleted(
+      selectedStage.id,
+      completedLevels,
+      stages,
+    )
+    const currentLocalStagesState = applyLegacyLearningAccessLocks(
+      stages,
+      newCompletedLevelsState,
+      newTotalScoreState,
+    )
 
-    currentLocalStagesState = unlockNextLevel(selectedStage.id, selectedLevel.id, currentLocalStagesState)
-
-    // Check if current stage is completed and unlock next if criteria met
+    // The centralized access calculation unlocks exactly one next level and
+    // opens the following stage only after this stage is complete.
     const isCurrentStageNowCompleted = isStageCompleted(selectedStage.id, newCompletedLevelsState, currentLocalStagesState)
-    if (isCurrentStageNowCompleted) {
-      wasStageNewlyCompleted = true // Mark that this stage was just completed
-      const currentStageIndex = currentLocalStagesState.findIndex((s) => s.id === selectedStage.id)
-      const nextStageDefinition =
-        currentStageIndex >= 0 ? currentLocalStagesState[currentStageIndex + 1] : undefined
-      if (nextStageDefinition && newTotalScoreState >= nextStageDefinition.requiredScore) {
-        currentLocalStagesState = unlockNextStage(selectedStage.id, currentLocalStagesState)
-        nextStageUnlocked = true
-      }
-    }
+    const wasStageNewlyCompleted =
+      !wasCurrentStageCompleted && isCurrentStageNowCompleted
+    const currentStageIndex = currentLocalStagesState.findIndex(
+      (stage) => stage.id === selectedStage.id,
+    )
+    const nextStage =
+      currentStageIndex >= 0
+        ? currentLocalStagesState[currentStageIndex + 1]
+        : undefined
+    const nextStageUnlocked = Boolean(
+      previouslyLockedNextStage && nextStage && !nextStage.isLocked,
+    )
 
     const existingUserStats = userStatsRef.current
     const lastPlayedDate = new Date(existingUserStats.lastPlayed || 0)

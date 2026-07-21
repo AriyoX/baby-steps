@@ -750,7 +750,7 @@ const learningGame = {
           id: 4,
           order: 2,
           title: "Kind Words",
-          isLocked: false,
+          isLocked: true,
           words: greetingConcepts.slice(2).map((concept, index) => ({
             id: `lg-s1-${concept.id}-kind-words-v1`,
             order: index + 1,
@@ -767,7 +767,7 @@ const learningGame = {
           id: 1,
           order: 3,
           title: "All 4 Words",
-          isLocked: false,
+          isLocked: true,
           words: greetingConcepts.map((concept, index) => ({
             id: `lg-s1-${concept.id}-practice-v1`,
             order: index + 1,
@@ -787,7 +787,7 @@ const learningGame = {
       order: 2,
       title: "Stage 2: Family and Home",
       description: "Learn six words about family and home.",
-      isLocked: false,
+      isLocked: true,
       requiredScore: 0,
       image: "learning/lg/stage-2/stage-card.png",
       color: "#2E7D32",
@@ -796,7 +796,7 @@ const learningGame = {
           id: 5,
           order: 1,
           title: "Family",
-          isLocked: false,
+          isLocked: true,
           words: homeConcepts.slice(0, 3).map((concept, index) => ({
             id: `lg-s2-${concept.id}-family-v1`,
             order: index + 1,
@@ -813,7 +813,7 @@ const learningGame = {
           id: 6,
           order: 2,
           title: "Home Things",
-          isLocked: false,
+          isLocked: true,
           words: homeConcepts.slice(3).map((concept, index) => ({
             id: `lg-s2-${concept.id}-home-v1`,
             order: index + 1,
@@ -830,7 +830,7 @@ const learningGame = {
           id: 2,
           order: 3,
           title: "All 6 Words",
-          isLocked: false,
+          isLocked: true,
           words: homeConcepts.map((concept, index) => ({
             id: `lg-s2-${concept.id}-practice-v1`,
             order: index + 1,

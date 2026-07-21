@@ -109,6 +109,10 @@ const flushPromises = async () => {
   await new Promise((resolve) => setTimeout(resolve, 0));
 };
 
+const acceptLegalTerms = (root: ReactTestInstance) => {
+  root.findByProps({ testID: "legal-consent-checkbox" }).props.onPress();
+};
+
 const renderAuthScreen = async (
   element: React.ReactElement,
   afterRender?: () => Promise<void>,
@@ -165,6 +169,7 @@ describe("auth screens", () => {
       findInput(component.root, "parent@email.com").props.onChangeText(" parent@example.com ");
       findInput(component.root, "Create password").props.onChangeText("secret1");
       findInput(component.root, "Confirm password").props.onChangeText("secret1");
+      acceptLegalTerms(component.root);
     });
 
     await act(async () => {
@@ -198,6 +203,7 @@ describe("auth screens", () => {
       findInput(component.root, "parent@email.com").props.onChangeText(" parent@example.com ");
       findInput(component.root, "Create password").props.onChangeText("secret1");
       findInput(component.root, "Confirm password").props.onChangeText("secret1");
+      acceptLegalTerms(component.root);
     });
 
     await act(async () => {
@@ -209,6 +215,42 @@ describe("auth screens", () => {
       pathname: "/notification-permission",
       params: { flow: "signup", email: "parent@example.com" },
     });
+  });
+
+  it("requires legal consent and opens both legal documents", async () => {
+    const component = await renderAuthScreen(<SignUp />);
+    const createAccountButton = findButtonByText(component.root, "Create Parent Account");
+
+    expect(createAccountButton.props.disabled).toBe(true);
+    expect(
+      component.root.findByProps({ testID: "legal-consent-checkbox" }).props
+        .accessibilityState,
+    ).toEqual({ checked: false });
+
+    act(() => {
+      component.root.findByProps({ testID: "terms-of-service-link" }).props.onPress();
+    });
+
+    expect(component.root.findByProps({ testID: "legal-document-modal" })).toBeTruthy();
+    expect(component.root.findAllByProps({ children: "Terms of Service" }).length).toBeGreaterThan(0);
+
+    act(() => {
+      component.root.findByProps({ testID: "legal-document-close" }).props.onPress();
+      component.root.findByProps({ testID: "privacy-policy-link" }).props.onPress();
+    });
+
+    expect(component.root.findAllByProps({ children: "Privacy Policy" }).length).toBeGreaterThan(0);
+
+    act(() => {
+      component.root.findByProps({ testID: "legal-document-close" }).props.onPress();
+      acceptLegalTerms(component.root);
+    });
+
+    expect(findButtonByText(component.root, "Create Parent Account").props.disabled).toBe(false);
+    expect(
+      component.root.findByProps({ testID: "legal-consent-checkbox" }).props
+        .accessibilityState,
+    ).toEqual({ checked: true });
   });
 
   it("routes unconfirmed-email login attempts to confirmation guidance", async () => {

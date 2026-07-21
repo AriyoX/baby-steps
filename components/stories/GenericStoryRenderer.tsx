@@ -1123,7 +1123,8 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
       </View>
       <GameTour
         visible={storyTour.visible}
-        onCancel={storyTour.close}
+        onDismiss={storyTour.dismiss}
+        onUnavailable={storyTour.close}
         onComplete={storyTour.complete}
         accentColor="#8B4513"
         finishLabel={t("stories.startReading")}

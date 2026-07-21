@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useState, useEffect, useRef } from "react"
+import { useCallback, useState, useEffect, useMemo, useRef } from "react"
 import { View, ScrollView, TouchableOpacity } from "react-native"
 import { Text } from "@/components/StyledText"
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router"
@@ -13,6 +13,7 @@ import { TranslatedText } from "@/components/translated-text"
 import { BrandMark } from "@/components/brand/BrandMark"
 import { brandColors } from "@/constants/Brand"
 import { PARENTING_TIPS } from "@/content/parentingTips"
+import { getParentDashboardGreeting } from "@/content/parentDashboardGreeting"
 import { PARENT_DASHBOARD_TOUR_STEPS } from "@/lib/parentDashboardTour"
 import {
   GameTour,
@@ -46,6 +47,7 @@ const ParentDashboard = () => {
   const [childProfiles, setChildProfiles] = useState<ChildProfile[]>([])
   const [parentId, setParentId] = useState<string>()
   const [loading, setLoading] = useState(true)
+  const [greetingTime, setGreetingTime] = useState(() => new Date())
   const [recentActivities, setRecentActivities] = useState<any[]>([])
   const [weeklyStats, setWeeklyStats] = useState({
     dailyMinutes: [0, 0, 0, 0, 0, 0, 0],
@@ -53,7 +55,9 @@ const ParentDashboard = () => {
     averageScore: 0
   })
   const {
+    close: closeParentTour,
     complete: completeParentTour,
+    dismiss: dismissParentTour,
     open: openParentTour,
     visible: parentTourVisible,
   } = useGameTour(
@@ -61,7 +65,36 @@ const ParentDashboard = () => {
     parentId,
     !loading && Boolean(parentId),
   )
+  const dashboardScrollRef = useRef<ScrollView>(null)
+  const dashboardTourOffsetsRef = useRef({ profiles: 0, progress: 0 })
   const replayRequestHandledRef = useRef(false)
+  const dashboardGreeting = getParentDashboardGreeting(greetingTime)
+  const prepareDashboardTourTarget = useCallback((stepId: string) => {
+    const y =
+      stepId === "progress"
+        ? dashboardTourOffsetsRef.current.progress
+        : stepId === "profiles" || stepId === "language"
+          ? dashboardTourOffsetsRef.current.profiles
+          : 0
+
+    dashboardScrollRef.current?.scrollTo({
+      animated: false,
+      y: Math.max(0, y - 12),
+    })
+  }, [])
+  const parentTourSteps = useMemo(
+    () =>
+      PARENT_DASHBOARD_TOUR_STEPS.map((step) => ({
+        ...step,
+        prepareTarget: () => prepareDashboardTourTarget(step.id),
+      })),
+    [prepareDashboardTourTarget],
+  )
+
+  useEffect(() => {
+    const interval = setInterval(() => setGreetingTime(new Date()), 60_000)
+    return () => clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     if (
@@ -248,23 +281,33 @@ const ParentDashboard = () => {
           </View>
 
           {/* Main content */}
-          <ScrollView className="flex-1" contentContainerClassName="p-4 pb-10" showsVerticalScrollIndicator={false}>
+          <ScrollView
+            ref={dashboardScrollRef}
+            className="flex-1"
+            contentContainerClassName="p-4 pb-10"
+            showsVerticalScrollIndicator={false}
+          >
             <View className="bg-primary-700 rounded-[28px] p-5 mb-6 overflow-hidden">
               <View className="absolute -right-8 -top-10 w-36 h-36 rounded-full bg-primary-500" />
               <View className="absolute right-16 -bottom-12 w-28 h-28 rounded-full bg-accent-400 opacity-30" />
               <View className="flex-row items-center justify-between">
                 <View className="flex-1 pr-4">
-                  <Text variant="bold" className="text-white text-xl mb-2">Ready for today’s little win?</Text>
-                  <Text className="text-primary-100 leading-5">Ten playful minutes together can be enough to build a habit.</Text>
+                  <Text variant="bold" className="text-white text-xl mb-2">{dashboardGreeting.title}</Text>
+                  <Text className="text-primary-100 leading-5">{dashboardGreeting.message}</Text>
                 </View>
                 <View className="w-14 h-14 rounded-2xl bg-white/20 items-center justify-center">
-                  <Ionicons name="sunny-outline" size={28} color={brandColors.equatorialGold} />
+                  <Ionicons name={dashboardGreeting.icon} size={28} color={brandColors.equatorialGold} />
                 </View>
               </View>
             </View>
             {/* Child profiles section */}
             <TourTarget id="parent-dashboard-profiles">
-            <View className="mb-6">
+            <View
+              className="mb-6"
+              onLayout={({ nativeEvent }) => {
+                dashboardTourOffsetsRef.current.profiles = nativeEvent.layout.y
+              }}
+            >
               <View className="flex-row justify-between items-center mb-3">
                 <TranslatedText variant="bold" className="text-neutral-800 text-lg">
                   Child Profiles
@@ -361,7 +404,12 @@ const ParentDashboard = () => {
             </TourTarget>
 
             {/* Recent activities section */}
-            <View className="mb-6">
+            <View
+              className="mb-6"
+              onLayout={({ nativeEvent }) => {
+                dashboardTourOffsetsRef.current.progress = nativeEvent.layout.y
+              }}
+            >
               <TourTarget id="parent-dashboard-progress">
                 <View className="mb-3">
                   <TranslatedText variant="bold" className="text-neutral-800 text-lg">
@@ -488,10 +536,11 @@ const ParentDashboard = () => {
       <GameTour
         androidSpotlightOffsetY={PARENT_DASHBOARD_ANDROID_SPOTLIGHT_OFFSET_Y}
         visible={parentTourVisible}
-        onCancel={completeParentTour}
         onComplete={completeParentTour}
+        onDismiss={dismissParentTour}
+        onUnavailable={closeParentTour}
         finishLabel="Explore"
-        steps={PARENT_DASHBOARD_TOUR_STEPS}
+        steps={parentTourSteps}
       />
     </>
     </GameTourProvider>

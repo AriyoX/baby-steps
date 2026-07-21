@@ -302,6 +302,8 @@ describe("settings management screens", () => {
     const aboutText = textContent(aboutTree?.toJSON());
 
     expect(privacyText).toContain("within 30 days");
+    expect(privacyText).toContain("Privacy Policy");
+    expect(privacyText).toContain("Terms of Service");
     expect(privacyText).toContain("Data Deletion Information");
     expect(privacyText).toContain("Delete Account");
     expect(supportText).toContain("If you cannot access your account but want to request deletion");

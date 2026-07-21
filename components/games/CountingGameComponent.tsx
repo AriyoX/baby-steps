@@ -1638,7 +1638,8 @@ const LugandaCountingGame: React.FC = () => {
       )}
       <GameTour
         visible={countingTour.visible}
-        onCancel={countingTour.close}
+        onDismiss={countingTour.dismiss}
+        onUnavailable={countingTour.close}
         onComplete={countingTour.complete}
         steps={[
           { id: "objects", targetId: "counting-objects", icon: "eye-outline", placement: "right", title: t("games.count"), description: t("games.countOnce") },

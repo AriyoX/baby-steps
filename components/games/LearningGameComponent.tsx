@@ -1876,7 +1876,8 @@ const LugandaLearningGame: React.FC = () => {
         </Animated.View>
         <GameTour
           visible={learningTour.visible}
-          onCancel={learningTour.close}
+          onDismiss={learningTour.dismiss}
+          onUnavailable={learningTour.close}
           onComplete={learningTour.complete}
           steps={[
             { id: "prompt", targetId: "learning-quiz-prompt", icon: "volume-high-outline", placement: "auto", title: "Listen or read", description: "Tap the speaker to hear the phrase." },

@@ -174,6 +174,9 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Launching while offline shows the pop-up after the splash animation finishes.
 - [ ] Changing connectivity while the app is backgrounded is detected when it returns to the foreground.
 - [ ] Login and signup explain which functionality requires internet.
+- [ ] Signup keeps account creation disabled until the parent checks legal consent.
+- [ ] Terms of Service and Privacy Policy links open readable, scrollable in-app pop-ups.
+- [ ] Privacy & Safety settings provide access to both legal documents after signup.
 - [ ] Offline sign-in, signup, password recovery, confirmation resend, and child-profile save show action-specific messages.
 - [ ] Restoring connectivity removes the banner and allows the action to be retried.
 - [ ] Local-only game progress still loads.

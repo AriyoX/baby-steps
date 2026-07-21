@@ -747,7 +747,8 @@ export default function LearningLessonSessionScreen() {
       </ImageBackground>
       <GameTour
         visible={lessonTour.visible}
-        onCancel={lessonTour.close}
+        onDismiss={lessonTour.dismiss}
+        onUnavailable={lessonTour.close}
         onComplete={lessonTour.complete}
         finishLabel={t("games.startLearning")}
         steps={[

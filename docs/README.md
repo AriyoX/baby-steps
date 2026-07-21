@@ -30,6 +30,7 @@ This folder documents the current Baby Steps prototype and the work needed to mo
 - [Verification report](../VERIFICATION_REPORT.md)
 - [Documentation verification report](../DOCS_VERIFICATION_REPORT.md)
 - [Privacy policy](../PRIVACY_POLICY.md)
+- [Terms of service](../TERMS_OF_SERVICE.md)
 - [Account and data deletion page](delete-account.html)
 
 ## Documentation Rules

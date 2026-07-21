@@ -14,8 +14,10 @@ import { FontAwesome } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BrandMark } from "@/components/brand/BrandMark";
+import { LegalDocumentModal } from "@/components/auth/LegalDocumentModal";
 import { Text } from "@/components/StyledText";
 import { brandColors } from "@/constants/Brand";
+import { PRIVACY_POLICY, TERMS_OF_SERVICE } from "@/content/legal";
 import {
   keyboardAwareScrollContentStyle,
   readableTextInputStyle,
@@ -36,6 +38,10 @@ export default function SignUp() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [hasAcceptedLegal, setHasAcceptedLegal] = useState(false);
+  const [activeLegalDocument, setActiveLegalDocument] = useState<
+    "privacy" | "terms" | null
+  >(null);
   const router = useRouter();
 
   const bounceValue = useRef(new Animated.Value(0)).current;
@@ -91,6 +97,14 @@ export default function SignUp() {
   }, [bounceValue, floatValue, scaleValue]);
 
   async function signUpWithEmail() {
+    if (!hasAcceptedLegal) {
+      Alert.alert(
+        "Please review the terms",
+        "Agree to the Terms of Service and acknowledge the Privacy Policy to create an account.",
+      );
+      return;
+    }
+
     const validationMessage = validateSignUpForm(email, password, confirmPassword);
     if (validationMessage) {
       Alert.alert("Let's check that", validationMessage);
@@ -288,7 +302,7 @@ export default function SignUp() {
               </View>
             </View>
 
-            <View className="mb-8">
+            <View className="mb-5">
               <Text variant="bold" className="text-neutral-700 mb-2 text-sm">Confirm password</Text>
               <View className="flex-row items-center bg-neutral-50 rounded-2xl px-4 border border-neutral-200 min-h-[58px]">
                 <View className="bg-secondary-100 w-9 h-9 rounded-xl items-center justify-center">
@@ -312,10 +326,56 @@ export default function SignUp() {
               </View>
             </View>
 
+            <View className="flex-row items-start mb-6">
+              <TouchableOpacity
+                accessibilityLabel="Agree to the Terms of Service and acknowledge the Privacy Policy"
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: hasAcceptedLegal }}
+                activeOpacity={0.75}
+                className={`w-6 h-6 rounded-lg border-2 items-center justify-center mt-0.5 ${
+                  hasAcceptedLegal
+                    ? "bg-secondary-500 border-secondary-500"
+                    : "bg-white border-neutral-300"
+                }`}
+                onPress={() => setHasAcceptedLegal((accepted) => !accepted)}
+                testID="legal-consent-checkbox"
+              >
+                {hasAcceptedLegal ? (
+                  <FontAwesome name="check" size={13} color={brandColors.white} />
+                ) : null}
+              </TouchableOpacity>
+              <Text className="flex-1 ml-3 text-sm leading-5 text-neutral-600">
+                I agree to the{" "}
+                <Text
+                  accessibilityRole="link"
+                  className="text-primary-600 underline"
+                  onPress={() => setActiveLegalDocument("terms")}
+                  testID="terms-of-service-link"
+                  variant="bold"
+                >
+                  Terms of Service
+                </Text>{" "}
+                and acknowledge the{" "}
+                <Text
+                  accessibilityRole="link"
+                  className="text-primary-600 underline"
+                  onPress={() => setActiveLegalDocument("privacy")}
+                  testID="privacy-policy-link"
+                  variant="bold"
+                >
+                  Privacy Policy
+                </Text>
+                .
+              </Text>
+            </View>
+
             <TouchableOpacity
-              className={`bg-secondary-500 min-h-[56px] rounded-2xl items-center justify-center shadow-sm ${loading ? "opacity-70" : ""}`}
+              accessibilityState={{ disabled: loading || !hasAcceptedLegal }}
+              className={`bg-secondary-500 min-h-[56px] rounded-2xl items-center justify-center shadow-sm ${
+                loading || !hasAcceptedLegal ? "opacity-50" : ""
+              }`}
               onPress={signUpWithEmail}
-              disabled={loading}
+              disabled={loading || !hasAcceptedLegal}
               activeOpacity={0.84}
             >
               <Text variant="bold" className="text-white text-xl">
@@ -330,7 +390,7 @@ export default function SignUp() {
             <View className="flex-row items-start mt-3 bg-accent-50 rounded-xl px-3 py-2.5">
               <FontAwesome name="wifi" size={13} color={brandColors.gold[700]} style={{ marginTop: 2 }} />
               <Text className="text-xs leading-4 text-neutral-600 ml-2 flex-1">
-                Creating an account and syncing family progress need internet. Some downloaded or saved activities can still work offline.
+                You may require an internet connection to access certain parts of the app.
               </Text>
             </View>
 
@@ -350,6 +410,14 @@ export default function SignUp() {
           </Animated.View>
         </ScrollView>
       </SafeAreaView>
+
+      {activeLegalDocument ? (
+        <LegalDocumentModal
+          document={activeLegalDocument === "terms" ? TERMS_OF_SERVICE : PRIVACY_POLICY}
+          onClose={() => setActiveLegalDocument(null)}
+          visible
+        />
+      ) : null}
     </KeyboardAvoidingView>
   );
 }

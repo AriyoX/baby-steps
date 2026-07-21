@@ -1764,7 +1764,8 @@ const WordGame: React.FC = () => {
       </Modal>
       <GameTour
         visible={wordTour.visible}
-        onCancel={wordTour.close}
+        onDismiss={wordTour.dismiss}
+        onUnavailable={wordTour.close}
         onComplete={wordTour.complete}
         steps={[
           { id: "clue", targetId: "word-clue", icon: "image-outline", placement: "right", title: "Look at the picture", description: "It helps you find the word." },

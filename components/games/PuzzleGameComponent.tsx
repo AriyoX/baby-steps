@@ -1180,7 +1180,8 @@ const PuzzleGame: React.FC = () => {
       </View>
       <GameTour
         visible={puzzleTour.visible}
-        onCancel={puzzleTour.close}
+        onDismiss={puzzleTour.dismiss}
+        onUnavailable={puzzleTour.close}
         onComplete={puzzleTour.complete}
         steps={[
           { id: "board", targetId: "puzzle-board", icon: "grid-outline", placement: "right", title: "Move the tiles", description: "Tap a tile next to the empty space." },

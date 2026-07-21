@@ -1255,7 +1255,8 @@ export default function ColoringGameScreen({
 
       <GameTour
         visible={coloringTour.visible && imageLoaded}
-        onCancel={coloringTour.close}
+        onDismiss={coloringTour.dismiss}
+        onUnavailable={coloringTour.close}
         onComplete={coloringTour.complete}
         finishLabel="Let’s color!"
         steps={COLORING_TOUR_STEPS}

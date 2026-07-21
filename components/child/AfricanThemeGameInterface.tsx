@@ -750,7 +750,8 @@ const AfricanThemeGameInterface: React.FC = () => {
       </ImageBackground>
       <GameTour
         visible={learningHubTour.visible}
-        onCancel={learningHubTour.close}
+        onDismiss={learningHubTour.dismiss}
+        onUnavailable={learningHubTour.close}
         onComplete={learningHubTour.complete}
         finishLabel={t("games.startLearning")}
         steps={[

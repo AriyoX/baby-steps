@@ -570,7 +570,8 @@ export default function LearningStagePathScreen() {
       </ImageBackground>
       <GameTour
         visible={stageTour.visible}
-        onCancel={stageTour.close}
+        onDismiss={stageTour.dismiss}
+        onUnavailable={stageTour.close}
         onComplete={stageTour.complete}
         finishLabel={t("learning.chooseLesson")}
         steps={[

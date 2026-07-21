@@ -1275,7 +1275,8 @@ const CardsMatchingGame: React.FC = () => {
       )}
       <GameTour
         visible={matchingTour.visible}
-        onCancel={matchingTour.close}
+        onDismiss={matchingTour.dismiss}
+        onUnavailable={matchingTour.close}
         onComplete={matchingTour.complete}
         steps={[
           { id: "grid", targetId: "matching-card-grid", icon: "albums-outline", placement: "auto", title: "Flip a card", description: "Tap two cards to find a pair." },

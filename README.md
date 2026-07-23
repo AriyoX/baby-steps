@@ -317,6 +317,7 @@ Coloring uses `expo-media-library`, `expo-sharing`, and `react-native-view-shot`
 - [Testing guide](docs/development/testing.md)
 - [Content management](docs/development/content-management.md)
 - [Database notes](docs/development/database.md)
+- [Scalability and capacity plan](docs/development/scalability.md)
 - [Deployment readiness](docs/development/deployment.md)
 - [Manual QA checklist](docs/qa/manual-qa-checklist.md)
 - [MVP roadmap](docs/mvp-roadmap.md)

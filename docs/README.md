@@ -16,6 +16,7 @@ This folder documents the current Baby Steps prototype and the work needed to mo
 | [Content management](development/content-management.md) | Developers, content contributors | Database-content ownership and the migration-based update workflow. |
 | [Content authoring and new games](development/content-authoring-and-new-games.md) | Developers, content contributors | Payload examples, stable-ID rules, seeds, smoke test, and adding a language. |
 | [Database notes](development/database.md) | Developers | Current Supabase schema snapshot and gaps. |
+| [Scalability and capacity plan](development/scalability.md) | Developers, release owners | Codebase-specific user thresholds, bottlenecks, metrics, and staged scaling work. |
 | [Account deletion finalization](development/account-deletion-finalization.md) | Developers, release owners | Secure server-side final account deletion process and manual QA. |
 | [Deployment readiness](development/deployment.md) | Developers, release owners | Build commands, readiness status, blockers, and launch notes. |
 | [Manual QA checklist](qa/manual-qa-checklist.md) | QA, developers | Device and regression testing checklist. |

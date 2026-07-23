@@ -62,7 +62,7 @@ The normal `groceries` and `production` profiles do not expose the test-only Set
 - App name: `Baby Steps`
 - Slug: `baby-steps`
 - Scheme: `babysteps`
-- Android package: `com.babysteps.babysteps_prototype`
+- Android package: `com.babystepslearn.app`
 - iOS tablet support and full-screen requirement
 - Static web output with Metro
 - Expo Router, font, splash screen, screen orientation, and asset plugins
@@ -90,6 +90,7 @@ Do not expose `SUPABASE_SERVICE_ROLE_KEY` or `BABY_STEPS_ACCOUNT_DELETION_ADMIN_
 Language-service credential note:
 
 - Prototype Sunbird helpers are disabled. Keep third-party language-service credentials out of Expo and React Native client code unless calls are routed through a secure server-side endpoint.
+- The current tree contains no Sunbird credential. Secret-like literals remain in five historical Git revisions, so an authorized owner must confirm the former credential was revoked; history cleanup is a separate coordinated repository operation.
 
 ## Current CI/Workflow Notes
 
@@ -99,12 +100,8 @@ Language-service credential note:
 - Uses Node `22.13.0`.
 - Installs EAS with `expo/expo-github-action@v8`.
 - Requires `secrets.EAS_ACCESS_TOKEN`.
-- Runs `yarn install`.
+- Runs `npm ci` against `package-lock.json`.
 - Builds Android with the `groceries` EAS profile.
-
-Mismatch to fix:
-
-- Local docs and lockfile use npm, but CI uses Yarn.
 
 ## Known Deployment Blockers
 
@@ -112,12 +109,9 @@ Mismatch to fix:
 - Focused route/component coverage exists, but there is no installed-build E2E suite for the complete parent/child journey.
 - `expo-av` is deprecated.
 - Prototype Sunbird helpers are disabled until a secure server-side endpoint exists.
-- Settings links point to missing routes.
-- Some app copy/media has encoding artifacts.
-- Parent dashboard and progress screens contain placeholders.
 - Content and later application schema changes are migration-managed, but the checked-in chain is missing the original base-schema migration, so a clean local reset fails before `public.children` exists.
-- Supabase advisors still report pre-existing RLS/function/auth configuration findings outside `content_items` that need release review.
-- No production privacy, support, analytics, crash reporting, or monitoring workflow is complete.
+- The 2026-07-23 Supabase hardening migration is unapplied; live RLS/grant/function findings remain release blockers until it is applied and verified.
+- Public HTTPS legal/support pages, SMTP delivery, backup restore proof, support mailbox delivery, and finalizer alerts remain external gates.
 - Payments remain planned only. Database-backed Learning, game, menu, and Story content is implemented, but placeholder curriculum/media must not be described as reviewed production content.
 
 ## MVP Launch Preparation Notes
@@ -127,16 +121,16 @@ Before release:
 1. Run typecheck, tests, lint, and export.
 2. Complete Android device QA.
 3. Complete iOS device QA if iOS is in scope.
-4. Remove or secure hardcoded third-party credentials.
-5. Replace missing settings routes with real screens or remove links.
+4. Confirm the historical Sunbird credential is revoked.
+5. Apply and verify the approved Supabase hardening migration and run two-parent isolation QA.
 6. Restore/verify the full Supabase migration baseline, align the linked history, and review database/security advisors.
-7. Validate privacy policy and account deletion page.
+7. Publish and validate privacy, terms, deletion, and support pages.
 8. Review app store metadata so it matches implemented features.
-9. Prepare rollback and support process.
+9. Prepare rollback, backup/restore, finalizer alerting, and support processes.
 
 ## Manual Deployment Checklist
 
-- [ ] `npm install` succeeds from a clean checkout.
+- [ ] `npm ci` succeeds from a clean checkout.
 - [ ] `npm run typecheck` passes.
 - [ ] `npm test` passes.
 - [ ] `npm run lint` has no errors.

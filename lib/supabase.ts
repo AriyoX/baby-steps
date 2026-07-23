@@ -36,6 +36,22 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+/**
+ * Creates a short-lived Auth client for password verification.
+ *
+ * It deliberately has no persisted storage, token refresh, URL detection, or
+ * shared auth listener, so verifying a parent password cannot replace the
+ * application's signed-in session or wake account-scoped synchronization.
+ */
+export const createEphemeralAuthClient = () =>
+  createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    },
+  });
+
 // Tells Supabase Auth to continuously refresh the session automatically
 // if the app is in the foreground. When this is added, you will continue
 // to receive `onAuthStateChange` events with the `TOKEN_REFRESHED` or

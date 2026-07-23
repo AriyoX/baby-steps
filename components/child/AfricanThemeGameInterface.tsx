@@ -27,6 +27,7 @@ import { useStreak } from "@/context/StreakContext"
 import { CachedImage } from "@/components/common/CachedImage"
 import {
   loadContentBundle,
+  getStartableMenuCards,
   resolveImageSource,
   type ChildMenuCard,
   type ContentBundle,
@@ -352,7 +353,11 @@ const AfricanThemeGameInterface: React.FC = () => {
             completedLearningLessonIds,
             t,
           )
-        : toLearningCards(contentBundle?.menuCardsByTab[contentSlug] ?? []),
+        : toLearningCards(
+            contentBundle
+              ? getStartableMenuCards(contentBundle, contentSlug)
+              : [],
+          ),
     [completedLearningLessonIds, contentBundle, contentSlug, t],
   )
 

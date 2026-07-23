@@ -33,8 +33,8 @@ Intentional code/static flows:
 
 - Coloring discovery is database-backed, but its five direct canvases, palettes, and bundled template resolver map remain code-owned and do not require a database gate to render.
 - Museum is archived/hidden; its gallery arrays remain code-owned behind an exact-language publication gate and no Museum menu is currently published.
-- Deprecated Luganda story components and old route files remain compatibility code, not the menu-backed production content source.
-- `app/parent/child-progress.tsx` still contains hardcoded sample dashboard data.
+- Deprecated named story route files redirect to the generic renderer; their unused hard-coded renderers were removed.
+- The former hard-coded parent progress route was removed.
 - Mechanics, scoring, progress, achievements, test fixtures, seed SQL, and static asset maps remain in code by design.
 
 ## Read Caches

@@ -267,7 +267,7 @@ const LugandaLearningGame: React.FC = () => {
     return () => {
       fadeAnim.setValue(0)
     }
-  }, [gameState, currentLearningIndex, currentWordIndex])
+  }, [currentLearningIndex, currentWordIndex, fadeAnim, gameState])
 
   // Load game progress on mount
   useEffect(() => {
@@ -397,6 +397,10 @@ const LugandaLearningGame: React.FC = () => {
         setOptions([])
       }
     }
+    // generateOptions uses the stage collection already listed here. Depending
+    // on its render-local identity would regenerate randomized options after
+    // each state update performed by this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedLevel, gameState, selectedStage, stages])
 
   // Update progress bar
@@ -408,7 +412,7 @@ const LugandaLearningGame: React.FC = () => {
         useNativeDriver: false,
       }).start()
     }
-  }, [currentWordIndex, gameState, currentWords])
+  }, [currentWordIndex, currentWords, gameState, progressWidth])
 
   // Handle shaking animation for wrong answers
   useEffect(() => {
@@ -440,7 +444,7 @@ const LugandaLearningGame: React.FC = () => {
         }
       })
     }
-  }, [shakingOption])
+  }, [shakeAnimation, shakingOption])
 
   const playWordSound = async (word: LearningGameWord = currentWord!): Promise<void> => {
     try {
@@ -806,7 +810,7 @@ const LugandaLearningGame: React.FC = () => {
     })
 
     let completionRevision = 0
-    const completionResult = await completeLearningGameProgressLocallyFirst(newTotalScoreState, {
+    await completeLearningGameProgressLocallyFirst(newTotalScoreState, {
       persistProgress: (completedTotalScore) =>
         saveProgress(
           completedTotalScore,
@@ -918,29 +922,6 @@ const LugandaLearningGame: React.FC = () => {
       },
     })
 
-    if (completionResult.persistence.persisted) {
-      console.log("Learning game progress saved successfully.")
-    }
-  }
-
-  const saveGameProgress = async () => {
-    if (!activeChild) return
-
-    await saveProgress(
-      totalScore,
-      completedLevels,
-      stages,
-      {
-        totalWords: currentWords.length,
-        correctAnswers: levelScore / 10, // Assuming 10 points per correct answer
-        wrongAnswers: currentWords.length - levelScore / 10,
-        lastPlayed: new Date().toISOString(),
-        streakDays: 1, // This would need more complex logic to properly track
-      },
-      activeChild.id,
-      languageCode,
-      { contentRevision: contentProgressRevisionRef.current },
-    )
   }
 
   // STAGE SELECTION SCREEN

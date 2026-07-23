@@ -1,6 +1,6 @@
 # Terms of Service for Baby Steps
 
-**Last updated:** July 21, 2026
+**Last updated:** July 23, 2026
 
 These Terms of Service govern use of the Baby Steps app and related services. By creating an account or using Baby Steps, you agree to these Terms and the [Privacy Policy](PRIVACY_POLICY.md). If you do not agree, do not create an account or use the service.
 

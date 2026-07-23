@@ -17,7 +17,7 @@ import { AnimatedSplashTransition } from "@/components/brand/AnimatedSplashTrans
 import { rememberAuthRedirectUrl } from "@/lib/authRedirectEvents";
 import { hasCompletedOnboarding } from "@/lib/onboarding";
 import "@/global.css";
-import { ChildProvider } from '@/context/ChildContext';
+import { ChildProvider, useChild } from "@/context/ChildContext";
 import { AudioProvider } from "@/context/AudioContext";
 import {
   NetworkStatusNotice,
@@ -30,6 +30,8 @@ import {
   syncRecurringRemindersIfEnabled,
 } from "@/lib/notifications";
 import { cancelScheduledStreakSync, clearStreakMemory } from "@/lib/streakRepository";
+import { clearParentSecuritySession } from "@/lib/parentAccess";
+import { ParentProfileProvider } from "@/context/ParentProfileContext";
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -42,6 +44,75 @@ type RouteOrientationMode = "adult" | "child";
 
 const getRouteOrientationMode = (routePathname: string): RouteOrientationMode =>
   routePathname.startsWith("/child") ? "child" : "adult";
+
+export const requiresAuthenticatedSession = (routePathname: string): boolean =>
+  routePathname === "/child-list" ||
+  routePathname.startsWith("/child/") ||
+  routePathname === "/child" ||
+  routePathname.startsWith("/parent/") ||
+  routePathname === "/parent";
+
+const PARENT_GATE_EXEMPT_ROUTES = new Set([
+  "/login",
+  "/signup",
+  "/check-email",
+  "/forgot-password",
+  "/auth/callback",
+  "/reset-password",
+  "/account-reactivation",
+]);
+
+export const requiresParentGateForActiveChild = (
+  routePathname: string,
+  activeChildId?: string | null,
+  requiresParentUnlock = false,
+): boolean => {
+  if (!activeChildId && !requiresParentUnlock) return false;
+  if (PARENT_GATE_EXEMPT_ROUTES.has(routePathname)) return false;
+  return !(
+    routePathname === "/child" ||
+    routePathname.startsWith("/child/")
+  );
+};
+
+function SessionSecurityBoundary({ accountId }: { accountId: string | null }) {
+  const previousAccountId = useRef<string | null | undefined>(undefined);
+  const { activeChild, isRestoringActiveChild, requiresParentUnlock } = useChild();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    const previous = previousAccountId.current;
+    previousAccountId.current = accountId;
+
+    if (previous !== undefined && previous !== accountId) {
+      clearParentSecuritySession();
+    }
+  }, [accountId]);
+
+  useEffect(() => {
+    if (
+      accountId &&
+      !isRestoringActiveChild &&
+      requiresParentGateForActiveChild(
+        pathname,
+        activeChild?.id,
+        requiresParentUnlock,
+      )
+    ) {
+      router.replace("/child/parent-gate");
+    }
+  }, [
+    accountId,
+    activeChild?.id,
+    isRestoringActiveChild,
+    pathname,
+    requiresParentUnlock,
+    router,
+  ]);
+
+  return null;
+}
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
@@ -186,6 +257,11 @@ export default function RootLayout() {
       return;
     }
 
+    if (!session && requiresAuthenticatedSession(pathname)) {
+      router.replace("/login");
+      return;
+    }
+
     if (session && accountAccessBlocked && !isAccountReactivationRoute) {
       if (blockedRouteRefreshPathRef.current !== pathname) {
         blockedRouteRefreshPathRef.current = pathname;
@@ -224,7 +300,7 @@ export default function RootLayout() {
     showOnboarding,
   ]);
 
-  const applyRouteOrientation = useCallback(async (routePathname: string, reason: string, force = false) => {
+  const applyRouteOrientation = useCallback(async (routePathname: string, force = false) => {
     const orientationMode = getRouteOrientationMode(routePathname);
 
     if (!force && lastRequestedOrientationMode.current === orientationMode) {
@@ -241,9 +317,6 @@ export default function RootLayout() {
       }
       lastRequestedOrientationMode.current = orientationMode;
 
-      if (__DEV__) {
-        console.log(`[orientation] ${reason}: ${routePathname} -> ${targetLabel}`);
-      }
     } catch (error) {
       console.error(`Failed to lock ${routePathname} to ${targetLabel}:`, error);
     }
@@ -256,15 +329,18 @@ export default function RootLayout() {
   useEffect(() => {
     if (isLoading || isAccountStateLoading || !fontsLoaded) return;
 
-    void applyRouteOrientation(pathname, "route change");
+    void applyRouteOrientation(pathname);
   }, [applyRouteOrientation, fontsLoaded, isAccountStateLoading, isLoading, pathname]);
 
   useEffect(() => {
     if (isLoading || isAccountStateLoading || !fontsLoaded) return;
 
     const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState !== "active") {
+        clearParentSecuritySession();
+      }
       if (nextAppState === "active") {
-        void applyRouteOrientation(pathnameRef.current, "app resume", true);
+        void applyRouteOrientation(pathnameRef.current, true);
         if (session?.user.id) {
           void syncRecurringRemindersIfEnabled(session.user.id).catch((error) => {
             console.warn("Could not refresh learning reminders on app resume:", error);
@@ -280,8 +356,10 @@ export default function RootLayout() {
 
   return (
     <AudioProvider>
-      <ChildProvider>
-        <View style={{ flex: 1 }}>
+      <ParentProfileProvider accountId={session?.user.id ?? null}>
+        <ChildProvider accountId={session?.user.id ?? null}>
+          <SessionSecurityBoundary accountId={session?.user.id ?? null} />
+          <View style={{ flex: 1 }}>
           <Stack
             screenOptions={{
               animation: "fade_from_bottom",
@@ -309,8 +387,9 @@ export default function RootLayout() {
             ready={fontsLoaded && !isLoading && !showSplashTransition}
             showPersistentBanner={shouldShowPersistentNetworkBanner(pathname)}
           />
-        </View>
-      </ChildProvider>
+          </View>
+        </ChildProvider>
+      </ParentProfileProvider>
     </AudioProvider>
   );
 }

@@ -176,7 +176,6 @@ export const saveGameState = async (
     
     const key = getStorageKey(childId, languageCode);
     await AsyncStorage.setItem(key, JSON.stringify(updatedState));
-    console.log(`Saved card game state for child: ${childId}`);
   } catch (error) {
     console.error('Failed to save card game state:', error);
     throw error;
@@ -195,7 +194,6 @@ export const clearGameState = async (
   try {
     const key = getStorageKey(childId, languageCode);
     await AsyncStorage.removeItem(key);
-    console.log(`Cleared card game state for child: ${childId}`);
   } catch (error) {
     console.error('Failed to clear game state:', error);
     throw error;

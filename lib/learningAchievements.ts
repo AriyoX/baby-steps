@@ -46,13 +46,14 @@ export const checkAndGrantLearningHubAchievements = async ({
   try {
     const [definedAchievements, earnedAchievements] = await Promise.all([
       fetchAllDefinedAchievements(LEARNING_HUB_GAME_KEY),
-      fetchChildEarnedAchievements(childId),
+      fetchChildEarnedAchievements(childId, languageCode),
     ]);
     const stageStartableLessonIds = getStartableLessonIds(languageCode, completion);
     const lessonId = completion.progressPayload.lessonId || completion.levelId;
 
     return checkAndGrantNewAchievements({
       childId,
+      languageCode,
       definedAchievements,
       earnedAchievementIds: earnedAchievements.map(
         (achievement) => achievement.achievement_id,

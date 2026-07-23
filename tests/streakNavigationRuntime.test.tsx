@@ -130,6 +130,9 @@ jest.mock("@/context/AudioContext", () => ({
 }));
 
 jest.mock("@/lib/accountManagement", () => ({
+  fetchActiveChildProfile: jest.fn(async (childId: string) =>
+    childId === mockChild.id ? mockChild : null,
+  ),
   getAccountDeletionState: jest.fn(async () => ({ phase: "none" })),
   isAccountDeletionBlockingNormalAccess: () => false,
 }));
@@ -150,6 +153,11 @@ jest.mock("@/lib/progressRepository", () => ({
   cancelScheduledProgressSync: jest.fn(),
   hydrateProgressFromRemote: jest.fn(async () => undefined),
   syncProgressNow: jest.fn(async () => undefined),
+}));
+jest.mock("@/lib/activeChildSession", () => ({
+  clearSecureActiveChildSession: jest.fn(async () => undefined),
+  loadSecureActiveChildSession: jest.fn(async () => null),
+  saveSecureActiveChildSession: jest.fn(async () => undefined),
 }));
 jest.mock("@/lib/notifications", () => ({
   configureNotificationPresentation: jest.fn(),
@@ -176,6 +184,10 @@ jest.mock("@/lib/streakRepository", () => ({
   subscribeToStreakCelebrations: jest.fn(() => jest.fn()),
   syncDirtyStreakState: jest.fn(async () => ({ pushed: 0, rejected: 0, failed: 0, skipped: 0 })),
 }));
+jest.mock("@/lib/parentAccess", () => ({
+  clearParentSecuritySession: jest.fn(),
+  hasParentPin: jest.fn(async () => true),
+}));
 jest.mock("@/lib/supabase", () => ({
   supabase: {
     auth: {
@@ -186,8 +198,11 @@ jest.mock("@/lib/supabase", () => ({
   },
 }));
 
-import RootLayout from "../app/_layout";
-import ParentLayout from "../app/parent/_layout";
+import RootLayout, {
+  requiresAuthenticatedSession,
+  requiresParentGateForActiveChild,
+} from "../app/_layout";
+import ParentLayout, { shouldGateParentRoute } from "../app/parent/_layout";
 import ParentDashboard from "../app/parent/index";
 import ChildDetailScreen from "../app/parent/child-detail/[id]";
 
@@ -208,7 +223,6 @@ const context = {
   "parent/index": { default: ParentDashboard },
   "parent/settings": { default: EmptyRoute },
   "parent/add-child": { default: EmptyRoute },
-  "parent/child-progress": { default: EmptyRoute },
   "parent/child-detail/[id]": { default: ChildDetailScreen },
   child: { default: EmptyRoute },
 };
@@ -221,6 +235,45 @@ describe("streak navigation runtime relationship", () => {
     mockGetSession.mockResolvedValue({
       data: { session: { user: { id: "parent-1" } } },
     });
+  });
+
+  it("guards direct child and parent routes and gates parent routes while child mode is active", () => {
+    expect(requiresAuthenticatedSession("/parent/settings/account-delete")).toBe(
+      true,
+    );
+    expect(requiresAuthenticatedSession("/child/games/museum")).toBe(true);
+    expect(requiresAuthenticatedSession("/login")).toBe(false);
+    expect(shouldGateParentRoute("child-1")).toBe(true);
+    expect(shouldGateParentRoute(null)).toBe(false);
+    expect(requiresParentGateForActiveChild("/child-list", "child-1")).toBe(
+      true,
+    );
+    expect(
+      requiresParentGateForActiveChild("/notification-permission", "child-1"),
+    ).toBe(true);
+    expect(
+      requiresParentGateForActiveChild("/child/games/museum", "child-1"),
+    ).toBe(false);
+    for (const authRoute of [
+      "/login",
+      "/signup",
+      "/check-email",
+      "/forgot-password",
+      "/auth/callback",
+      "/reset-password",
+      "/account-reactivation",
+    ]) {
+      expect(
+        requiresParentGateForActiveChild(authRoute, "child-1"),
+      ).toBe(false);
+    }
+    expect(requiresParentGateForActiveChild("/child-list", null)).toBe(false);
+    expect(
+      requiresParentGateForActiveChild("/parent/settings", null, true),
+    ).toBe(true);
+    expect(
+      requiresParentGateForActiveChild("/child/parent-gate", null, true),
+    ).toBe(false);
   });
 
   it("keeps the real root navigator mounted through bootstrap and opens a dashboard child profile", async () => {

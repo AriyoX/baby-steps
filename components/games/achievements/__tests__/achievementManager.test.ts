@@ -42,9 +42,11 @@ const earned = (
   id: string,
   childId: string,
   achievementId = "achievement-1",
+  languageCode = "lg",
 ): ChildAchievement => ({
   id,
   child_id: childId,
+  language_code: languageCode,
   achievement_id: achievementId,
   earned_at: "2026-01-01T00:00:00.000Z",
 });
@@ -58,10 +60,19 @@ const createDefinitionsQuery = (
 
 const createChildAchievementsQuery = (
   result: { data: ChildAchievement[] | null; error: unknown },
-) => ({
-  select: jest.fn().mockReturnThis(),
-  eq: jest.fn().mockResolvedValue(result),
-});
+) => {
+  const query = {
+    select: jest.fn(),
+    eq: jest.fn(),
+    then: (
+      resolve: (value: typeof result) => unknown,
+      reject?: (reason: unknown) => unknown,
+    ) => Promise.resolve(result).then(resolve, reject),
+  };
+  query.select.mockReturnValue(query);
+  query.eq.mockReturnValue(query);
+  return query;
+};
 
 const createExistingAchievementQuery = (
   result: { data: ChildAchievement | null; error: unknown },
@@ -170,26 +181,40 @@ describe("achievement Supabase read cache", () => {
     expect(supabase.from).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps child achievement caches scoped by child", async () => {
+  it("keeps child achievement caches scoped by child and exact language", async () => {
     (supabase.from as jest.Mock)
       .mockReturnValueOnce(
         createChildAchievementsQuery({ data: [earned("earned-1", "child-1")], error: null }),
       )
       .mockReturnValueOnce(
         createChildAchievementsQuery({ data: [earned("earned-2", "child-2")], error: null }),
+      )
+      .mockReturnValueOnce(
+        createChildAchievementsQuery({
+          data: [earned("earned-nyn", "child-1", "achievement-1", "nyn")],
+          error: null,
+        }),
       );
 
-    const childOne = await fetchChildEarnedAchievements("child-1");
-    const childTwo = await fetchChildEarnedAchievements("child-2");
-    const cachedChildOne = await fetchChildEarnedAchievements("child-1");
+    const childOne = await fetchChildEarnedAchievements("child-1", "lg");
+    const childTwo = await fetchChildEarnedAchievements("child-2", "lg");
+    const runyankoleChildOne = await fetchChildEarnedAchievements(
+      "child-1",
+      "nyn",
+    );
+    const cachedChildOne = await fetchChildEarnedAchievements("child-1", "lg");
 
     expect(childOne[0].child_id).toBe("child-1");
     expect(childTwo[0].child_id).toBe("child-2");
+    expect(runyankoleChildOne[0].language_code).toBe("nyn");
     expect(cachedChildOne[0].id).toBe("earned-1");
-    expect(getChildAchievementsCacheKey("child-1")).not.toBe(
-      getChildAchievementsCacheKey("child-2"),
+    expect(getChildAchievementsCacheKey("child-1", "lg")).not.toBe(
+      getChildAchievementsCacheKey("child-2", "lg"),
     );
-    expect(supabase.from).toHaveBeenCalledTimes(2);
+    expect(getChildAchievementsCacheKey("child-1", "lg")).not.toBe(
+      getChildAchievementsCacheKey("child-1", "nyn"),
+    );
+    expect(supabase.from).toHaveBeenCalledTimes(3);
   });
 
   it("updates the child-scoped cache after awarding an achievement", async () => {
@@ -199,8 +224,12 @@ describe("achievement Supabase read cache", () => {
       .mockReturnValueOnce(createExistingAchievementQuery({ data: null, error: null }))
       .mockReturnValueOnce(createAwardInsertQuery({ data: awarded, error: null }));
 
-    const result = await awardAchievementToChild("child-1", "achievement-new");
-    const cachedEarned = await fetchChildEarnedAchievements("child-1");
+    const result = await awardAchievementToChild(
+      "child-1",
+      "lg",
+      "achievement-new",
+    );
+    const cachedEarned = await fetchChildEarnedAchievements("child-1", "lg");
 
     expect(result).toEqual({
       status: "newly-awarded",
@@ -213,9 +242,13 @@ describe("achievement Supabase read cache", () => {
     jest.clearAllMocks();
     const repeatedResult = await awardAchievementToChild(
       "child-1",
+      "lg",
       "achievement-new",
     );
-    const cachedAfterRepeat = await fetchChildEarnedAchievements("child-1");
+    const cachedAfterRepeat = await fetchChildEarnedAchievements(
+      "child-1",
+      "lg",
+    );
 
     expect(repeatedResult).toEqual({
       status: "already-earned",
@@ -232,7 +265,7 @@ describe("achievement Supabase read cache", () => {
       createChildAchievementsQuery({ data: [], error: null }),
     );
 
-    await fetchChildEarnedAchievements("child-1");
+    await fetchChildEarnedAchievements("child-1", "lg");
     jest.clearAllMocks();
 
     const existingQuery = createExistingAchievementQuery({
@@ -243,9 +276,10 @@ describe("achievement Supabase read cache", () => {
 
     const result = await awardAchievementToChild(
       "child-1",
+      "lg",
       "achievement-existing",
     );
-    const cachedEarned = await fetchChildEarnedAchievements("child-1");
+    const cachedEarned = await fetchChildEarnedAchievements("child-1", "lg");
 
     expect(result).toEqual({
       status: "already-earned",
@@ -270,6 +304,7 @@ describe("achievement Supabase read cache", () => {
     await expect(
       awardAchievementToChild(
         "child-1",
+        "lg",
         LEARNING_HUB_ACHIEVEMENT_IDS.FIRST_LEARNING_STEP,
       ),
     ).resolves.toEqual({
@@ -283,6 +318,7 @@ describe("achievement Supabase read cache", () => {
     await expect(
       awardAchievementToChild(
         "child-1",
+        "lg",
         LEARNING_HUB_ACHIEVEMENT_IDS.FIRST_LEARNING_STEP,
       ),
     ).resolves.toEqual({
@@ -320,11 +356,12 @@ describe("achievement Supabase read cache", () => {
 
     const newlyEarned = await checkAndGrantNewAchievements({
       childId: "child-1",
+      languageCode: "lg",
       definedAchievements: [achievementDefinition],
       earnedAchievementIds: [],
       event: createLearningEvent(),
     });
-    const cachedEarned = await fetchChildEarnedAchievements("child-1");
+    const cachedEarned = await fetchChildEarnedAchievements("child-1", "lg");
 
     expect(newlyEarned).toEqual([]);
     expect(cachedEarned).toEqual([existing]);
@@ -351,7 +388,7 @@ describe("achievement Supabase read cache", () => {
       );
 
     await expect(
-      awardAchievementToChild("child-1", "achievement-offline"),
+      awardAchievementToChild("child-1", "lg", "achievement-offline"),
     ).resolves.toEqual({
       status: "failed",
       award: null,
@@ -371,6 +408,7 @@ describe("Learning Hub achievement checks", () => {
 
     const newlyEarned = await checkAndGrantNewAchievements({
       childId: "child-1",
+      languageCode: "lg",
       definedAchievements: [definition],
       earnedAchievementIds: [],
       event: createLearningEvent(),
@@ -387,6 +425,7 @@ describe("Learning Hub achievement checks", () => {
 
     const newlyEarned = await checkAndGrantNewAchievements({
       childId: "child-1",
+      languageCode: "lg",
       definedAchievements: [definition],
       earnedAchievementIds: [],
       event: createLearningEvent({
@@ -417,6 +456,7 @@ describe("Learning Hub achievement checks", () => {
 
     const newlyEarned = await checkAndGrantNewAchievements({
       childId: "child-1",
+      languageCode: "lg",
       definedAchievements: [definition],
       earnedAchievementIds: [],
       event: createLearningEvent({
@@ -438,6 +478,7 @@ describe("Learning Hub achievement checks", () => {
 
     const newlyEarned = await checkAndGrantNewAchievements({
       childId: "child-1",
+      languageCode: "lg",
       definedAchievements: [definition],
       earnedAchievementIds: [],
       event: createLearningEvent({
@@ -458,6 +499,7 @@ describe("Learning Hub achievement checks", () => {
 
     const newlyEarned = await checkAndGrantNewAchievements({
       childId: "child-1",
+      languageCode: "lg",
       definedAchievements: [definition],
       earnedAchievementIds: [],
       event: createLearningEvent({
@@ -478,6 +520,7 @@ describe("Learning Hub achievement checks", () => {
 
     const newlyEarned = await checkAndGrantNewAchievements({
       childId: "child-1",
+      languageCode: "lg",
       definedAchievements: [definition],
       earnedAchievementIds: [],
       event: createLearningEvent({

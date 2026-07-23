@@ -113,12 +113,12 @@ Validation run during this docs verification:
 
 - Onboarding: `app/index.tsx`, `app/_layout.tsx`, `@onboarding_completed`.
 - Auth/password reset: `app/login.tsx`, `app/signup.tsx`, `app/forgot-password.tsx`, `app/reset-password.tsx`, `lib/supabase.ts`.
-- Parent dashboard/settings/activity views: `app/parent/index.tsx`, `app/parent/settings.tsx`, `app/parent/activities.tsx`, `app/parent/all-achievements.tsx`, `app/parent/child-progress.tsx`.
+- Parent dashboard/settings/activity views: `app/parent/index.tsx`, `app/parent/settings.tsx`, `app/parent/activities.tsx`, and `app/parent/all-achievements.tsx`.
 - Child profiles/add-child flow: `app/child-list.tsx`, `app/parent/add-child/*`, `context/UserContext.tsx`, `context/ChildContext.tsx`.
 - Child mode/navigation: `app/child/_layout.tsx`, `app/child/(tabs)/*`, `app/child/parent-gate.tsx`, `components/child/AfricanThemeGameInterface.tsx`.
 - Games: `app/child/games/*`, `components/games/*`, `components/games/utils/*`, `content/games/*`.
 - Luganda lessons: `content/games/lugandawords.ts`, `components/games/LearningGameComponent.tsx`, audio map in `components/games/utils/audioManager.ts`.
-- Stories: 8 story components, 8 pages each, 5 questions each, `StoryProgress`, story routes.
+- Stories: named compatibility routes redirect to the database-backed generic story renderer. The earlier hard-coded story renderers were removed after this historical verification snapshot.
 - Coloring: 5 active coloring routes using `app/child/games/coloring/coloring-game-base.tsx`.
 - Museum: 4 category routes with hardcoded content arrays and local media behavior.
 - Progress/achievements: Supabase `activities`, `achievements`, `child_achievements` usage plus local AsyncStorage progress managers.

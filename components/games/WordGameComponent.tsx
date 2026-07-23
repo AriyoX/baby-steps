@@ -622,8 +622,7 @@ const WordGame: React.FC = () => {
                 });
             }
           }
-        } catch (error) {
-          console.log("Could not load correct sound:", error);
+        } catch {
         }
 
         try {
@@ -642,8 +641,7 @@ const WordGame: React.FC = () => {
                 });
             }
           }
-        } catch (error) {
-          console.log("Could not load wrong sound:", error);
+        } catch {
         }
 
         try {
@@ -662,8 +660,7 @@ const WordGame: React.FC = () => {
                 });
             }
           }
-        } catch (error) {
-          console.log("Could not load success sound:", error);
+        } catch {
         }
       } catch (error) {
         console.error("Error in sound loading process", error);
@@ -745,9 +742,6 @@ const WordGame: React.FC = () => {
 
         if (requestedChildId) {
           try {
-            console.log(
-              `Loading word game progress for child: ${requestedChildId}`,
-            );
             const savedProgress = contentProgressRevision
               ? await loadGameProgress(
                   requestedChildId,
@@ -762,7 +756,6 @@ const WordGame: React.FC = () => {
                 );
             if (!isCurrentRequest()) return;
 
-            console.log("Loaded progress:", JSON.stringify(savedProgress));
             updateProgressState(savedProgress);
             levelToLoad = savedProgress.currentLevel;
           } catch (error) {
@@ -783,7 +776,6 @@ const WordGame: React.FC = () => {
         );
         if (!isCurrentRequest()) return;
 
-        console.log(`Loading level: ${safeLevelToLoad}`);
         loadLevel(safeLevelToLoad, levels);
 
         Animated.timing(fadeAnim, {
@@ -817,7 +809,11 @@ const WordGame: React.FC = () => {
         levelIntroTimeoutRef.current = null;
       }
     };
-  }, [activeChild?.id, languageCode, contentRetrySequence]);
+    // loadLevel receives the requested, language-scoped levels explicitly.
+    // Depending on its render-local identity would repeat hydration after the
+    // state updates it performs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeChild?.id, contentRetrySequence, fadeAnim, languageCode]);
 
   // Move to next level
   const animateLetterToWord = (
@@ -1451,7 +1447,6 @@ const WordGame: React.FC = () => {
         animationType="fade"
         presentationStyle="overFullScreen"
         supportedOrientations={WORD_GAME_MODAL_ORIENTATIONS}
-        onShow={() => console.log("Word game level intro modal shown")}
       >
         <View className="flex-1 justify-center items-center px-4" style={{ backgroundColor: "#020617B3" }}>
           <View className="bg-white rounded-2xl p-4 w-[80%] max-w-md items-center shadow-xl border-4 border-primary-100">

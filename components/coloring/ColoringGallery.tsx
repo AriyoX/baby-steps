@@ -21,6 +21,7 @@ import { ChildLoadingCard } from "@/components/child/ChildLoadingState"
 import { CachedImage } from "@/components/common/CachedImage"
 import {
   loadContentBundle,
+  getStartableMenuCards,
   resolveImageSource,
   type ChildMenuCard,
 } from "@/content/contentRepository"
@@ -67,7 +68,9 @@ export function ColoringGallery() {
       })
       if (!isMounted) return
 
-      const nextCards = result.bundle?.menuCardsByTab.coloring ?? []
+      const nextCards = result.bundle
+        ? getStartableMenuCards(result.bundle, "coloring")
+        : []
       setCards(nextCards)
       setIsLoading(false)
       if (result.bundle) void preloadContentBundleImages(result.bundle)

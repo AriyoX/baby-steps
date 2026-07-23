@@ -13,7 +13,7 @@ export type LegalDocument = {
 
 export const PRIVACY_POLICY: LegalDocument = {
   title: "Privacy Policy",
-  lastUpdated: "July 21, 2026",
+  lastUpdated: "July 23, 2026",
   introduction: [
     "Baby Steps is an educational app for young children and their parents or guardians. This policy explains what information Baby Steps collects or processes, why it is used, and the choices available to families.",
     "Parent accounts and family settings are intended for adults. Children should use Baby Steps with the supervision of a parent or guardian.",
@@ -37,7 +37,7 @@ export const PRIVACY_POLICY: LegalDocument = {
       title: "2. Optional device features",
       paragraphs: [
         "Baby Steps may ask for notification permission if a parent chooses gentle learning reminders. These reminders are scheduled on the device and do not require a push token or a child's contact details.",
-        "If a user saves or shares coloring artwork, the operating system may provide access needed to save the image or open the device share sheet. Baby Steps does not upload that artwork to our servers. Saved or shared copies are controlled by the device and the destination selected by the user.",
+        "If a user saves coloring artwork, the operating system may provide add-only access needed to save the image. Baby Steps does not request access to read existing photos, does not expose a child-facing system Share action, and does not upload that artwork to our servers. Saved copies are controlled by the device.",
         "Audio playback and text-to-speech may use the device's operating-system services. Baby Steps' third-party online translation helper is currently disabled.",
       ],
     },
@@ -64,7 +64,7 @@ export const PRIVACY_POLICY: LegalDocument = {
     {
       title: "5. How information is shared",
       paragraphs: [
-        "We use Supabase for authentication, database storage, and related service operations. Device and operating-system providers may process information when a user enables notifications, text-to-speech, saving, or sharing. We may also disclose information when required by law or when reasonably necessary to protect users, rights, safety, or the service.",
+        "We use Supabase for authentication, database storage, and related service operations. Device and operating-system providers may process information when a user enables notifications, text-to-speech, or saving. We may also disclose information when required by law or when reasonably necessary to protect users, rights, safety, or the service.",
         "We do not sell personal information, and Baby Steps does not show targeted advertising to children.",
       ],
     },
@@ -107,7 +107,7 @@ export const PRIVACY_POLICY: LegalDocument = {
 
 export const TERMS_OF_SERVICE: LegalDocument = {
   title: "Terms of Service",
-  lastUpdated: "July 21, 2026",
+  lastUpdated: "July 23, 2026",
   introduction: [
     "These Terms of Service govern use of the Baby Steps app and related services. By creating an account or using Baby Steps, you agree to these Terms and our Privacy Policy.",
     "If you do not agree, do not create an account or use the service.",
@@ -140,7 +140,7 @@ export const TERMS_OF_SERVICE: LegalDocument = {
     {
       title: "4. Child profiles and supervision",
       paragraphs: [
-        "You decide what child profile information to provide and are responsible for having the authority or consent needed to provide it. You must supervise children's use of Baby Steps, choose age-appropriate activities, and manage access to parent-only areas and device features such as sharing or notifications.",
+        "You decide what child profile information to provide and are responsible for having the authority or consent needed to provide it. You must supervise children's use of Baby Steps, choose age-appropriate activities, and manage access to parent-only areas and optional device features such as notifications and saving artwork.",
       ],
     },
     {

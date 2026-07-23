@@ -29,6 +29,9 @@ type Child = {
 type ChildUiApi = ReturnType<typeof useChildUiLanguage>;
 
 const setActiveChild = jest.fn();
+const activateChildMode = jest.fn(async () => undefined);
+const deactivateChildMode = jest.fn(async () => undefined);
+const updateActiveChildProfile = jest.fn(async () => undefined);
 const clearActiveChildForSignOut = jest.fn(async () => undefined);
 
 const flushPreferenceEffects = async () => {
@@ -54,8 +57,13 @@ describe("ChildUiLanguageProvider", () => {
         <ChildContext.Provider
           value={{
             activeChild: child,
+            activateChildMode,
+            deactivateChildMode,
             setActiveChild,
+            updateActiveChildProfile,
             clearActiveChildForSignOut,
+            isRestoringActiveChild: false,
+            requiresParentUnlock: false,
           }}
         >
           <ChildUiLanguageProvider>
@@ -73,8 +81,13 @@ describe("ChildUiLanguageProvider", () => {
         <ChildContext.Provider
           value={{
             activeChild: child,
+            activateChildMode,
+            deactivateChildMode,
             setActiveChild,
+            updateActiveChildProfile,
             clearActiveChildForSignOut,
+            isRestoringActiveChild: false,
+            requiresParentUnlock: false,
           }}
         >
           <ChildUiLanguageProvider>

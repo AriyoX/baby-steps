@@ -38,7 +38,7 @@ export const DEFAULT_USER_STATS: UserStats = {
   correctAnswers: 0,
   wrongAnswers: 0,
   lastPlayed: new Date().toISOString(),
-  streakDays: 1
+  streakDays: 0
 };
 
 const getStorageKey = (baseKey: string, childId: string, languageCode: string) =>
@@ -279,7 +279,6 @@ export const loadGameProgress = async (
       userStatsData = await AsyncStorage.getItem(getLegacyStorageKey(LEGACY_USER_STATS_KEY, childId));
 
       if (scoreData || completedLevelsData || stagesData || userStatsData) {
-        console.log('Using explicit legacy Luganda learning progress keys');
       }
     }
 

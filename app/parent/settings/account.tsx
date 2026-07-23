@@ -9,6 +9,8 @@ import { SettingsScaffold } from "@/components/settings/SettingsScaffold";
 import { Text } from "@/components/StyledText";
 import { useChild } from "@/context/ChildContext";
 import { supabase } from "@/lib/supabase";
+import { clearParentSecuritySession } from "@/lib/parentAccess";
+import { useParentProfile } from "@/context/ParentProfileContext";
 
 interface NormalSignOutOptions {
   clearActiveChildForSignOut: () => Promise<void>;
@@ -29,6 +31,7 @@ export const signOutNormally = async ({
 
   const result = await signOut();
   if (!result.error) {
+    clearParentSecuritySession();
     replace("/login");
   }
   return result;
@@ -37,6 +40,7 @@ export const signOutNormally = async ({
 export default function AccountManagementScreen() {
   const router = useRouter();
   const { clearActiveChildForSignOut } = useChild();
+  const { profile } = useParentProfile();
   const [user, setUser] = React.useState<User | null>(null);
   const [loading, setLoading] = React.useState(true);
 
@@ -97,16 +101,18 @@ export default function AccountManagementScreen() {
         <Text variant="bold" className="text-gray-800 text-lg mb-3">
           Signed-in Parent
         </Text>
+        {profile?.displayName ? (
+          <View className="mb-3">
+            <Text className="text-gray-500 text-sm">Display name</Text>
+            <Text variant="medium" className="text-gray-800 mt-1">
+              {profile.displayName}
+            </Text>
+          </View>
+        ) : null}
         <View className="mb-2">
           <Text className="text-gray-500 text-sm">Email</Text>
           <Text variant="medium" className="text-gray-800 mt-1">
             {loading ? "Loading..." : user?.email ?? "Not available"}
-          </Text>
-        </View>
-        <View>
-          <Text className="text-gray-500 text-sm">User ID</Text>
-          <Text className="text-gray-700 mt-1" selectable>
-            {loading ? "Loading..." : user?.id ?? "Not available"}
           </Text>
         </View>
       </View>
@@ -114,17 +120,19 @@ export default function AccountManagementScreen() {
       <View className="mt-5 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <SettingsRow
           title="Edit parent profile"
-          description="Name and family details are coming soon."
-          icon="create-outline"
+          description="Update the parent display name. Email is read-only."
+          icon="person-outline"
           iconColor="#2563EB"
-          onPress={() => router.push("/parent/settings/account-edit-profile" as any)}
+          onPress={() =>
+            router.push("/parent/settings/edit-parent-profile" as any)
+          }
         />
         <SettingsRow
-          title="Email & password"
-          description="Secure email and password changes are coming soon."
-          icon="key-outline"
+          title="Parent access PIN"
+          description="Set or change the PIN used to leave child mode."
+          icon="keypad-outline"
           iconColor="#7C3AED"
-          onPress={() => router.push("/parent/settings/account-security" as any)}
+          onPress={() => router.push("/parent/settings/parent-pin" as any)}
         />
         <SettingsRow
           title="Sign out"

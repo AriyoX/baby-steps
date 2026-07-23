@@ -10,10 +10,16 @@ const mockChildStreakSection = jest.fn(({ childId }: { childId: string; mode?: s
   <View testID="canonical-child-streak-section" accessibilityLabel={childId} />
 ));
 
-jest.mock("expo-router", () => ({
-  useLocalSearchParams: () => ({ childId: "child-b" }),
-  useRouter: () => ({ back: jest.fn(), push: jest.fn() }),
-}));
+jest.mock("expo-router", () => {
+  /* eslint-disable-next-line @typescript-eslint/no-require-imports */
+  const ReactInMock = require("react");
+  return {
+    useFocusEffect: (callback: () => void | (() => void)) =>
+      ReactInMock.useEffect(callback, [callback]),
+    useLocalSearchParams: () => ({ childId: "child-b" }),
+    useRouter: () => ({ back: jest.fn(), push: jest.fn() }),
+  };
+});
 jest.mock("expo-status-bar", () => ({ StatusBar: () => null }));
 jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: "SafeAreaView" }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: "Ionicons" }));

@@ -1,6 +1,6 @@
 # Privacy Policy for Baby Steps
 
-**Last updated:** July 21, 2026
+**Last updated:** July 23, 2026
 
 Baby Steps ("we," "our," or "us") is an educational app for young children and their parents/guardians. This Privacy Policy explains what the app collects or processes, how it is used, and the choices users have.
 
@@ -47,12 +47,11 @@ The app stores certain data locally on the device with AsyncStorage, including:
 
 ### Optional Media Access
 
-The coloring feature uses device media and sharing APIs. If a user chooses to save or share artwork, the app may request media/photo access to:
+The coloring feature uses the device media API only when a user chooses Save. The app may request add-only media/photo access to:
 
 - Save images to the device gallery, including a `ColoringBook` album where supported
-- Share images using the device share sheet
 
-Baby Steps does not upload coloring artwork to our servers. Saved or shared copies are controlled by the device and by the destination the user selects.
+Baby Steps does not request access to read existing photos, does not expose a child-facing system Share action, and does not upload coloring artwork to our servers. Saved copies are controlled by the device.
 
 ### Notifications, Audio, And Language Features
 
@@ -88,11 +87,10 @@ We use collected information to:
 We may share information with service providers that help operate the app:
 
 - **Supabase** for authentication and database storage
-- Device and operating-system providers when a user enables notifications, text-to-speech, saving, or sharing
+- Device and operating-system providers when a user enables notifications, text-to-speech, or saving
 
 We may also share information:
 
-- When a user explicitly shares content through device sharing features
 - If required by law or to protect rights, safety, and security
 
 We do not sell personal information, and Baby Steps does not show targeted advertising to children.

@@ -61,11 +61,11 @@ No strict naming convention is enforced across the prototype yet. Current patter
 
 ## Current Technical Debt In Structure
 
-- Deprecated story components may still duplicate parts of the generic reader for route compatibility; the production Stories path uses the generic database renderer.
+- Deprecated named story routes redirect to the generic database renderer; the old hard-coded story renderers were removed.
 - Game components still combine mechanics, UI, state, scoring, persistence, audio, and achievements, while their language-specific records load through `content/`.
 - Archived Museum data, onboarding copy, Coloring route configuration, test fixtures, seed SQL, and static asset maps remain bundled intentionally. Reachable published learning/game records do not use those as a language fallback.
 - `types.ts` contains generic early prototype types and may not represent current app data models.
-- `components/child/AfricanColoringGame.tsx` is commented prototype code while active coloring lives under routes.
+- Active coloring lives under route wrappers and `components/coloring/`; the unused commented coloring prototype was removed.
 
 ## Contributor Notes
 

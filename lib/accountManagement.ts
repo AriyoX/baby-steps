@@ -111,6 +111,7 @@ const ACCOUNT_DELETION_REQUEST_SELECT_COLUMNS = [
 
 const REQUEST_ACCOUNT_DELETION_RPC = "request_account_deletion_with_grace";
 const REACTIVATE_ACCOUNT_DELETION_RPC = "reactivate_account_deletion";
+const ARCHIVE_CHILD_PROFILE_RPC = "archive_child_profile";
 
 export const ACCOUNT_DELETION_GRACE_PERIOD_DAYS = 30;
 
@@ -504,23 +505,22 @@ export const archiveChildProfile = async (
     throw new Error("Parent account is required.");
   }
 
-  const archivedAt = nowIso();
-  const { data, error } = await supabase
-    .from("children")
-    .update({
-      deleted_at: archivedAt,
-      archived_by_account_deletion_request_id: null,
-    })
-    .eq("id", childId)
-    .eq("parent_id", resolvedParentId)
-    .is("deleted_at", null)
-    .select(CHILD_SELECT_COLUMNS)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc(ARCHIVE_CHILD_PROFILE_RPC, {
+    p_child_id: childId,
+  });
 
   if (error) throw error;
-  if (!data) {
+  const result =
+    data && typeof data === "object" && !Array.isArray(data)
+      ? (data as { status?: unknown; archived_at?: unknown })
+      : null;
+  if (
+    result?.status !== "applied" ||
+    typeof result.archived_at !== "string"
+  ) {
     throw new Error("Child profile was not found or has already been archived.");
   }
+  const archivedAt = result.archived_at;
 
   await clearChildLocalData(childId);
   if (process.env.NODE_ENV !== "test") {
@@ -561,81 +561,6 @@ export const requestAccountDeletion = async (
   if (signOutError) throw signOutError;
 
   return result;
-};
-
-export const cancelAccountDeletionRequest = async (
-  userId?: string,
-  request?: AccountDeletionRequest,
-): Promise<AccountDeletionRequest> => {
-  const user = userId ? null : await getCurrentUser();
-  const resolvedUserId = userId ?? user?.id;
-  if (!resolvedUserId) {
-    throw new Error("Parent account is required.");
-  }
-
-  const state = request
-    ? {
-        phase: getDeletionPhaseForRequest(request),
-        request,
-        graceEndsAt: resolveGraceEndsAt(request),
-      } satisfies AccountDeletionState
-    : await getAccountDeletionState(resolvedUserId);
-
-  if (!state.request || state.phase === "active") {
-    throw new Error("There is no active account deletion request to cancel.");
-  }
-
-  if (state.phase === "expired" || state.phase === "completed") {
-    throw new Error("The 30-day window for this account has ended.");
-  }
-
-  const reactivatedAt = nowIso();
-  const { data, error } = await supabase
-    .from("account_deletion_requests")
-    .update({
-      status: "cancelled",
-      cancelled_at: reactivatedAt,
-      reactivated_at: reactivatedAt,
-    })
-    .eq("id", state.request.id)
-    .eq("user_id", resolvedUserId)
-    .in("status", ["requested", "processing"])
-    .select(ACCOUNT_DELETION_REQUEST_SELECT_COLUMNS)
-    .maybeSingle();
-
-  if (error) throw error;
-  if (!data) {
-    throw new Error("Account deletion request could not be cancelled.");
-  }
-
-  return data as unknown as AccountDeletionRequest;
-};
-
-export const restoreChildrenArchivedByAccountDeletion = async (
-  userId?: string,
-  request?: AccountDeletionRequest,
-): Promise<ChildProfile[]> => {
-  const user = userId ? null : await getCurrentUser();
-  const resolvedUserId = userId ?? user?.id;
-  if (!resolvedUserId) {
-    throw new Error("Parent account is required.");
-  }
-
-  const resolvedRequest = request ?? (await getAccountDeletionState(resolvedUserId)).request;
-  if (!resolvedRequest?.id) return [];
-
-  const { data, error } = await supabase
-    .from("children")
-    .update({
-      deleted_at: null,
-      archived_by_account_deletion_request_id: null,
-    })
-    .eq("parent_id", resolvedUserId)
-    .eq("archived_by_account_deletion_request_id", resolvedRequest.id)
-    .select(CHILD_SELECT_COLUMNS);
-
-  if (error) throw error;
-  return (data ?? []) as ChildProfile[];
 };
 
 export const reactivateAccount = async (

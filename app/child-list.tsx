@@ -42,7 +42,7 @@ export default function ChildListScreen() {
     }).start()
 
     // Floating animation for decorative elements
-    Animated.loop(
+    const floatingAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(bounceValue, {
           toValue: 1,
@@ -55,10 +55,17 @@ export default function ChildListScreen() {
           useNativeDriver: true,
         }),
       ]),
-    ).start()
+    )
+    floatingAnimation.start()
 
     // Fetch child profiles
     fetchProfiles()
+
+    return () => {
+      floatingAnimation.stop()
+      bounceValue.stopAnimation()
+      scaleValue.stopAnimation()
+    }
   }, [bounceValue, scaleValue])
 
   const fetchProfiles = async () => {
@@ -69,7 +76,6 @@ export default function ChildListScreen() {
       const { data: sessionData } = await supabase.auth.getSession()
 
       if (!sessionData.session) {
-        console.log("No active session found")
         setLoading(false)
         return
       }
@@ -88,7 +94,6 @@ export default function ChildListScreen() {
         throw error
       }
 
-      console.log("Fetched profiles:", data)
       setProfiles(data || [])
       setLoading(false)
     } catch (error) {
@@ -126,15 +131,9 @@ export default function ChildListScreen() {
         onPress={() => navigateToProfile(item.id)}
         activeOpacity={0.8}
       >
-        {/* Avatar with gender-based emoji */}
+        {/* Profile avatar */}
         <View className="relative w-[70px] h-[70px] rounded-2xl bg-primary-50 justify-center items-center mr-4">
-          <Text className="text-[36px]">{item.gender === "male" ? "👦" : item.gender === "female" ? "👧" : "👶"}</Text>
-          {/* Level badge - using a placeholder level for now */}
-          <View className="absolute -bottom-1 -right-1 bg-primary-500 rounded-xl w-6 h-6 justify-center items-center border-2 border-white">
-            <Text variant="bold" className="text-[10px] text-white">
-              Lv1
-            </Text>
-          </View>
+          <FontAwesome5 name="child" size={34} color={brandColors.victoriaBlue} />
         </View>
 
         {/* Profile details */}
@@ -144,10 +143,12 @@ export default function ChildListScreen() {
           </Text>
           <Text className="text-sm text-neutral-500 mb-2">{item.age}</Text>
 
-          {/* Last activity indicator - using created_at for now */}
+          {/* Profile creation date */}
           <View className="flex-row items-center">
-            <FontAwesome5 name="clock" size={12} color={brandColors.victoriaBlue} />
-            <Text className="text-xs text-neutral-500 ml-1">{new Date(item.created_at).toLocaleDateString()}</Text>
+            <FontAwesome5 name="calendar-alt" size={12} color={brandColors.victoriaBlue} />
+            <Text className="text-xs text-neutral-500 ml-1">
+              Profile created {new Date(item.created_at).toLocaleDateString()}
+            </Text>
           </View>
         </View>
 

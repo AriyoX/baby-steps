@@ -911,7 +911,8 @@ describe("progress repository local-first behavior", () => {
       jest.advanceTimersByTime(20000);
       await Promise.resolve();
 
-      expect(supabase.auth.getSession).not.toHaveBeenCalled();
+      expect(supabase.auth.getSession).toHaveBeenCalledTimes(1);
+      expect(supabase.from).not.toHaveBeenCalled();
       expect(await getActivityProgress(childId, "nyn", "words")).toEqual(
         expect.objectContaining({ score: 12, dirty: true }),
       );
@@ -1481,6 +1482,54 @@ describe("progress queue reliability and repair", () => {
     );
   });
 
+  it("does not bind a legacy unowned dirty snapshot to the next account that signs in", async () => {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "parent-b" } } },
+    });
+    const legacySnapshot = {
+      child_id: "child-a",
+      language_code: "lg",
+      activity_type: "learning",
+      status: "in_progress",
+      score: 11,
+      stars: null,
+      attempts: 1,
+      last_stage_id: null,
+      highest_unlocked_stage: null,
+      completed_stage_count: 0,
+      progress_payload: { legacy: true },
+      local_updated_at: "2026-07-01T00:00:00.000Z",
+      dirty: true,
+    };
+    await AsyncStorage.setItem(
+      activityKey("child-a", "lg", "learning"),
+      JSON.stringify(legacySnapshot),
+    );
+    await AsyncStorage.setItem(queueKey, "[]");
+    const uploaded: Array<Record<string, unknown>> = [];
+    useAccountAwareActivitySync(
+      () => ["child-b"],
+      (records) => uploaded.push(...records),
+    );
+
+    await expect(syncProgressNow()).resolves.toEqual({
+      pushed: 0,
+      skipped: 1,
+      failed: 0,
+    });
+    expect(uploaded).toEqual([]);
+    expect(await getActivityProgress("child-a", "lg", "learning")).toEqual(
+      legacySnapshot,
+    );
+    expect(await readQueue()).toEqual([
+      expect.objectContaining({
+        account_id: null,
+        child_id: "child-a",
+        language_code: "lg",
+      }),
+    ]);
+  });
+
   it("lets valid current-account rows sync from a mixed-account queue", async () => {
     (supabase.auth.getSession as jest.Mock).mockResolvedValue({
       data: { session: { user: { id: "parent-b" } } },
@@ -1517,11 +1566,12 @@ describe("progress queue reliability and repair", () => {
   });
 
   it("retains old-account dirty rows so they can sync when that account returns", async () => {
-    let ownedChildIds = ["child-b"];
+    let activeParentId = "parent-a";
+    let ownedChildIds = ["child-a"];
     (supabase.auth.getSession as jest.Mock).mockImplementation(async () => ({
       data: {
         session: {
-          user: { id: ownedChildIds[0] === "child-a" ? "parent-a" : "parent-b" },
+          user: { id: activeParentId },
         },
       },
     }));
@@ -1538,6 +1588,8 @@ describe("progress queue reliability and repair", () => {
       { score: 5 },
       { scheduleSync: false },
     );
+    activeParentId = "parent-b";
+    ownedChildIds = ["child-b"];
     await updateActivityProgress(
       "child-b",
       "nyn",
@@ -1547,8 +1599,15 @@ describe("progress queue reliability and repair", () => {
     );
 
     await syncProgressNow();
-    expect(await getPendingProgressSyncCount()).toBe(1);
+    expect(await getPendingProgressSyncCount()).toBe(0);
+    expect(await readQueue()).toEqual([
+      expect.objectContaining({
+        account_id: "parent-a",
+        child_id: "child-a",
+      }),
+    ]);
 
+    activeParentId = "parent-a";
     ownedChildIds = ["child-a"];
     await expect(syncProgressNow()).resolves.toEqual({
       pushed: 1,

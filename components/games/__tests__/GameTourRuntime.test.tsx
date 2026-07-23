@@ -1,6 +1,6 @@
 import React from "react"
 import renderer, { act } from "react-test-renderer"
-import { Path as SvgPath } from "react-native-svg"
+import { Rect as SvgRect } from "react-native-svg"
 
 import {
   GAME_TOUR_LAYOUT,
@@ -14,9 +14,9 @@ jest.mock("react-native/Libraries/Utilities/useWindowDimensions", () => ({
   __esModule: true,
   default: () => ({
     fontScale: 1,
-    height: 640,
+    height: 360,
     scale: 1,
-    width: 360,
+    width: 640,
   }),
 }))
 
@@ -117,7 +117,7 @@ describe("GameTour runtime target handling", () => {
     jest.useRealTimers()
   })
 
-  it("resets to a preparation overlay while measuring the next step", async () => {
+  it("removes the stale overlay while measuring the next step", async () => {
     const { tree } = await renderTour({
       "first-target": { height: 60, width: 120, x: 20, y: 40 },
       "second-target": { height: 60, width: 120, x: 180, y: 120 },
@@ -125,19 +125,21 @@ describe("GameTour runtime target handling", () => {
 
     await flushTargetMeasurement()
     const firstStepOutput = JSON.stringify(tree.toJSON())
-    const backdrop = tree.root.findByType(SvgPath)
-    expect(backdrop.props.fill).toBe(GAME_TOUR_LAYOUT.dimColor)
-    expect(backdrop.props.fillOpacity).toBe(GAME_TOUR_LAYOUT.dimOpacity)
-    expect(backdrop.props.fillRule).toBe("evenodd")
-    expect(firstStepOutput).not.toContain("game-tour-spotlight-mask")
+    const backdrop = tree.root
+      .findAllByType(SvgRect)
+      .find((node) => node.props.mask === "url(#game-tour-spotlight-mask)")
+    expect(backdrop).toBeDefined()
+    expect(backdrop?.props.fill).toBe(GAME_TOUR_LAYOUT.dimColor)
+    expect(backdrop?.props.fillOpacity).toBe(GAME_TOUR_LAYOUT.dimOpacity)
+    expect(firstStepOutput).toContain("game-tour-spotlight-mask")
     expect(tree.root.findByProps({ accessibilityLabel: "Next tour step" })).toBeTruthy()
 
     act(() => {
       tree.root.findByProps({ accessibilityLabel: "Next tour step" }).props.onPress()
     })
-    expect(
-      tree.root.findByProps({ accessibilityLabel: "Preparing tour guide" }),
-    ).toBeTruthy()
+    const measuringOutput = JSON.stringify(tree.toJSON())
+    expect(measuringOutput).not.toContain("First target")
+    expect(measuringOutput).not.toContain("Second target")
 
     await flushTargetMeasurement()
     expect(JSON.stringify(tree.toJSON())).toContain("Second target")

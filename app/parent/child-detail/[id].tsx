@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useCallback, useState, useEffect } from "react"
 import { Alert, View, ScrollView, TouchableOpacity } from "react-native"
 import { Text } from "@/components/StyledText"
 import { TranslatedText } from "@/components/translated-text"
@@ -8,13 +8,15 @@ import { useLocalSearchParams, useRouter } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons"
-import { supabase } from "@/lib/supabase" // Assuming this is your Supabase client
 import { useChild } from "@/context/ChildContext"
 import { getLearningLanguage } from "@/content/languages"
 import { AchievementCard } from "@/components/games/achievements/AchievementCard"
 import { CHILD_HOME_ROUTE } from "@/constants/ChildNavigation"
 import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network"
 import { ChildStreakSection } from "@/components/parent/ChildStreakSection"
+import { fetchActiveChildProfile } from "@/lib/accountManagement"
+import { hasParentPin } from "@/lib/parentAccess"
+import { supabase } from "@/lib/supabase"
 
 // Achievement imports
 import { useAchievements } from "@/components/games/achievements/useAchievements" // Ensure this path is correct
@@ -40,7 +42,7 @@ export default function ChildDetailScreen() {
   const router = useRouter()
   const params = useLocalSearchParams<{ id?: string; childId?: string }>()
   const childId = params.id ?? params.childId ?? ""
-  const { setActiveChild } = useChild()
+  const { activateChildMode } = useChild()
 
   const [childData, setChildData] = useState<ChildData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -50,33 +52,29 @@ export default function ChildDetailScreen() {
     earnedChildAchievements, // This is an array of ChildAchievement objects
     isLoadingAchievements,
     // refreshAchievements // Not actively used but good to have
-  } = useAchievements(childId);
+  } = useAchievements(
+    childId,
+    undefined,
+    childData?.selected_language_code,
+  );
 
   const [childsEarnedFullAchievements, setChildsEarnedFullAchievements] = useState<DisplayableAchievement[]>([]);
 
   // Add state to track whether to show all achievements or just recent ones
   const [showAllAchievements, setShowAllAchievements] = useState(false);
   
-  useEffect(() => {
-    if (childId) {
-      fetchChildData();
-    }
-  }, [childId])
-
-  const fetchChildData = async () => {
+  const fetchChildData = useCallback(async () => {
     try {
       setLoading(true)
       if (!(await requireInternet("Loading this child profile"))) {
         setChildData(null)
         return
       }
-      const { data, error } = await supabase
-        .from("children")
-        .select("id, name, gender, age, selected_language_code")
-        .eq("id", childId)
-        .is("deleted_at", null)
-        .single();
-      if (error) throw error;
+      const data = await fetchActiveChildProfile(childId)
+      if (!data) {
+        setChildData(null)
+        return
+      }
       setChildData({
         ...data,
         avatar: data.gender === "male" ? "👦" : data.gender === "female" ? "👧" : "👶",
@@ -89,7 +87,11 @@ export default function ChildDetailScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [childId]);
+
+  useEffect(() => {
+    void fetchChildData()
+  }, [fetchChildData])
 
   const selectedLanguage = getLearningLanguage(childData?.selected_language_code);
 
@@ -126,11 +128,34 @@ export default function ChildDetailScreen() {
   const handleLaunchChildMode = async () => {
     if (childData) {
       if (!(await requireInternet("Launching child mode"))) return
-      setActiveChild(childData)
-      router.push({
-        pathname: CHILD_HOME_ROUTE as any,
-        params: { active: childId },
-      })
+      const { data } = await supabase.auth.getSession()
+      const accountId = data.session?.user.id
+      if (!accountId || !(await hasParentPin(accountId))) {
+        Alert.alert(
+          "Set a parent PIN first",
+          "A parent PIN is required before starting child mode.",
+          [
+            { text: "Not now", style: "cancel" },
+            {
+              text: "Set PIN",
+              onPress: () => router.push("/parent/settings/parent-pin" as any),
+            },
+          ],
+        )
+        return
+      }
+      try {
+        await activateChildMode(childData)
+        router.push({
+          pathname: CHILD_HOME_ROUTE as any,
+          params: { active: childId },
+        })
+      } catch {
+        Alert.alert(
+          "Could not start child mode",
+          "The secure child session could not be saved. Please try again.",
+        )
+      }
     }
   }
 
@@ -283,16 +308,6 @@ export default function ChildDetailScreen() {
                     </TranslatedText>
                   </View>
                 )}
-              </View>
-
-              {/* Developer Info ... same ... */}
-              <View className="p-4 mt-2">
-                 <TranslatedText variant="bold" className="text-gray-800 text-lg mb-2">
-                    Developer Info
-                  </TranslatedText>
-                <View className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-                  <Text className="text-gray-600 text-xs">Child ID: {childId}</Text>
-                </View>
               </View>
 
             </>

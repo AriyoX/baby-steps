@@ -1,5 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
+import {
+  isSupportedLearningLanguageCode,
+  normalizeLearningLanguageCode,
+} from '@/content/languages';
 import type {
   AchievementAwardResult,
   AchievementDefinition,
@@ -78,7 +82,7 @@ export const LEARNING_HUB_ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
 
 // Version 2 drops cached definitions from the retired heritage-puzzle
 // achievement set (including Kasubi Tombs).
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 const ACHIEVEMENT_DEFINITIONS_CACHE_KEY = 'cache:achievements:definitions';
 const CHILD_ACHIEVEMENTS_CACHE_PREFIX = 'cache:child_achievements';
 
@@ -100,8 +104,18 @@ const achievementBackgroundRefreshes = new Map<string, Promise<void>>();
 export const getAchievementDefinitionsCacheKey = (): string =>
   ACHIEVEMENT_DEFINITIONS_CACHE_KEY;
 
-export const getChildAchievementsCacheKey = (childId: string): string =>
-  `${CHILD_ACHIEVEMENTS_CACHE_PREFIX}:${encodeURIComponent(childId)}`;
+const normalizeAchievementLanguageCode = (
+  languageCode: string,
+): string | undefined => {
+  const normalized = normalizeLearningLanguageCode(languageCode);
+  return isSupportedLearningLanguageCode(normalized) ? normalized : undefined;
+};
+
+export const getChildAchievementsCacheKey = (
+  childId: string,
+  languageCode: string,
+): string =>
+  `${CHILD_ACHIEVEMENTS_CACHE_PREFIX}:${encodeURIComponent(childId)}:${encodeURIComponent(languageCode)}`;
 
 const parseCacheEntry = <T,>(
   value: string | null,
@@ -256,12 +270,16 @@ const refreshAchievementDefinitionsInBackground = (): void => {
   achievementBackgroundRefreshes.set(key, refresh);
 };
 
-const fetchChildAchievementsFromRemote = async (childId: string): Promise<ChildAchievement[]> => {
-  if (!childId) return [];
+const fetchChildAchievementsFromRemote = async (
+  childId: string,
+  languageCode: string,
+): Promise<ChildAchievement[]> => {
+  if (!childId || !languageCode) return [];
   const { data, error } = await supabase
     .from('child_achievements')
     .select('*')
-    .eq('child_id', childId);
+    .eq('child_id', childId)
+    .eq('language_code', languageCode);
 
   if (error) {
     throw error;
@@ -271,12 +289,14 @@ const fetchChildAchievementsFromRemote = async (childId: string): Promise<ChildA
 
 const fetchExistingChildAchievementFromRemote = async (
   childId: string,
+  languageCode: string,
   achievementId: string,
 ): Promise<ChildAchievement | null> => {
   const { data, error } = await supabase
     .from('child_achievements')
     .select('*')
     .eq('child_id', childId)
+    .eq('language_code', languageCode)
     .eq('achievement_id', achievementId)
     .maybeSingle();
 
@@ -287,16 +307,19 @@ const fetchExistingChildAchievementFromRemote = async (
   return (data as ChildAchievement | null) ?? null;
 };
 
-const refreshChildAchievementsInBackground = (childId: string): void => {
-  const key = getChildAchievementsCacheKey(childId);
+const refreshChildAchievementsInBackground = (
+  childId: string,
+  languageCode: string,
+): void => {
+  const key = getChildAchievementsCacheKey(childId, languageCode);
   if (achievementBackgroundRefreshes.has(key)) return;
 
-  const refresh = fetchChildAchievementsFromRemote(childId)
+  const refresh = fetchChildAchievementsFromRemote(childId, languageCode)
     .then((achievements) =>
       writeCacheEntry(key, childAchievementMemoryCache, achievements),
     )
     .catch((error) => {
-      console.warn(`Could not refresh child achievements cache for ${childId}.`, error);
+      console.warn("Could not refresh the child achievements cache.", error);
     })
     .then(() => undefined)
     .finally(() => {
@@ -308,9 +331,19 @@ const refreshChildAchievementsInBackground = (childId: string): void => {
 
 export const clearAchievementCaches = async (childId?: string): Promise<void> => {
   if (childId) {
-    const key = getChildAchievementsCacheKey(childId);
-    childAchievementMemoryCache.delete(key);
-    await AsyncStorage.removeItem(key);
+    const childKeyPrefix =
+      `${CHILD_ACHIEVEMENTS_CACHE_PREFIX}:${encodeURIComponent(childId)}`;
+    for (const key of [...childAchievementMemoryCache.keys()]) {
+      if (key === childKeyPrefix || key.startsWith(`${childKeyPrefix}:`)) {
+        childAchievementMemoryCache.delete(key);
+      }
+    }
+    const keys = await AsyncStorage.getAllKeys();
+    await AsyncStorage.multiRemove(
+      keys.filter(
+        (key) => key === childKeyPrefix || key.startsWith(`${childKeyPrefix}:`),
+      ),
+    );
     return;
   }
 
@@ -330,19 +363,28 @@ export const clearAchievementCaches = async (childId?: string): Promise<void> =>
 
 export const invalidateChildAchievementsCache = async (
   childId: string,
+  languageCode?: string,
 ): Promise<void> => {
   if (!childId) return;
 
-  const key = getChildAchievementsCacheKey(childId);
+  if (!languageCode) {
+    await clearAchievementCaches(childId);
+    return;
+  }
+
+  const normalizedLanguageCode = normalizeAchievementLanguageCode(languageCode);
+  if (!normalizedLanguageCode) return;
+  const key = getChildAchievementsCacheKey(childId, normalizedLanguageCode);
   childAchievementMemoryCache.delete(key);
   await AsyncStorage.removeItem(key);
 };
 
 const cacheAwardedChildAchievement = async (
   childId: string,
+  languageCode: string,
   achievement: ChildAchievement,
 ): Promise<void> => {
-  const key = getChildAchievementsCacheKey(childId);
+  const key = getChildAchievementsCacheKey(childId, languageCode);
   const current = await readCacheEntry(
     key,
     childAchievementMemoryCache,
@@ -423,12 +465,15 @@ export const fetchAllDefinedAchievements = async (
 
 export const fetchChildEarnedAchievements = async (
   childId: string,
+  languageCode: string,
   options: CacheOptions = {},
 ): Promise<ChildAchievement[]> => {
-  if (!childId) return [];
+  const normalizedLanguageCode =
+    normalizeAchievementLanguageCode(languageCode);
+  if (!childId || !normalizedLanguageCode) return [];
 
   const maxAgeMs = options.maxAgeMs ?? CHILD_ACHIEVEMENTS_CACHE_TTL_MS;
-  const key = getChildAchievementsCacheKey(childId);
+  const key = getChildAchievementsCacheKey(childId, normalizedLanguageCode);
 
   if (!options.forceRefresh) {
     const cached = await readCacheEntry(
@@ -451,13 +496,16 @@ export const fetchChildEarnedAchievements = async (
     );
 
     if (staleCached) {
-      refreshChildAchievementsInBackground(childId);
+      refreshChildAchievementsInBackground(childId, normalizedLanguageCode);
       return staleCached.data;
     }
   }
 
   try {
-    const achievements = await fetchChildAchievementsFromRemote(childId);
+    const achievements = await fetchChildAchievementsFromRemote(
+      childId,
+      normalizedLanguageCode,
+    );
     await writeCacheEntry(key, childAchievementMemoryCache, achievements);
     return achievements;
   } catch (error) {
@@ -475,13 +523,19 @@ export const fetchChildEarnedAchievements = async (
 
 export const awardAchievementToChild = async (
   childId: string,
-  achievementId: string
+  languageCode: string,
+  achievementId: string,
 ): Promise<AchievementAwardResult> => {
-  if (!childId || !achievementId) {
+  const normalizedLanguageCode =
+    normalizeAchievementLanguageCode(languageCode);
+  if (!childId || !normalizedLanguageCode || !achievementId) {
     return { status: 'failed', award: null, newlyAwarded: false };
   }
 
-  const cachedEarned = await fetchChildEarnedAchievements(childId);
+  const cachedEarned = await fetchChildEarnedAchievements(
+    childId,
+    normalizedLanguageCode,
+  );
   const alreadyEarned = cachedEarned.find(
     (achievement) => achievement.achievement_id === achievementId,
   );
@@ -497,6 +551,7 @@ export const awardAchievementToChild = async (
   try {
     remoteAlreadyEarned = await fetchExistingChildAchievementFromRemote(
       childId,
+      normalizedLanguageCode,
       achievementId,
     );
   } catch (error) {
@@ -505,7 +560,11 @@ export const awardAchievementToChild = async (
   }
 
   if (remoteAlreadyEarned) {
-    await cacheAwardedChildAchievement(childId, remoteAlreadyEarned);
+    await cacheAwardedChildAchievement(
+      childId,
+      normalizedLanguageCode,
+      remoteAlreadyEarned,
+    );
     return {
       status: 'already-earned',
       award: remoteAlreadyEarned,
@@ -516,22 +575,31 @@ export const awardAchievementToChild = async (
   try {
     const { data, error } = await supabase
       .from('child_achievements')
-      .insert([{ child_id: childId, achievement_id: achievementId }])
+      .insert([{
+        child_id: childId,
+        language_code: normalizedLanguageCode,
+        achievement_id: achievementId,
+      }])
       .select()
       .single();
 
     if (error) {
       console.error('Error awarding achievement:', error);
       if (error.code === '23505') {
-        console.warn(`Attempted to award already earned achievement (ID: ${achievementId}) to child ${childId}. Constraint prevented duplicate.`);
+        console.warn("An already-earned achievement was not duplicated.");
 
         try {
           const existing = await fetchExistingChildAchievementFromRemote(
             childId,
+            normalizedLanguageCode,
             achievementId,
           );
           if (existing) {
-            await cacheAwardedChildAchievement(childId, existing);
+            await cacheAwardedChildAchievement(
+              childId,
+              normalizedLanguageCode,
+              existing,
+            );
           }
           return {
             status: 'already-earned',
@@ -552,7 +620,11 @@ export const awardAchievementToChild = async (
     }
 
     const award = data as ChildAchievement;
-    await cacheAwardedChildAchievement(childId, award);
+    await cacheAwardedChildAchievement(
+      childId,
+      normalizedLanguageCode,
+      award,
+    );
     return { status: 'newly-awarded', award, newlyAwarded: true };
   } catch (error) {
     console.error('Error awarding achievement:', error);
@@ -565,6 +637,7 @@ export const awardAchievementToChild = async (
 
 interface CheckAchievementsArgs {
   childId: string;
+  languageCode: string;
   // gameProgress: any; // Or a union type of all possible game progress structures
   definedAchievements: AchievementDefinition[];
   earnedAchievementIds: string[];
@@ -630,6 +703,7 @@ interface CheckAchievementsArgs {
  */
 export const checkAndGrantNewAchievements = async ({
   childId,
+  languageCode,
   // gameProgress, // We'll primarily use event.gameData
   definedAchievements,
   earnedAchievementIds,
@@ -929,7 +1003,11 @@ export const checkAndGrantNewAchievements = async ({
     }
 
     if (shouldAward) {
-      const awardResult = await awardAchievementToChild(childId, achDef.id);
+      const awardResult = await awardAchievementToChild(
+        childId,
+        languageCode,
+        achDef.id,
+      );
       if (awardResult.newlyAwarded) {
         newlyEarned.push(achDef);
       }

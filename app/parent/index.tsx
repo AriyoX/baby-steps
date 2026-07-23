@@ -21,6 +21,7 @@ import {
   TourTarget,
   useGameTour,
 } from "@/components/games/GameTour"
+import { useParentProfile } from "@/context/ParentProfileContext"
 
 type ChildProfile = {
   id: string
@@ -29,12 +30,6 @@ type ChildProfile = {
   age: string
   reason: string
   created_at: string
-  // UI display properties with default values
-  level?: number
-  progress?: number
-  lastActive?: string
-  topSkill?: string
-  avatar?: string
 }
 
 // Portrait dashboard tuning only. Increase this value to move every Parent
@@ -43,17 +38,13 @@ const PARENT_DASHBOARD_ANDROID_SPOTLIGHT_OFFSET_Y = 0
 
 const ParentDashboard = () => {
   const router = useRouter()
+  const { profile: parentProfile } = useParentProfile()
   const params = useLocalSearchParams<{ showTour?: string }>()
   const [childProfiles, setChildProfiles] = useState<ChildProfile[]>([])
   const [parentId, setParentId] = useState<string>()
   const [loading, setLoading] = useState(true)
   const [greetingTime, setGreetingTime] = useState(() => new Date())
   const [recentActivities, setRecentActivities] = useState<any[]>([])
-  const [weeklyStats, setWeeklyStats] = useState({
-    dailyMinutes: [0, 0, 0, 0, 0, 0, 0],
-    totalActivities: 0,
-    averageScore: 0
-  })
   const {
     close: closeParentTour,
     complete: completeParentTour,
@@ -118,7 +109,6 @@ const ParentDashboard = () => {
       const { data: sessionData } = await supabase.auth.getSession()
 
       if (!sessionData.session) {
-        console.log("No active session found")
         setParentId(undefined)
         setLoading(false)
         return
@@ -139,18 +129,7 @@ const ParentDashboard = () => {
         throw error
       }
 
-      // Transform the data to include UI display properties
-      const transformedData =
-        data?.map((child) => ({
-          ...child,
-          level: 1, // Default level
-          progress: Math.random() * 0.7 + 0.1, // Random progress between 10-80%
-          lastActive: "Today", // Default last active
-          topSkill: child.reason || "Learning", // Use reason as top skill or default
-          avatar: child.gender === "male" ? "👦" : child.gender === "female" ? "👧" : "👶",
-        })) || []
-
-      setChildProfiles(transformedData)
+      setChildProfiles((data ?? []) as ChildProfile[])
       setLoading(false)
     } catch (error) {
       console.error("Error in fetchChildProfiles:", error)
@@ -187,23 +166,10 @@ const ParentDashboard = () => {
 
         // Combine all activities and stats
         const combinedActivities: any[] = []
-        const weeklyMinutes = [0, 0, 0, 0, 0, 0, 0]
-        let totalActivities = 0
-        let totalScore = 0
-        let activitiesWithScore = 0
-
         for (const stats of allStats) {
           if (stats) {
             const activities = await stats.recentActivities
             combinedActivities.push(...activities)
-            stats.dailyMinutes.forEach((minutes, i) => {
-              weeklyMinutes[i] += minutes
-            })
-            totalActivities += stats.totalActivities
-            if (stats.averageScore) {
-              totalScore += stats.averageScore
-              activitiesWithScore++
-            }
           }
         }
 
@@ -223,11 +189,6 @@ const ParentDashboard = () => {
         });
 
         setRecentActivities(combinedActivities.slice(0, 3)) // Show 3 most recent
-        setWeeklyStats({
-          dailyMinutes: weeklyMinutes,
-          totalActivities,
-          averageScore: activitiesWithScore ? Math.round(totalScore / activitiesWithScore) : 0
-        })
       } catch (error) {
         console.error("Error fetching activities:", error)
       }
@@ -251,7 +212,9 @@ const ParentDashboard = () => {
               <BrandMark kind="wordmark" tone="main" width={58} height={58} containerStyle={{ marginRight: 12 }} />
               <View className="flex-1">
                 <TranslatedText variant="bold" className="text-neutral-900 text-2xl">
-                  Your family
+                  {parentProfile?.displayName
+                    ? `Welcome, ${parentProfile.displayName}`
+                    : "Your family"}
                 </TranslatedText>
                 <TranslatedText className="text-neutral-500">Small steps worth celebrating</TranslatedText>
               </View>
@@ -357,11 +320,6 @@ const ParentDashboard = () => {
                                   color={brandColors.victoriaBlue}
                                 />
                               </View>
-                              <View className="absolute -bottom-2 -right-2 bg-primary-500 rounded-full w-6 h-6 items-center justify-center shadow-sm">
-                                <Text variant="bold" className="text-xs text-white">
-                                  {child.level}
-                                </Text>
-                              </View>
                             </View>
                           </View>
 
@@ -370,15 +328,8 @@ const ParentDashboard = () => {
                           </Text>
                           <Text className="text-gray-500 text-xs text-center">{child.age} years old</Text>
 
-                          {/* Progress bar */}
-                          <View className="mt-3 bg-accent-100 h-2 rounded-full overflow-hidden">
-                            <View
-                              className="bg-accent-500 h-full rounded-full"
-                              style={{ width: `${(child.progress || 0.1) * 100}%` }}
-                            />
-                          </View>
-                          <Text className="text-gray-500 text-xs text-right mt-1">
-                            {Math.round((child.progress || 0) * 100)}%
+                          <Text className="text-primary-700 text-xs text-center mt-3">
+                            View learning activity
                           </Text>
                         </TouchableOpacity>
                       ))

@@ -44,7 +44,7 @@ Once those items are closed, this is a reasonable first closed beta. Keep the be
 
 | Gate | Current evidence | Required action | Done when |
 | --- | --- | --- | --- |
-| Permanent app identity | `app.json` uses `com.babysteps.babysteps_prototype` | Choose the permanent publisher-owned application ID, update `android.package`, then create the Play app with that exact value. An example shape is `com.babystepslearn.app`, but do not copy it until the owner confirms the brand choice. | The same final ID appears in app config, EAS build details, and Play Console. It cannot be changed after the first Play artifact is uploaded. |
+| Permanent app identity | `app.json` used a prototype identifier (fixed after this audit) | Choose the permanent publisher-owned application ID, update `android.package`, then create the Play app with that exact value. | The same final ID appears in app config, EAS build details, and Play Console. It cannot be changed after the first Play artifact is uploaded. |
 | Remove child-facing external video | `app/child/games/museum/ArtScreen.tsx` embeds YouTube through `react-native-webview`; two URLs contain `exampleVideo2`/`exampleVideo5` | For beta, remove the video button/WebView and keep only reviewed local text/images. If WebView has no other use, remove `react-native-webview`. | No child route loads YouTube or arbitrary external web content, and no placeholder URL remains. |
 | Remove fabricated or internal UI | `app/parent/index.tsx` assigns random progress; `app/parent/child-progress.tsx` is hard-coded; child detail shows `Developer Info`; account/profile settings advertise unfinished actions | Connect a value to real stored data or show a clear empty state. Otherwise remove the card, link, or row for beta. Remove developer-only information from release UI. | Every reachable statistic reflects real data, and every visible action works. |
 | Publish legal/support pages | `PRIVACY_POLICY.md`, `TERMS_OF_SERVICE.md`, and `docs/delete-account.html` exist locally | Publish public, mobile-readable HTTPS pages for Privacy Policy, Terms, account deletion, and support. No login, region block, expiring link, PDF-only presentation, or local GitHub path. Put the same Privacy URL in Play Console and in the app. | All URLs open in an incognito browser and match the final app behavior/contact details. |
@@ -322,4 +322,3 @@ Do the work in this order to avoid rebuilding store artifacts repeatedly:
 - [Supabase: Securing the Data API](https://supabase.com/docs/guides/api/securing-your-api)
 - [Supabase: Production checklist](https://supabase.com/docs/guides/deployment/going-into-prod)
 - [Supabase: Custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp)
-

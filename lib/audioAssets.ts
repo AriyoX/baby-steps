@@ -178,6 +178,25 @@ export const isValidLearningAudioAsset = (audioAsset: unknown): boolean => {
   return Boolean(normalizedAsset && LEARNING_AUDIO_ASSET_LOOKUP[normalizedAsset])
 }
 
+export const isProductionReadyLearningAudioAsset = (
+  audioAsset: unknown,
+  audioKey?: unknown,
+): boolean => {
+  const normalizedAsset = normalizeAudioAssetKey(audioAsset)
+  const normalizedAudioKey = normalizeAudioAssetKey(audioKey)
+  const assetEntry = normalizedAsset
+    ? LEARNING_AUDIO_ASSET_LOOKUP[normalizedAsset]
+    : undefined
+  const audioKeyEntry = normalizedAudioKey
+    ? LEARNING_AUDIO_ASSET_LOOKUP[normalizedAudioKey]
+    : undefined
+
+  return Boolean(
+    (assetEntry && !assetEntry.isPlaceholder) ||
+      (audioKeyEntry && !audioKeyEntry.isPlaceholder),
+  )
+}
+
 export const resolveLearningAudioSource = (
   audioAsset: unknown,
   audioKey?: unknown,

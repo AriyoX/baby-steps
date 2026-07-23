@@ -332,7 +332,7 @@ const PuzzleGame: React.FC = () => {
       previewAnim.stopAnimation();
       successAnim.stopAnimation();
     };
-  }, []);
+  }, [previewAnim, successAnim]);
 
   useEffect(() => {
     let cancelled = false;
@@ -427,7 +427,7 @@ const PuzzleGame: React.FC = () => {
       cancelled = true;
       clearPendingTimers();
     };
-  }, [activeChild?.id, contentRetryVersion, languageCode]);
+  }, [activeChild?.id, contentRetryVersion, languageCode, previewAnim]);
 
   useEffect(() => {
     const loadedSounds: Audio.Sound[] = [];
@@ -500,7 +500,18 @@ const PuzzleGame: React.FC = () => {
       clearPendingTimers();
       previewAnim.stopAnimation();
     };
-  }, [contentScope, currentPuzzle, hydratedScope, puzzleImages.length, puzzleTour.visible, showPreview]);
+    // initializePuzzle consumes the selected entry in puzzleImages. Depending
+    // on its render-local identity would reset the preview timer every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    contentScope,
+    currentPuzzle,
+    hydratedScope,
+    previewAnim,
+    puzzleImages,
+    puzzleTour.visible,
+    showPreview,
+  ]);
 
   useEffect(() => {
     // Reset the game start time whenever a new puzzle starts
@@ -656,10 +667,8 @@ const PuzzleGame: React.FC = () => {
             const newlyEarned = await checkAndGrantNewAchievements(eventFirstPlay);
             if (!isMountedRef.current) return;
             if (newlyEarned.length > 0) {
-                newlyEarned.forEach(ach => {
-                    console.log(`PUZZLE GAME - FIRST PLAY - NEW ACHIEVEMENT: ${ach.name}`);
-                    enqueueAchievementUnlocked(ach);
-                    // Handle points if necessary
+                newlyEarned.forEach((achievement) => {
+                    enqueueAchievementUnlocked(achievement);
                 });
             }
         }
@@ -869,9 +878,8 @@ const PuzzleGame: React.FC = () => {
           };
           const newlyEarned = await checkAndGrantNewAchievements(eventComplete);
           if (!isMountedRef.current) return;
-          newlyEarned.forEach(ach => {
-            console.log(`PUZZLE GAME - COMPLETE - NEW ACHIEVEMENT: ${ach.name}`);
-            enqueueAchievementUnlocked(ach);
+          newlyEarned.forEach((achievement) => {
+            enqueueAchievementUnlocked(achievement);
           });
         },
         onLocalError: (error) => {

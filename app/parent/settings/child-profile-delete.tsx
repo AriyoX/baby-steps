@@ -20,7 +20,7 @@ export default function ChildProfileDeleteScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ childId?: string }>();
   const childId = params.childId ?? "";
-  const { activeChild, setActiveChild } = useChild();
+  const { activeChild, deactivateChildMode } = useChild();
   const [child, setChild] = React.useState<ChildProfile | null>(null);
   const [confirmation, setConfirmation] = React.useState("");
   const [loading, setLoading] = React.useState(true);
@@ -60,7 +60,7 @@ export default function ChildProfileDeleteScreen() {
     try {
       await archiveChildProfile(child.id);
       if (activeChild?.id === child.id) {
-        setActiveChild(null);
+        await deactivateChildMode();
       }
 
       Alert.alert(
@@ -78,17 +78,17 @@ export default function ChildProfileDeleteScreen() {
   };
 
   return (
-    <SettingsScaffold title="Delete Child Profile">
-      <View className="mt-5 bg-red-50 border border-red-100 rounded-xl p-5">
-        <View className="w-12 h-12 rounded-full bg-red-100 items-center justify-center mb-4">
-          <Ionicons name="warning-outline" size={26} color="#DC2626" />
+    <SettingsScaffold title="Archive Child Profile">
+      <View className="mt-5 bg-amber-50 border border-amber-100 rounded-xl p-5">
+        <View className="w-12 h-12 rounded-full bg-amber-100 items-center justify-center mb-4">
+          <Ionicons name="archive-outline" size={26} color="#B45309" />
         </View>
-        <Text variant="bold" className="text-red-800 text-lg mb-2">
-          This hides the child profile
+        <Text variant="bold" className="text-amber-900 text-lg mb-2">
+          Archive this child profile
         </Text>
-        <Text className="text-red-800 leading-6">
-          The child profile and learning progress will be archived for this account.
-          Shared lessons, stories, languages, and achievement definitions are not changed.
+        <Text className="text-amber-900 leading-6">
+          This is not permanent deletion. The child profile and learning progress
+          stay with this parent account but are hidden from normal child selection.
         </Text>
       </View>
 
@@ -108,11 +108,11 @@ export default function ChildProfileDeleteScreen() {
               placeholderTextColor="#9CA3AF"
               className="border border-gray-200 rounded-xl px-4 py-3 text-lg text-gray-800"
               style={readableTextInputStyle}
-              accessibilityLabel="Child profile deletion confirmation"
+              accessibilityLabel="Child profile archive confirmation"
             />
             <TouchableOpacity
               className={`mt-4 rounded-xl py-4 items-center ${
-                canSubmit ? "bg-red-600" : "bg-gray-200"
+                canSubmit ? "bg-amber-700" : "bg-gray-200"
               }`}
               onPress={handleArchiveChild}
               disabled={!canSubmit || submitting}

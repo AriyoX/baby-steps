@@ -2,7 +2,7 @@
 
 ## Current Status
 
-Partially implemented.
+Closed-beta scoped implementation.
 
 ## Purpose
 
@@ -12,7 +12,7 @@ The parent dashboard gives guardians a home screen for child profiles, recent le
 
 1. Signed-in parents route to `/parent`.
 2. The dashboard loads child profiles for the current Supabase user.
-3. It fetches recent activities and weekly summary values for each child.
+3. It fetches persisted recent activities for each active child.
 4. Parents can open child detail, child list, all activities, all achievements, notification reminders, and settings.
 5. The header bell and Settings notification row both open the implemented recurring-reminder controls.
 
@@ -23,7 +23,6 @@ The parent dashboard gives guardians a home screen for child profiles, recent le
 - `app/parent/activities.tsx`
 - `app/parent/all-achievements.tsx`
 - `app/parent/child-detail/[id].tsx`
-- `app/parent/child-progress.tsx`
 - `app/parent/settings/notifications.tsx`
 - `lib/utils.ts`
 - `components/translated-text.tsx`
@@ -35,7 +34,6 @@ The parent dashboard gives guardians a home screen for child profiles, recent le
 - `ActivitiesScreen`
 - `AllAchievementsScreen`
 - `ChildDetailScreen`
-- `ProgressScreen` in `app/parent/child-progress.tsx`
 - `getActivityStats`, `getChildActivities`, and `getFormattedActivities` in `lib/utils.ts`
 
 ## Data And Content Used
@@ -43,8 +41,8 @@ The parent dashboard gives guardians a home screen for child profiles, recent le
 - Child profile data from Supabase `children`.
 - Activity rows from Supabase `activities`.
 - Achievement rows from Supabase `achievements` and `child_achievements`.
-- Some dashboard child-card progress values are generated locally with placeholder/random values.
-- `app/parent/child-progress.tsx` uses hardcoded sample progress, achievements, stats, and weekly activity values.
+- Child cards show saved profile facts only.
+- Recent activity and achievement surfaces use repository/database-backed records and show empty states when no records exist.
 
 ## State Management And Logic Notes
 
@@ -64,25 +62,17 @@ The parent dashboard gives guardians a home screen for child profiles, recent le
 
 ## Tests
 
-No tests currently cover the parent dashboard, settings, child progress, or activities screens.
+Focused tests cover parent route gating, settings actions, account deletion reauthentication, missing/invalid child IDs, and critical navigation helpers. Full installed-device navigation still requires manual QA.
 
 ## Known Limitations Or Bugs
 
-- `/parent/child-progress` is a static/sample progress screen and does not use live child progress.
-- Settings links to unimplemented routes:
-  - `/content-management`
-  - `/privacy-settings`
-  - `/help-support`
-  - `/account-info`
-- Some settings other than notifications remain placeholders.
-- Parent dashboard child progress values are placeholder/random.
+- The dashboard intentionally omits aggregate weekly metrics that do not yet have an authoritative source.
+- Parent activity and achievement results depend on the production Supabase policies and data being correct.
 
 ## Future MVP Improvements
 
-- Replace placeholder dashboard metrics with normalized progress data.
-- Add route placeholders or remove future settings links.
 - Decide whether realtime activity subscriptions are required for MVP.
-- Add tests for parent navigation and activity rendering.
+- Add installed-device navigation and activity rendering coverage.
 
 ## Manual QA Checklist
 
@@ -93,5 +83,5 @@ No tests currently cover the parent dashboard, settings, child progress, or acti
 - [ ] Open all activities and test child/category/search filters.
 - [ ] Open all achievements and test game filter tabs.
 - [ ] Toggle language and confirm translated text changes only where translations exist.
-- [ ] Tap each settings row and confirm implemented routes work and future routes fail visibly or are handled before release.
+- [ ] Tap every visible settings row and confirm it performs the described action.
 - [ ] Sign out from settings.

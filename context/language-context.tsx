@@ -23,9 +23,6 @@ export const LanguageProvider = ({ children }: { children: React.ReactNode }) =>
         const savedLanguage = await AsyncStorage.getItem("isLuganda")
         if (savedLanguage === "true") {
           setIsLuganda(true)
-          console.log("Loaded language preference: Luganda")
-        } else {
-          console.log("Loaded language preference: English")
         }
       } catch (error) {
         console.error("Failed to load language preference:", error)
@@ -39,7 +36,6 @@ export const LanguageProvider = ({ children }: { children: React.ReactNode }) =>
   const toggleLanguage = () => {
     const newValue = !isLuganda
     setIsLuganda(newValue)
-    console.log("Language toggled to:", newValue ? "Luganda" : "English")
 
     // Save preference
     AsyncStorage.setItem("isLuganda", newValue.toString()).catch((err) =>
@@ -51,16 +47,7 @@ export const LanguageProvider = ({ children }: { children: React.ReactNode }) =>
   const translate = (text: string): string => {
     if (!isLuganda || !text) return text
 
-    // Add debug logging
-    const translation = translations[text as keyof typeof translations] || text
-    if (translations[text as keyof typeof translations]) {
-      console.log(`Translation found for "${text}": "${translation}"`)
-    } else {
-      console.log(`No translation found for: "${text}"`)
-    }
-
-    // Return the translation if it exists, otherwise return the original text
-    return translation
+    return translations[text as keyof typeof translations] || text
   }
 
   return (

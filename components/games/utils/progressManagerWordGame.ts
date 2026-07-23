@@ -314,19 +314,14 @@ export const loadGameProgress = async (
 
   try {
     const key = getStorageKey(childId, languageCode);
-    console.log(`Loading progress with key: ${key} for child: ${childId}`);
     let savedProgress = await AsyncStorage.getItem(key);
 
     if (!savedProgress && !contentRevision && languageCode === 'lg') {
       const legacyKey = getLegacyStorageKey(childId);
       savedProgress = await AsyncStorage.getItem(legacyKey);
-      if (savedProgress) {
-        console.log(`Using explicit legacy Luganda word-game progress key: ${legacyKey}`);
-      }
     }
     
     if (savedProgress) {
-      console.log(`Found saved progress for child ${childId}:`, savedProgress);
       const parsedProgress = JSON.parse(savedProgress) as WordGameProgress;
       
       // Validate the progress belongs to this child
@@ -355,12 +350,6 @@ export const loadGameProgress = async (
         await AsyncStorage.setItem(key, JSON.stringify(resetProgress));
         return resetProgress;
       }
-      
-      console.log(`Returning parsed progress for ${childId}:`, {
-        completedLevels: normalizedProgress.completedLevels,
-        unlockedLevels: normalizedProgress.unlockedLevels,
-        currentLevel: normalizedProgress.currentLevel
-      });
       
       void persistNormalizedWordProgress(
         normalizedProgress,
@@ -454,7 +443,6 @@ export const loadGameProgress = async (
       return restoredProgress;
     }
     
-    console.log(`No saved progress found for child ${childId}, creating default`);
     // If no saved progress found, return default progress for this child
     return { ...createDefaultProgress(childId), contentRevision };
   } catch (error) {
@@ -513,10 +501,6 @@ export const saveGameProgress = async (
     // Add this line to ensure data is flushed to persistent storage
     await AsyncStorage.flushGetRequests();
     
-    console.log(`Saved word game progress for child: ${childId}`, {
-      completedLevels: updatedProgress.completedLevels,
-      currentLevel: updatedProgress.currentLevel
-    });
   } catch (error) {
     console.error('Failed to save word game progress:', error);
     throw error;
@@ -613,7 +597,6 @@ export const resetProgress = async (childId: string, languageCode: string): Prom
   try {
     const key = getStorageKey(childId, languageCode);
     await AsyncStorage.removeItem(key);
-    console.log(`Reset word game progress for child: ${childId}`);
   } catch (error) {
     console.error('Failed to reset progress:', error);
   }

@@ -14,7 +14,6 @@ interface StoryProgressProps {
   storyTitle: string;
   totalPages: number;
   currentPage: number;
-  onQuizComplete?: (score: number, total: number) => void;
   children: React.ReactNode;
 }
 
@@ -89,7 +88,6 @@ export const StoryProgress: React.FC<StoryProgressProps> = ({
   storyTitle,
   totalPages,
   currentPage,
-  onQuizComplete,
   children
 }) => {
   const { activeChild } = useChild();
@@ -163,22 +161,6 @@ export const StoryProgress: React.FC<StoryProgressProps> = ({
 
     trackProgress();
   }, [currentPage, totalPages, activeChild, storyId, storyTitle, startTime, hasTrackedCompletion]);
-
-  const handleQuizComplete = async (score: number, total: number) => {
-    if (!activeChild || !onQuizComplete) return;
-
-    const duration = Math.round((Date.now() - startTime) / 1000);
-    await saveStoryQuizProgress({
-      activeChild,
-      storyId,
-      storyTitle,
-      score,
-      total,
-      durationSeconds: duration,
-    });
-
-    onQuizComplete(score, total);
-  };
 
   return (
     <>{children}</>

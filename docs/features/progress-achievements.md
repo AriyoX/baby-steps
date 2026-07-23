@@ -38,7 +38,6 @@ Progress and achievements help parents see what children have completed and rewa
 - `app/parent/activities.tsx`
 - `app/parent/all-achievements.tsx`
 - `app/parent/child-detail/[id].tsx`
-- `app/parent/child-progress.tsx`
 
 ## Key Components, Screens, And Functions
 
@@ -80,7 +79,7 @@ Local AsyncStorage progress keys are game-specific. Examples include:
 - Activity history is Supabase-backed for tracked games/stories.
 - Game progress is mostly local AsyncStorage.
 - Achievements require Supabase-defined achievement rows.
-- `app/parent/child-progress.tsx` is a static/sample progress screen and is not wired to live child data.
+- Parent screens use persisted activity/achievement records and honest empty states; the former sample-only progress route was removed.
 - `utils/storage.ts` contains generic local progress/activity/session helpers, but current screens also use game-specific managers and Supabase utilities.
 
 ## Achievement Identity, Awarding, And Notices
@@ -123,15 +122,15 @@ Current local progress handling:
 - Learning Hub: `lib/learningProgressRepository.ts` stores a local lesson-completion summary under `@BabySteps:LearningProgress:v1:summary:{childId}:{languageCode}:language`, mirrors whole-lesson completions into `child_activity_progress` and `child_stage_progress`, and rebuilds that local summary from hydrated shared progress rows. Curriculum content comes from the exact-language `learning_hub` database bundle/cache.
 - Counting game: `components/games/utils/progressManagerCountingGame.ts` stores `unlockedStages`, `currentStage`, `totalScore`, `lastPlayedLevel`, `completedStages`, `playHistory`, and `childId` in AsyncStorage. Keys are scoped by `childId` and `languageCode`, with a legacy Luganda fallback. `CountingGameComponent` reads on child/language load and saves on stage selection, level changes, score achievements, and stage completion.
 - Word game: `components/games/utils/progressManagerWordGame.ts` keeps the legacy unlocked/current/completed indexes for compatibility and also stores stable level IDs, the immutable Luganda migration snapshot, score, play history, and `childId`. Keys are scoped by `childId` and `languageCode`; old Luganda positional progress is projected onto current published IDs without deleting the legacy key.
-- Stories: legacy story components use `StoryProgress`; DB-backed stories use `GenericStoryRenderer`. They wrote `activities` rows on read/quiz completion and now also write normalized story progress only on completion.
+- Stories: the menu-backed `GenericStoryRenderer` writes normalized, language-scoped progress only on explicit completion. Deprecated hard-coded story renderers were removed from the beta source.
 - Coloring: drawing state is in component memory and completed artwork is saved to the device/gallery. A normalized coloring progress row is now written only when artwork is saved.
-- Card and puzzle games have child-scoped AsyncStorage managers but are not language-scoped yet. They were left out of the first remote-sync pass except as future work.
+- Card and puzzle game state keys include child and language boundaries, while achievement identity remains child-scoped and language-independent.
 - Achievements use Supabase `achievements` and `child_achievements`; no duplicate achievement table was added.
 
 Per-child/language safety:
 
 - Learning, counting, and word progress keys include `childId` and `languageCode`, which avoids mixing the same child's progress across Luganda/Runyankole.
-- Puzzle/card progress remains child-scoped only and should be language-scoped if those games become language-specific.
+- Puzzle/card progress is child-and-language scoped, preventing content/progress collisions after a language change.
 - Learning progress still identifies completed levels by numeric level ID only. Current content uses globally unique level IDs; if future content repeats level IDs inside each stage, progress should store `{ stageId, levelId }` pairs.
 
 Stage expansion findings:
@@ -147,7 +146,7 @@ Supabase usage found:
 - `lib/utils.ts`: inserts/fetches `activities`, fetches `children` names, and computes activity stats.
 - `components/games/achievements/achievementManager.ts`: fetches `achievements`, fetches/inserts `child_achievements`.
 - `content/contentRepository.ts`: fetches, validates, and stale-while-revalidate caches exact-language `content_items` in memory and AsyncStorage.
-- Parent dashboard/screens fetch `children`, `activities`, `achievements`, and `child_achievements`; some dashboard progress values are still placeholders.
+- Parent dashboard/screens fetch `children`, `activities`, `achievements`, and `child_achievements`; missing data renders as an empty state rather than a generated metric.
 
 ## Remote Progress Schema
 

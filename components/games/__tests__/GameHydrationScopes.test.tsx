@@ -314,6 +314,9 @@ jest.mock("../utils/progressManagerCountingGame", () => ({
 }));
 
 jest.mock("../utils/progressManagerLugandaLearning", () => ({
+  applyLegacyLearningAccessLocks: (
+    stages: Record<string, unknown>[],
+  ) => stages,
   DEFAULT_USER_STATS: {
     correctAnswers: 0,
     lastPlayed: "2026-07-14T00:00:00.000Z",

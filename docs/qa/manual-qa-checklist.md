@@ -135,19 +135,16 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Color palette and brush size controls work.
 - [ ] Save to gallery works after granting permission.
 - [ ] Save handles denied permission gracefully.
-- [ ] Share does not request photo-library permission.
+- [ ] Save cancellation and permanently blocked permission leave the artwork intact and show honest guidance.
 - [ ] Eraser removes paint without drawing white over the template lines.
 - [ ] Saved pictures contain the artwork only, with no toolbar, loader, or message overlay.
-- [ ] Share works where device sharing is available.
+- [ ] No Share button or system share sheet is reachable from child mode.
 
 ## Museum
 
 - [ ] Museum is hidden from the child tab bar while archived.
-- [ ] Artifacts screen opens and each item modal renders.
-- [ ] Art screen opens, modal renders, and video links are valid or flagged.
-- [ ] Instruments screen opens, details render, and sounds play/stop.
-- [ ] Textiles screen opens, pinch behavior works, and details render.
-- [ ] Back button closes modals before leaving screens.
+- [ ] Direct Museum routes show an unavailable state because no reviewed Museum menu is published.
+- [ ] No external video, browser, or WebView surface is reachable from Museum.
 
 ## Content And Media Loading
 
@@ -165,7 +162,7 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Parent dashboard recent activities update.
 - [ ] All Activities search and filters work.
 - [ ] Achievements display correctly when definitions are seeded.
-- [ ] Static `/parent/child-progress` screen is either accepted as prototype-only or replaced before release.
+- [ ] Parent progress surfaces show only persisted activities/achievements or an honest empty state.
 
 ## Offline Or Poor Network Behavior
 
@@ -189,7 +186,7 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Test on emulator.
 - [ ] Test on physical Android device if available.
 - [ ] Test orientation changes and locks.
-- [ ] Test media save/share permissions.
+- [ ] Test add-only media save permission, cancellation, permanent denial, and failure.
 - [ ] Test Android hardware back in child, game, story, museum, and coloring screens.
 - [ ] Build with EAS profile if preparing a release.
 
@@ -198,7 +195,7 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Test on simulator if macOS/Xcode are available.
 - [ ] Test on physical iOS device before App Store release.
 - [ ] Test reset-password deep link.
-- [ ] Test media save/share permissions.
+- [ ] Test add-only media save permission, cancellation, permanent denial, and failure.
 - [ ] Test orientation changes and locks.
 
 ## Regression Checks After Refactors

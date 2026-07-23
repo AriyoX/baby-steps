@@ -89,53 +89,38 @@ describe("account management deletion helpers", () => {
   });
 
   it("archives only the selected child row for the signed-in parent", async () => {
-    const query = {
-      update: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      is: jest.fn().mockReturnThis(),
-      select: jest.fn().mockReturnThis(),
-      maybeSingle: jest.fn().mockResolvedValue({
-        data: { id: "child-1", parent_id: "parent-1", name: "Amina" },
-        error: null,
-      }),
-    };
-
     (supabase.auth.getUser as jest.Mock).mockResolvedValue({
       data: { user: { id: "parent-1" } },
       error: null,
     });
-    (supabase.from as jest.Mock).mockReturnValue(query);
+    (supabase.rpc as jest.Mock).mockResolvedValue({
+      data: {
+        status: "applied",
+        archived_at: "2026-07-23T12:00:00.000Z",
+      },
+      error: null,
+    });
 
     await archiveChildProfile("child-1");
 
-    expect(supabase.from).toHaveBeenCalledWith("children");
-    expect(query.update).toHaveBeenCalledWith({
-      deleted_at: expect.any(String),
-      archived_by_account_deletion_request_id: null,
+    expect(supabase.rpc).toHaveBeenCalledWith("archive_child_profile", {
+      p_child_id: "child-1",
     });
-    expect(query.eq).toHaveBeenCalledWith("id", "child-1");
-    expect(query.eq).toHaveBeenCalledWith("parent_id", "parent-1");
-    expect(query.is).toHaveBeenCalledWith("deleted_at", null);
-    expect(query.select).toHaveBeenCalledWith(
-      "id, parent_id, name, gender, age, reason, selected_language_code, created_at, deleted_at, archived_by_account_deletion_request_id",
-    );
-    expect(query.maybeSingle).toHaveBeenCalled();
+    expect(supabase.from).not.toHaveBeenCalledWith("children");
   });
 
   it("fails clearly when no active child row is archived", async () => {
-    const query = {
-      update: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      is: jest.fn().mockReturnThis(),
-      select: jest.fn().mockReturnThis(),
-      maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
-    };
-
     (supabase.auth.getUser as jest.Mock).mockResolvedValue({
       data: { user: { id: "parent-1" } },
       error: null,
     });
-    (supabase.from as jest.Mock).mockReturnValue(query);
+    (supabase.rpc as jest.Mock).mockResolvedValue({
+      data: {
+        status: "rejected",
+        reason: "child_not_owned_or_active",
+      },
+      error: null,
+    });
 
     await expect(archiveChildProfile("child-1")).rejects.toThrow(
       "Child profile was not found or has already been archived.",

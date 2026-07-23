@@ -265,7 +265,7 @@ Do not emit an `activity_abandoned` event when a component unmounts. Derive like
 - Progress-sync failure rate.
 - Handled-error rate by stable error code.
 - Analytics delivery delay and duplicate rate.
-- Artwork save/share success rate.
+- Artwork save success rate.
 - Authentication failure categories without emails or raw provider messages.
 
 ## Crash and error monitoring

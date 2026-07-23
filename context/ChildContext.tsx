@@ -13,20 +13,32 @@ import {
   clearStreakMemory,
   syncDirtyStreakState,
 } from '@/lib/streakRepository';
+import {
+  clearSecureActiveChildSession,
+  loadSecureActiveChildSession,
+  saveSecureActiveChildSession,
+} from '@/lib/activeChildSession';
+import { fetchActiveChildProfile } from '@/lib/accountManagement';
 
-interface ChildProfile {
+export interface ActiveChildProfile {
   id: string;
   name: string;
   gender: string;
   age: string;
+  reason?: string;
   selected_language_code?: string;
   avatar?: string;
 }
 
 interface ChildContextType {
-  activeChild: ChildProfile | null;
-  setActiveChild: (child: ChildProfile | null) => void;
+  activeChild: ActiveChildProfile | null;
+  setActiveChild: (child: ActiveChildProfile | null) => void;
+  activateChildMode: (child: ActiveChildProfile) => Promise<void>;
+  deactivateChildMode: () => Promise<void>;
+  updateActiveChildProfile: (child: ActiveChildProfile) => Promise<void>;
   clearActiveChildForSignOut: () => Promise<void>;
+  isRestoringActiveChild: boolean;
+  requiresParentUnlock: boolean;
 }
 
 export const ChildContext = createContext<ChildContextType | undefined>(undefined);
@@ -34,13 +46,22 @@ export const ChildContext = createContext<ChildContextType | undefined>(undefine
 const PROGRESS_ACTIVITY_TYPES = ['language', 'learning', 'counting', 'words', 'stories', 'coloring'];
 export const SIGN_OUT_PROGRESS_SYNC_TIMEOUT_MS = 750;
 
-export const ChildProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [activeChild, setActiveChildState] = useState<ChildProfile | null>(null);
-  const activeChildRef = useRef<ChildProfile | null>(null);
+export const ChildProvider: React.FC<{
+  accountId?: string | null;
+  children: React.ReactNode;
+}> = ({ accountId = null, children }) => {
+  const [activeChild, setActiveChildState] = useState<ActiveChildProfile | null>(null);
+  const [restoredAccountId, setRestoredAccountId] = useState<string | null>(null);
+  const [requiresParentUnlock, setRequiresParentUnlock] = useState(false);
+  const activeChildRef = useRef<ActiveChildProfile | null>(null);
+  const accountIdRef = useRef<string | null>(accountId);
   const childWorkGenerationRef = useRef(0);
   const childWorkAbortControllerRef = useRef<AbortController | null>(null);
+  accountIdRef.current = accountId;
+  const isRestoringActiveChild =
+    Boolean(accountId) && restoredAccountId !== accountId;
 
-  const setActiveChild = useCallback((child: ChildProfile | null) => {
+  const setActiveChild = useCallback((child: ActiveChildProfile | null) => {
     const previousChild = activeChildRef.current;
     const workGeneration = childWorkGenerationRef.current + 1;
     childWorkAbortControllerRef.current?.abort();
@@ -49,6 +70,17 @@ export const ChildProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     childWorkGenerationRef.current = workGeneration;
     activeChildRef.current = child;
     setActiveChildState(child);
+    setRequiresParentUnlock(false);
+
+    const currentAccountId = accountIdRef.current;
+    if (currentAccountId) {
+      const secureWrite = child
+        ? saveSecureActiveChildSession(currentAccountId, child)
+        : clearSecureActiveChildSession(currentAccountId);
+      void secureWrite.catch(() => {
+        console.warn("Could not update the secure child-session boundary.");
+      });
+    }
 
     void (async () => {
       try {
@@ -101,16 +133,147 @@ export const ChildProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   }, []);
 
-  const clearActiveChildForSignOut = useCallback(async (): Promise<void> => {
-    const previousChild = activeChildRef.current;
+  const activateChildMode = useCallback(
+    async (child: ActiveChildProfile): Promise<void> => {
+      const currentAccountId = accountIdRef.current;
+      if (!currentAccountId) {
+        throw new Error("A signed-in parent is required to start child mode.");
+      }
+
+      // Persist before navigation so an immediate process restart cannot expose
+      // parent routes without restoring the child-mode boundary.
+      await saveSecureActiveChildSession(currentAccountId, child);
+      setActiveChild(child);
+    },
+    [setActiveChild],
+  );
+
+  const deactivateChildMode = useCallback(async (): Promise<void> => {
+    const currentAccountId = accountIdRef.current;
+    if (currentAccountId) {
+      try {
+        // Clear the persisted boundary before parent navigation. If SecureStore
+        // is temporarily unavailable, the stale marker can only lock the same
+        // account again on restart; it cannot expose parent routes.
+        await clearSecureActiveChildSession(currentAccountId);
+      } catch {
+        console.warn("Could not clear the secure child-session boundary.");
+      }
+    }
+    setActiveChild(null);
+  }, [setActiveChild]);
+
+  const updateActiveChildProfile = useCallback(
+    async (child: ActiveChildProfile): Promise<void> => {
+      if (activeChildRef.current?.id !== child.id) return;
+      const currentAccountId = accountIdRef.current;
+      if (!currentAccountId) return;
+
+      // Keep SecureStore and in-memory child identity coherent before the edit
+      // screen reports success.
+      try {
+        await saveSecureActiveChildSession(currentAccountId, child);
+      } catch {
+        // The in-memory update remains safe: a later process restore validates
+        // the account-scoped snapshot against the server before using it.
+        console.warn("Could not refresh the secure active-child snapshot.");
+      }
+      setActiveChild(child);
+    },
+    [setActiveChild],
+  );
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const restoringAccountId = accountId;
+
     childWorkGenerationRef.current += 1;
     childWorkAbortControllerRef.current?.abort();
     childWorkAbortControllerRef.current = null;
     activeChildRef.current = null;
     setActiveChildState(null);
+    setRequiresParentUnlock(false);
+
+    if (!restoringAccountId) {
+      setRestoredAccountId(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void loadSecureActiveChildSession(restoringAccountId)
+      .then(async (storedChild) => {
+        if (cancelled || accountIdRef.current !== restoringAccountId) return;
+        if (storedChild) {
+          try {
+            const currentChild = await fetchActiveChildProfile(
+              storedChild.id,
+              restoringAccountId,
+            );
+            if (cancelled || accountIdRef.current !== restoringAccountId) return;
+
+            if (currentChild) {
+              setActiveChild({
+                id: currentChild.id,
+                name: currentChild.name,
+                gender: currentChild.gender,
+                age: currentChild.age,
+                reason: currentChild.reason,
+                selected_language_code: currentChild.selected_language_code,
+              });
+            } else {
+              try {
+                await clearSecureActiveChildSession(restoringAccountId);
+              } catch {
+                console.warn("Could not remove a stale secure child session.");
+              }
+              if (cancelled || accountIdRef.current !== restoringAccountId) return;
+              // A marker existed, so keep the adult boundary closed until the
+              // parent verifies even though the child is missing or archived.
+              setRequiresParentUnlock(true);
+            }
+          } catch {
+            if (cancelled || accountIdRef.current !== restoringAccountId) return;
+            // Offline validation must fail closed: the stored child snapshot
+            // remains active and can be revalidated on a later app start.
+            setActiveChild(storedChild);
+            console.warn("Could not validate the restored child session.");
+          }
+        }
+        setRestoredAccountId(restoringAccountId);
+      })
+      .catch(() => {
+        if (cancelled || accountIdRef.current !== restoringAccountId) return;
+        setRequiresParentUnlock(true);
+        setRestoredAccountId(restoringAccountId);
+        console.warn("Could not restore the secure child-session boundary.");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId, setActiveChild]);
+
+  const clearActiveChildForSignOut = useCallback(async (): Promise<void> => {
+    const previousChild = activeChildRef.current;
+    const currentAccountId = accountIdRef.current;
+    childWorkGenerationRef.current += 1;
+    childWorkAbortControllerRef.current?.abort();
+    childWorkAbortControllerRef.current = null;
+    activeChildRef.current = null;
+    setActiveChildState(null);
+    setRequiresParentUnlock(false);
     cancelScheduledProgressSync();
     cancelScheduledStreakSync();
     clearStreakMemory();
+
+    if (currentAccountId) {
+      try {
+        await clearSecureActiveChildSession(currentAccountId);
+      } catch {
+        console.warn("Could not clear the secure child-session boundary.");
+      }
+    }
 
     if (!previousChild?.id) return;
 
@@ -141,7 +304,16 @@ export const ChildProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   return (
     <ChildContext.Provider
-      value={{ activeChild, setActiveChild, clearActiveChildForSignOut }}
+      value={{
+        activeChild,
+        activateChildMode,
+        clearActiveChildForSignOut,
+        deactivateChildMode,
+        isRestoringActiveChild,
+        requiresParentUnlock,
+        setActiveChild,
+        updateActiveChildProfile,
+      }}
     >
       {children}
     </ChildContext.Provider>

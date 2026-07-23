@@ -27,6 +27,5 @@ export const resetOnboardingForDev = async (): Promise<string[]> => {
 
   const keys = [...PRE_LOGIN_ONBOARDING_STORAGE_KEYS];
   await AsyncStorage.multiRemove(keys);
-  console.log(`Reset pre-login onboarding keys: ${keys.join(", ")}`);
   return keys;
 };

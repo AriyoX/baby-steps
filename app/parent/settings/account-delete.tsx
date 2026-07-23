@@ -15,13 +15,20 @@ import {
   requestAccountDeletion,
 } from "@/lib/accountManagement";
 import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network";
+import {
+  hasRecentParentReauthentication,
+  reauthenticateParentAccount,
+} from "@/lib/parentAccess";
+import { supabase } from "@/lib/supabase";
 
 export default function AccountDeleteScreen() {
   const router = useRouter();
   const { setActiveChild } = useChild();
   const [confirmation, setConfirmation] = React.useState("");
+  const [password, setPassword] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
-  const canSubmit = isAccountDeleteConfirmationValid(confirmation);
+  const canSubmit =
+    isAccountDeleteConfirmationValid(confirmation) && password.length > 0;
 
   const formatDeadline = (isoDate: string): string =>
     new Intl.DateTimeFormat(undefined, {
@@ -36,6 +43,25 @@ export default function AccountDeleteScreen() {
 
     setSubmitting(true);
     try {
+      const { data } = await supabase.auth.getSession();
+      const accountId = data.session?.user.id;
+      const reauthenticated =
+        Boolean(accountId) &&
+        (await reauthenticateParentAccount(accountId!, password));
+      setPassword("");
+
+      if (
+        !accountId ||
+        !reauthenticated ||
+        !hasRecentParentReauthentication(accountId)
+      ) {
+        Alert.alert(
+          "Parent verification did not work",
+          "Check the parent account password and try again.",
+        );
+        return;
+      }
+
       const result = await requestAccountDeletion("Requested from in-app account management.");
       setActiveChild(null);
       Alert.alert(
@@ -90,6 +116,21 @@ export default function AccountDeleteScreen() {
           className="border border-gray-200 rounded-xl px-4 py-3 text-lg text-gray-800"
           style={readableTextInputStyle}
           accessibilityLabel="Account deletion confirmation"
+        />
+        <Text className="text-gray-700 leading-6 mt-4 mb-2">
+          Enter the current parent account password to continue.
+        </Text>
+        <TextInput
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholder="Parent account password"
+          placeholderTextColor="#9CA3AF"
+          className="border border-gray-200 rounded-xl px-4 py-3 text-lg text-gray-800"
+          style={readableTextInputStyle}
+          accessibilityLabel="Parent account password for deletion"
         />
 
         <AppButton

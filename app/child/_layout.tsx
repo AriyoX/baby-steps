@@ -1,6 +1,6 @@
 "use client"
 
-import { Stack, useFocusEffect, useRouter } from "expo-router"
+import { Stack, useFocusEffect, usePathname, useRouter } from "expo-router"
 import { useCallback, useEffect, useRef } from "react"
 import { AppState } from "react-native"
 import * as ScreenOrientation from "expo-screen-orientation"
@@ -14,9 +14,11 @@ const CHILD_ROUTE_ORIENTATION = "landscape_left" as const
 const CHILD_ORIENTATION_LOCK = ScreenOrientation.OrientationLock.LANDSCAPE_LEFT
 
 export default function TabLayout() {
-  const { activeChild } = useChild()
+  const { activeChild, isRestoringActiveChild, requiresParentUnlock } = useChild()
   const router = useRouter()
+  const pathname = usePathname()
   const hasRequestedLandscape = useRef(false)
+  const isParentGateRoute = pathname === "/child/parent-gate"
 
   const ensureChildLandscape = useCallback(async (forceLock = false) => {
     if (!forceLock && hasRequestedLandscape.current) {
@@ -56,21 +58,48 @@ export default function TabLayout() {
       void ensureChildLandscape()
 
       // Redirect to parent dashboard if no active child
-      if (!activeChild) {
+      if (
+        !isRestoringActiveChild &&
+        !activeChild &&
+        !(requiresParentUnlock && isParentGateRoute)
+      ) {
         router.replace("/parent")
         return
       }
 
-      console.log("Child tabs screen focused - locking to landscape")
-
-      return () => {
-        console.log("Child screen unfocused")
-      }
-    }, [activeChild, router, ensureChildLandscape]),
+    }, [
+      activeChild,
+      ensureChildLandscape,
+      isParentGateRoute,
+      isRestoringActiveChild,
+      requiresParentUnlock,
+      router,
+    ]),
   )
 
-  if (!activeChild) {
+  if (isRestoringActiveChild) {
     return null
+  }
+
+  if (!activeChild) {
+    if (!requiresParentUnlock || !isParentGateRoute) return null
+
+    return (
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          orientation: CHILD_ROUTE_ORIENTATION,
+        }}
+      >
+        <Stack.Screen
+          name="parent-gate"
+          options={{
+            headerShown: false,
+            orientation: CHILD_ROUTE_ORIENTATION,
+          }}
+        />
+      </Stack>
+    )
   }
 
   return (

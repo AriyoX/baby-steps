@@ -2,7 +2,6 @@ import React from "react";
 import { jest, beforeEach, describe, it, expect } from "@jest/globals";
 import renderer, { act } from "react-test-renderer";
 import type { ReactTestRenderer } from "react-test-renderer";
-import { PlaceholderSettingsScreen } from "@/components/settings/PlaceholderSettingsScreen";
 import {
   fetchActiveChildProfiles,
   reactivateAccount,
@@ -27,6 +26,16 @@ const mockRouterPush = jest.fn();
 const mockRouterReplace = jest.fn();
 const mockSetActiveChild = jest.fn();
 const mockClearActiveChildForSignOut: jest.Mock<() => Promise<void>> = jest.fn();
+const mockClearParentSecuritySession = jest.fn();
+const mockReauthenticateParentAccount: jest.Mock<
+  (accountId: string, password: string) => Promise<boolean>
+> = jest.fn();
+const mockHasRecentParentReauthentication: jest.Mock<
+  (accountId: string) => boolean
+> = jest.fn();
+const mockRequestAccountDeletion: jest.Mock<
+  (reason: string) => Promise<{ graceEndsAt: string }>
+> = jest.fn();
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({
@@ -64,13 +73,46 @@ jest.mock("@/lib/accountManagement", () => ({
   getAccountDeletionState: jest.fn(),
   isAccountDeleteConfirmationValid: (confirmation: string) => confirmation.trim() === "DELETE",
   reactivateAccount: jest.fn(),
-  requestAccountDeletion: jest.fn(),
+  requestAccountDeletion: (reason: string) =>
+    mockRequestAccountDeletion(reason),
+}));
+
+jest.mock("@/lib/parentAccess", () => ({
+  clearParentSecuritySession: (...args: unknown[]) =>
+    mockClearParentSecuritySession(...args),
+  reauthenticateParentAccount: (accountId: string, password: string) =>
+    mockReauthenticateParentAccount(accountId, password),
+  hasRecentParentReauthentication: (accountId: string) =>
+    mockHasRecentParentReauthentication(accountId),
+}));
+
+jest.mock("@/lib/network", () => ({
+  requireInternet: jest.fn(async () => true),
+  showNetworkErrorIfNeeded: jest.fn(async () => false),
+}));
+
+jest.mock("@/lib/appMetadata", () => ({
+  getAppRuntimeMetadata: () => ({ version: "1.0.0", build: "42" }),
 }));
 
 jest.mock("@/context/ChildContext", () => ({
   useChild: () => ({
     clearActiveChildForSignOut: mockClearActiveChildForSignOut,
     setActiveChild: mockSetActiveChild,
+  }),
+}));
+
+jest.mock("@/context/ParentProfileContext", () => ({
+  useParentProfile: () => ({
+    profile: {
+      id: "parent-1",
+      displayName: "Amina Parent",
+      email: "parent@example.com",
+    },
+    isLoading: false,
+    error: null,
+    refreshParentProfile: jest.fn(),
+    setConfirmedParentProfile: jest.fn(),
   }),
 }));
 
@@ -117,6 +159,11 @@ beforeEach(() => {
     data: { session: { user: { id: "parent-1" } } },
   });
   mockSignOut.mockResolvedValue({ error: null });
+  mockReauthenticateParentAccount.mockResolvedValue(true);
+  mockHasRecentParentReauthentication.mockReturnValue(true);
+  mockRequestAccountDeletion.mockResolvedValue({
+    graceEndsAt: "2026-08-22T00:00:00.000Z",
+  });
 });
 
 describe("settings management screens", () => {
@@ -133,32 +180,9 @@ describe("settings management screens", () => {
     expect(text).toContain("Audio");
     expect(text).toContain("Privacy & Safety");
     expect(text).toContain("About Baby Steps");
-    expect(text).toContain("Show App Tour");
-
-    const tourRow = tree?.root.findByProps({ title: "Show App Tour" });
-    act(() => tourRow?.props.onPress());
-
-    expect(mockRouterReplace).toHaveBeenCalledWith({
-      pathname: "/parent",
-      params: { showTour: "1" },
-    });
-  });
-
-  it("renders a placeholder settings screen", async () => {
-    let tree: ReactTestRenderer | undefined;
-    await act(async () => {
-      tree = renderer.create(
-        <PlaceholderSettingsScreen
-          title="Notifications"
-          description="Reminder and learning update preferences will be managed here."
-        />,
-      );
-    });
-
-    const text = textContent(tree?.toJSON());
-
-    expect(text).toContain("Notifications");
-    expect(text).toContain("Reminder and learning update preferences");
+    expect(text).not.toContain("Show App Tour");
+    expect(text).not.toContain("Developer");
+    expect(text).not.toContain("coming soon");
   });
 
   it("renders the Account Management screen with user details", async () => {
@@ -175,7 +199,10 @@ describe("settings management screens", () => {
 
     const text = textContent(tree?.toJSON());
     expect(text).toContain("Signed-in Parent");
+    expect(text).toContain("Amina Parent");
     expect(text).toContain("parent@example.com");
+    expect(text).toContain("Edit parent profile");
+    expect(text).toContain("Parent access PIN");
     expect(text).toContain("Delete account");
     expect(text).toContain("You can come back within 30 days");
   });
@@ -189,6 +216,7 @@ describe("settings management screens", () => {
 
     expect(mockClearActiveChildForSignOut).toHaveBeenCalledTimes(1);
     expect(mockSignOut).toHaveBeenCalledTimes(1);
+    expect(mockClearParentSecuritySession).toHaveBeenCalledTimes(1);
     expect(mockClearActiveChildForSignOut.mock.invocationCallOrder[0]).toBeLessThan(
       mockSignOut.mock.invocationCallOrder[0],
     );
@@ -230,8 +258,41 @@ describe("settings management screens", () => {
     expect(text).toContain("Changed your mind?");
     expect(text).toContain("Delete my account");
     expect(text).toContain("Keep my account");
+    expect(text).toContain("current parent account password");
     expect(text).not.toMatch(/server-side|finalizer|finalized|grace period|Schedule Account Deletion/i);
     expect(text).not.toMatch(/permanently deleted|deleted forever|delete immediately|all your data is gone/i);
+  });
+
+  it("does not request deletion when recent account reauthentication fails", async () => {
+    mockReauthenticateParentAccount.mockResolvedValueOnce(false);
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<AccountDeleteScreen />);
+    });
+
+    const confirmation = tree.root.findByProps({
+      accessibilityLabel: "Account deletion confirmation",
+    });
+    const password = tree.root.findByProps({
+      accessibilityLabel: "Parent account password for deletion",
+    });
+    act(() => {
+      confirmation.props.onChangeText("DELETE");
+      password.props.onChangeText("wrong-password");
+    });
+    const deleteButton = tree.root
+      .findAll((node) => node.props.accessibilityRole === "button")
+      .find((node) => textContent(node).includes("Delete my account"));
+
+    await act(async () => {
+      await deleteButton?.props.onPress();
+    });
+
+    expect(mockReauthenticateParentAccount).toHaveBeenCalledWith(
+      "parent-1",
+      "wrong-password",
+    );
+    expect(mockRequestAccountDeletion).not.toHaveBeenCalled();
   });
 
   it("renders pending deletion reactivation copy with the deadline", async () => {
@@ -310,6 +371,11 @@ describe("settings management screens", () => {
     expect(supportText).toContain("within 30 days to keep your account");
     expect(supportText).toContain("hello@babystepslearn.com");
     expect(aboutText).toContain("Privacy, account deletion, and support details");
+    expect(aboutText).toContain("Closed beta");
+    expect(aboutText).toContain("Version 1.0.0");
+    expect(aboutText).toContain("42");
+    expect(aboutText).toContain("Do not include passwords");
+    expect(aboutText).toContain("children’s full names");
   });
 
   it("renders the Child Profiles Management screen with active children", async () => {

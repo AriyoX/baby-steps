@@ -310,6 +310,7 @@ describe("ChildProvider progress hydration", () => {
       activation = api!.activateChildMode(child);
     });
     expect(api?.activeChild).toBeNull();
+    expect(api?.isEnteringChildMode).toBe(false);
 
     await act(async () => {
       secureWrite.resolve();
@@ -320,6 +321,12 @@ describe("ChildProvider progress hydration", () => {
       child,
     );
     expect(api?.activeChild).toEqual(child);
+    expect(api?.isEnteringChildMode).toBe(true);
+
+    act(() => {
+      api?.completeChildModeEntry();
+    });
+    expect(api?.isEnteringChildMode).toBe(false);
 
     mockLoadSecureActiveChildSession.mockResolvedValueOnce(null);
     await act(async () => {

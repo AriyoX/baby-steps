@@ -4,6 +4,7 @@ import { AppState } from "react-native";
 
 const mockReplace = jest.fn();
 const mockBack = jest.fn();
+const mockCanGoBack = jest.fn();
 const mockDeactivateChildMode = jest.fn(async () => undefined);
 const mockHasParentPin = jest.fn();
 const mockVerifyParentPin = jest.fn();
@@ -11,7 +12,11 @@ const mockReauthenticateParentAccount = jest.fn();
 const mockGetSession = jest.fn();
 
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ replace: mockReplace, back: mockBack }),
+  useRouter: () => ({
+    replace: mockReplace,
+    back: mockBack,
+    canGoBack: mockCanGoBack,
+  }),
 }));
 
 jest.mock("expo-status-bar", () => ({ StatusBar: () => null }));
@@ -35,7 +40,10 @@ jest.mock("@/components/StyledText", () => ({
 }));
 
 jest.mock("@/context/ChildContext", () => ({
-  useChild: () => ({ deactivateChildMode: mockDeactivateChildMode }),
+  useChild: () => ({
+    activeChild: { id: "child-1" },
+    deactivateChildMode: mockDeactivateChildMode,
+  }),
 }));
 
 jest.mock("@/lib/parentAccess", () => ({
@@ -97,6 +105,7 @@ describe("ParentGate", () => {
       data: { session: { user: { id: "parent-1" } } },
     });
     mockHasParentPin.mockResolvedValue(true);
+    mockCanGoBack.mockReturnValue(true);
     mockVerifyParentPin.mockResolvedValue({
       status: "success",
       retryAfterMs: 0,
@@ -122,6 +131,21 @@ describe("ParentGate", () => {
     expect(mockVerifyParentPin).toHaveBeenCalledWith("parent-1", "123456");
     expect(mockDeactivateChildMode).toHaveBeenCalledTimes(1);
     expect(mockReplace).toHaveBeenCalledWith("/parent");
+  });
+
+  it("returns to child mode without dispatching an unhandled back action", async () => {
+    mockCanGoBack.mockReturnValueOnce(false);
+    const tree = await renderGate();
+
+    act(() => {
+      findByLabel(tree.root, "Return to child mode").props.onPress();
+    });
+
+    expect(mockBack).not.toHaveBeenCalled();
+    expect(mockReplace).toHaveBeenCalledWith({
+      pathname: "/child/learning",
+      params: { active: "child-1" },
+    });
   });
 
   it("does not reveal PIN details or leave child mode after a wrong PIN", async () => {

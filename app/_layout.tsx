@@ -66,8 +66,10 @@ export const requiresParentGateForActiveChild = (
   routePathname: string,
   activeChildId?: string | null,
   requiresParentUnlock = false,
+  isEnteringChildMode = false,
 ): boolean => {
   if (!activeChildId && !requiresParentUnlock) return false;
+  if (activeChildId && isEnteringChildMode && !requiresParentUnlock) return false;
   if (PARENT_GATE_EXEMPT_ROUTES.has(routePathname)) return false;
   return !(
     routePathname === "/child" ||
@@ -77,7 +79,13 @@ export const requiresParentGateForActiveChild = (
 
 function SessionSecurityBoundary({ accountId }: { accountId: string | null }) {
   const previousAccountId = useRef<string | null | undefined>(undefined);
-  const { activeChild, isRestoringActiveChild, requiresParentUnlock } = useChild();
+  const {
+    activeChild,
+    completeChildModeEntry,
+    isEnteringChildMode,
+    isRestoringActiveChild,
+    requiresParentUnlock,
+  } = useChild();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -92,12 +100,23 @@ function SessionSecurityBoundary({ accountId }: { accountId: string | null }) {
 
   useEffect(() => {
     if (
+      isEnteringChildMode &&
+      (pathname === "/child" || pathname.startsWith("/child/"))
+    ) {
+      // Subsequent navigation away from child mode must use the parent gate.
+      completeChildModeEntry();
+    }
+  }, [completeChildModeEntry, isEnteringChildMode, pathname]);
+
+  useEffect(() => {
+    if (
       accountId &&
       !isRestoringActiveChild &&
       requiresParentGateForActiveChild(
         pathname,
         activeChild?.id,
         requiresParentUnlock,
+        isEnteringChildMode,
       )
     ) {
       router.replace("/child/parent-gate");
@@ -105,6 +124,7 @@ function SessionSecurityBoundary({ accountId }: { accountId: string | null }) {
   }, [
     accountId,
     activeChild?.id,
+    isEnteringChildMode,
     isRestoringActiveChild,
     pathname,
     requiresParentUnlock,

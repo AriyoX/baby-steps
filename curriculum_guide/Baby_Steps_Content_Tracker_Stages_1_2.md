@@ -2,6 +2,27 @@
 
 Use the checkbox in the **Provided?** column after the final approved content item has been received.
 
+## Technical implementation snapshot - 23 July 2026
+
+This snapshot records what is wired into seed revision 4; it does **not**
+record linguistic, educational, cultural or media approval. The checkboxes
+below intentionally remain unchecked until final deliverables are received.
+
+| Area | Implemented in the development seed | Still required |
+| --- | --- | --- |
+| Learning Hub | 2 stages, 6 lessons per stage, 37 exact lesson items | Final review of every title, phrase, prompt, option, explanation and parent note |
+| Shared concept bank | All 9 Stage 1 and 12 Stage 2 concept IDs reused across activities | Approve or replace each draft without changing an ID's meaning |
+| Stories and quizzes | 2 four-page stories and 2 five-question reviews | Native-language, cultural and early-years review |
+| Learning Game | 16 short reinforcement levels: 8 per stage | Repeats approved concepts only; no new curriculum is implied |
+| Word Game | 14 single-word levels | Multi-word phrases are excluded because this mechanic builds one continuous word |
+| Cards and Puzzles | 21 matching concepts and 10 scene puzzles | Final culturally suitable artwork |
+| Images | All missing artwork points to registered, non-empty bundled fallbacks | Supply and approve the 30 requested final image assets |
+| Audio | All 29 stable curriculum keys resolve to a shared temporary cue | Supply, edit and approve the 29 exact native-speaker recordings |
+| Fresh start | `contentVersion` and `progressRevision` are 4 | Historic records stay stored; revision-3 completion does not unlock revision 4 |
+
+The rows marked **Future Learning Hub** at the end of this tracker are backlog.
+They are not part of the two initial stages and are not present in this seed.
+
 | ID | Content Type | Name | Game / Learning Hub Area | Provided? |
 | --- | --- | --- | --- | --- |
 | lg-ui-001 | Text | Listen and Choose instruction: Wulira, olonde ekifaananyi ekituufu. (Listen and choose the correct picture.) | Learning Hub - Global interface | [ ] |

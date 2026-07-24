@@ -30,6 +30,7 @@ type ChildUiApi = ReturnType<typeof useChildUiLanguage>;
 
 const setActiveChild = jest.fn();
 const activateChildMode = jest.fn(async () => undefined);
+const completeChildModeEntry = jest.fn();
 const deactivateChildMode = jest.fn(async () => undefined);
 const updateActiveChildProfile = jest.fn(async () => undefined);
 const clearActiveChildForSignOut = jest.fn(async () => undefined);
@@ -58,10 +59,12 @@ describe("ChildUiLanguageProvider", () => {
           value={{
             activeChild: child,
             activateChildMode,
+            completeChildModeEntry,
             deactivateChildMode,
             setActiveChild,
             updateActiveChildProfile,
             clearActiveChildForSignOut,
+            isEnteringChildMode: false,
             isRestoringActiveChild: false,
             requiresParentUnlock: false,
           }}
@@ -82,10 +85,12 @@ describe("ChildUiLanguageProvider", () => {
           value={{
             activeChild: child,
             activateChildMode,
+            completeChildModeEntry,
             deactivateChildMode,
             setActiveChild,
             updateActiveChildProfile,
             clearActiveChildForSignOut,
+            isEnteringChildMode: false,
             isRestoringActiveChild: false,
             requiresParentUnlock: false,
           }}

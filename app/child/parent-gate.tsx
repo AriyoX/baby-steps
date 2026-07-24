@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons"
 import { Text } from "@/components/StyledText"
 import { brandColors } from "@/constants/Brand"
+import { CHILD_HOME_ROUTE } from "@/constants/ChildNavigation"
 import { useChild } from "@/context/ChildContext"
 import {
   PARENT_PIN_LENGTH,
@@ -43,7 +44,7 @@ export default function ParentGate() {
   const appStateRef = useRef<"active" | string>("active")
   const submissionGenerationRef = useRef(0)
   const router = useRouter()
-  const { deactivateChildMode } = useChild()
+  const { activeChild, deactivateChildMode } = useChild()
 
   useEffect(() => {
     let mounted = true
@@ -115,6 +116,18 @@ export default function ParentGate() {
     if (appStateRef.current === "active") {
       router.replace("/parent")
     }
+  }
+
+  const returnToChildMode = () => {
+    if (!activeChild) return
+    if (router.canGoBack()) {
+      router.back()
+      return
+    }
+    router.replace({
+      pathname: CHILD_HOME_ROUTE as any,
+      params: { active: activeChild.id },
+    })
   }
 
   const handleDigitPress = (digit: string) => {
@@ -241,9 +254,11 @@ export default function ParentGate() {
 
           <TouchableOpacity
             className="absolute top-5 left-5 z-20 w-12 h-12 rounded-2xl bg-white/15 items-center justify-center border border-white/20"
-            onPress={() => router.back()}
+            onPress={returnToChildMode}
+            disabled={!activeChild}
             accessibilityRole="button"
             accessibilityLabel="Return to child mode"
+            accessibilityState={{ disabled: !activeChild }}
           >
             <Ionicons name="arrow-back" size={25} color={brandColors.white} />
           </TouchableOpacity>

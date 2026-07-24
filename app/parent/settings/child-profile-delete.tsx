@@ -54,7 +54,7 @@ export default function ChildProfileDeleteScreen() {
 
   const handleArchiveChild = async () => {
     if (!child || !canSubmit || submitting) return;
-    if (!(await requireInternet("Archiving this child profile"))) return;
+    if (!(await requireInternet("Removing this child profile"))) return;
 
     setSubmitting(true);
     try {
@@ -64,32 +64,32 @@ export default function ChildProfileDeleteScreen() {
       }
 
       Alert.alert(
-        "Child profile archived",
+        "Child removed",
         `${child.name} will no longer appear in normal child selection.`,
         [{ text: "OK", onPress: () => router.replace("/parent/settings/child-profiles") }],
       );
     } catch (error) {
-      console.error("Could not archive child profile:", error);
-      if (await showNetworkErrorIfNeeded(error, "Archiving this child profile")) return;
-      Alert.alert("Could not archive profile", "Please try again.");
+      console.error("Could not remove child:", error);
+      if (await showNetworkErrorIfNeeded(error, "Removing this child profile")) return;
+      Alert.alert("Could not remove child", "Please try again.");
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <SettingsScaffold title="Archive Child Profile">
+    <SettingsScaffold title="Remove Child">
       <View className="mt-5 bg-amber-50 border border-amber-100 rounded-xl p-5">
         <View className="w-12 h-12 rounded-full bg-amber-100 items-center justify-center mb-4">
           <Ionicons name="archive-outline" size={26} color="#B45309" />
         </View>
         <Text variant="bold" className="text-amber-900 text-lg mb-2">
-          Archive this child profile
+          Remove child
         </Text>
-        <Text className="text-amber-900 leading-6">
+        {/* <Text className="text-amber-900 leading-6">
           This is not permanent deletion. The child profile and learning progress
           stay with this parent account but are hidden from normal child selection.
-        </Text>
+        </Text> */}
       </View>
 
       <View className="mt-5 bg-white rounded-xl border border-gray-100 p-5">
@@ -108,7 +108,7 @@ export default function ChildProfileDeleteScreen() {
               placeholderTextColor="#9CA3AF"
               className="border border-gray-200 rounded-xl px-4 py-3 text-lg text-gray-800"
               style={readableTextInputStyle}
-              accessibilityLabel="Child profile archive confirmation"
+              accessibilityLabel="Confirm remove child profile"
             />
             <TouchableOpacity
               className={`mt-4 rounded-xl py-4 items-center ${
@@ -120,7 +120,7 @@ export default function ChildProfileDeleteScreen() {
               accessibilityState={{ disabled: !canSubmit || submitting }}
             >
               <Text variant="bold" className={canSubmit ? "text-white" : "text-gray-500"}>
-                {submitting ? "Archiving..." : "Archive Child Profile"}
+                {submitting ? "Removing..." : "Remove Child"}
               </Text>
             </TouchableOpacity>
           </>

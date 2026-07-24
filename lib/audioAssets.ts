@@ -32,79 +32,66 @@ type LearningAudioAssetEntry = {
 // TODO: Replace placeholder learning cues with reviewed native-speaker recorded audio before production.
 export const LEARNING_PLACEHOLDER_SOUND: AVPlaybackSource = require("@/assets/audio/Bulungi.mp3")
 
+const PLACEHOLDER_LEARNING_ENTRY = {
+  source: LEARNING_PLACEHOLDER_SOUND,
+  isPlaceholder: true,
+} as const
+
 export const LEARNING_AUDIO_ASSETS = {
-  placeholder_learning_cue: {
-    source: LEARNING_PLACEHOLDER_SOUND,
-    isPlaceholder: true,
-  },
-  "lg.stage1.oli_otya": {
-    source: LEARNING_PLACEHOLDER_SOUND,
-    isPlaceholder: true,
-  },
-  "lg.stage1.gyendi": {
-    source: LEARNING_PLACEHOLDER_SOUND,
-    isPlaceholder: true,
-  },
-  "lg.stage1.gyebale_ko": {
-    source: LEARNING_PLACEHOLDER_SOUND,
-    isPlaceholder: true,
-  },
-  "lg.stage1.webale": {
-    source: LEARNING_PLACEHOLDER_SOUND,
-    isPlaceholder: true,
-  },
-  "lg.stage1.story.1": {
-    source: LEARNING_PLACEHOLDER_SOUND,
-    isPlaceholder: true,
-  },
-  "lg.stage1.story.2": {
-    source: LEARNING_PLACEHOLDER_SOUND,
-    isPlaceholder: true,
-  },
-  "lg.stage1.story.3": {
-    source: LEARNING_PLACEHOLDER_SOUND,
-    isPlaceholder: true,
-  },
-  "lg.stage2.maama": {
-    source: LEARNING_PLACEHOLDER_SOUND,
-    isPlaceholder: true,
-  },
-  "lg.stage2.taata": {
-    source: LEARNING_PLACEHOLDER_SOUND,
-    isPlaceholder: true,
-  },
-  "lg.stage2.omwana": {
-    source: LEARNING_PLACEHOLDER_SOUND,
-    isPlaceholder: true,
-  },
-  "lg.stage2.ennyumba": {
-    source: LEARNING_PLACEHOLDER_SOUND,
-    isPlaceholder: true,
-  },
-  "lg.stage2.amazzi": {
-    source: LEARNING_PLACEHOLDER_SOUND,
-    isPlaceholder: true,
-  },
-  "lg.stage2.ekitabo": {
-    source: LEARNING_PLACEHOLDER_SOUND,
-    isPlaceholder: true,
-  },
-  "lg.stage2.story.1": {
-    source: LEARNING_PLACEHOLDER_SOUND,
-    isPlaceholder: true,
-  },
-  "lg.stage2.story.2": {
-    source: LEARNING_PLACEHOLDER_SOUND,
-    isPlaceholder: true,
-  },
-  "lg.stage2.story.3": {
-    source: LEARNING_PLACEHOLDER_SOUND,
-    isPlaceholder: true,
-  },
-  "lg.stage2.story.4": {
-    source: LEARNING_PLACEHOLDER_SOUND,
-    isPlaceholder: true,
-  },
+  placeholder_learning_cue: PLACEHOLDER_LEARNING_ENTRY,
+
+  // Initial Stage 1 curriculum keys. Keep these stable when replacing the cue
+  // with reviewed native-speaker recordings.
+  "lg-s1-oli-otya": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s1-gyendi": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s1-wasuze-otya-nno": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s1-osiibye-otya-nno": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s1-weebale": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s1-nsonyiwa": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s1-weeraba": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s1-nze-amina": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s1-ggwe-ani": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s1-story-p01": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s1-story-p02": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s1-story-p03": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s1-story-p04": PLACEHOLDER_LEARNING_ENTRY,
+
+  // Initial Stage 2 curriculum keys.
+  "lg-s2-omutwe": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s2-amaaso": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s2-amatu": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s2-ennyindo": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s2-akamwa": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s2-omukono": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s2-okugulu": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s2-ekigere": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s2-ndi-musanyufu": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s2-ndi-munakuwavu": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s2-nkooye": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s2-ntya": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s2-story-p01": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s2-story-p02": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s2-story-p03": PLACEHOLDER_LEARNING_ENTRY,
+  "lg-s2-story-p04": PLACEHOLDER_LEARNING_ENTRY,
+
+  // Compatibility aliases for older cached development bundles.
+  "lg.stage1.oli_otya": PLACEHOLDER_LEARNING_ENTRY,
+  "lg.stage1.gyendi": PLACEHOLDER_LEARNING_ENTRY,
+  "lg.stage1.gyebale_ko": PLACEHOLDER_LEARNING_ENTRY,
+  "lg.stage1.webale": PLACEHOLDER_LEARNING_ENTRY,
+  "lg.stage1.story.1": PLACEHOLDER_LEARNING_ENTRY,
+  "lg.stage1.story.2": PLACEHOLDER_LEARNING_ENTRY,
+  "lg.stage1.story.3": PLACEHOLDER_LEARNING_ENTRY,
+  "lg.stage2.maama": PLACEHOLDER_LEARNING_ENTRY,
+  "lg.stage2.taata": PLACEHOLDER_LEARNING_ENTRY,
+  "lg.stage2.omwana": PLACEHOLDER_LEARNING_ENTRY,
+  "lg.stage2.ennyumba": PLACEHOLDER_LEARNING_ENTRY,
+  "lg.stage2.amazzi": PLACEHOLDER_LEARNING_ENTRY,
+  "lg.stage2.ekitabo": PLACEHOLDER_LEARNING_ENTRY,
+  "lg.stage2.story.1": PLACEHOLDER_LEARNING_ENTRY,
+  "lg.stage2.story.2": PLACEHOLDER_LEARNING_ENTRY,
+  "lg.stage2.story.3": PLACEHOLDER_LEARNING_ENTRY,
+  "lg.stage2.story.4": PLACEHOLDER_LEARNING_ENTRY,
   amazzi: { source: require("@/assets/audio/Amazzi.mp3") },
   bulungi: { source: require("@/assets/audio/Bulungi.mp3") },
   "oli-otya": { source: require("@/assets/audio/oli-otya.m4a") },

@@ -34,9 +34,11 @@ interface ChildContextType {
   activeChild: ActiveChildProfile | null;
   setActiveChild: (child: ActiveChildProfile | null) => void;
   activateChildMode: (child: ActiveChildProfile) => Promise<void>;
+  completeChildModeEntry: () => void;
   deactivateChildMode: () => Promise<void>;
   updateActiveChildProfile: (child: ActiveChildProfile) => Promise<void>;
   clearActiveChildForSignOut: () => Promise<void>;
+  isEnteringChildMode: boolean;
   isRestoringActiveChild: boolean;
   requiresParentUnlock: boolean;
 }
@@ -45,6 +47,7 @@ export const ChildContext = createContext<ChildContextType | undefined>(undefine
 
 const PROGRESS_ACTIVITY_TYPES = ['language', 'learning', 'counting', 'words', 'stories', 'coloring'];
 export const SIGN_OUT_PROGRESS_SYNC_TIMEOUT_MS = 750;
+export const CHILD_MODE_ENTRY_TIMEOUT_MS = 5_000;
 
 export const ChildProvider: React.FC<{
   accountId?: string | null;
@@ -52,14 +55,24 @@ export const ChildProvider: React.FC<{
 }> = ({ accountId = null, children }) => {
   const [activeChild, setActiveChildState] = useState<ActiveChildProfile | null>(null);
   const [restoredAccountId, setRestoredAccountId] = useState<string | null>(null);
+  const [isEnteringChildMode, setIsEnteringChildMode] = useState(false);
   const [requiresParentUnlock, setRequiresParentUnlock] = useState(false);
   const activeChildRef = useRef<ActiveChildProfile | null>(null);
   const accountIdRef = useRef<string | null>(accountId);
   const childWorkGenerationRef = useRef(0);
   const childWorkAbortControllerRef = useRef<AbortController | null>(null);
+  const childModeEntryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   accountIdRef.current = accountId;
   const isRestoringActiveChild =
     Boolean(accountId) && restoredAccountId !== accountId;
+
+  const completeChildModeEntry = useCallback(() => {
+    if (childModeEntryTimeoutRef.current) {
+      clearTimeout(childModeEntryTimeoutRef.current);
+      childModeEntryTimeoutRef.current = null;
+    }
+    setIsEnteringChildMode(false);
+  }, []);
 
   const setActiveChild = useCallback((child: ActiveChildProfile | null) => {
     const previousChild = activeChildRef.current;
@@ -71,6 +84,7 @@ export const ChildProvider: React.FC<{
     activeChildRef.current = child;
     setActiveChildState(child);
     setRequiresParentUnlock(false);
+    if (!child) completeChildModeEntry();
 
     const currentAccountId = accountIdRef.current;
     if (currentAccountId) {
@@ -131,7 +145,7 @@ export const ChildProvider: React.FC<{
     })().catch((error) => {
       console.warn('Could not finish detached child progress synchronization:', error);
     });
-  }, []);
+  }, [completeChildModeEntry]);
 
   const activateChildMode = useCallback(
     async (child: ActiveChildProfile): Promise<void> => {
@@ -143,6 +157,18 @@ export const ChildProvider: React.FC<{
       // Persist before navigation so an immediate process restart cannot expose
       // parent routes without restoring the child-mode boundary.
       await saveSecureActiveChildSession(currentAccountId, child);
+      // The caller is still on a parent route until its awaited launch resumes.
+      // Mark that brief transition so parent-route guards do not mistake it for
+      // an attempt to leave child mode.
+      setIsEnteringChildMode(true);
+      if (childModeEntryTimeoutRef.current) {
+        clearTimeout(childModeEntryTimeoutRef.current);
+      }
+      childModeEntryTimeoutRef.current = setTimeout(() => {
+        childModeEntryTimeoutRef.current = null;
+        // Fail closed if the caller never reaches a child route.
+        setIsEnteringChildMode(false);
+      }, CHILD_MODE_ENTRY_TIMEOUT_MS);
       setActiveChild(child);
     },
     [setActiveChild],
@@ -192,6 +218,7 @@ export const ChildProvider: React.FC<{
     childWorkAbortControllerRef.current = null;
     activeChildRef.current = null;
     setActiveChildState(null);
+    completeChildModeEntry();
     setRequiresParentUnlock(false);
 
     if (!restoringAccountId) {
@@ -252,7 +279,7 @@ export const ChildProvider: React.FC<{
     return () => {
       cancelled = true;
     };
-  }, [accountId, setActiveChild]);
+  }, [accountId, completeChildModeEntry, setActiveChild]);
 
   const clearActiveChildForSignOut = useCallback(async (): Promise<void> => {
     const previousChild = activeChildRef.current;
@@ -262,6 +289,7 @@ export const ChildProvider: React.FC<{
     childWorkAbortControllerRef.current = null;
     activeChildRef.current = null;
     setActiveChildState(null);
+    completeChildModeEntry();
     setRequiresParentUnlock(false);
     cancelScheduledProgressSync();
     cancelScheduledStreakSync();
@@ -300,7 +328,16 @@ export const ChildProvider: React.FC<{
     ]);
 
     if (timeout) clearTimeout(timeout);
-  }, []);
+  }, [completeChildModeEntry]);
+
+  React.useEffect(
+    () => () => {
+      if (childModeEntryTimeoutRef.current) {
+        clearTimeout(childModeEntryTimeoutRef.current);
+      }
+    },
+    [],
+  );
 
   return (
     <ChildContext.Provider
@@ -308,7 +345,9 @@ export const ChildProvider: React.FC<{
         activeChild,
         activateChildMode,
         clearActiveChildForSignOut,
+        completeChildModeEntry,
         deactivateChildMode,
+        isEnteringChildMode,
         isRestoringActiveChild,
         requiresParentUnlock,
         setActiveChild,

@@ -243,8 +243,18 @@ describe("streak navigation runtime relationship", () => {
     );
     expect(requiresAuthenticatedSession("/child/games/museum")).toBe(true);
     expect(requiresAuthenticatedSession("/login")).toBe(false);
-    expect(shouldGateParentRoute("child-1")).toBe(true);
-    expect(shouldGateParentRoute(null)).toBe(false);
+    expect(shouldGateParentRoute("/parent", "child-1")).toBe(true);
+    expect(
+      shouldGateParentRoute(
+        "/parent/child-detail/child-1",
+        "child-1",
+        false,
+        true,
+      ),
+    ).toBe(false);
+    expect(shouldGateParentRoute("/parent", null)).toBe(false);
+    expect(shouldGateParentRoute("/parent/settings", null, true)).toBe(true);
+    expect(shouldGateParentRoute("/child/learning", "child-1")).toBe(false);
     expect(requiresParentGateForActiveChild("/child-list", "child-1")).toBe(
       true,
     );
@@ -272,6 +282,14 @@ describe("streak navigation runtime relationship", () => {
       requiresParentGateForActiveChild("/parent/settings", null, true),
     ).toBe(true);
     expect(
+      requiresParentGateForActiveChild(
+        "/parent/child-detail/child-1",
+        "child-1",
+        false,
+        true,
+      ),
+    ).toBe(false);
+    expect(
       requiresParentGateForActiveChild("/child/parent-gate", null, true),
     ).toBe(false);
   });
@@ -292,4 +310,5 @@ describe("streak navigation runtime relationship", () => {
     expect(screen.getByTestId("active-streak-stats")).toBeTruthy();
     expect(screen.queryByTestId("child-streak-enabled-switch")).toBeNull();
   });
+
 });

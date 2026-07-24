@@ -1,29 +1,50 @@
-import { Stack, useRouter } from "expo-router";
+import { Stack, usePathname, useRouter } from "expo-router";
 import { useEffect } from "react";
 import { LanguageProvider } from "@/context/language-context";
 import { useChild } from "@/context/ChildContext";
 
-export const shouldGateParentRoute = (activeChildId?: string | null): boolean =>
-  Boolean(activeChildId);
+export const shouldGateParentRoute = (
+  routePathname: string,
+  activeChildId?: string | null,
+  requiresParentUnlock = false,
+  isEnteringChildMode = false,
+): boolean =>
+  (routePathname === "/parent" || routePathname.startsWith("/parent/")) &&
+  (requiresParentUnlock ||
+    (Boolean(activeChildId) && !isEnteringChildMode));
 
 export default function RootLayout() {
   const router = useRouter();
-  const { activeChild, isRestoringActiveChild, requiresParentUnlock } = useChild();
+  const pathname = usePathname();
+  const {
+    activeChild,
+    isEnteringChildMode,
+    isRestoringActiveChild,
+    requiresParentUnlock,
+  } = useChild();
+  const shouldGateCurrentRoute = shouldGateParentRoute(
+    pathname,
+    activeChild?.id,
+    requiresParentUnlock,
+    isEnteringChildMode,
+  );
+  const shouldHideParentRoutes =
+    requiresParentUnlock ||
+    (Boolean(activeChild?.id) && !isEnteringChildMode);
 
   useEffect(() => {
-    if (
-      !isRestoringActiveChild &&
-      (shouldGateParentRoute(activeChild?.id) || requiresParentUnlock)
-    ) {
+    // Parent layouts can remain mounted underneath a child route. Only the
+    // currently visible parent route may initiate the gate redirect.
+    if (!isRestoringActiveChild && shouldGateCurrentRoute) {
       router.replace("/child/parent-gate");
     }
-  }, [activeChild?.id, isRestoringActiveChild, requiresParentUnlock, router]);
+  }, [
+    isRestoringActiveChild,
+    router,
+    shouldGateCurrentRoute,
+  ]);
 
-  if (
-    isRestoringActiveChild ||
-    shouldGateParentRoute(activeChild?.id) ||
-    requiresParentUnlock
-  ) {
+  if (isRestoringActiveChild || shouldHideParentRoutes) {
     return null;
   }
 

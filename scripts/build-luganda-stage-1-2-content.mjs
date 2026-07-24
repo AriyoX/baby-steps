@@ -1,1034 +1,1464 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repositoryRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const generatedAt = "2026-07-18T12:00:00+03:00";
-const publishedAt = "2026-07-18 09:00:00+00";
-const contentVersion = 3;
+const generatedAt = "2026-07-23T21:00:00+03:00";
+const publishedAt = "2026-07-23 18:00:00+00";
+const contentVersion = 4;
 
-const image = (path, purpose) => ({
-  path: `assets/images/${path}`,
-  reference: path,
-  purpose,
-  status: "empty-placeholder",
-});
-
-const audio = (key, path, purpose) => ({
-  key,
-  path: `assets/audio/${path}`,
-  reference: `assets/audio/${path}`,
-  purpose,
-  status: "empty-placeholder",
-});
-
-const images = [
-  image("learning/lg/stage-1/stage-card.png", "Stage 1 card"),
-  image("learning/lg/stage-1/greeting-oli-otya.png", "Oli otya? greeting scene"),
-  image("learning/lg/stage-1/reply-gyendi.png", "Gyendi reply scene"),
-  image("learning/lg/stage-1/work-greeting-gyebale-ko.png", "Gyebale ko work-greeting scene"),
-  image("learning/lg/stage-1/thanks-webale.png", "Webale gratitude scene"),
-  image("learning/lg/stage-1/story-greeting-1.png", "Stage 1 story page 1"),
-  image("learning/lg/stage-1/story-greeting-2.png", "Stage 1 story page 2"),
-  image("learning/lg/stage-1/story-greeting-3.png", "Stage 1 story page 3"),
-  image("learning/lg/stage-2/stage-card.png", "Stage 2 card"),
-  image("learning/lg/stage-2/maama.png", "Maama concept image"),
-  image("learning/lg/stage-2/taata.png", "Taata concept image"),
-  image("learning/lg/stage-2/omwana.png", "Omwana concept image"),
-  image("learning/lg/stage-2/ennyumba.png", "Ennyumba concept image"),
-  image("learning/lg/stage-2/amazzi.png", "Amazzi concept image"),
-  image("learning/lg/stage-2/ekitabo.png", "Ekitabo concept image"),
-  image("learning/lg/stage-2/story-home-1.png", "Stage 2 story page 1"),
-  image("learning/lg/stage-2/story-home-2.png", "Stage 2 story page 2"),
-  image("learning/lg/stage-2/story-home-3.png", "Stage 2 story page 3"),
-  image("learning/lg/stage-2/story-home-4.png", "Stage 2 story page 4"),
-  image("learning/lg/menus/words.png", "Word Game menu card"),
-  image("learning/lg/menus/puzzles.png", "Puzzle Game menu card"),
-  image("learning/lg/menus/cards.png", "Cards Matching menu card"),
-  image("learning/lg/menus/learning.png", "Learning Game menu card"),
-  image("learning/lg/menus/numbers.png", "Counting Game menu card"),
-  image("learning/lg/puzzles/greeting.png", "Greeting-scene puzzle"),
-  image("learning/lg/puzzles/family-home.png", "Family-at-home puzzle"),
-  image("learning/lg/puzzles/book-and-water.png", "Book-and-water puzzle"),
-  image("learning/lg/counting/children.png", "Counting children"),
-  image("learning/lg/counting/books.png", "Counting books"),
-  image("learning/lg/counting/cups.png", "Counting cups"),
-  image("learning/lg/counting/houses.png", "Counting houses"),
-  image("learning/lg/counting/water-cups.png", "Counting cups of water"),
-  image("learning/lg/coloring/greeting.png", "Greeting coloring page"),
-  image("learning/lg/coloring/maama.png", "Maama coloring page"),
-  image("learning/lg/coloring/taata.png", "Taata coloring page"),
-  image("learning/lg/coloring/omwana.png", "Omwana coloring page"),
-  image("learning/lg/coloring/ennyumba.png", "Ennyumba coloring page"),
+const curriculumSources = [
+  "curriculum_guide/Baby_Steps_Lgeacy_Content_Lead.md",
+  "curriculum_guide/Baby_Steps_Content_Tracker_Stages_1_2.md",
 ];
 
-const audioFiles = [
-  audio("lg.stage1.oli_otya", "learning/lg/stage-1/oli-otya.mp3", "Oli otya?"),
-  audio("lg.stage1.gyendi", "learning/lg/stage-1/gyendi.mp3", "Gyendi"),
-  audio("lg.stage1.gyebale_ko", "learning/lg/stage-1/gyebale-ko.mp3", "Gyebale ko"),
-  audio("lg.stage1.webale", "learning/lg/stage-1/webale.mp3", "Webale"),
-  audio("lg.stage1.story.1", "learning/lg/stage-1/story-greeting-1.mp3", "Stage 1 story page 1"),
-  audio("lg.stage1.story.2", "learning/lg/stage-1/story-greeting-2.mp3", "Stage 1 story page 2"),
-  audio("lg.stage1.story.3", "learning/lg/stage-1/story-greeting-3.mp3", "Stage 1 story page 3"),
-  audio("lg.stage2.maama", "learning/lg/stage-2/maama.mp3", "Maama"),
-  audio("lg.stage2.taata", "learning/lg/stage-2/taata.mp3", "Taata"),
-  audio("lg.stage2.omwana", "learning/lg/stage-2/omwana.mp3", "Omwana"),
-  audio("lg.stage2.ennyumba", "learning/lg/stage-2/ennyumba.mp3", "Ennyumba"),
-  audio("lg.stage2.amazzi", "learning/lg/stage-2/amazzi.mp3", "Amazzi"),
-  audio("lg.stage2.ekitabo", "learning/lg/stage-2/ekitabo.mp3", "Ekitabo"),
-  audio("lg.stage2.story.1", "learning/lg/stage-2/story-home-1.mp3", "Stage 2 story page 1"),
-  audio("lg.stage2.story.2", "learning/lg/stage-2/story-home-2.mp3", "Stage 2 story page 2"),
-  audio("lg.stage2.story.3", "learning/lg/stage-2/story-home-3.mp3", "Stage 2 story page 3"),
-  audio("lg.stage2.story.4", "learning/lg/stage-2/story-home-4.mp3", "Stage 2 story page 4"),
-  audio("lg.counting.emu", "learning/lg/counting/emu.mp3", "Emu / one"),
-  audio("lg.counting.bbiri", "learning/lg/counting/bbiri.mp3", "Bbiri / two"),
-  audio("lg.counting.ssatu", "learning/lg/counting/ssatu.mp3", "Ssatu / three"),
-  audio("lg.counting.nnya", "learning/lg/counting/nnya.mp3", "Nnya / four"),
-  audio("lg.counting.ttaano", "learning/lg/counting/ttaano.mp3", "Ttaano / five"),
-];
+const reviewStatus =
+  "Draft text plus temporary bundled images and a placeholder audio cue. Native Luganda, early-years, cultural, accessibility, and final-media review are still required.";
 
-const audioByKey = Object.fromEntries(audioFiles.map((entry) => [entry.key, entry]));
+const evidenceBoundary =
+  "Completion records exposure or supported selection only; it does not prove speaking, independent recall, or mastery.";
 
-const assetFields = (audioKey, imageKey) => ({
-  audioKey,
-  audioAsset: audioByKey[audioKey].reference,
-  imageKey,
-});
-
-const itemReview = (conceptId, source) => ({
-  conceptId,
-  curriculumScope: "luganda-stage-1-2",
-  source,
-  reviewStatus: "native-speaker-educator-cultural-and-asset-review-required",
-  evidenceBoundary: "Completion records viewing or eventual selection, not speaking or mastery.",
-});
-
-const greetingConcepts = [
-  {
-    id: "oli-otya",
-    itemId: "how-are-you",
-    localText: "Oli otya?",
-    englishText: "How are you?",
-    imageKey: "learning/lg/stage-1/greeting-oli-otya.png",
-    audioKey: "lg.stage1.oli_otya",
-    source: "Peace Corps Uganda, Introductory Luganda Lessons (2008), Lesson 3",
+const imageCatalog = {
+  "learning-beginner.jpg": {
+    purpose: "Generic Learning Hub and game fallback",
+    status: "temporary-bundled-placeholder",
   },
-  {
-    id: "gyendi",
-    itemId: "i-am-fine",
-    localText: "Gyendi.",
-    englishText: "I am fine.",
-    imageKey: "learning/lg/stage-1/reply-gyendi.png",
-    audioKey: "lg.stage1.gyendi",
-    source: "Peace Corps Uganda, Introductory Luganda Lessons (2008), Lesson 3",
+  "african-focus.png": {
+    purpose: "Temporary greeting, body, menu, and puzzle scene",
+    status: "temporary-bundled-placeholder",
   },
-  {
-    id: "gyebale-ko",
-    itemId: "work-greeting",
-    localText: "Gyebale ko.",
-    englishText: "Thank you for your work.",
-    imageKey: "learning/lg/stage-1/work-greeting-gyebale-ko.png",
-    audioKey: "lg.stage1.gyebale_ko",
-    source: "Peace Corps Uganda, Introductory Luganda Lessons (2008), Lesson 3",
+  "african-logic.png": {
+    purpose: "Temporary body, game menu, and puzzle scene",
+    status: "temporary-bundled-placeholder",
   },
-  {
-    id: "webale",
-    itemId: "thank-you",
-    localText: "Webale.",
-    englishText: "Thank you.",
-    imageKey: "learning/lg/stage-1/thanks-webale.png",
-    audioKey: "lg.stage1.webale",
-    source: "Peace Corps Uganda, Introductory Luganda Lessons (2008)",
+  "african-patterns.png": {
+    purpose: "Temporary body, game menu, and puzzle scene",
+    status: "temporary-bundled-placeholder",
   },
-];
-
-const homeConcepts = [
-  {
-    id: "maama",
-    itemId: "mother",
-    localText: "Maama",
-    englishText: "Mother",
-    imageKey: "learning/lg/stage-2/maama.png",
-    audioKey: "lg.stage2.maama",
-    source: "Peace Corps Luganda learner materials; cross-checked against the existing app glossary",
+  "cards-matching.png": {
+    purpose: "Temporary body and Cards Matching artwork",
+    status: "temporary-bundled-placeholder",
   },
-  {
-    id: "taata",
-    itemId: "father",
-    localText: "Taata",
-    englishText: "Father",
-    imageKey: "learning/lg/stage-2/taata.png",
-    audioKey: "lg.stage2.taata",
-    source: "Peace Corps Luganda learner materials; cross-checked against the existing app glossary",
+  "numbers.png": {
+    purpose: "Existing Counting Game artwork",
+    status: "existing-bundled-asset",
   },
-  {
-    id: "omwana",
-    itemId: "child",
-    localText: "Omwana",
-    englishText: "Child",
-    imageKey: "learning/lg/stage-2/omwana.png",
-    audioKey: "lg.stage2.omwana",
-    source: "Snoxall, Luganda-English Dictionary; cross-checked against the existing app glossary",
+  "child.png": {
+    purpose: "Temporary child, body, feeling, and story scene",
+    status: "temporary-bundled-placeholder",
   },
-  {
-    id: "ennyumba",
-    itemId: "house",
-    localText: "Ennyumba",
-    englishText: "House",
-    imageKey: "learning/lg/stage-2/ennyumba.png",
-    audioKey: "lg.stage2.ennyumba",
-    source: "Peace Corps Luganda learner materials, household vocabulary",
+  "black-kid.jpg": {
+    purpose: "Temporary child, introduction, body, and feeling scene",
+    status: "temporary-bundled-placeholder",
   },
-  {
-    id: "amazzi",
-    itemId: "water",
-    localText: "Amazzi",
-    englishText: "Water",
-    imageKey: "learning/lg/stage-2/amazzi.png",
-    audioKey: "lg.stage2.amazzi",
-    source: "Peace Corps Luganda learner materials; cross-checked against the existing app glossary",
+  "river-kids.jpg": {
+    purpose: "Temporary greeting, farewell, and story scene",
+    status: "temporary-bundled-placeholder",
   },
-  {
-    id: "ekitabo",
-    itemId: "book",
-    localText: "Ekitabo",
-    englishText: "Book",
-    imageKey: "learning/lg/stage-2/ekitabo.png",
-    audioKey: "lg.stage2.ekitabo",
-    source: "Peace Corps Luganda learner materials, household vocabulary",
+  "culture.jpg": {
+    purpose: "Temporary morning, courtesy, feeling, and story scene",
+    status: "temporary-bundled-placeholder",
   },
-];
-
-const option = (concept, order) => ({
-  id: concept.id,
-  order,
-  localText: concept.localText,
-  englishText: concept.englishText,
-  imageKey: concept.imageKey,
-});
-
-const orderedOptions = (concepts, correctIndex) => {
-  const rotated = [...concepts.slice(correctIndex), ...concepts.slice(0, correctIndex)];
-  return rotated.map((concept, index) => option(concept, index + 1));
+  "coin.png": {
+    purpose: "Existing small-object fallback for Counting Game",
+    status: "existing-bundled-asset",
+  },
+  "rain.jpg": {
+    purpose: "Temporary later-day, tired, and afraid scene",
+    status: "temporary-bundled-placeholder",
+  },
+  "learning/lg/coloring/greeting.png": {
+    purpose: "Existing bundled greeting coloring card",
+    status: "existing-bundled-asset",
+  },
+  "learning/lg/coloring/omwana.png": {
+    purpose: "Existing bundled child coloring card",
+    status: "existing-bundled-asset",
+  },
 };
 
-const tapItems = (concepts) => concepts.map((concept, index) => ({
-  id: concept.itemId,
-  mechanic: "tap_to_learn",
-  order: index + 1,
-  word: concept.localText,
-  localText: concept.localText,
-  translation: concept.englishText,
-  englishText: concept.englishText,
-  exampleSentence: concept.localText,
-  ...assetFields(concept.audioKey, concept.imageKey),
-  readiness: "placeholder",
-  metadata: itemReview(`lg.concept.${concept.id}`, concept.source),
-}));
+const concept = ({
+  id,
+  localText,
+  englishText,
+  audioKey,
+  imageKey,
+  symbol,
+}) => ({
+  id,
+  localText,
+  englishText,
+  audioKey,
+  imageKey,
+  symbol,
+});
 
-const listenItems = greetingConcepts.map((concept, index) => ({
-  id: index < 2
-    ? ["listen-oli-otya", "listen-gyendi"][index]
-    : ["listen-gyebale-ko", "listen-webale"][index - 2],
-  mechanic: "listen_and_choose",
-  order: index + 1,
-  promptText: "Listen. Tap the words you hear.",
-  ...assetFields(concept.audioKey, concept.imageKey),
-  correctOptionId: concept.id,
-  options: orderedOptions(greetingConcepts, index),
-  readiness: "placeholder",
-  metadata: itemReview(`lg.concept.${concept.id}`, concept.source),
-}));
-
-const greetingStoryPages = [
-  {
-    id: "greeting-story-page-1",
-    localText: "Oli otya, Kato?",
-    bodyText: "How are you, Kato?",
-    imageKey: "learning/lg/stage-1/story-greeting-1.png",
-    audioKey: "lg.stage1.story.1",
-  },
-  {
-    id: "greeting-story-page-2",
+const stage1Concepts = [
+  concept({
+    id: "lg-greet-how-are-you",
+    localText: "Oli otya?",
+    englishText: "How are you?",
+    audioKey: "lg-s1-oli-otya",
+    imageKey: "river-kids.jpg",
+    symbol: "👋",
+  }),
+  concept({
+    id: "lg-greet-im-fine",
     localText: "Gyendi.",
-    bodyText: "I am fine.",
-    imageKey: "learning/lg/stage-1/story-greeting-2.png",
-    audioKey: "lg.stage1.story.2",
-  },
-  {
-    id: "greeting-story-page-3",
-    localText: "Gyebale ko. Kale, naawe gyebale.",
-    bodyText: "Thank you for your work. Okay, thank you too.",
-    imageKey: "learning/lg/stage-1/story-greeting-3.png",
-    audioKey: "lg.stage1.story.3",
-  },
-].map((page) => ({
-  ...page,
-  audioAsset: audioByKey[page.audioKey].reference,
-}));
+    englishText: "I am fine.",
+    audioKey: "lg-s1-gyendi",
+    imageKey: "black-kid.jpg",
+    symbol: "🙂",
+  }),
+  concept({
+    id: "lg-greet-morning",
+    localText: "Wasuze otya nno?",
+    englishText: "Morning greeting: How did you spend the night?",
+    audioKey: "lg-s1-wasuze-otya-nno",
+    imageKey: "culture.jpg",
+    symbol: "🌅",
+  }),
+  concept({
+    id: "lg-greet-day",
+    localText: "Osiibye otya nno?",
+    englishText: "Later-day greeting: How have you spent the day?",
+    audioKey: "lg-s1-osiibye-otya-nno",
+    imageKey: "rain.jpg",
+    symbol: "☀️",
+  }),
+  concept({
+    id: "lg-courtesy-thanks",
+    localText: "Weebale.",
+    englishText: "Thank you.",
+    audioKey: "lg-s1-weebale",
+    imageKey: "child.png",
+    symbol: "🙏",
+  }),
+  concept({
+    id: "lg-courtesy-forgive",
+    localText: "Nsonyiwa.",
+    englishText: "Forgive me / excuse me.",
+    audioKey: "lg-s1-nsonyiwa",
+    imageKey: "learning-beginner.jpg",
+    symbol: "💛",
+  }),
+  concept({
+    id: "lg-farewell-goodbye",
+    localText: "Weeraba.",
+    englishText: "Goodbye.",
+    audioKey: "lg-s1-weeraba",
+    imageKey: "river-kids.jpg",
+    symbol: "👋",
+  }),
+  concept({
+    id: "lg-intro-i-am-amina",
+    localText: "Nze Amina.",
+    englishText: "I am Amina.",
+    audioKey: "lg-s1-nze-amina",
+    imageKey: "black-kid.jpg",
+    symbol: "🙋",
+  }),
+  concept({
+    id: "lg-intro-who-are-you",
+    localText: "Ggwe ani?",
+    englishText: "Who are you?",
+    audioKey: "lg-s1-ggwe-ani",
+    imageKey: "child.png",
+    symbol: "❓",
+  }),
+];
 
-const homeStoryPages = [
+const stage2Concepts = [
+  concept({
+    id: "lg-body-head",
+    localText: "Omutwe",
+    englishText: "Head",
+    audioKey: "lg-s2-omutwe",
+    imageKey: "child.png",
+    symbol: "🧑",
+  }),
+  concept({
+    id: "lg-body-eyes",
+    localText: "Amaaso",
+    englishText: "Eyes",
+    audioKey: "lg-s2-amaaso",
+    imageKey: "black-kid.jpg",
+    symbol: "👀",
+  }),
+  concept({
+    id: "lg-body-ears",
+    localText: "Amatu",
+    englishText: "Ears",
+    audioKey: "lg-s2-amatu",
+    imageKey: "river-kids.jpg",
+    symbol: "👂",
+  }),
+  concept({
+    id: "lg-body-nose",
+    localText: "Ennyindo",
+    englishText: "Nose",
+    audioKey: "lg-s2-ennyindo",
+    imageKey: "learning-beginner.jpg",
+    symbol: "👃",
+  }),
+  concept({
+    id: "lg-body-mouth",
+    localText: "Akamwa",
+    englishText: "Mouth",
+    audioKey: "lg-s2-akamwa",
+    imageKey: "african-focus.png",
+    symbol: "👄",
+  }),
+  concept({
+    id: "lg-body-hand-arm",
+    localText: "Omukono",
+    englishText: "Hand / arm",
+    audioKey: "lg-s2-omukono",
+    imageKey: "african-logic.png",
+    symbol: "🖐️",
+  }),
+  concept({
+    id: "lg-body-leg",
+    localText: "Okugulu",
+    englishText: "Leg",
+    audioKey: "lg-s2-okugulu",
+    imageKey: "cards-matching.png",
+    symbol: "🦵",
+  }),
+  concept({
+    id: "lg-body-foot",
+    localText: "Ekigere",
+    englishText: "Foot",
+    audioKey: "lg-s2-ekigere",
+    imageKey: "african-patterns.png",
+    symbol: "🦶",
+  }),
+  concept({
+    id: "lg-feeling-happy",
+    localText: "Ndi musanyufu.",
+    englishText: "I am happy.",
+    audioKey: "lg-s2-ndi-musanyufu",
+    imageKey: "black-kid.jpg",
+    symbol: "😊",
+  }),
+  concept({
+    id: "lg-feeling-sad",
+    localText: "Ndi munakuwavu.",
+    englishText: "I am sad.",
+    audioKey: "lg-s2-ndi-munakuwavu",
+    imageKey: "river-kids.jpg",
+    symbol: "😔",
+  }),
+  concept({
+    id: "lg-feeling-tired",
+    localText: "Nkooye.",
+    englishText: "I am tired.",
+    audioKey: "lg-s2-nkooye",
+    imageKey: "rain.jpg",
+    symbol: "🥱",
+  }),
+  concept({
+    id: "lg-feeling-afraid",
+    localText: "Ntya.",
+    englishText: "I am afraid.",
+    audioKey: "lg-s2-ntya",
+    imageKey: "culture.jpg",
+    symbol: "😟",
+  }),
+];
+
+const allConcepts = [...stage1Concepts, ...stage2Concepts];
+const conceptsById = Object.fromEntries(
+  allConcepts.map((entry) => [entry.id, entry]),
+);
+
+const getConcept = (id) => {
+  const entry = conceptsById[id];
+  if (!entry) {
+    throw new Error(`Unknown curriculum concept: ${id}`);
+  }
+  return entry;
+};
+
+const conceptMetadata = (entry) => ({
+  conceptId: entry.id,
+  curriculumScope: "luganda-initial-stages-1-2",
+  reviewStatus,
+  mediaStatus: "temporary-bundled-image-and-placeholder-audio-cue",
+  evidenceBoundary,
+});
+
+const tapItem = (id, order, conceptId) => {
+  const entry = getConcept(conceptId);
+  return {
+    id,
+    mechanic: "tap_to_learn",
+    order,
+    word: entry.localText,
+    localText: entry.localText,
+    translation: entry.englishText,
+    englishText: entry.englishText,
+    exampleSentence: entry.localText,
+    imageKey: entry.imageKey,
+    audioKey: entry.audioKey,
+    audioAsset: "placeholder_learning_cue",
+    readiness: "placeholder",
+    metadata: conceptMetadata(entry),
+  };
+};
+
+const orderedOptions = (conceptIds) =>
+  conceptIds.map((conceptId, index) => {
+    const entry = getConcept(conceptId);
+    return {
+      id: entry.id,
+      order: index + 1,
+      localText: entry.localText,
+      englishText: entry.englishText,
+      imageKey: entry.imageKey,
+    };
+  });
+
+const listenItem = (id, order, targetConceptId, optionConceptIds) => {
+  const target = getConcept(targetConceptId);
+  return {
+    id,
+    mechanic: "listen_and_choose",
+    order,
+    promptText: "Wulira, olonde ekifaananyi ekituufu. / Listen and choose the correct picture.",
+    correctOptionId: target.id,
+    options: orderedOptions(optionConceptIds),
+    imageKey: target.imageKey,
+    audioKey: target.audioKey,
+    audioAsset: "placeholder_learning_cue",
+    readiness: "placeholder",
+    metadata: conceptMetadata(target),
+  };
+};
+
+const chooseWordItem = ({
+  id,
+  order,
+  localPrompt,
+  englishPrompt,
+  targetConceptId,
+  optionConceptIds,
+}) => {
+  const target = getConcept(targetConceptId);
+  return {
+    id,
+    mechanic: "choose_correct_word",
+    order,
+    promptText: `${localPrompt} / ${englishPrompt}`,
+    questionText: englishPrompt,
+    correctOptionId: target.id,
+    options: orderedOptions(optionConceptIds).map(
+      ({ order: _order, ...option }) => option,
+    ),
+    readiness: "placeholder",
+    metadata: conceptMetadata(target),
+  };
+};
+
+const quizQuestion = ({
+  id,
+  localPrompt,
+  englishPrompt,
+  optionConceptIds,
+  targetConceptId,
+  explanationText,
+}) => {
+  const target = getConcept(targetConceptId);
+  return {
+    id,
+    promptText: `${localPrompt} / ${englishPrompt}`,
+    promptEnglishText: englishPrompt,
+    correctOptionId: target.id,
+    options: optionConceptIds.map((conceptId) => {
+      const entry = getConcept(conceptId);
+      return {
+        id: entry.id,
+        text: entry.localText,
+        englishText: entry.englishText,
+      };
+    }),
+    explanationText,
+  };
+};
+
+const stage1StoryPages = [
   {
-    id: "helping-at-home",
-    localText: "Maama ne Taata bali mu nnyumba.",
-    bodyText: "Mother and father are in the house.",
-    imageKey: "learning/lg/stage-2/story-home-1.png",
-    audioKey: "lg.stage2.story.1",
+    id: "lg-story-01-p01",
+    localText: "Ku makya, Amina alaba Kato.",
+    englishText: "In the morning, Amina sees Kato.",
+    imageKey: "culture.jpg",
+    audioKey: "lg-s1-story-p01",
   },
   {
-    id: "book-at-home",
-    localText: "Omwana alina ekitabo.",
-    bodyText: "The child has a book.",
-    imageKey: "learning/lg/stage-2/story-home-2.png",
-    audioKey: "lg.stage2.story.2",
+    id: "lg-story-01-p02",
+    localText: 'Amina agamba nti, "Oli otya, Kato?"',
+    englishText: 'Amina says, "How are you, Kato?"',
+    imageKey: "river-kids.jpg",
+    audioKey: "lg-s1-story-p02",
   },
   {
-    id: "water-at-home",
-    localText: "Omwana anywa amazzi.",
-    bodyText: "The child drinks water.",
-    imageKey: "learning/lg/stage-2/story-home-3.png",
-    audioKey: "lg.stage2.story.3",
+    id: "lg-story-01-p03",
+    localText: 'Kato addamu nti, "Gyendi. Weebale."',
+    englishText: 'Kato replies, "I am fine. Thank you."',
+    imageKey: "black-kid.jpg",
+    audioKey: "lg-s1-story-p03",
   },
   {
-    id: "kind-words",
-    localText: "Webale, Maama. Webale, Taata.",
-    bodyText: "Thank you, Mother. Thank you, Father.",
-    imageKey: "learning/lg/stage-2/story-home-4.png",
-    audioKey: "lg.stage2.story.4",
+    id: "lg-story-01-p04",
+    localText: 'Bwe baba bagenda, bagamba nti, "Weeraba."',
+    englishText: 'When they are leaving, they say, "Goodbye."',
+    imageKey: "river-kids.jpg",
+    audioKey: "lg-s1-story-p04",
   },
-].map((page) => ({
-  ...page,
-  audioAsset: audioByKey[page.audioKey].reference,
-}));
+];
+
+const stage2StoryPages = [
+  {
+    id: "lg-story-02-p01",
+    localText: "Kato akwata omupiira n'emikono gye.",
+    englishText: "Kato holds the ball with his hands.",
+    imageKey: "child.png",
+    audioKey: "lg-s2-story-p01",
+  },
+  {
+    id: "lg-story-02-p02",
+    localText: "Agukuba n'ekigere kye.",
+    englishText: "He kicks it with his foot.",
+    imageKey: "african-focus.png",
+    audioKey: "lg-s2-story-p02",
+  },
+  {
+    id: "lg-story-02-p03",
+    localText: "Omupiira gugenda wala. Kato munakuwavu.",
+    englishText: "The ball goes far away. Kato is sad.",
+    imageKey: "river-kids.jpg",
+    audioKey: "lg-s2-story-p03",
+  },
+  {
+    id: "lg-story-02-p04",
+    localText:
+      'Amina aguleeta. Kato musanyufu era agamba nti, "Weebale."',
+    englishText:
+      'Amina brings it back. Kato is happy and says, "Thank you."',
+    imageKey: "black-kid.jpg",
+    audioKey: "lg-s2-story-p04",
+  },
+];
+
+const hubStoryPages = (pages) =>
+  pages.map((page) => ({
+    id: page.id,
+    localText: page.localText,
+    bodyText: page.englishText,
+    imageKey: page.imageKey,
+    audioKey: page.audioKey,
+    audioAsset: "placeholder_learning_cue",
+  }));
+
+const stage1QuizQuestions = [
+  quizQuestion({
+    id: "lg-s1-q01",
+    localPrompt: "Londa ebigambo eby'okubuuza embeera y'omuntu.",
+    englishPrompt: "Choose the words used to ask how a person is.",
+    optionConceptIds: [
+      "lg-greet-how-are-you",
+      "lg-greet-im-fine",
+      "lg-farewell-goodbye",
+    ],
+    targetConceptId: "lg-greet-how-are-you",
+    explanationText: 'Oli otya? asks, "How are you?"',
+  }),
+  quizQuestion({
+    id: "lg-s1-q02",
+    localPrompt: "Londa eky'okuddamu ekitegeeza nti oli bulungi.",
+    englishPrompt: "Choose the response that says you are fine.",
+    optionConceptIds: [
+      "lg-courtesy-forgive",
+      "lg-greet-im-fine",
+      "lg-intro-who-are-you",
+    ],
+    targetConceptId: "lg-greet-im-fine",
+    explanationText: 'Gyendi. means "I am fine."',
+  }),
+  quizQuestion({
+    id: "lg-s1-q03",
+    localPrompt: "Londa ekigambo eky'okwebaza.",
+    englishPrompt: "Choose the word used for thanking.",
+    optionConceptIds: [
+      "lg-courtesy-thanks",
+      "lg-farewell-goodbye",
+      "lg-courtesy-forgive",
+    ],
+    targetConceptId: "lg-courtesy-thanks",
+    explanationText: 'Weebale. means "Thank you."',
+  }),
+  quizQuestion({
+    id: "lg-s1-q04",
+    localPrompt: "Londa ekigambo eky'okusaba okusonyiyibwa.",
+    englishPrompt: "Choose the word used to ask forgiveness.",
+    optionConceptIds: [
+      "lg-greet-im-fine",
+      "lg-courtesy-forgive",
+      "lg-greet-how-are-you",
+    ],
+    targetConceptId: "lg-courtesy-forgive",
+    explanationText: 'Nsonyiwa. means "Forgive me / excuse me."',
+  }),
+  quizQuestion({
+    id: "lg-s1-q05",
+    localPrompt: "Londa ekigambo eky'okusiibula.",
+    englishPrompt: "Choose the goodbye word.",
+    optionConceptIds: [
+      "lg-farewell-goodbye",
+      "lg-courtesy-thanks",
+      "lg-intro-i-am-amina",
+    ],
+    targetConceptId: "lg-farewell-goodbye",
+    explanationText: 'Weeraba. means "Goodbye."',
+  }),
+];
+
+const stage2QuizQuestions = [
+  quizQuestion({
+    id: "lg-s2-q01",
+    localPrompt: "Londa ekigambo ekitegeeza 'head'.",
+    englishPrompt: "Choose the Luganda word for head.",
+    optionConceptIds: ["lg-body-head", "lg-body-ears", "lg-body-foot"],
+    targetConceptId: "lg-body-head",
+    explanationText: 'Omutwe means "head."',
+  }),
+  quizQuestion({
+    id: "lg-s2-q02",
+    localPrompt: "Londa ekigambo ekitegeeza 'ears'.",
+    englishPrompt: "Choose the Luganda word for ears.",
+    optionConceptIds: ["lg-body-eyes", "lg-body-ears", "lg-body-mouth"],
+    targetConceptId: "lg-body-ears",
+    explanationText: 'Amatu means "ears."',
+  }),
+  quizQuestion({
+    id: "lg-s2-q03",
+    localPrompt: "Mu Luganda, ogamba otya nti 'I am happy'?",
+    englishPrompt: 'How do you say "I am happy" in Luganda?',
+    optionConceptIds: [
+      "lg-feeling-tired",
+      "lg-feeling-happy",
+      "lg-feeling-sad",
+    ],
+    targetConceptId: "lg-feeling-happy",
+    explanationText: 'Ndi musanyufu. means "I am happy."',
+  }),
+  quizQuestion({
+    id: "lg-s2-q04",
+    localPrompt: "Mu Luganda, ogamba otya nti 'I am tired'?",
+    englishPrompt: 'How do you say "I am tired" in Luganda?',
+    optionConceptIds: [
+      "lg-feeling-afraid",
+      "lg-feeling-happy",
+      "lg-feeling-tired",
+    ],
+    targetConceptId: "lg-feeling-tired",
+    explanationText: 'Nkooye. means "I am tired."',
+  }),
+  quizQuestion({
+    id: "lg-s2-q05",
+    localPrompt: "Londa ekigambo ekitegeeza 'foot'.",
+    englishPrompt: "Choose the Luganda word for foot.",
+    optionConceptIds: ["lg-body-hand-arm", "lg-body-leg", "lg-body-foot"],
+    targetConceptId: "lg-body-foot",
+    explanationText: 'Ekigere means "foot."',
+  }),
+];
+
+const lesson = ({
+  id,
+  order,
+  title,
+  description,
+  mechanic,
+  items,
+}) => ({
+  id,
+  order,
+  title,
+  description,
+  mechanic,
+  isStartable: true,
+  isLocked: false,
+  readiness: "placeholder",
+  status: "startable",
+  items,
+  metadata: {
+    reviewStatus,
+    implementationStatus: "playable-technical-draft",
+  },
+});
+
+const stage1Lessons = [
+  lesson({
+    id: "lg-s1-l1-meet-greetings",
+    order: 1,
+    title: "Meet the greetings",
+    description: "Tap each card to meet four everyday greetings and replies.",
+    mechanic: "tap_to_learn",
+    items: [
+      tapItem("lg-s1-l1-i01", 1, "lg-greet-how-are-you"),
+      tapItem("lg-s1-l1-i02", 2, "lg-greet-im-fine"),
+      tapItem("lg-s1-l1-i03", 3, "lg-greet-morning"),
+      tapItem("lg-s1-l1-i04", 4, "lg-greet-day"),
+    ],
+  }),
+  lesson({
+    id: "lg-s1-l2-listen-greet",
+    order: 2,
+    title: "Listen and greet",
+    description: "Listen, then choose the matching greeting scene.",
+    mechanic: "listen_and_choose",
+    items: [
+      listenItem("lg-s1-l2-i01", 1, "lg-greet-morning", [
+        "lg-greet-morning",
+        "lg-greet-day",
+        "lg-courtesy-thanks",
+      ]),
+      listenItem("lg-s1-l2-i02", 2, "lg-greet-day", [
+        "lg-greet-day",
+        "lg-greet-morning",
+        "lg-farewell-goodbye",
+      ]),
+      listenItem("lg-s1-l2-i03", 3, "lg-greet-how-are-you", [
+        "lg-greet-how-are-you",
+        "lg-courtesy-forgive",
+        "lg-farewell-goodbye",
+      ]),
+      listenItem("lg-s1-l2-i04", 4, "lg-greet-im-fine", [
+        "lg-greet-im-fine",
+        "lg-courtesy-forgive",
+        "lg-farewell-goodbye",
+      ]),
+    ],
+  }),
+  lesson({
+    id: "lg-s1-l3-courtesy",
+    order: 3,
+    title: "Courtesy words",
+    description: "Meet words for thanking, apologising, and saying goodbye.",
+    mechanic: "tap_to_learn",
+    items: [
+      tapItem("lg-s1-l3-i01", 1, "lg-courtesy-thanks"),
+      tapItem("lg-s1-l3-i02", 2, "lg-courtesy-forgive"),
+      tapItem("lg-s1-l3-i03", 3, "lg-farewell-goodbye"),
+    ],
+  }),
+  lesson({
+    id: "lg-s1-l4-names-responses",
+    order: 4,
+    title: "Names and responses",
+    description: "Meet a fixed name model and an informal question.",
+    mechanic: "tap_to_learn",
+    items: [
+      tapItem("lg-s1-l4-i01", 1, "lg-intro-i-am-amina"),
+      tapItem("lg-s1-l4-i02", 2, "lg-intro-who-are-you"),
+    ],
+  }),
+  lesson({
+    id: "lg-s1-l5-morning-story",
+    order: 5,
+    title: "A morning greeting",
+    description: "Read or listen together as Amina and Kato greet each other.",
+    mechanic: "story_bite",
+    items: [
+      {
+        id: "lg-s1-l5-story",
+        mechanic: "story_bite",
+        order: 1,
+        title: "Ennamusa y'oku makya / A morning greeting",
+        instructions: "Wulira oba soma awamu. / Listen or read together.",
+        pages: hubStoryPages(stage1StoryPages),
+        reflectionPrompt:
+          "Amina ne Kato bakozesezza ennamusa ki? / Which greetings did Amina and Kato use?",
+        imageKey: "culture.jpg",
+        readiness: "placeholder",
+        metadata: {
+          storyId: "lg-story-01-morning-greeting",
+          reviewStatus,
+          evidenceBoundary,
+        },
+      },
+    ],
+  }),
+  lesson({
+    id: "lg-s1-l6-friendly-review",
+    order: 6,
+    title: "Friendly review",
+    description: "Choose the best answer in five short review questions.",
+    mechanic: "mini_quiz",
+    items: [
+      {
+        id: "lg-s1-l6-quiz",
+        mechanic: "mini_quiz",
+        order: 1,
+        title: "Friendly review",
+        instructions: "Londa eky'okuddamu ekituufu. / Choose the best answer.",
+        questions: stage1QuizQuestions,
+        readiness: "placeholder",
+        metadata: {
+          quizId: "lg-quiz-stage-01",
+          reviewStatus,
+          evidenceBoundary,
+        },
+      },
+    ],
+  }),
+];
+
+const stage2Lessons = [
+  lesson({
+    id: "lg-s2-l1-my-body",
+    order: 1,
+    title: "My body",
+    description: "Tap each card to meet eight common body-part words.",
+    mechanic: "tap_to_learn",
+    items: [
+      tapItem("lg-s2-l1-i01", 1, "lg-body-head"),
+      tapItem("lg-s2-l1-i02", 2, "lg-body-eyes"),
+      tapItem("lg-s2-l1-i03", 3, "lg-body-ears"),
+      tapItem("lg-s2-l1-i04", 4, "lg-body-nose"),
+      tapItem("lg-s2-l1-i05", 5, "lg-body-mouth"),
+      tapItem("lg-s2-l1-i06", 6, "lg-body-hand-arm"),
+      tapItem("lg-s2-l1-i07", 7, "lg-body-leg"),
+      tapItem("lg-s2-l1-i08", 8, "lg-body-foot"),
+    ],
+  }),
+  lesson({
+    id: "lg-s2-l2-listen-point",
+    order: 2,
+    title: "Listen and point",
+    description: "Listen, then choose the matching body picture.",
+    mechanic: "listen_and_choose",
+    items: [
+      listenItem("lg-s2-l2-i01", 1, "lg-body-head", [
+        "lg-body-head",
+        "lg-body-eyes",
+        "lg-body-ears",
+      ]),
+      listenItem("lg-s2-l2-i02", 2, "lg-body-eyes", [
+        "lg-body-nose",
+        "lg-body-eyes",
+        "lg-body-mouth",
+      ]),
+      listenItem("lg-s2-l2-i03", 3, "lg-body-ears", [
+        "lg-body-hand-arm",
+        "lg-body-ears",
+        "lg-body-foot",
+      ]),
+      listenItem("lg-s2-l2-i04", 4, "lg-body-foot", [
+        "lg-body-leg",
+        "lg-body-hand-arm",
+        "lg-body-foot",
+      ]),
+    ],
+  }),
+  lesson({
+    id: "lg-s2-l3-how-i-feel",
+    order: 3,
+    title: "How I feel",
+    description: "Meet four simple first-person feeling statements.",
+    mechanic: "tap_to_learn",
+    items: [
+      tapItem("lg-s2-l3-i01", 1, "lg-feeling-happy"),
+      tapItem("lg-s2-l3-i02", 2, "lg-feeling-sad"),
+      tapItem("lg-s2-l3-i03", 3, "lg-feeling-tired"),
+      tapItem("lg-s2-l3-i04", 4, "lg-feeling-afraid"),
+    ],
+  }),
+  lesson({
+    id: "lg-s2-l4-body-word-check",
+    order: 4,
+    title: "Body-word check",
+    description: "Choose the Luganda word that matches each English meaning.",
+    mechanic: "choose_correct_word",
+    items: [
+      chooseWordItem({
+        id: "lg-s2-l4-i01",
+        order: 1,
+        localPrompt: "Londa ekigambo ekitegeeza 'nose'.",
+        englishPrompt: "Choose the Luganda word for nose.",
+        targetConceptId: "lg-body-nose",
+        optionConceptIds: ["lg-body-nose", "lg-body-mouth", "lg-body-head"],
+      }),
+      chooseWordItem({
+        id: "lg-s2-l4-i02",
+        order: 2,
+        localPrompt: "Londa ekigambo ekitegeeza 'mouth'.",
+        englishPrompt: "Choose the Luganda word for mouth.",
+        targetConceptId: "lg-body-mouth",
+        optionConceptIds: ["lg-body-eyes", "lg-body-mouth", "lg-body-ears"],
+      }),
+      chooseWordItem({
+        id: "lg-s2-l4-i03",
+        order: 3,
+        localPrompt: "Londa ekigambo ekitegeeza 'hand or arm'.",
+        englishPrompt: "Choose the Luganda word for hand or arm.",
+        targetConceptId: "lg-body-hand-arm",
+        optionConceptIds: [
+          "lg-body-foot",
+          "lg-body-hand-arm",
+          "lg-body-leg",
+        ],
+      }),
+      chooseWordItem({
+        id: "lg-s2-l4-i04",
+        order: 4,
+        localPrompt: "Londa ekigambo ekitegeeza 'leg'.",
+        englishPrompt: "Choose the Luganda word for leg.",
+        targetConceptId: "lg-body-leg",
+        optionConceptIds: ["lg-body-head", "lg-body-foot", "lg-body-leg"],
+      }),
+    ],
+  }),
+  lesson({
+    id: "lg-s2-l5-kato-ball-story",
+    order: 5,
+    title: "Kato and the ball",
+    description: "Read or listen together as Kato plays with a ball.",
+    mechanic: "story_bite",
+    items: [
+      {
+        id: "lg-s2-l5-story",
+        mechanic: "story_bite",
+        order: 1,
+        title: "Kato n'omupiira / Kato and the ball",
+        instructions: "Wulira oba soma awamu. / Listen or read together.",
+        pages: hubStoryPages(stage2StoryPages),
+        reflectionPrompt:
+          "Kato awulira atya ku nkomerero y'olugero? / How does Kato feel at the end of the story?",
+        imageKey: "child.png",
+        readiness: "placeholder",
+        metadata: {
+          storyId: "lg-story-02-kato-ball",
+          reviewStatus,
+          evidenceBoundary,
+        },
+      },
+    ],
+  }),
+  lesson({
+    id: "lg-s2-l6-body-feelings-review",
+    order: 6,
+    title: "Body and feelings review",
+    description: "Choose the best answer in five short review questions.",
+    mechanic: "mini_quiz",
+    items: [
+      {
+        id: "lg-s2-l6-quiz",
+        mechanic: "mini_quiz",
+        order: 1,
+        title: "Body and feelings review",
+        instructions: "Londa eky'okuddamu ekituufu. / Choose the best answer.",
+        questions: stage2QuizQuestions,
+        readiness: "placeholder",
+        metadata: {
+          quizId: "lg-quiz-stage-02",
+          reviewStatus,
+          evidenceBoundary,
+        },
+      },
+    ],
+  }),
+];
 
 const learningHub = {
   languageCode: "lg",
   displayName: "Luganda",
   localName: "Oluganda",
-  pathTitle: "Yiga Oluganda: Learn Luganda",
+  pathTitle: "Initial Luganda Learning Path",
   metadata: {
-    curriculumGuide: "curriculum_guide/learning-hub-curriculum-analysis.md",
-    scope: "Stages 1 and 2 only",
-    targetSupport: "Shared/pre-reader with optional early-reader print practice",
-    reviewStatus: "Technical draft; native Luganda, educator, cultural, accessibility, and asset review required",
+    curriculumSources,
+    scope: "Initial stages 1 and 2 only",
+    implementationStatus: "playable-technical-draft",
+    reviewStatus,
+    progressReset: `progressRevision ${contentVersion}`,
   },
   stages: [
     {
-      id: "first-words",
+      id: "lg-stage-01-greetings",
       order: 1,
       stageNumber: 1,
-      title: "Okulamusa n'Okwebaza: Greetings & Thanks",
-      description: "Learn four Luganda phrases for saying hello and thank you.",
-      imageKey: "learning/lg/stage-1/stage-card.png",
+      title: "Ennamusa, amannya n'empisa ennungi",
+      description:
+        "Greetings, names, thanking, apologising, and saying goodbye.",
+      imageKey: "river-kids.jpg",
       status: "preview",
-      estimatedMinutes: 18,
-      lessonCount: 6,
+      estimatedMinutes: 24,
+      lessonCount: stage1Lessons.length,
       isPractice: false,
       isLocked: false,
-      readiness: "draft",
+      readiness: "placeholder",
       mechanics: [
         "tap_to_learn",
         "listen_and_choose",
-        "match_word_picture",
-        "choose_correct_word",
         "story_bite",
         "mini_quiz",
       ],
       learningGoals: [
-        "Encounter four reviewed greeting and gratitude phrases with pictures and audio placeholders.",
-        "Eventually select a matching phrase after hearing or seeing a supported prompt.",
-        "Meet the phrases again in a short dialogue and mixed review.",
+        "Recognize four greetings and replies from supplied choices.",
+        "Meet three courtesy and farewell words.",
+        "Use a fixed name model and an informal question with adult support.",
       ],
-      placeholderMessage: "Replace empty images/audio and complete native-language and educator review before production release.",
+      placeholderMessage:
+        "Temporary bundled pictures and an audio cue are used until reviewed media is supplied.",
+      lessons: stage1Lessons,
       metadata: {
-        pathway: "shared-pre-reader-with-early-reader-options",
-        objectiveIds: ["lg.s1.exposure", "lg.s1.recognition", "lg.s1.context", "lg.s1.review"],
-        source: "Peace Corps Uganda, Introductory Luganda Lessons (2008), Lesson 3",
-        reviewStatus: "review-required",
+        parentSummary:
+          "This stage practises greetings, saying one's name, thanking, apologising, and saying goodbye.",
+        parentFollowUp:
+          "Mulumusagane ku makya ne ku ggulo. Buli omu yeeyanjule n'erinnya lye.",
+        conceptIds: stage1Concepts.map((entry) => entry.id),
+        reviewStatus,
       },
-      lessons: [
-        {
-          id: "greetings-1",
-          order: 1,
-          title: "Wuliriza era Olabe: Look and Listen",
-          description: "Tap each picture and listen to the Luganda words.",
-          mechanic: "tap_to_learn",
-          isStartable: true,
-          readiness: "placeholder",
-          metadata: { objectiveId: "lg.s1.exposure", ageSupport: "audio-and-image-first" },
-          items: tapItems(greetingConcepts),
-        },
-        {
-          id: "listen-greetings-1",
-          order: 2,
-          title: "Wuliriza Olonde: Listen and Pick",
-          description: "Listen. Then tap the words you hear.",
-          mechanic: "listen_and_choose",
-          isStartable: true,
-          readiness: "placeholder",
-          metadata: { objectiveId: "lg.s1.audio-recognition", requiresReviewedAudio: true },
-          items: listenItems,
-        },
-        {
-          id: "first-words-picture-match",
-          order: 3,
-          title: "Gatta Ekifaananyi: Match the Scene",
-          description: "Tap the picture that matches the words.",
-          mechanic: "match_word_picture",
-          isStartable: true,
-          readiness: "placeholder",
-          metadata: { objectiveId: "lg.s1.image-recognition" },
-          items: [greetingConcepts[0], greetingConcepts[2]].map((concept, index) => ({
-            id: index === 0 ? "match-how-are-you-picture" : "match-work-greeting-picture",
-            mechanic: "match_word_picture",
-            order: index + 1,
-            promptText: "Tap the picture that matches.",
-            targetText: concept.localText,
-            targetEnglishText: concept.englishText,
-            correctOptionId: concept.id,
-            options: greetingConcepts.map(option),
-            readiness: "placeholder",
-            metadata: itemReview(`lg.concept.${concept.id}`, concept.source),
-          })),
-        },
-        {
-          id: "first-words-word-check",
-          order: 4,
-          title: "Londa Ekigambo: Pick the Words",
-          description: "Find two Luganda phrases you know.",
-          mechanic: "choose_correct_word",
-          isStartable: true,
-          readiness: "placeholder",
-          metadata: { objectiveId: "lg.s1.print-recognition", ageSupport: "optional-early-reader" },
-          items: [greetingConcepts[3], greetingConcepts[1]].map((concept, index) => ({
-            id: index === 0 ? "choose-thank-you" : "choose-i-am-fine",
-            mechanic: "choose_correct_word",
-            order: index + 1,
-            promptText: `What means “${concept.englishText.replace(/\.$/, "")}” in Luganda?`,
-            questionText: concept.englishText,
-            correctOptionId: concept.id,
-            options: greetingConcepts.map(({ id, localText, englishText, imageKey }) => ({
-              id,
-              localText,
-              englishText,
-              imageKey,
-            })),
-            readiness: "placeholder",
-            metadata: itemReview(`lg.concept.${concept.id}`, concept.source),
-          })),
-        },
-        {
-          id: "first-words-greeting-story",
-          order: 5,
-          title: "Olugero Olutono: A Tiny Greeting Story",
-          description: "Read a short hello story.",
-          mechanic: "story_bite",
-          isStartable: true,
-          readiness: "placeholder",
-          metadata: { objectiveId: "lg.s1.context", source: "Adapted from Peace Corps Uganda Lesson 3 dialogue" },
-          items: [{
-            id: "first-words-greeting-story-pages",
-            mechanic: "story_bite",
-            order: 1,
-            title: "Oli otya?",
-            instructions: "Listen or read. Point to each speaker.",
-            pages: greetingStoryPages,
-            reflectionPrompt: "Which phrase would you use to ask how someone is?",
-            readiness: "placeholder",
-            metadata: itemReview("lg.s1.story.greeting", "Adapted from Peace Corps Uganda, Lesson 3"),
-          }],
-        },
-        {
-          id: "first-words-quick-review",
-          order: 6,
-          title: "Okwejjukanya: Quick Review",
-          description: "Pick the right Luganda phrase.",
-          mechanic: "mini_quiz",
-          isStartable: true,
-          readiness: "placeholder",
-          metadata: { objectiveId: "lg.s1.review", evidenceBoundary: "eventual-choice-only" },
-          items: [{
-            id: "first-words-review-questions",
-            mechanic: "mini_quiz",
-            order: 1,
-            title: "Stage 1 Check",
-            instructions: "Tap the right answer. Try again if you need to.",
-            questions: greetingConcepts.map((concept, index) => ({
-              id: `stage-1-review-${concept.id}`,
-              promptText: `What means “${concept.englishText.replace(/\.$/, "")}” in Luganda?`,
-              promptEnglishText: concept.englishText,
-              correctOptionId: concept.id,
-              options: orderedOptions(greetingConcepts, index).map(({ id, localText, englishText }) => ({
-                id,
-                text: localText,
-                englishText,
-              })),
-              explanationText: `${concept.localText}: ${concept.englishText}`,
-            })),
-            readiness: "placeholder",
-            metadata: itemReview("lg.s1.review", "Stage 1 reviewed-concept set"),
-          }],
-        },
-      ],
     },
     {
-      id: "family-home",
+      id: "lg-stage-02-body-feelings",
       order: 2,
       stageNumber: 2,
-      title: "Ab'omu Maka: Family & Home",
-      description: "Learn six Luganda words about family and home.",
-      imageKey: "learning/lg/stage-2/stage-card.png",
+      title: "Nze, omubiri gwange n'enneewulira zange",
+      description: "Eight common body parts and four simple feeling statements.",
+      imageKey: "child.png",
       status: "preview",
-      estimatedMinutes: 20,
-      lessonCount: 6,
+      estimatedMinutes: 28,
+      lessonCount: stage2Lessons.length,
       isPractice: false,
       isLocked: false,
-      readiness: "draft",
+      readiness: "placeholder",
       mechanics: [
         "tap_to_learn",
-        "match_word_picture",
+        "listen_and_choose",
         "choose_correct_word",
-        "cultural_card",
         "story_bite",
         "mini_quiz",
       ],
       learningGoals: [
-        "Encounter six concrete family and home words with pictures and audio placeholders.",
-        "Eventually select matching pictures or written words with support.",
-        "Meet the words in a short home context and mixed review.",
+        "Recognize eight common body-part words from supplied choices.",
+        "Meet four simple first-person feeling statements.",
+        "Revisit body and feeling words in a short story and mixed review.",
       ],
-      placeholderMessage: "Replace empty images/audio and complete native-language and educator review before production release.",
+      placeholderMessage:
+        "Temporary bundled pictures and an audio cue are used until reviewed media is supplied.",
+      lessons: stage2Lessons,
       metadata: {
-        pathway: "shared-pre-reader-with-early-reader-options",
-        prerequisiteStageId: "first-words",
-        objectiveIds: ["lg.s2.exposure", "lg.s2.recognition", "lg.s2.context", "lg.s2.review"],
-        reviewStatus: "review-required",
+        prerequisiteStageId: "lg-stage-01-greetings",
+        parentSummary:
+          "This stage practises common body parts and simple ways of saying happy, sad, tired, and afraid.",
+        parentFollowUp:
+          "Mulage omutwe, amaaso, amatu n'ekigere. Oluvannyuma buli omu alonde ebigambo ebitegeeza engeri gy'awuliramu.",
+        conceptIds: stage2Concepts.map((entry) => entry.id),
+        reviewStatus,
       },
-      lessons: [
-        {
-          id: "family-names-1",
-          order: 1,
-          title: "Ab'omu Maka: Family and Home Words",
-          description: "Tap each picture and listen to the Luganda word.",
-          mechanic: "tap_to_learn",
-          isStartable: true,
-          readiness: "placeholder",
-          metadata: { objectiveId: "lg.s2.exposure", ageSupport: "audio-and-image-first" },
-          items: tapItems(homeConcepts),
-        },
-        {
-          id: "home-things-1",
-          order: 2,
-          title: "Gatta Ekifaananyi: Match the Picture",
-          description: "Tap the picture that matches the word.",
-          mechanic: "match_word_picture",
-          isStartable: true,
-          readiness: "placeholder",
-          metadata: { objectiveId: "lg.s2.image-recognition" },
-          items: [homeConcepts[0], homeConcepts[3], homeConcepts[5]].map((concept, index) => ({
-            id: ["match-home-mother", "match-home-house", "match-home-book"][index],
-            mechanic: "match_word_picture",
-            order: index + 1,
-            promptText: "Tap the picture that matches.",
-            targetText: concept.localText,
-            targetEnglishText: concept.englishText,
-            correctOptionId: concept.id,
-            options: [homeConcepts[index], homeConcepts[index + 2], concept]
-              .filter((candidate, candidateIndex, all) =>
-                all.findIndex((entry) => entry.id === candidate.id) === candidateIndex)
-              .concat(homeConcepts.filter((candidate) => candidate.id !== concept.id))
-              .slice(0, 3)
-              .map(option),
-            readiness: "placeholder",
-            metadata: itemReview(`lg.concept.${concept.id}`, concept.source),
-          })),
-        },
-        {
-          id: "family-pick-word",
-          order: 3,
-          title: "Londa Ekigambo: Pick the Word",
-          description: "Find three Luganda words you know.",
-          mechanic: "choose_correct_word",
-          isStartable: true,
-          readiness: "placeholder",
-          metadata: { objectiveId: "lg.s2.print-recognition", ageSupport: "optional-early-reader" },
-          items: [homeConcepts[1], homeConcepts[2], homeConcepts[4]].map((concept, index) => ({
-            id: ["choose-family-father", "choose-family-child", "choose-home-water"][index],
-            mechanic: "choose_correct_word",
-            order: index + 1,
-            promptText: `What is “${concept.englishText}” in Luganda?`,
-            questionText: concept.englishText,
-            correctOptionId: concept.id,
-            options: orderedOptions(
-              homeConcepts,
-              homeConcepts.findIndex((candidate) => candidate.id === concept.id),
-            ).slice(0, 4).map(({ id, localText, englishText, imageKey }) => ({
-              id,
-              localText,
-              englishText,
-              imageKey,
-            })),
-            readiness: "placeholder",
-            metadata: itemReview(`lg.concept.${concept.id}`, concept.source),
-          })),
-        },
-        {
-          id: "home-greeting-card",
-          order: 4,
-          title: "Okulamusa Awaka: Greeting at Home",
-          description: "Use kind words at home.",
-          mechanic: "cultural_card",
-          isStartable: true,
-          readiness: "placeholder",
-          metadata: { objectiveId: "lg.s2.context", cultureScope: "everyday Luganda-speaking home; review required" },
-          items: [{
-            id: "morning-greeting-home",
-            mechanic: "cultural_card",
-            order: 1,
-            title: "Kind Words at Home",
-            localTitle: "Okulamusa Awaka",
-            localText: "Oli otya? Gyendi. Webale.",
-            bodyText: "Say Oli otya? to greet someone. Say Webale to thank them.",
-            imageKey: "learning/lg/stage-2/story-home-1.png",
-            reflectionPrompt: "Who could you greet or thank today?",
-            funFact: "Kind words help people feel welcome.",
-            readiness: "placeholder",
-            metadata: itemReview("lg.s2.context.greeting-home", "Stage 1 greeting set in a Stage 2 home context"),
-          }],
-        },
-        {
-          id: "thank-you-at-home-story",
-          order: 5,
-          title: "Awaka: A Tiny Home Story",
-          description: "Read a short story about a family at home.",
-          mechanic: "story_bite",
-          isStartable: true,
-          readiness: "placeholder",
-          metadata: { objectiveId: "lg.s2.context", languageReview: "sentence-level native review required" },
-          items: [{
-            id: "thank-you-at-home-pages",
-            mechanic: "story_bite",
-            order: 1,
-            title: "Awaka: At Home",
-            instructions: "Listen or read. Point to the people and things.",
-            pages: homeStoryPages,
-            reflectionPrompt: "Can you point to Maama, Taata, Omwana, Ekitabo, and Amazzi?",
-            readiness: "placeholder",
-            metadata: itemReview("lg.s2.story.home", "Drafted from the reviewed Stage 2 word set; sentence review required"),
-          }],
-        },
-        {
-          id: "family-mini-quiz",
-          order: 6,
-          title: "Okwejjukanya: Quick Review",
-          description: "Pick the right family and home words.",
-          mechanic: "mini_quiz",
-          isStartable: true,
-          readiness: "placeholder",
-          metadata: { objectiveId: "lg.s2.review", evidenceBoundary: "eventual-choice-only" },
-          items: [homeConcepts.slice(0, 3), homeConcepts.slice(3)].map(
-            (conceptGroup, itemIndex) => ({
-              id: itemIndex === 0 ? "family-words-review" : "home-words-review",
-              mechanic: "mini_quiz",
-              order: itemIndex + 1,
-              title: itemIndex === 0 ? "Family Word Check" : "Home Word Check",
-              instructions: "Tap the right answer. Try again if you need to.",
-              questions: conceptGroup.map((concept) => {
-                const conceptIndex = homeConcepts.findIndex(
-                  (candidate) => candidate.id === concept.id,
-                );
-                return {
-                  id: `stage-2-review-${concept.id}`,
-                  promptText: `What is “${concept.englishText}” in Luganda?`,
-                  promptEnglishText: concept.englishText,
-                  correctOptionId: concept.id,
-                  options: orderedOptions(homeConcepts, conceptIndex)
-                    .slice(0, 4)
-                    .map(({ id, localText, englishText }) => ({
-                      id,
-                      text: localText,
-                      englishText,
-                    })),
-                  explanationText: `${concept.localText}: ${concept.englishText}`,
-                };
-              }),
-              readiness: "placeholder",
-              metadata: itemReview("lg.s2.review", "Stage 2 reviewed-concept set"),
-            }),
-          ),
-        },
-      ],
     },
   ],
 };
 
-const menuCards = {
-  games: [
-    ["words", "Ebigambo: Words", "Build Luganda words, one letter at a time.", "learning/lg/menus/words.png", "child/games/wordgame"],
-    ["logic", "Ebifaananyi: Puzzles", "Put the Luganda pictures back together.", "learning/lg/menus/puzzles.png", "child/games/puzzlegame"],
-    ["cards", "Okugatta Kaadi: Match Cards", "Turn over cards and find matching Luganda words.", "learning/lg/menus/cards.png", "child/games/cardgame"],
-    ["learning", "Okuyiga: Learn and Play", "See a word, hear it, then pick its meaning.", "learning/lg/menus/learning.png", "child/games/learninggame"],
-    ["numbers", "Okubala 1–5: Counting", "Count from 1 to 5 in Luganda.", "learning/lg/menus/numbers.png", "child/games/lugandacountinggame"],
-  ].map(([id, title, description, imageKey, targetPage], index) => ({
-    id,
-    order: index + 1,
-    title,
-    description,
-    image: imageKey,
-    targetPage,
-  })),
-  stories: [
-    {
-      id: "greetings-at-work",
-      order: 1,
-      title: "Oli otya?: A Greeting",
-      description: "Say hello with Kato in three short pages.",
-      image: "learning/lg/stage-1/story-greeting-1.png",
-      targetPage: "child/stories/greetings-at-work",
-    },
-    {
-      id: "family-at-home",
-      order: 2,
-      title: "Awaka: At Home",
-      description: "Find family, a book, and water at home.",
-      image: "learning/lg/stage-2/story-home-1.png",
-      targetPage: "child/stories/family-at-home",
-    },
-  ],
-  coloring: [
-    ["greeting", "Oli otya?", "Color the hello picture.", "learning/lg/coloring/greeting.png", "child/games/coloring/greeting"],
-    ["maama", "Maama", "Color the Maama picture.", "learning/lg/coloring/maama.png", "child/games/coloring/mother"],
-    ["taata", "Taata", "Color the Taata picture.", "learning/lg/coloring/taata.png", "child/games/coloring/father"],
-    ["omwana", "Omwana", "Color the Omwana picture.", "learning/lg/coloring/omwana.png", "child/games/coloring/child"],
-    ["ennyumba", "Ennyumba", "Color the house picture.", "learning/lg/coloring/ennyumba.png", "child/games/coloring/house"],
-  ].map(([id, title, description, imageKey, targetPage], index) => ({
-    id,
-    order: index + 1,
-    title,
-    description,
-    image: imageKey,
-    targetPage,
-  })),
+const learningWord = (levelId, order, conceptId) => {
+  const entry = getConcept(conceptId);
+  return {
+    id: `lg-level-${levelId}-${entry.id}`,
+    order,
+    targetText: entry.localText,
+    english: entry.englishText,
+    audio: entry.audioKey,
+    example: entry.localText,
+    exampleTranslation: entry.englishText,
+    image: entry.imageKey,
+    notes: reviewStatus,
+  };
 };
+
+const learningLevel = (id, order, title, conceptIds) => ({
+  id,
+  order,
+  title,
+  isLocked: false,
+  words: conceptIds.map((conceptId, index) =>
+    learningWord(id, index + 1, conceptId),
+  ),
+});
 
 const learningGame = {
-  title: "Okuyiga Oluganda: Learn Luganda",
+  title: "Yiga era Zannya: Initial Luganda Practice",
   metadata: {
-    curriculumScope: "Stages 1–2 optional reinforcement",
-    evidenceBoundary: "Game completion is not curriculum mastery.",
-    reviewStatus: "Empty media and native-language review required",
+    curriculumSources,
+    scope:
+      "Sixteen short reinforcement levels that repeat only the 21 concepts introduced in Learning Hub stages 1 and 2.",
+    evidenceBoundary,
+    reviewStatus,
   },
   stages: [
     {
       id: 1,
       order: 1,
-      title: "Stage 1: Hello and Thanks",
-      description: "Learn four phrases for saying hello and thank you.",
+      title: "Stage 1: Greetings and courtesy",
+      description:
+        "Eight short levels move from pairs to a complete Stage 1 review.",
       isLocked: false,
       requiredScore: 0,
-      image: "learning/lg/stage-1/stage-card.png",
-      color: "#0274BB",
+      image: "river-kids.jpg",
+      color: "#F59E0B",
       levels: [
-        {
-          id: 3,
-          order: 1,
-          title: "Hello",
-          isLocked: false,
-          words: greetingConcepts.slice(0, 2).map((concept, index) => ({
-            id: `lg-s1-${concept.id}-hello-v1`,
-            order: index + 1,
-            targetText: concept.localText.replace(/\.$/, ""),
-            english: concept.englishText.replace(/\.$/, ""),
-            example: concept.localText,
-            exampleTranslation: concept.englishText,
-            audio: audioByKey[concept.audioKey].reference,
-            image: concept.imageKey,
-            notes: "Small practice set; reuses the concept recording placeholder.",
-          })),
-        },
-        {
-          id: 4,
-          order: 2,
-          title: "Kind Words",
-          isLocked: true,
-          words: greetingConcepts.slice(2).map((concept, index) => ({
-            id: `lg-s1-${concept.id}-kind-words-v1`,
-            order: index + 1,
-            targetText: concept.localText.replace(/\.$/, ""),
-            english: concept.englishText.replace(/\.$/, ""),
-            example: concept.localText,
-            exampleTranslation: concept.englishText,
-            audio: audioByKey[concept.audioKey].reference,
-            image: concept.imageKey,
-            notes: "Small practice set; reuses the concept recording placeholder.",
-          })),
-        },
-        {
-          id: 1,
-          order: 3,
-          title: "All 4 Words",
-          isLocked: true,
-          words: greetingConcepts.map((concept, index) => ({
-            id: `lg-s1-${concept.id}-practice-v1`,
-            order: index + 1,
-            targetText: concept.localText.replace(/\.$/, ""),
-            english: concept.englishText.replace(/\.$/, ""),
-            example: concept.localText,
-            exampleTranslation: concept.englishText,
-            audio: audioByKey[concept.audioKey].reference,
-            image: concept.imageKey,
-            notes: "Full review set; reuses the concept recording placeholder.",
-          })),
-        },
+        learningLevel(1, 1, "Hello and reply", [
+          "lg-greet-how-are-you",
+          "lg-greet-im-fine",
+        ]),
+        learningLevel(2, 2, "Morning and later day", [
+          "lg-greet-morning",
+          "lg-greet-day",
+        ]),
+        learningLevel(3, 3, "Kind words", [
+          "lg-courtesy-thanks",
+          "lg-courtesy-forgive",
+          "lg-farewell-goodbye",
+        ]),
+        learningLevel(4, 4, "Meet by name", [
+          "lg-intro-i-am-amina",
+          "lg-intro-who-are-you",
+        ]),
+        learningLevel(5, 5, "Greeting round", [
+          "lg-greet-how-are-you",
+          "lg-greet-im-fine",
+          "lg-greet-morning",
+          "lg-greet-day",
+        ]),
+        learningLevel(6, 6, "Courtesy round", [
+          "lg-courtesy-thanks",
+          "lg-courtesy-forgive",
+          "lg-farewell-goodbye",
+        ]),
+        learningLevel(7, 7, "Conversation round", [
+          "lg-greet-how-are-you",
+          "lg-greet-im-fine",
+          "lg-intro-i-am-amina",
+          "lg-intro-who-are-you",
+        ]),
+        learningLevel(
+          8,
+          8,
+          "Stage 1 review",
+          stage1Concepts.map((entry) => entry.id),
+        ),
       ],
     },
     {
       id: 2,
       order: 2,
-      title: "Stage 2: Family and Home",
-      description: "Learn six words about family and home.",
-      isLocked: true,
+      title: "Stage 2: Body and feelings",
+      description:
+        "Eight short levels move from body groups and feelings to a complete Stage 2 review.",
+      isLocked: false,
       requiredScore: 0,
-      image: "learning/lg/stage-2/stage-card.png",
-      color: "#2E7D32",
+      image: "child.png",
+      color: "#10B981",
       levels: [
-        {
-          id: 5,
-          order: 1,
-          title: "Family",
-          isLocked: true,
-          words: homeConcepts.slice(0, 3).map((concept, index) => ({
-            id: `lg-s2-${concept.id}-family-v1`,
-            order: index + 1,
-            targetText: concept.localText,
-            english: concept.englishText,
-            example: `${concept.localText}.`,
-            exampleTranslation: `${concept.englishText}.`,
-            audio: audioByKey[concept.audioKey].reference,
-            image: concept.imageKey,
-            notes: "Small practice set; reuses the concept recording placeholder.",
-          })),
-        },
-        {
-          id: 6,
-          order: 2,
-          title: "Home Things",
-          isLocked: true,
-          words: homeConcepts.slice(3).map((concept, index) => ({
-            id: `lg-s2-${concept.id}-home-v1`,
-            order: index + 1,
-            targetText: concept.localText,
-            english: concept.englishText,
-            example: `${concept.localText}.`,
-            exampleTranslation: `${concept.englishText}.`,
-            audio: audioByKey[concept.audioKey].reference,
-            image: concept.imageKey,
-            notes: "Small practice set; reuses the concept recording placeholder.",
-          })),
-        },
-        {
-          id: 2,
-          order: 3,
-          title: "All 6 Words",
-          isLocked: true,
-          words: homeConcepts.map((concept, index) => ({
-            id: `lg-s2-${concept.id}-practice-v1`,
-            order: index + 1,
-            targetText: concept.localText,
-            english: concept.englishText,
-            example: `${concept.localText}.`,
-            exampleTranslation: `${concept.englishText}.`,
-            audio: audioByKey[concept.audioKey].reference,
-            image: concept.imageKey,
-            notes: "Full review set; reuses the concept recording placeholder.",
-          })),
-        },
+        learningLevel(9, 1, "Face words", [
+          "lg-body-head",
+          "lg-body-eyes",
+          "lg-body-ears",
+          "lg-body-nose",
+          "lg-body-mouth",
+        ]),
+        learningLevel(10, 2, "Arms and legs", [
+          "lg-body-hand-arm",
+          "lg-body-leg",
+          "lg-body-foot",
+        ]),
+        learningLevel(11, 3, "Feelings", [
+          "lg-feeling-happy",
+          "lg-feeling-sad",
+          "lg-feeling-tired",
+          "lg-feeling-afraid",
+        ]),
+        learningLevel(12, 4, "Face review", [
+          "lg-body-head",
+          "lg-body-eyes",
+          "lg-body-ears",
+          "lg-body-nose",
+          "lg-body-mouth",
+        ]),
+        learningLevel(
+          13,
+          5,
+          "Body review",
+          stage2Concepts.slice(0, 8).map((entry) => entry.id),
+        ),
+        learningLevel(
+          14,
+          6,
+          "Feelings review",
+          stage2Concepts.slice(8).map((entry) => entry.id),
+        ),
+        learningLevel(15, 7, "Body and feelings mix", [
+          "lg-body-head",
+          "lg-body-ears",
+          "lg-body-hand-arm",
+          "lg-body-foot",
+          "lg-feeling-happy",
+          "lg-feeling-tired",
+        ]),
+        learningLevel(
+          16,
+          8,
+          "Stage 2 review",
+          stage2Concepts.map((entry) => entry.id),
+        ),
       ],
     },
   ],
 };
 
-const wordGameWords = [
-  ["webale", "WEBALE", "Make the Luganda word for ‘thank you’.", "You say it when someone helps you.", "It starts with W.", "learning/lg/stage-1/thanks-webale.png"],
-  ["gyendi", "GYENDI", "Make the Luganda word for ‘I am fine’.", "It answers Oli otya?", "It starts with G.", "learning/lg/stage-1/reply-gyendi.png"],
-  ["maama", "MAAMA", "Make the Luganda word for ‘mother’.", "It is a family word.", "It starts with M.", "learning/lg/stage-2/maama.png"],
-  ["taata", "TAATA", "Make the Luganda word for ‘father’.", "It is a family word.", "It starts with T.", "learning/lg/stage-2/taata.png"],
-  ["omwana", "OMWANA", "Make the Luganda word for ‘child’.", "It means a young person.", "It starts with O.", "learning/lg/stage-2/omwana.png"],
-  ["ennyumba", "ENNYUMBA", "Make the Luganda word for ‘house’.", "People can live in it.", "It starts with E.", "learning/lg/stage-2/ennyumba.png"],
-  ["amazzi", "AMAZZI", "Make the Luganda word for ‘water’.", "You can drink it.", "It starts with A.", "learning/lg/stage-2/amazzi.png"],
-  ["ekitabo", "EKITABO", "Make the Luganda word for ‘book’.", "It has pages.", "It starts with E.", "learning/lg/stage-2/ekitabo.png"],
-  ["awaka", "AWAKA", "Make the Luganda word for ‘at home’.", "You hear it in the home story.", "It starts with A.", "learning/lg/stage-2/story-home-1.png"],
-  ["abaana", "ABAANA", "Make the Luganda word for ‘children’.", "Count the children in the picture.", "It starts with A.", "learning/lg/counting/children.png"],
-].map(([conceptId, targetText, question, hint, subHint, imageKey], index) => ({
-  id: `lg-word-game-${conceptId}-v1`,
-  order: index + 1,
-  targetText,
-  question,
-  hint,
-  subHint,
-  image: imageKey,
-}));
+const wordGameConceptIds = [
+  "lg-greet-im-fine",
+  "lg-courtesy-thanks",
+  "lg-courtesy-forgive",
+  "lg-farewell-goodbye",
+  "lg-body-head",
+  "lg-body-eyes",
+  "lg-body-ears",
+  "lg-body-nose",
+  "lg-body-mouth",
+  "lg-body-hand-arm",
+  "lg-body-leg",
+  "lg-body-foot",
+  "lg-feeling-tired",
+  "lg-feeling-afraid",
+];
+
+const wordGameLevels = wordGameConceptIds.map((conceptId, index) => {
+  const entry = getConcept(conceptId);
+  const targetText = entry.localText.replace(/[?.]/g, "");
+  return {
+    id: `word-${entry.id}`,
+    order: index + 1,
+    targetText,
+    question: `Build the Luganda word for: ${entry.englishText}`,
+    hint: entry.englishText,
+    subHint: "The first letter is already shown.",
+    firstLetter: targetText[0].toUpperCase(),
+    image: entry.imageKey,
+  };
+});
 
 const countingGame = {
-  title: "Okubala: Count 1 to 5",
+  title: "Okubala 1-5: Count from 1 to 5",
   metadata: {
-    curriculumScope: "Optional reinforcement alongside Stages 1–2",
-    linguisticCaveat: "Standalone number labels are provided; noun-class agreement must be reviewed before expanding to counted Luganda noun phrases.",
-    reviewStatus: "Native-language and audio review required",
+    scope:
+      "Optional early counting reinforcement in three small steps; this is supplementary to the two Learning Hub stages.",
+    reviewStatus,
   },
   stages: [
     {
       id: 1,
       order: 1,
-      title: "Okubala 1–3: Count 1–3",
-      description: "Start by counting 1, 2, and 3.",
+      title: "Count 1-2",
+      description: "Begin with one and two.",
+      numbersRange: { min: 1, max: 2 },
+      levels: 2,
+      useBunches: false,
+      usesCurrency: false,
+      prompt: "How many can you see?",
+    },
+    {
+      id: 2,
+      order: 2,
+      title: "Count 1-3",
+      description: "Add three in a second short step.",
       numbersRange: { min: 1, max: 3 },
       levels: 3,
       useBunches: false,
       usesCurrency: false,
-      prompt: "Bala ebintu. Count the pictures.",
+      prompt: "How many can you see?",
     },
     {
-      id: 2,
-      order: 2,
-      title: "Okubala 1–5: Count 1–5",
-      description: "Now count all the way to 5.",
+      id: 3,
+      order: 3,
+      title: "Count 1-5",
+      description: "Review one through five.",
       numbersRange: { min: 1, max: 5 },
       levels: 5,
       useBunches: false,
       usesCurrency: false,
-      prompt: "Bala ebintu. Count the pictures.",
+      prompt: "How many can you see?",
     },
   ],
   numbers: [
-    [1, "Emu", "lg.counting.emu"],
-    [2, "Bbiri", "lg.counting.bbiri"],
-    [3, "Ssatu", "lg.counting.ssatu"],
-    [4, "Nnya", "lg.counting.nnya"],
-    [5, "Ttaano", "lg.counting.ttaano"],
-  ].map(([number, targetText, audioKey], index) => ({
-    number,
-    order: index + 1,
-    targetText,
-    audio: audioByKey[audioKey].reference,
-  })),
+    { number: 1, order: 1, targetText: "Emu" },
+    { number: 2, order: 2, targetText: "Bbiri" },
+    { number: 3, order: 3, targetText: "Ssatu" },
+    { number: 4, order: 4, targetText: "Nnya" },
+    { number: 5, order: 5, targetText: "Ttaano" },
+  ],
   culturalItems: [
-    ["counting-item-children", "abaana (children)", "learning/lg/counting/children.png"],
-    ["counting-item-books", "ebitabo (books)", "learning/lg/counting/books.png"],
-    ["counting-item-cups", "cups", "learning/lg/counting/cups.png"],
-    ["counting-item-houses", "ennyumba (houses)", "learning/lg/counting/houses.png"],
-    ["counting-item-water-cups", "cups of amazzi (water)", "learning/lg/counting/water-cups.png"],
-  ].map(([id, name, imageKey], index) => ({ id, order: index + 1, name, image: imageKey })),
+    { id: "count-child", order: 1, name: "Children", image: "child.png" },
+    { id: "count-cards", order: 2, name: "Cards", image: "cards-matching.png" },
+    { id: "count-patterns", order: 3, name: "Patterns", image: "african-patterns.png" },
+    { id: "count-coins", order: 4, name: "Counters", image: "coin.png" },
+    { id: "count-numbers", order: 5, name: "Numbers", image: "numbers.png" },
+  ],
   currency: [],
 };
 
 const cardGame = {
-  title: "Stage 1–2 Luganda Matching Cards",
+  title: "Stage 1-2 Luganda Matching Cards",
   metadata: {
-    curriculumScope: "The ten introduced Stage 1–2 concepts",
-    evidenceBoundary: "Memory matching is optional reinforcement, not mastery evidence.",
+    scope: "All 21 concepts introduced by the two Learning Hub stages.",
+    reviewStatus,
+    evidenceBoundary,
   },
-  items: [...greetingConcepts, ...homeConcepts].map((concept, index) => ({
-    id: `card-lg-concept-${concept.id}-v1`,
+  items: allConcepts.map((entry, index) => ({
+    id: `card-${entry.id}`,
     order: index + 1,
-    value: concept.localText.replace(/\.$/, ""),
-    info: concept.englishText,
-    imageSymbol: ["👋", "🙂", "🤝", "🙏", "👩", "👨", "🧒", "🏠", "💧", "📘"][index],
+    value: entry.localText,
+    info: entry.englishText,
+    imageSymbol: entry.symbol,
   })),
 };
 
 const puzzleGame = {
-  title: "Luganda Picture Puzzles",
+  title: "Stage 1-2 Scene Puzzles",
   metadata: {
-    curriculumScope: "Greeting and home settings from Stages 1–2",
-    evidenceBoundary: "Puzzle completion is visual/spatial play, not language evidence.",
+    scope:
+      "Ten optional scene puzzles using existing bundled artwork as temporary visual placeholders.",
+    reviewStatus,
   },
   puzzles: [
-    { id: 1, order: 1, name: "Oli otya?", description: "Put the hello picture together.", image: "learning/lg/puzzles/greeting.png" },
-    { id: 2, order: 2, name: "Maama, Taata n'Omwana", description: "Put the family picture together.", image: "learning/lg/puzzles/family-home.png" },
-    { id: 3, order: 3, name: "Ennyumba, Amazzi n'Ekitabo", description: "Find the house, water, and book.", image: "learning/lg/puzzles/book-and-water.png" },
-    { id: 4, order: 4, name: "Maama", description: "Put the Maama picture together.", image: "learning/lg/stage-2/maama.png" },
-    { id: 5, order: 5, name: "Ekitabo", description: "Put the book picture together.", image: "learning/lg/stage-2/ekitabo.png" },
+    {
+      id: 1,
+      order: 1,
+      name: "Oli otya?",
+      description: "Put the greeting picture together.",
+      image: "river-kids.jpg",
+    },
+    {
+      id: 2,
+      order: 2,
+      name: "Wasuze otya nno?",
+      description: "Put the morning greeting picture together.",
+      image: "culture.jpg",
+    },
+    {
+      id: 3,
+      order: 3,
+      name: "Weebale, Nsonyiwa, Weeraba",
+      description: "Put the courtesy picture together.",
+      image: "learning-beginner.jpg",
+    },
+    {
+      id: 4,
+      order: 4,
+      name: "Nze Amina",
+      description: "Put the introduction picture together.",
+      image: "black-kid.jpg",
+    },
+    {
+      id: 5,
+      order: 5,
+      name: "Omubiri gwange",
+      description: "Put the body picture together.",
+      image: "child.png",
+    },
+    {
+      id: 6,
+      order: 6,
+      name: "Omutwe n'amaaso",
+      description: "Put the face-word picture together.",
+      image: "african-focus.png",
+    },
+    {
+      id: 7,
+      order: 7,
+      name: "Omukono n'ekigere",
+      description: "Put the hand-and-foot picture together.",
+      image: "african-logic.png",
+    },
+    {
+      id: 8,
+      order: 8,
+      name: "Musanyufu oba munakuwavu",
+      description: "Put the feelings picture together.",
+      image: "cards-matching.png",
+    },
+    {
+      id: 9,
+      order: 9,
+      name: "Nkooye oba ntya",
+      description: "Put the feelings picture together.",
+      image: "rain.jpg",
+    },
+    {
+      id: 10,
+      order: 10,
+      name: "Kato n'omupiira",
+      description: "Put the ball-story picture together.",
+      image: "african-patterns.png",
+    },
   ],
 };
 
 const storyMetadata = {
   status: "placeholder",
-  notes: "Curriculum-linked draft. Empty images and native-language, educator, cultural, and accessibility review are required before production.",
-  sources: [
-    {
-      label: "Peace Corps Uganda, Introductory Luganda Lessons (2008)",
-      url: "https://files.peacecorps.gov/multimedia/audio/languagelessons/uganda/UG_Luganda_Language_Lessons.PDF",
-    },
-    {
-      label: "Baby Steps curriculum guide",
-      url: "curriculum_guide/learning-hub-curriculum-analysis.md",
-    },
-  ],
+  notes: reviewStatus,
+  sources: curriculumSources.map((label) => ({ label })),
 };
+
+const standaloneStoryPages = (pages) =>
+  pages.map((page) => ({
+    id: page.id,
+    text: page.localText,
+    translation: page.englishText,
+    image: page.imageKey,
+    altText: `Temporary bundled illustration for: ${page.englishText}`,
+  }));
 
 const stories = [
   {
-    id: "greetings-at-work",
-    title: "Oli otya?: A Greeting",
-    summary: "Kato says hello and answers a greeting.",
+    id: "morning-greeting",
+    languageCode: "lg",
+    title: "Ennamusa y'oku makya",
+    summary: "Amina and Kato greet each other in four short pages.",
     metadata: storyMetadata,
-    pages: greetingStoryPages.map(({ id, localText, bodyText, imageKey }) => ({
-      id,
-      text: localText,
-      translation: bodyText,
-      image: imageKey,
-      altText: `Draft illustration for: ${bodyText}`,
-    })),
+    pages: standaloneStoryPages(stage1StoryPages),
     questions: [
       {
-        id: "greeting-story-q1",
-        question: "Tap the words for ‘How are you?’",
-        options: ["Oli otya?", "Gyendi.", "Webale."],
+        id: "morning-greeting-q1",
+        question: "Which words ask how a person is?",
+        options: ["Oli otya?", "Gyendi.", "Weeraba."],
         correctAnswer: 0,
       },
       {
-        id: "greeting-story-q2",
-        question: "Tap the words for ‘I am fine.’",
-        options: ["Gyebale ko.", "Gyendi.", "Oli otya?"],
+        id: "morning-greeting-q2",
+        question: "Which words say that you are fine?",
+        options: ["Nsonyiwa.", "Gyendi.", "Ggwe ani?"],
         correctAnswer: 1,
+      },
+      {
+        id: "morning-greeting-q3",
+        question: "Which word says goodbye?",
+        options: ["Weeraba.", "Weebale.", "Nze Amina."],
+        correctAnswer: 0,
       },
     ],
   },
   {
-    id: "family-at-home",
-    title: "Awaka: At Home",
-    summary: "A family shares a book and water at home.",
+    id: "kato-and-the-ball",
+    languageCode: "lg",
+    title: "Kato n'omupiira",
+    summary: "Kato plays with a ball and names body parts and feelings.",
     metadata: storyMetadata,
-    pages: homeStoryPages.map(({ id, localText, bodyText, imageKey }) => ({
-      id,
-      text: localText,
-      translation: bodyText,
-      image: imageKey,
-      altText: `Draft illustration for: ${bodyText}`,
-    })),
+    pages: standaloneStoryPages(stage2StoryPages),
     questions: [
       {
-        id: "home-story-q1",
-        question: "Tap the Luganda word for ‘child’.",
-        options: ["Maama", "Omwana", "Taata"],
-        correctAnswer: 1,
-      },
-      {
-        id: "home-story-q2",
-        question: "Tap the Luganda word for ‘book’.",
-        options: ["Amazzi", "Ennyumba", "Ekitabo"],
+        id: "kato-ball-q1",
+        question: "Which Luganda word means foot?",
+        options: ["Omukono", "Okugulu", "Ekigere"],
         correctAnswer: 2,
       },
       {
-        id: "home-story-q3",
-        question: "Tap the Luganda word for ‘water’.",
-        options: ["Amazzi", "Maama", "Omwana"],
-        correctAnswer: 0,
+        id: "kato-ball-q2",
+        question: 'How do you say "I am happy" in Luganda?',
+        options: ["Nkooye.", "Ndi musanyufu.", "Ndi munakuwavu."],
+        correctAnswer: 1,
+      },
+      {
+        id: "kato-ball-q3",
+        question: 'How do you say "I am tired" in Luganda?',
+        options: ["Ntya.", "Ndi musanyufu.", "Nkooye."],
+        correctAnswer: 2,
       },
     ],
   },
 ];
+
+const menuCards = {
+  games: [
+    {
+      id: "learning",
+      order: 1,
+      title: "Yiga era Zannya",
+      description: "Practise all 21 Stage 1-2 concepts in 16 short levels.",
+      image: "african-focus.png",
+      targetPage: "child/games/learninggame",
+    },
+    {
+      id: "words",
+      order: 2,
+      title: "Ebigambo",
+      description: "Build 14 single Luganda words, one letter at a time.",
+      image: "learning-beginner.jpg",
+      targetPage: "child/games/wordgame",
+    },
+    {
+      id: "cards",
+      order: 3,
+      title: "Okugatta Kaadi",
+      description: "Find matching pairs drawn from all 21 tracked concepts.",
+      image: "cards-matching.png",
+      targetPage: "child/games/cardgame",
+    },
+    {
+      id: "puzzles",
+      order: 4,
+      title: "Ebifaananyi",
+      description: "Complete 10 Stage 1-2 picture puzzles.",
+      image: "african-logic.png",
+      targetPage: "child/games/puzzlegame",
+    },
+    {
+      id: "numbers",
+      order: 5,
+      title: "Okubala 1-5",
+      description: "Count from 1 to 5 in three small steps.",
+      image: "numbers.png",
+      targetPage: "child/games/lugandacountinggame",
+    },
+  ],
+  stories: [
+    {
+      id: "morning-greeting",
+      order: 1,
+      title: "Ennamusa y'oku makya",
+      description: "Amina and Kato greet each other.",
+      image: "culture.jpg",
+      targetPage: "child/stories/morning-greeting",
+    },
+    {
+      id: "kato-and-the-ball",
+      order: 2,
+      title: "Kato n'omupiira",
+      description: "Kato plays with a ball and talks about feelings.",
+      image: "child.png",
+      targetPage: "child/stories/kato-and-the-ball",
+    },
+  ],
+  coloring: [
+    {
+      id: "greeting",
+      order: 1,
+      title: "Oli otya?",
+      description: "Color the bundled greeting picture.",
+      image: "learning/lg/coloring/greeting.png",
+      targetPage: "child/games/coloring/greeting",
+    },
+    {
+      id: "me",
+      order: 2,
+      title: "Nze",
+      description: "Color the bundled child picture.",
+      image: "learning/lg/coloring/omwana.png",
+      targetPage: "child/games/coloring/child",
+    },
+  ],
+};
 
 const PROGRESS_BEARING_CONTENT_TYPES = new Set([
   "learning_hub",
@@ -1057,30 +1487,80 @@ const bundle = (contentType, slug, title, sortOrder, payload) => ({
 });
 
 const bundles = [
-  bundle("child_menu", "games", "Stage 1–2 Luganda Games", 10, { cards: menuCards.games }),
-  bundle("child_menu", "stories", "Stage 1–2 Luganda Stories", 11, { cards: menuCards.stories }),
-  bundle("child_menu", "coloring", "Stage 1–2 Luganda Coloring", 12, { cards: menuCards.coloring }),
-  bundle("learning_hub", "curriculum", "Luganda Curriculum: Stages 1–2", 20, learningHub),
-  bundle("learning_game", "starter", "Stage 1–2 Learning Practice", 30, learningGame),
-  bundle("word_game", "levels", "Stage 1–2 Word Practice", 40, {
-    title: "Ebigambo: Luganda Words",
-    metadata: { ageSupport: "optional-early-reader", scope: "Eight core words plus two contextual review words", evidenceBoundary: "guided construction, not independent recall" },
-    levels: wordGameWords,
+  bundle("child_menu", "games", "Initial Luganda Games", 10, {
+    cards: menuCards.games,
   }),
-  bundle("counting_game", "stages", "Count 1–5 in Luganda", 50, countingGame),
-  bundle("card_game", "cards", "Stage 1–2 Matching Cards", 55, cardGame),
-  bundle("puzzle_game", "puzzles", "Stage 1–2 Scene Puzzles", 56, puzzleGame),
-  ...stories.map((story, index) => bundle("story", story.id, story.title, 100 + index, story)),
+  bundle("child_menu", "stories", "Initial Luganda Stories", 11, {
+    cards: menuCards.stories,
+  }),
+  bundle("child_menu", "coloring", "Initial Luganda Coloring", 12, {
+    cards: menuCards.coloring,
+  }),
+  bundle(
+    "learning_hub",
+    "curriculum",
+    "Luganda Curriculum: Initial Stages 1-2",
+    20,
+    learningHub,
+  ),
+  bundle(
+    "learning_game",
+    "starter",
+    "Initial Stage 1-2 Learning Practice",
+    30,
+    learningGame,
+  ),
+  bundle("word_game", "levels", "Initial Stage 1-2 Word Practice", 40, {
+    title: "Ebigambo: Luganda Words",
+    metadata: {
+      scope:
+        "Fourteen single-word targets from the initial curriculum. Multi-word phrases are intentionally excluded because this mechanic builds one continuous word.",
+      reviewStatus,
+      evidenceBoundary,
+    },
+    levels: wordGameLevels,
+  }),
+  bundle("counting_game", "stages", "Count 1-5 in Luganda", 50, countingGame),
+  bundle("card_game", "cards", "Initial Stage 1-2 Matching Cards", 55, cardGame),
+  bundle("puzzle_game", "puzzles", "Initial Stage 1-2 Scene Puzzles", 56, puzzleGame),
+  ...stories.map((story, index) =>
+    bundle("story", story.id, story.title, 100 + index, story),
+  ),
+];
+
+const audioManifest = [
+  ...allConcepts.map((entry) => ({
+    key: entry.audioKey,
+    transcript: entry.localText,
+    purpose: `Pronunciation for ${entry.id}`,
+    runtimeAsset: "placeholder_learning_cue",
+    status: "registered-placeholder-cue",
+  })),
+  ...[...stage1StoryPages, ...stage2StoryPages].map((page) => ({
+    key: page.audioKey,
+    transcript: page.localText,
+    purpose: `Narration for ${page.id}`,
+    runtimeAsset: "placeholder_learning_cue",
+    status: "registered-placeholder-cue",
+  })),
 ];
 
 const manifest = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   generatedAt,
   languageCode: "lg",
   contentVersion,
-  curriculumGuide: "curriculum_guide/learning-hub-curriculum-analysis.md",
-  scope: "Luganda stages 1 and 2 plus directly related optional reinforcement",
-  publicationBoundary: "Development seed only. Empty media placeholders and named review gates prevent a production-readiness claim.",
+  curriculumSources,
+  scope:
+    "Initial Luganda stages 1 and 2 plus optional reinforcement that reuses the same concepts.",
+  publicationBoundary:
+    "Playable technical seed. Top-level rows are published so the app can load them, but nested readiness and metadata preserve the draft/review-required status.",
+  freshStart: {
+    behavior:
+      "The seed replaces Luganda runtime content and bumps progressRevision to 4.",
+    preserves:
+      "Historic progress, activity, achievement, auth, and child-profile rows remain stored but revision-3 completions do not unlock revision-4 content.",
+  },
   purgePolicy: {
     target: "public.content_items",
     languageCode: "lg",
@@ -1094,14 +1574,41 @@ const manifest = {
       "puzzle_game",
       "story",
     ],
-    preserves: ["child progress", "activity history", "achievements", "auth users", "child profiles"],
+    preserves: [
+      "child progress",
+      "activity history",
+      "achievements",
+      "auth users",
+      "child profiles",
+      "non-Luganda editorial content",
+    ],
   },
-  media: { images, audio: audioFiles },
+  media: {
+    images: Object.entries(imageCatalog).map(([reference, details]) => ({
+      reference,
+      ...details,
+    })),
+    audio: audioManifest,
+  },
+  curriculumInventory: {
+    stageCount: 2,
+    lessonCount: 12,
+    lessonItemCount: 37,
+    conceptCount: 21,
+    storyPageCount: 8,
+    quizQuestionCount: 10,
+    learningGameLevelCount: 16,
+    wordGameLevelCount: 14,
+    countingLevelCount: 10,
+    cardConceptCount: 21,
+    puzzleCount: 10,
+  },
   bundles,
 };
 
 const sqlQuote = (value) => `'${String(value).replaceAll("'", "''")}'`;
-const jsonLiteral = (value) => `$content$${JSON.stringify(value)}$content$::jsonb`;
+const jsonLiteral = (value) =>
+  `$content$${JSON.stringify(value)}$content$::jsonb`;
 
 const insertStatement = (entry) => `INSERT INTO public.content_items (
   language_code, content_type, slug, title, payload, sort_order,
@@ -1126,14 +1633,14 @@ SET
   published_at = EXCLUDED.published_at;`;
 
 const seedSql = `-- Generated by scripts/build-luganda-stage-1-2-content.mjs.
--- Development seed for the reviewed structure of Luganda stages 1 and 2.
--- Media files are intentionally empty placeholders. Do not use this seed to
--- claim production linguistic, educational, cultural, or asset readiness.
+-- Development reset seed for the initial Luganda curriculum stages.
+-- The rows are playable, but text still needs review and missing media resolves
+-- to registered, non-empty assets already bundled with the application.
 
 BEGIN;
 
--- Purge obsolete Luganda runtime content only. Learner progress, history,
--- achievements, auth records, and child profiles are intentionally preserved.
+-- Replace Luganda runtime content only. Learner history, progress, achievements,
+-- auth records, child profiles, and other-language editorial rows are preserved.
 DELETE FROM public.content_items
 WHERE language_code = 'lg'
   AND content_type IN (
@@ -1161,13 +1668,10 @@ const writeJson = (relativePath, value) => {
 writeJson("content/curriculum/lg-stage-1-2.json", manifest);
 writeFileSync(join(repositoryRoot, "supabase/seed.sql"), seedSql, "utf8");
 
-for (const mediaEntry of [...images, ...audioFiles]) {
-  const absolutePath = join(repositoryRoot, mediaEntry.path);
-  mkdirSync(dirname(absolutePath), { recursive: true });
-  if (!existsSync(absolutePath)) {
-    writeFileSync(absolutePath, Buffer.alloc(0));
-  }
-}
-
-console.log(`Generated ${bundles.length} content rows.`);
-console.log(`Created or retained ${images.length} image placeholders and ${audioFiles.length} audio placeholders.`);
+console.log(`Generated ${bundles.length} content rows at revision ${contentVersion}.`);
+console.log(
+  `Included ${manifest.curriculumInventory.lessonCount} Hub lessons, ${manifest.curriculumInventory.learningGameLevelCount} Learning Game levels, and ${manifest.curriculumInventory.conceptCount} tracked concepts.`,
+);
+console.log(
+  `Referenced ${manifest.media.images.length} registered images and ${manifest.media.audio.length} stable placeholder-audio keys; no empty media files were created.`,
+);

@@ -1,16 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
-import {
-  isProductionReadyBundledImageAsset,
-  resolveImageSource,
-} from "./assets";
+import { resolveImageSource } from "./assets";
 import {
   DEFAULT_LEARNING_LANGUAGE_CODE,
   normalizeLearningLanguageCode,
 } from "./languages";
 import {
   clearLearningHubContentRegistry,
-  filterReleaseReadyLearningHubContent,
   normalizeLearningHubLanguageContent,
   registerLearningHubLanguageContent,
 } from "./learningHubRepository";
@@ -504,8 +500,7 @@ const isMenuCardPayloadValid = (value: unknown): boolean => {
     hasRequiredString(value, "title") &&
     hasRequiredString(value, "description") &&
     hasRequiredString(value, "targetPage") &&
-    hasRequiredString(value, "image") &&
-    isProductionReadyBundledImageAsset(value.image)
+    hasRequiredString(value, "image")
   );
 };
 
@@ -758,8 +753,7 @@ const isCountingItemPayloadValid = (value: unknown): boolean => {
     hasRequiredString(value, "id") &&
     hasRequiredPositiveInteger(value, "order") &&
     hasRequiredString(value, "name") &&
-    hasRequiredString(value, "image") &&
-    isProductionReadyBundledImageAsset(value.image)
+    hasRequiredString(value, "image")
   );
 };
 
@@ -794,7 +788,6 @@ const isCountingCurrencyPayloadValid = (value: unknown): boolean => {
     hasRequiredPositiveInteger(value, "value") &&
     hasRequiredString(value, "name") &&
     hasRequiredString(value, "image") &&
-    isProductionReadyBundledImageAsset(value.image) &&
     Boolean(asString(value.targetText, asString(value.luganda)))
   );
 };
@@ -864,8 +857,7 @@ const isPuzzleGamePayloadValid = (value: unknown): boolean => {
     hasRequiredPositiveInteger(value, "order") &&
     hasRequiredString(value, "name") &&
     hasRequiredString(value, "description") &&
-    hasRequiredString(value, "image") &&
-    isProductionReadyBundledImageAsset(value.image)
+    hasRequiredString(value, "image")
   );
 };
 
@@ -889,13 +881,7 @@ const mapStoryPages = (pages: unknown[]): LocalStoryPage[] =>
 
 const isStoryPagePayloadValid = (value: unknown): boolean => {
   if (!isRecordValue(value)) return false;
-  const image = asString(value.image, asString(value.imageKey));
-  return (
-    hasRequiredString(value, "id") &&
-    hasRequiredString(value, "text") &&
-    Boolean(image) &&
-    isProductionReadyBundledImageAsset(image)
-  );
+  return hasRequiredString(value, "id") && hasRequiredString(value, "text");
 };
 
 const isStoryQuestionPayloadValid = (value: unknown): boolean => {
@@ -1150,7 +1136,6 @@ const isMappedContentValid = (
   const mappedQuestions = mapStoryQuestions(rawQuestions) ?? [];
   return (
     Boolean(story) &&
-    story?.metadata.status === "reviewed" &&
     story?.pages.length === rawPages.length &&
     rawPages.every(isStoryPagePayloadValid) &&
     hasUniqueIds(story?.pages ?? []) &&
@@ -1278,15 +1263,8 @@ const buildContentBundleWithDiagnostics = (
     if (contentType === "child_menu") {
       menuCardsByTab[slug] = mapMenuCards(payload);
     } else if (contentType === "learning_hub") {
-      const normalizedLearningHub = normalizeLearningHubLanguageContent(
-        languageCode,
-        payload,
-      );
-      const releaseReadyLearningHub = normalizedLearningHub
-        ? filterReleaseReadyLearningHubContent(normalizedLearningHub)
-        : null;
-      if (!releaseReadyLearningHub) continue;
-      learningHub = releaseReadyLearningHub;
+      learningHub =
+        normalizeLearningHubLanguageContent(languageCode, payload) ?? undefined;
     } else if (contentType === "learning_game") {
       learningGame = {
         title: item.title ?? "Learning",

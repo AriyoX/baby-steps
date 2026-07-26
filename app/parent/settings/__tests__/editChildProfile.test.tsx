@@ -286,12 +286,12 @@ describe("Edit child profile", () => {
     expect(mockUpdateActiveChildProfile).toHaveBeenCalledTimes(1);
   });
 
-  it("does not expose an archived or unauthorized child for editing", async () => {
+  it("does not expose an unavailable child for editing", async () => {
     mockFetchActiveChildProfile.mockResolvedValueOnce(null);
     const tree = await renderScreen();
 
     expect(textContent(tree.toJSON())).toContain(
-      "This child is archived, missing, or does not belong to this parent account.",
+      "We could not open this child profile. Go back and try again.",
     );
     expect(tree.root.findAllByType(TextInput)).toHaveLength(0);
     expect(mockUpdateOwnedActiveChildProfile).not.toHaveBeenCalled();

@@ -123,7 +123,7 @@ describe("account management deletion helpers", () => {
     });
 
     await expect(archiveChildProfile("child-1")).rejects.toThrow(
-      "Child profile was not found or has already been archived.",
+      "Child profile was not found or has already been removed.",
     );
   });
 

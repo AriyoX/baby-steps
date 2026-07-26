@@ -56,8 +56,14 @@ export default function CheckEmail() {
         ? RESET_EMAIL_SENT_MESSAGE
         : SIGNUP_ACCEPTED_MESSAGE;
 
-  const primaryLabel = isExistingAccount ? "Sign in instead" : "Back to sign in";
-  const secondaryLabel = isReset ? "Try another email" : "Use a different email";
+  const primaryLabel = isExistingAccount
+    ? "Go to sign in"
+    : isReset
+      ? "Back to sign in"
+      : "I’ve confirmed my email";
+  const secondaryLabel = isReset
+    ? "Try another email"
+    : "Use a different email";
   const iconName = isExistingAccount ? "user-circle" : isUnverified ? "lock" : "envelope";
 
   const goToLogin = () => {
@@ -135,9 +141,33 @@ export default function CheckEmail() {
               </Text>
             ) : null}
 
-            {!isExistingAccount ? (
+            {!isExistingAccount && !isReset ? (
+              <View className="mt-5 w-full rounded-2xl bg-primary-50 p-4">
+                {[
+                  "Open the Baby Steps email",
+                  "Tap the confirmation link",
+                  "Come back and sign in",
+                ].map((step, index) => (
+                  <View
+                    key={step}
+                    className={`flex-row items-center ${
+                      index < 2 ? "mb-3" : ""
+                    }`}
+                  >
+                    <View className="h-7 w-7 items-center justify-center rounded-full bg-primary-500">
+                      <Text variant="bold" className="text-xs text-white">
+                        {index + 1}
+                      </Text>
+                    </View>
+                    <Text className="ml-3 flex-1 text-sm text-neutral-700">
+                      {step}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : !isExistingAccount ? (
               <Text className="mt-3 text-center text-sm leading-5 text-neutral-500">
-                Check your inbox and spam folder, then return to sign in.
+                Check your inbox and spam folder.
               </Text>
             ) : null}
           </View>
@@ -156,29 +186,36 @@ export default function CheckEmail() {
 
             {canResendConfirmation ? (
               <TouchableOpacity
-                className={`mb-3 rounded-xl bg-secondary-500 py-4 shadow-md ${resending ? "opacity-70" : ""}`}
+                className={`mb-2 rounded-xl border border-primary-200 bg-white py-4 ${
+                  resending ? "opacity-70" : ""
+                }`}
                 onPress={resendConfirmationEmail}
                 disabled={resending}
                 activeOpacity={0.84}
                 accessibilityRole="button"
               >
-                <Text variant="bold" className="text-center text-lg text-white">
-                  {resending ? "Sending..." : "Resend email"}
+                <Text variant="bold" className="text-center text-base text-primary-700">
+                  {resending ? "Sending..." : "Send a new confirmation link"}
                 </Text>
               </TouchableOpacity>
             ) : null}
 
             {!isUnverified ? (
               <TouchableOpacity
-                className="rounded-xl bg-white py-4 shadow-md border border-primary-200"
+                className="rounded-xl py-3"
                 onPress={goToForm}
                 activeOpacity={0.84}
                 accessibilityRole="button"
               >
-                <Text variant="bold" className="text-center text-lg text-primary-700">
+                <Text variant="bold" className="text-center text-sm text-neutral-600 underline">
                   {secondaryLabel}
                 </Text>
               </TouchableOpacity>
+            ) : null}
+            {flow === "signup" ? (
+              <Text className="mt-1 text-center text-xs leading-4 text-neutral-500">
+                Go back to signup if you need to enter a different email.
+              </Text>
             ) : null}
           </View>
         </View>

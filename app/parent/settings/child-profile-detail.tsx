@@ -138,8 +138,8 @@ export default function ChildProfileDetailManagementScreen() {
             />
           </View>
           <SettingsRow
-            title="Archive child profile"
-            description="Hide this child and their progress from normal selection."
+            title="Remove child profile"
+            description="Remove this child and their progress from normal selection."
             icon="archive-outline"
             iconColor="#B45309"
             destructive

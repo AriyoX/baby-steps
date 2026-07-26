@@ -7,7 +7,10 @@ import {
   isSupportedLearningLanguageCode,
   normalizeLearningLanguageCode,
 } from "@/content/languages";
-import type { ChildProfile } from "@/lib/accountManagement";
+import {
+  upsertCachedActiveChildProfile,
+  type ChildProfile,
+} from "@/lib/accountManagement";
 import {
   isSupportedChildAge,
   isSupportedChildGender,
@@ -203,7 +206,13 @@ export const updateOwnedActiveChildProfile = async (
       );
     }
 
-    return data as ChildProfile;
+    const saved = data as ChildProfile;
+    try {
+      await upsertCachedActiveChildProfile(parentId, saved);
+    } catch (cacheError) {
+      console.warn("Could not cache the updated child profile:", cacheError);
+    }
+    return saved;
   } catch (error) {
     throw classifyChildProfileError(error);
   }

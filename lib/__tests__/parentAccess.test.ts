@@ -36,6 +36,7 @@ import {
   hasRecentParentReauthentication,
   isValidParentPin,
   reauthenticateParentAccount,
+  revealParentPinWithReauthentication,
   resetParentPin,
   setParentPin,
   setParentPinWithReauthentication,
@@ -170,5 +171,27 @@ describe("parent access security", () => {
       status: "success",
       retryAfterMs: 0,
     });
+  });
+
+  it("reveals a saved PIN only after checking the account password", async () => {
+    await setParentPin("parent-1", "246810");
+
+    await expect(
+      revealParentPinWithReauthentication({
+        accountId: "parent-1",
+        password: "correct-password",
+      }),
+    ).resolves.toBe("246810");
+
+    mockSignInWithPassword.mockResolvedValueOnce({
+      data: { user: null },
+      error: new Error("invalid credentials"),
+    });
+    await expect(
+      revealParentPinWithReauthentication({
+        accountId: "parent-1",
+        password: "wrong-password",
+      }),
+    ).resolves.toBeNull();
   });
 });

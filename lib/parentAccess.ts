@@ -114,6 +114,17 @@ export const resetParentPin = async (accountId: string): Promise<void> => {
   await SecureStore.deleteItemAsync(getParentPinKey(accountId), SECURE_STORE_OPTIONS);
 };
 
+export const revealParentPinWithReauthentication = async ({
+  accountId,
+  password,
+}: {
+  accountId: string;
+  password: string;
+}): Promise<string | null> => {
+  if (!(await reauthenticateParentAccount(accountId, password))) return null;
+  return (await loadStoredParentPin(accountId))?.pin ?? null;
+};
+
 export const verifyParentPin = async (
   accountId: string,
   input: string,

@@ -73,13 +73,13 @@ const confirmLanguageChange = (
 const getChildSaveError = (error: unknown): string => {
   if (error instanceof ChildProfileError) {
     if (error.kind === "not-found") {
-      return "This child is archived, missing, or does not belong to this parent account.";
+      return "We could not open this child profile. Go back and try again.";
     }
     if (error.kind === "authorization") {
-      return "This parent account is not authorized to edit that child.";
+      return "This child profile cannot be changed from this account.";
     }
     if (error.kind === "session-changed") {
-      return "The signed-in account changed. Reopen the child profile and try again.";
+      return "The account changed. Reopen the child profile and try again.";
     }
     if (error.kind === "network") {
       return "Baby Steps could not be reached. Check your connection and try again.";
@@ -136,7 +136,7 @@ export default function EditChildProfileScreen() {
           populateForm(child);
         } else {
           setErrorMessage(
-            "This child is archived, missing, or does not belong to this parent account.",
+            "We could not open this child profile. Go back and try again.",
           );
         }
       })

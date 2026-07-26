@@ -14,6 +14,8 @@ const mockSignOut = jest.fn();
 const mockGetInitialURL = jest.fn();
 const mockRequireInternet = jest.fn();
 const mockShowNetworkErrorIfNeeded = jest.fn();
+const mockMarkNotificationOnboardingPending = jest.fn();
+const mockShouldShowNotificationOnboarding = jest.fn();
 const mountedComponents: renderer.ReactTestRenderer[] = [];
 
 jest.mock("expo-router", () => ({
@@ -58,6 +60,13 @@ jest.mock("@/lib/accountManagement", () => ({
 jest.mock("@/lib/network", () => ({
   requireInternet: mockRequireInternet,
   showNetworkErrorIfNeeded: mockShowNetworkErrorIfNeeded,
+}));
+
+jest.mock("@/lib/notifications", () => ({
+  markNotificationOnboardingPending: (...args: unknown[]) =>
+    mockMarkNotificationOnboardingPending(...args),
+  shouldShowNotificationOnboarding: (...args: unknown[]) =>
+    mockShouldShowNotificationOnboarding(...args),
 }));
 
 jest.mock("expo-linking", () => ({
@@ -145,6 +154,8 @@ beforeEach(() => {
   mockSignOut.mockResolvedValue({ error: null });
   mockRequireInternet.mockResolvedValue(true);
   mockShowNetworkErrorIfNeeded.mockResolvedValue(false);
+  mockMarkNotificationOnboardingPending.mockResolvedValue(undefined);
+  mockShouldShowNotificationOnboarding.mockResolvedValue(false);
 });
 
 afterEach(() => {
@@ -157,9 +168,12 @@ afterEach(() => {
 });
 
 describe("auth screens", () => {
-  it("routes accepted signup attempts to the notification permission screen", async () => {
+  it("routes accepted signup attempts straight to email confirmation", async () => {
     mockSignUp.mockResolvedValue({
-      data: { session: null, user: { identities: [{ id: "identity-1" }] } },
+      data: {
+        session: null,
+        user: { id: "parent-1", identities: [{ id: "identity-1" }] },
+      },
       error: null,
     });
 
@@ -182,17 +196,20 @@ describe("auth screens", () => {
         password: "secret1",
       }),
     );
+    expect(mockMarkNotificationOnboardingPending).toHaveBeenCalledWith(
+      "parent-1",
+    );
     expect(mockRouterReplace).toHaveBeenCalledWith({
-      pathname: "/notification-permission",
+      pathname: "/check-email",
       params: { flow: "signup", email: "parent@example.com" },
     });
   });
 
-  it("routes session-returning signup attempts through notification permission", async () => {
+  it("clears a signup session before showing email confirmation", async () => {
     mockSignUp.mockResolvedValue({
       data: {
         session: { user: { id: "parent-1" } },
-        user: { identities: [{ id: "identity-1" }] },
+        user: { id: "parent-1", identities: [{ id: "identity-1" }] },
       },
       error: null,
     });
@@ -212,7 +229,7 @@ describe("auth screens", () => {
 
     expect(mockSignOut).toHaveBeenCalledWith({ scope: "local" });
     expect(mockRouterReplace).toHaveBeenCalledWith({
-      pathname: "/notification-permission",
+      pathname: "/check-email",
       params: { flow: "signup", email: "parent@example.com" },
     });
   });
@@ -297,6 +314,37 @@ describe("auth screens", () => {
     expect(mockSignInWithPassword).not.toHaveBeenCalled();
   });
 
+  it("shows notification onboarding only after the first confirmed login", async () => {
+    mockShouldShowNotificationOnboarding.mockResolvedValueOnce(true);
+    mockSignInWithPassword.mockResolvedValueOnce({
+      data: {
+        user: { id: "parent-1" },
+        session: { user: { id: "parent-1" } },
+      },
+      error: null,
+    });
+    const component = await renderAuthScreen(<Login />);
+
+    act(() => {
+      findInput(component.root, "parent@email.com").props.onChangeText(
+        "parent@example.com",
+      );
+      findInput(component.root, "Your password").props.onChangeText("secret1");
+    });
+
+    await act(async () => {
+      findButtonByText(component.root, "Sign In").props.onPress();
+    });
+
+    expect(mockShouldShowNotificationOnboarding).toHaveBeenCalledWith(
+      "parent-1",
+    );
+    expect(mockRouterReplace).toHaveBeenCalledWith({
+      pathname: "/notification-permission",
+      params: { next: "/parent" },
+    });
+  });
+
   it("shows a resend action for unverified email guidance", async () => {
     mockUseLocalSearchParams.mockReturnValue({
       flow: "unverified",
@@ -305,8 +353,10 @@ describe("auth screens", () => {
 
     const component = await renderAuthScreen(<CheckEmail />);
 
-    expect(findButtonByText(component.root, "Back to sign in")).toBeTruthy();
-    expect(findButtonByText(component.root, "Resend email")).toBeTruthy();
+    expect(findButtonByText(component.root, "I’ve confirmed my email")).toBeTruthy();
+    expect(
+      findButtonByText(component.root, "Send a new confirmation link"),
+    ).toBeTruthy();
   });
 
   it("routes forgot-password success to the safe check-email screen", async () => {

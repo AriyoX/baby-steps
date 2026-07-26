@@ -129,7 +129,7 @@ export default function AccountManagementScreen() {
         />
         <SettingsRow
           title="Parent access PIN"
-          description="Set or change the PIN used to leave child mode."
+          description="View or change the PIN used to leave child mode."
           icon="keypad-outline"
           iconColor="#7C3AED"
           onPress={() => router.push("/parent/settings/parent-pin" as any)}

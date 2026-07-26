@@ -1,6 +1,7 @@
 import {
   OFFLINE_BANNER_MESSAGE,
   OFFLINE_POPUP_MESSAGE,
+  UNSTABLE_CONNECTION_MESSAGE,
   shouldShowPersistentNetworkBanner,
 } from "../NetworkStatusNotice"
 
@@ -11,6 +12,7 @@ describe("global offline notice", () => {
     expect(`${OFFLINE_BANNER_MESSAGE} ${OFFLINE_POPUP_MESSAGE}`).not.toContain(
       "Account access",
     )
+    expect(UNSTABLE_CONNECTION_MESSAGE).toContain("slow or unstable")
   })
 
   it("does not cover child activities with the persistent banner", () => {

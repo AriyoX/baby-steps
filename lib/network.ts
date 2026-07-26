@@ -4,6 +4,46 @@ import { Alert } from "react-native"
 export const OFFLINE_ALERT_TITLE = "No internet connection"
 export const CONNECTION_ALERT_TITLE = "Can’t connect right now"
 
+export type ReportedConnectivityIssue = {
+  kind: "unstable"
+  message: string
+}
+
+type ConnectivityIssueListener = (
+  issue: ReportedConnectivityIssue | null,
+) => void
+
+let reportedConnectivityIssue: ReportedConnectivityIssue | null = null
+const connectivityIssueListeners = new Set<ConnectivityIssueListener>()
+
+export const getReportedConnectivityIssue = () => reportedConnectivityIssue
+
+export const reportConnectivityIssue = (message: string) => {
+  reportedConnectivityIssue = {
+    kind: "unstable",
+    message,
+  }
+  connectivityIssueListeners.forEach((listener) =>
+    listener(reportedConnectivityIssue),
+  )
+}
+
+export const clearReportedConnectivityIssue = () => {
+  if (!reportedConnectivityIssue) return
+  reportedConnectivityIssue = null
+  connectivityIssueListeners.forEach((listener) => listener(null))
+}
+
+export const subscribeConnectivityIssues = (
+  listener: ConnectivityIssueListener,
+) => {
+  connectivityIssueListeners.add(listener)
+  listener(reportedConnectivityIssue)
+  return () => {
+    connectivityIssueListeners.delete(listener)
+  }
+}
+
 const getOfflineMessage = (action: string) =>
   `${action} needs an internet connection. Check Wi-Fi or mobile data, then try again. Activities already saved on this device may still be available.`
 

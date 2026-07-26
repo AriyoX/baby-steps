@@ -31,6 +31,7 @@ import {
 } from "@/lib/authMessages";
 import { supabase } from "../lib/supabase";
 import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network";
+import { shouldShowNotificationOnboarding } from "@/lib/notifications";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
@@ -133,7 +134,18 @@ export default function Auth() {
       }
 
       const accountState = await getAccountDeletionState(userId);
-      router.replace(getPostLoginRouteForAccountState(accountState) as any);
+      const postLoginRoute = getPostLoginRouteForAccountState(accountState);
+      if (
+        postLoginRoute === "/parent" &&
+        (await shouldShowNotificationOnboarding(userId))
+      ) {
+        router.replace({
+          pathname: "/notification-permission",
+          params: { next: postLoginRoute },
+        } as any);
+        return;
+      }
+      router.replace(postLoginRoute as any);
     } catch (error) {
       console.error("Could not complete sign in.");
       if (await showNetworkErrorIfNeeded(error, "Signing in")) return;
@@ -323,7 +335,7 @@ export default function Auth() {
             <View className="flex-row items-start mt-6 pt-5 border-t border-neutral-100">
               <FontAwesome name="wifi" size={13} color={brandColors.gold[700]} style={{ marginTop: 2 }} />
               <Text className="text-xs leading-4 text-neutral-600 ml-2 flex-1">
-                You may require an internet connection to access certain parts of the app.
+                Internet is needed to sign in and keep progress up to date.
               </Text>
             </View>
           </Animated.View>

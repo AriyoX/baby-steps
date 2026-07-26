@@ -33,9 +33,11 @@ const NUMBER_ROWS = [
 
 export default function ParentGate() {
   const [accountId, setAccountId] = useState("")
+  const [accountEmail, setAccountEmail] = useState("")
   const [pinConfigured, setPinConfigured] = useState<boolean | null>(null)
   const [input, setInput] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [usePassword, setUsePassword] = useState(false)
   const [message, setMessage] = useState("")
   const [submitting, setSubmitting] = useState(false)
@@ -60,6 +62,7 @@ export default function ParentGate() {
         }
 
         setAccountId(id)
+        setAccountEmail(data.session?.user.email ?? "")
         try {
           const configured = await hasParentPin(id)
           if (!mounted) return
@@ -70,7 +73,7 @@ export default function ParentGate() {
           setPinConfigured(false)
           setUsePassword(true)
           setMessage(
-            "The secure PIN is unavailable. Verify the parent account password instead.",
+            "Your PIN could not be opened. Use your account password instead.",
           )
         }
       } catch {
@@ -92,6 +95,7 @@ export default function ParentGate() {
       submissionGenerationRef.current += 1
       setInput("")
       setPassword("")
+      setShowPassword(false)
       setMessage("")
       setSubmitting(false)
     })
@@ -111,10 +115,12 @@ export default function ParentGate() {
   )
   const isCoolingDown = retrySeconds > 0
 
-  const unlockParentArea = async () => {
+  const unlockParentArea = async (
+    destination: "/parent" | "/parent/settings/parent-pin" = "/parent",
+  ) => {
     await deactivateChildMode()
     if (appStateRef.current === "active") {
-      router.replace("/parent")
+      router.replace(destination)
     }
   }
 
@@ -192,7 +198,7 @@ export default function ParentGate() {
       setPinConfigured(false)
       setUsePassword(true)
       setMessage(
-        "The secure PIN is unavailable. Verify the parent account password instead.",
+        "Your PIN could not be opened. Use your account password instead.",
       )
     } finally {
       if (submissionGenerationRef.current === submissionGeneration) {
@@ -218,14 +224,16 @@ export default function ParentGate() {
       }
       setPassword("")
       if (authenticated) {
-        await unlockParentArea()
+        await unlockParentArea(
+          pinConfigured ? "/parent/settings/parent-pin" : "/parent",
+        )
         return
       }
-      setMessage("Parent verification did not work. Check the password and connection.")
+      setMessage("That password did not work. Check it and try again.")
     } catch {
       if (submissionGenerationRef.current !== submissionGeneration) return
       setPassword("")
-      setMessage("Parent verification did not work. Check the password and connection.")
+      setMessage("That password did not work. Check it and try again.")
     } finally {
       if (submissionGenerationRef.current === submissionGeneration) {
         setSubmitting(false)
@@ -304,7 +312,7 @@ export default function ParentGate() {
                   </Text>
                 ) : (
                   <Text className="text-white/65 text-sm">
-                    The PIN is stored securely for this parent account on this device.
+                    This PIN is saved on this device for this parent.
                   </Text>
                 )}
               </View>
@@ -316,6 +324,7 @@ export default function ParentGate() {
                     setUsePassword((current) => !current)
                     setInput("")
                     setPassword("")
+                    setShowPassword(false)
                     setMessage("")
                   }}
                   accessibilityRole="button"
@@ -331,28 +340,43 @@ export default function ParentGate() {
               <View className="w-full rounded-[30px] bg-neutral-900/35 border border-white/15 p-4">
                 {usePassword ? (
                   <>
-                    <TextInput
-                      value={password}
-                      onChangeText={(value) => {
-                        setPassword(value)
-                        setMessage("")
-                      }}
-                      secureTextEntry
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      placeholder="Parent account password"
-                      placeholderTextColor="rgba(255,255,255,0.45)"
-                      style={{
-                        color: brandColors.white,
-                        borderColor: "rgba(255,255,255,0.2)",
-                        borderWidth: 1,
-                        borderRadius: 16,
-                        fontSize: 17,
-                        paddingHorizontal: 16,
-                        paddingVertical: 14,
-                      }}
-                      accessibilityLabel="Parent account password"
-                    />
+                    <View
+                      className="flex-row items-center rounded-2xl border border-white/20 px-4"
+                    >
+                      <TextInput
+                        value={password}
+                        onChangeText={(value) => {
+                          setPassword(value)
+                          setMessage("")
+                        }}
+                        secureTextEntry={!showPassword}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        placeholder="Parent account password"
+                        placeholderTextColor="rgba(255,255,255,0.45)"
+                        style={{
+                          color: brandColors.white,
+                          flex: 1,
+                          fontSize: 17,
+                          paddingVertical: 14,
+                        }}
+                        accessibilityLabel="Parent account password"
+                      />
+                      <TouchableOpacity
+                        className="p-2"
+                        onPress={() => setShowPassword((visible) => !visible)}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          showPassword ? "Hide parent password" : "Show parent password"
+                        }
+                      >
+                        <Ionicons
+                          name={showPassword ? "eye-off-outline" : "eye-outline"}
+                          size={22}
+                          color={brandColors.white}
+                        />
+                      </TouchableOpacity>
+                    </View>
                     <TouchableOpacity
                       className={`h-[56px] rounded-2xl justify-center items-center flex-row mt-4 ${
                         password && !submitting ? "bg-accent-400" : "bg-white/10"
@@ -368,8 +392,26 @@ export default function ParentGate() {
                         <Text variant="bold" className="text-neutral-900">
                           Verify parent
                         </Text>
-                      )}
+                        )}
+                      </TouchableOpacity>
+                    <TouchableOpacity
+                      className="mt-3 items-center py-2"
+                      onPress={() =>
+                        router.replace({
+                          pathname: "/forgot-password",
+                          params: { email: accountEmail },
+                        } as any)
+                      }
+                      accessibilityRole="button"
+                      accessibilityLabel="Reset forgotten parent password"
+                    >
+                      <Text variant="bold" className="text-sm text-white underline">
+                        Forgot both? Reset the account password
+                      </Text>
                     </TouchableOpacity>
+                    <Text className="mt-1 text-center text-xs leading-4 text-white/60">
+                      A reset needs internet access and the parent email inbox.
+                    </Text>
                   </>
                 ) : (
                   <>

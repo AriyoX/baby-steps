@@ -92,10 +92,6 @@ export default function AuthCallback() {
     router.replace("/login");
   };
 
-  const goToSignup = () => {
-    router.replace("/signup");
-  };
-
   const errorMessage = getFriendlyAuthRedirectErrorMessage(errorFlow);
   const errorTitle =
     errorFlow === "recovery"
@@ -134,11 +130,11 @@ export default function AuthCallback() {
               {errorFlow === "signup" ? (
                 <TouchableOpacity
                   className="mb-3 rounded-xl bg-secondary-500 py-4 shadow-md"
-                  onPress={goToSignup}
+                  onPress={goToLogin}
                   activeOpacity={0.84}
                 >
                   <Text variant="bold" className="text-center text-lg text-white">
-                    Create account
+                    Sign in to resend
                   </Text>
                 </TouchableOpacity>
               ) : (
@@ -153,15 +149,17 @@ export default function AuthCallback() {
                 </TouchableOpacity>
               )}
 
-              <TouchableOpacity
-                className="rounded-xl bg-primary-500 py-4 shadow-md"
-                onPress={goToLogin}
-                activeOpacity={0.84}
-              >
-                <Text variant="bold" className="text-center text-lg text-white">
-                  Back to Login
-                </Text>
-              </TouchableOpacity>
+              {errorFlow !== "signup" ? (
+                <TouchableOpacity
+                  className="rounded-xl bg-primary-500 py-4 shadow-md"
+                  onPress={goToLogin}
+                  activeOpacity={0.84}
+                >
+                  <Text variant="bold" className="text-center text-lg text-white">
+                    Back to Login
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           ) : null}
         </View>

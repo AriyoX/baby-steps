@@ -219,7 +219,7 @@ describe("network-protected account and child actions", () => {
     expect(mockRequestAccountDeletion).not.toHaveBeenCalled()
   })
 
-  it("does not archive a child profile while explicitly offline", async () => {
+  it("does not remove a child profile while explicitly offline", async () => {
     const tree = await renderScreen(<ChildProfileDeleteScreen />)
     act(() => {
       tree.root.findByType(TextInput).props.onChangeText("Amina")
@@ -227,10 +227,10 @@ describe("network-protected account and child actions", () => {
     mockRequireInternet.mockResolvedValueOnce(false)
 
     await act(async () => {
-      await findButtonByText(tree.root, "Archive Child Profile").props.onPress()
+      await findButtonByText(tree.root, "Remove Child Profile").props.onPress()
     })
 
-    expect(mockRequireInternet).toHaveBeenLastCalledWith("Archiving this child profile")
+    expect(mockRequireInternet).toHaveBeenLastCalledWith("Removing this child profile")
     expect(mockArchiveChildProfile).not.toHaveBeenCalled()
   })
 

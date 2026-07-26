@@ -102,7 +102,11 @@ describe("ParentGate", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetSession.mockResolvedValue({
-      data: { session: { user: { id: "parent-1" } } },
+      data: {
+        session: {
+          user: { id: "parent-1", email: "parent@example.com" },
+        },
+      },
     });
     mockHasParentPin.mockResolvedValue(true);
     mockCanGoBack.mockReturnValue(true);
@@ -207,12 +211,61 @@ describe("ParentGate", () => {
     expect(mockReplace).toHaveBeenCalledWith("/parent");
   });
 
-  it("falls back to real parent authentication when secure PIN storage fails", async () => {
+  it("offers email password recovery when both PIN and password are forgotten", async () => {
+    const tree = await renderGate();
+
+    act(() => {
+      tree.root
+        .findAll((node) =>
+          textContent(node).includes("Forgot PIN? Use parent password"),
+        )
+        .find((node) => typeof node.props.onPress === "function")
+        ?.props.onPress();
+    });
+    act(() => {
+      findByLabel(tree.root, "Reset forgotten parent password").props.onPress();
+    });
+
+    expect(mockReplace).toHaveBeenCalledWith({
+      pathname: "/forgot-password",
+      params: { email: "parent@example.com" },
+    });
+    expect(mockDeactivateChildMode).not.toHaveBeenCalled();
+  });
+
+  it("takes a password-verified forgotten-PIN flow straight to PIN replacement", async () => {
+    const tree = await renderGate();
+
+    act(() => {
+      tree.root
+        .findAll((node) =>
+          textContent(node).includes("Forgot PIN? Use parent password"),
+        )
+        .find((node) => typeof node.props.onPress === "function")
+        ?.props.onPress();
+    });
+    act(() => {
+      findByLabel(tree.root, "Parent account password").props.onChangeText(
+        "current-password",
+      );
+    });
+    await act(async () => {
+      findByLabel(tree.root, "Verify parent password").props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(mockDeactivateChildMode).toHaveBeenCalledTimes(1);
+    expect(mockReplace).toHaveBeenCalledWith(
+      "/parent/settings/parent-pin",
+    );
+  });
+
+  it("falls back to the parent password when the PIN cannot be opened", async () => {
     mockHasParentPin.mockRejectedValueOnce(new Error("secure storage failed"));
     const tree = await renderGate();
 
     expect(textContent(tree.toJSON())).toContain(
-      "The secure PIN is unavailable. Verify the parent account password instead.",
+      "Your PIN could not be opened. Use your account password instead.",
     );
     expect(mockDeactivateChildMode).not.toHaveBeenCalled();
   });

@@ -151,13 +151,13 @@ const renderScreen = async () => {
 };
 
 describe("Edit parent profile", () => {
-  it("shows the authenticated email as read-only with the beta explanation", async () => {
+  it("shows the authenticated email and directs changes to support", async () => {
     const tree = await renderScreen();
     const text = textContent(tree.toJSON());
 
     expect(text).toContain("parent@example.com");
     expect(text).toContain(
-      "Account email changes are not available during the closed beta.",
+      "Contact Baby Steps support",
     );
     expect(tree.root.findAllByType(TextInput)).toHaveLength(1);
   });
@@ -239,7 +239,7 @@ describe("Edit parent profile", () => {
       "Amina Parent",
     );
     expect(textContent(tree.toJSON())).toContain(
-      "This signed-in account is not allowed to edit that parent profile.",
+      "This parent profile cannot be changed from this account.",
     );
     expect(mockSetConfirmedParentProfile).not.toHaveBeenCalled();
   });

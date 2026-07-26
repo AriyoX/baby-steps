@@ -191,7 +191,7 @@ Per child:
 - Edit child profile
 - Learning language, integrated into child edit
 - Streak enable/disable and existing reset behavior, isolated per child
-- Archive child profile with explicit non-permanent wording
+- Remove child profile with explicit non-permanent wording
 
 Removed/hidden:
 

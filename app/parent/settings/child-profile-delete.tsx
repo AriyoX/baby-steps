@@ -78,13 +78,13 @@ export default function ChildProfileDeleteScreen() {
   };
 
   return (
-    <SettingsScaffold title="Remove Child">
+    <SettingsScaffold title="Remove Child Profile">
       <View className="mt-5 bg-amber-50 border border-amber-100 rounded-xl p-5">
         <View className="w-12 h-12 rounded-full bg-amber-100 items-center justify-center mb-4">
           <Ionicons name="archive-outline" size={26} color="#B45309" />
         </View>
         <Text variant="bold" className="text-amber-900 text-lg mb-2">
-          Remove child
+          Remove child profile
         </Text>
         {/* <Text className="text-amber-900 leading-6">
           This is not permanent deletion. The child profile and learning progress
@@ -120,7 +120,7 @@ export default function ChildProfileDeleteScreen() {
               accessibilityState={{ disabled: !canSubmit || submitting }}
             >
               <Text variant="bold" className={canSubmit ? "text-white" : "text-gray-500"}>
-                {submitting ? "Removing..." : "Remove Child"}
+                {submitting ? "Removing..." : "Remove Child Profile"}
               </Text>
             </TouchableOpacity>
           </>

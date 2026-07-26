@@ -31,6 +31,7 @@ import {
 import { SIGNUP_EMAIL_REDIRECT_URL } from "@/lib/authRedirects";
 import { supabase } from "../lib/supabase";
 import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network";
+import { markNotificationOnboardingPending } from "@/lib/notifications";
 
 export default function SignUp() {
   const [email, setEmail] = useState("");
@@ -120,13 +121,6 @@ export default function SignUp() {
         params: { flow, email: trimmedEmail },
       } as any);
     };
-    const goToNotificationPermission = () => {
-      router.replace({
-        pathname: "/notification-permission",
-        params: { flow: "signup", email: trimmedEmail },
-      } as any);
-    };
-
     try {
       setLoading(true);
       const {
@@ -156,6 +150,17 @@ export default function SignUp() {
         return;
       }
 
+      if (data.user?.id) {
+        try {
+          await markNotificationOnboardingPending(data.user.id);
+        } catch (storageError) {
+          console.warn(
+            "Could not save notification onboarding state:",
+            storageError,
+          );
+        }
+      }
+
       if (data.session) {
         const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
         if (signOutError) {
@@ -163,7 +168,7 @@ export default function SignUp() {
         }
       }
 
-      goToNotificationPermission();
+      goToCheckEmail("signup");
     } catch (error) {
       console.error("Could not create account.");
       if (await showNetworkErrorIfNeeded(error, "Creating an account")) return;
@@ -390,7 +395,7 @@ export default function SignUp() {
             <View className="flex-row items-start mt-3 bg-accent-50 rounded-xl px-3 py-2.5">
               <FontAwesome name="wifi" size={13} color={brandColors.gold[700]} style={{ marginTop: 2 }} />
               <Text className="text-xs leading-4 text-neutral-600 ml-2 flex-1">
-                You may require an internet connection to access certain parts of the app.
+                Internet is needed to create the account and keep progress up to date.
               </Text>
             </View>
 

@@ -10,6 +10,7 @@ import { supabase } from "../lib/supabase"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { BrandMark } from "@/components/brand/BrandMark"
 import { brandColors } from "@/constants/Brand"
+import { fetchActiveChildProfiles } from "@/lib/accountManagement"
 
 // Define the child profile type
 type ChildProfile = {
@@ -26,6 +27,7 @@ type ChildProfile = {
 export default function ChildListScreen() {
   const [profiles, setProfiles] = useState<ChildProfile[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const router = useRouter()
 
   // Animation values
@@ -71,6 +73,7 @@ export default function ChildListScreen() {
   const fetchProfiles = async () => {
     try {
       setLoading(true)
+      setLoadError(false)
 
       // Get the current user session
       const { data: sessionData } = await supabase.auth.getSession()
@@ -82,22 +85,12 @@ export default function ChildListScreen() {
 
       const userId = sessionData.session.user.id
 
-      // Fetch child profiles from the 'children' table
-      const { data, error } = await supabase
-        .from("children")
-        .select("*")
-        .eq("parent_id", userId)
-        .is("deleted_at", null)
-
-      if (error) {
-        console.error("Error fetching profiles:", error.message)
-        throw error
-      }
-
-      setProfiles(data || [])
+      const data = await fetchActiveChildProfiles(userId)
+      setProfiles(data as ChildProfile[])
       setLoading(false)
     } catch (error) {
       console.error("Error in fetchProfiles:", error)
+      setLoadError(true)
       setLoading(false)
     }
   }
@@ -192,7 +185,34 @@ export default function ChildListScreen() {
           </View>
         ) : (
           <>
-            {profiles.length > 0 ? (
+            {loadError && profiles.length === 0 ? (
+              <View className="flex-1 items-center justify-center px-6">
+                <View className="w-full rounded-3xl border border-amber-200 bg-white p-6 items-center">
+                  <View className="w-16 h-16 rounded-2xl bg-amber-50 items-center justify-center">
+                    <FontAwesome5
+                      name="cloud"
+                      size={28}
+                      color={brandColors.gold[700]}
+                    />
+                  </View>
+                  <Text variant="bold" className="mt-4 text-xl text-neutral-900 text-center">
+                    Profiles could not refresh
+                  </Text>
+                  <Text className="mt-2 text-sm leading-5 text-neutral-600 text-center">
+                    Your saved profiles have not been removed. Try again when the
+                    connection improves.
+                  </Text>
+                  <TouchableOpacity
+                    className="mt-5 rounded-2xl bg-primary-500 px-6 py-3"
+                    onPress={() => void fetchProfiles()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Retry loading child profiles"
+                  >
+                    <Text variant="bold" className="text-white">Try again</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : profiles.length > 0 ? (
               <>
                 <FlatList
                   data={profiles}

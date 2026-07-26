@@ -46,6 +46,7 @@ const getRouteOrientationMode = (routePathname: string): RouteOrientationMode =>
   routePathname.startsWith("/child") ? "child" : "adult";
 
 export const requiresAuthenticatedSession = (routePathname: string): boolean =>
+  routePathname === "/notification-permission" ||
   routePathname === "/child-list" ||
   routePathname.startsWith("/child/") ||
   routePathname === "/child" ||

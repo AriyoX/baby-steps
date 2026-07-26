@@ -56,8 +56,8 @@ export default function AccountDeleteScreen() {
         !hasRecentParentReauthentication(accountId)
       ) {
         Alert.alert(
-          "Parent verification did not work",
-          "Check the parent account password and try again.",
+          "That password did not work",
+          "Check your account password and try again.",
         );
         return;
       }

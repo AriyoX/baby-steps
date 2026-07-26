@@ -9,6 +9,8 @@ const LEARNING_REMINDER_SETTINGS_PREFIX = "@BabySteps:LearningReminderSettings:v
 const LEARNING_REMINDER_CANCELLATION_LEDGER_KEY =
   "@BabySteps:LearningReminderCancellationLedger:v1";
 const LEGACY_NOTIFICATION_PREFERENCES_KEY = "@baby_steps_notification_preferences";
+const NOTIFICATION_ONBOARDING_PREFIX =
+  "@BabySteps:NotificationOnboarding:v1";
 const LEARNING_REMINDER_SCOPE = "baby-steps-learning-reminder-v1";
 const MAX_LEDGER_ACCOUNTS = 32;
 const MAX_LEDGER_IDS_PER_ACCOUNT = 64;
@@ -121,6 +123,47 @@ export const getLearningReminderSettingsStorageKey = (accountId: string): string
 
 export const getLearningReminderCancellationLedgerStorageKey = (): string =>
   LEARNING_REMINDER_CANCELLATION_LEDGER_KEY;
+
+export const getNotificationOnboardingStorageKey = (
+  accountId: string,
+): string =>
+  `${NOTIFICATION_ONBOARDING_PREFIX}:${encodeURIComponent(accountId)}`;
+
+export const markNotificationOnboardingPending = async (
+  accountId: string,
+): Promise<void> => {
+  if (!accountId) return;
+  await AsyncStorage.setItem(
+    getNotificationOnboardingStorageKey(accountId),
+    "pending",
+  );
+};
+
+export const shouldShowNotificationOnboarding = async (
+  accountId: string,
+): Promise<boolean> => {
+  if (!accountId) return false;
+  try {
+    return (
+      (await AsyncStorage.getItem(
+        getNotificationOnboardingStorageKey(accountId),
+      )) === "pending"
+    );
+  } catch (error) {
+    console.warn("Could not read notification onboarding state:", error);
+    return false;
+  }
+};
+
+export const completeNotificationOnboarding = async (
+  accountId: string,
+): Promise<void> => {
+  if (!accountId) return;
+  await AsyncStorage.setItem(
+    getNotificationOnboardingStorageKey(accountId),
+    "complete",
+  );
+};
 
 const isReminderTime = (value: unknown): value is string => {
   if (typeof value !== "string" || !/^\d{2}:\d{2}$/.test(value)) return false;

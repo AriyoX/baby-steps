@@ -111,7 +111,7 @@ export default function SubmitScreen() {
     } catch {
       Alert.alert(
         "Could not start child mode",
-        "The secure child session could not be saved. You can try again from the child profile.",
+        "Baby Steps could not get child mode ready. Try again from the child profile.",
       )
     }
   }

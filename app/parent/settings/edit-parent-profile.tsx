@@ -17,13 +17,13 @@ import { validateProfileName } from "@/lib/profileValidation";
 const getSaveErrorMessage = (error: unknown): string => {
   if (error instanceof ParentProfileError) {
     if (error.kind === "authorization") {
-      return "This signed-in account is not allowed to edit that parent profile.";
+      return "This parent profile cannot be changed from this account.";
     }
     if (error.kind === "network") {
       return "Baby Steps could not be reached. Check your connection and try again.";
     }
     if (error.kind === "session-changed") {
-      return "The signed-in account changed. Reopen the parent profile and try again.";
+      return "The account changed. Reopen the parent profile and try again.";
     }
     return error.message;
   }
@@ -137,7 +137,7 @@ export default function EditParentProfileScreen() {
               </Text>
             </View>
             <Text className="text-gray-500 text-sm leading-5 mt-2">
-              Account email changes are not available during the closed beta.
+              Contact Baby Steps support if this email needs to be changed.
             </Text>
 
             {saveError ? (

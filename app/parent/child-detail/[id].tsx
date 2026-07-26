@@ -153,7 +153,7 @@ export default function ChildDetailScreen() {
       } catch {
         Alert.alert(
           "Could not start child mode",
-          "The secure child session could not be saved. Please try again.",
+          "Baby Steps could not get child mode ready. Please try again.",
         )
       }
     }

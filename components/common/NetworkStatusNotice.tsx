@@ -4,7 +4,13 @@ import { Ionicons } from "@expo/vector-icons"
 import NetInfo, { type NetInfoState } from "@react-native-community/netinfo"
 import { Text } from "@/components/StyledText"
 import { brandColors } from "@/constants/Brand"
-import { OFFLINE_ALERT_TITLE } from "@/lib/network"
+import {
+  CONNECTION_ALERT_TITLE,
+  OFFLINE_ALERT_TITLE,
+  getReportedConnectivityIssue,
+  subscribeConnectivityIssues,
+  type ReportedConnectivityIssue,
+} from "@/lib/network"
 
 type NetworkStatusNoticeProps = {
   ready?: boolean
@@ -17,6 +23,9 @@ export const OFFLINE_BANNER_MESSAGE =
 export const OFFLINE_POPUP_MESSAGE =
   "Saved activities may still work. Sign-in, syncing and fresh updates will wait until you reconnect."
 
+export const UNSTABLE_CONNECTION_MESSAGE =
+  "The connection is very slow or unstable. Saved family data stays visible while Baby Steps reconnects."
+
 export const shouldShowPersistentNetworkBanner = (pathname: string): boolean =>
   !pathname.startsWith("/child")
 
@@ -28,6 +37,10 @@ export function NetworkStatusNotice({
   showPersistentBanner = true,
 }: NetworkStatusNoticeProps) {
   const [isOffline, setIsOffline] = useState(false)
+  const [reportedIssue, setReportedIssue] =
+    useState<ReportedConnectivityIssue | null>(
+      getReportedConnectivityIssue(),
+    )
   const [showOfflinePopup, setShowOfflinePopup] = useState(false)
   const offlineEpisodeActive = useRef(false)
 
@@ -44,6 +57,10 @@ export function NetworkStatusNotice({
   }, [applyNetworkState])
 
   useEffect(() => {
+    return subscribeConnectivityIssues(setReportedIssue)
+  }, [])
+
+  useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(applyNetworkState)
     const appStateSubscription = AppState.addEventListener("change", (nextState) => {
       if (nextState === "active") void refreshNetworkState()
@@ -58,7 +75,7 @@ export function NetworkStatusNotice({
   }, [applyNetworkState, refreshNetworkState])
 
   useEffect(() => {
-    if (!isOffline) {
+    if (!isOffline && !reportedIssue) {
       offlineEpisodeActive.current = false
       setShowOfflinePopup(false)
       return
@@ -68,9 +85,18 @@ export function NetworkStatusNotice({
       offlineEpisodeActive.current = true
       setShowOfflinePopup(true)
     }
-  }, [isOffline, ready])
+  }, [isOffline, ready, reportedIssue])
 
-  if (!isOffline) return null
+  if (!isOffline && !reportedIssue) return null
+
+  const title = isOffline ? "You’re offline" : "Connection is unstable"
+  const alertTitle = isOffline ? OFFLINE_ALERT_TITLE : CONNECTION_ALERT_TITLE
+  const bannerMessage = isOffline
+    ? OFFLINE_BANNER_MESSAGE
+    : reportedIssue?.message ?? UNSTABLE_CONNECTION_MESSAGE
+  const popupMessage = isOffline
+    ? OFFLINE_POPUP_MESSAGE
+    : reportedIssue?.message ?? UNSTABLE_CONNECTION_MESSAGE
 
   return (
     <>
@@ -86,16 +112,16 @@ export function NetworkStatusNotice({
             <Ionicons name="cloud-offline-outline" size={20} color={brandColors.white} />
           </View>
           <View className="flex-1 ml-3">
-            <Text variant="bold" className="text-white text-sm">You’re offline</Text>
+            <Text variant="bold" className="text-white text-sm">{title}</Text>
             <Text className="text-neutral-200 text-xs leading-4 mt-0.5">
-              {OFFLINE_BANNER_MESSAGE}
+              {bannerMessage}
             </Text>
           </View>
         </View>
       ) : null}
 
       <Modal
-        visible={showOfflinePopup}
+        visible={!showPersistentBanner && showOfflinePopup}
         transparent
         animationType="fade"
         statusBarTranslucent
@@ -112,10 +138,10 @@ export function NetworkStatusNotice({
               <Ionicons name="cloud-offline-outline" size={29} color={brandColors.shanaOrange} />
             </View>
             <Text variant="bold" className="text-2xl text-neutral-900">
-              {OFFLINE_ALERT_TITLE}
+              {alertTitle}
             </Text>
             <Text className="text-sm leading-6 text-neutral-600 mt-2">
-              {OFFLINE_POPUP_MESSAGE}
+              {popupMessage}
             </Text>
             <Pressable
               className="mt-6 min-h-[50px] rounded-2xl bg-primary-600 items-center justify-center px-5"

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Alert, TouchableOpacity, View } from "react-native";
+import { TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { SettingsScaffold } from "@/components/settings/SettingsScaffold";
@@ -18,15 +18,17 @@ export default function ChildProfilesManagementScreen() {
   const router = useRouter();
   const [children, setChildren] = React.useState<ChildProfile[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState(false);
 
   const loadChildren = React.useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const profiles = await fetchActiveChildProfiles();
       setChildren(profiles);
     } catch (error) {
       console.error("Could not load child profiles:", error);
-      Alert.alert("Could not load profiles", "Please try again.");
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -40,7 +42,7 @@ export default function ChildProfilesManagementScreen() {
     <SettingsScaffold title="Child Profiles">
       <View className="mt-5 flex-row justify-between items-center">
         <Text className="text-gray-600 flex-1 pr-3">
-          Manage child profiles and learning data.
+          Manage child profiles and learning progress.
         </Text>
         <TouchableOpacity
           className="bg-blue-600 rounded-full px-4 py-2 flex-row items-center"
@@ -58,6 +60,24 @@ export default function ChildProfilesManagementScreen() {
         {loading ? (
           <View className="p-5">
             <Text className="text-gray-500">Loading child profiles...</Text>
+          </View>
+        ) : loadError && children.length === 0 ? (
+          <View className="p-5">
+            <Text variant="bold" className="text-amber-900">
+              Child profiles could not refresh
+            </Text>
+            <Text className="text-amber-800 leading-5 mt-1">
+              Your profiles have not been removed. Check the connection and try
+              again.
+            </Text>
+            <TouchableOpacity
+              className="self-start mt-3 rounded-lg bg-amber-900 px-4 py-2"
+              onPress={() => void loadChildren()}
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading child profiles"
+            >
+              <Text variant="bold" className="text-white">Try again</Text>
+            </TouchableOpacity>
           </View>
         ) : children.length > 0 ? (
           children.map((child, index) => (

@@ -15,6 +15,7 @@ import { brandColors } from "@/constants/Brand"
 import { PARENTING_TIPS } from "@/content/parentingTips"
 import { getParentDashboardGreeting } from "@/content/parentDashboardGreeting"
 import { PARENT_DASHBOARD_TOUR_STEPS } from "@/lib/parentDashboardTour"
+import { fetchActiveChildProfiles } from "@/lib/accountManagement"
 import {
   GameTour,
   GameTourProvider,
@@ -43,6 +44,7 @@ const ParentDashboard = () => {
   const [childProfiles, setChildProfiles] = useState<ChildProfile[]>([])
   const [parentId, setParentId] = useState<string>()
   const [loading, setLoading] = useState(true)
+  const [profileLoadError, setProfileLoadError] = useState(false)
   const [greetingTime, setGreetingTime] = useState(() => new Date())
   const [recentActivities, setRecentActivities] = useState<any[]>([])
   const {
@@ -104,6 +106,7 @@ const ParentDashboard = () => {
   const fetchChildProfiles = useCallback(async () => {
     try {
       setLoading(true)
+      setProfileLoadError(false)
 
       // Get the current user session
       const { data: sessionData } = await supabase.auth.getSession()
@@ -117,22 +120,12 @@ const ParentDashboard = () => {
       const userId = sessionData.session.user.id
       setParentId(userId)
 
-      // Fetch child profiles from the 'children' table
-      const { data, error } = await supabase
-        .from("children")
-        .select("*")
-        .eq("parent_id", userId)
-        .is("deleted_at", null)
-
-      if (error) {
-        console.error("Error fetching profiles:", error.message)
-        throw error
-      }
-
-      setChildProfiles((data ?? []) as ChildProfile[])
+      const profiles = await fetchActiveChildProfiles(userId)
+      setChildProfiles(profiles as ChildProfile[])
       setLoading(false)
     } catch (error) {
       console.error("Error in fetchChildProfiles:", error)
+      setProfileLoadError(true)
       setLoading(false)
     }
   }, [])
@@ -292,6 +285,31 @@ const ParentDashboard = () => {
               {loading ? (
                 <View className="items-center justify-center py-4">
                   <Text>Loading profiles...</Text>
+                </View>
+              ) : profileLoadError && childProfiles.length === 0 ? (
+                <View className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <View className="flex-row items-center">
+                    <Ionicons
+                      name="cloud-offline-outline"
+                      size={22}
+                      color={brandColors.gold[700]}
+                    />
+                    <Text variant="bold" className="ml-3 flex-1 text-amber-900">
+                      Child profiles could not refresh
+                    </Text>
+                  </View>
+                  <Text className="mt-2 text-sm leading-5 text-amber-800">
+                    Your profiles have not been removed. Check the connection and
+                    try again.
+                  </Text>
+                  <TouchableOpacity
+                    className="mt-3 self-start rounded-xl bg-amber-900 px-4 py-2"
+                    onPress={() => void fetchChildProfiles()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Retry loading child profiles"
+                  >
+                    <Text variant="bold" className="text-white">Try again</Text>
+                  </TouchableOpacity>
                 </View>
               ) : (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-4 pb-2">

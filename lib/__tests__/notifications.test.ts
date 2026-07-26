@@ -57,10 +57,14 @@ const {
   disableRecurringReminders,
   getLearningReminderCancellationLedgerStorageKey,
   getLearningReminderSettingsStorageKey,
+  getNotificationOnboardingStorageKey,
   getNotificationPreferences,
+  markNotificationOnboardingPending,
+  completeNotificationOnboarding,
   requestAndEnableRecurringReminders,
   requestNotificationPermission,
   scheduleRecurringReminders,
+  shouldShowNotificationOnboarding,
   updateLearningReminderSettings,
 } = require("../notifications")
 /* eslint-enable @typescript-eslint/no-require-imports */
@@ -100,6 +104,26 @@ describe("grouped learning reminders", () => {
     )
     expect(getLearningReminderSettingsStorageKey("parent-2")).not.toBe(
       getLearningReminderSettingsStorageKey("parent-1"),
+    )
+  })
+
+  it("shows notification onboarding only for the newly signed-up account", async () => {
+    await markNotificationOnboardingPending("parent-1")
+
+    await expect(
+      shouldShowNotificationOnboarding("parent-1"),
+    ).resolves.toBe(true)
+    await expect(
+      shouldShowNotificationOnboarding("parent-2"),
+    ).resolves.toBe(false)
+
+    await completeNotificationOnboarding("parent-1")
+
+    await expect(
+      shouldShowNotificationOnboarding("parent-1"),
+    ).resolves.toBe(false)
+    expect(storage.get(getNotificationOnboardingStorageKey("parent-1"))).toBe(
+      "complete",
     )
   })
 

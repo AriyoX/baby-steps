@@ -50,6 +50,7 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Existing email signup gives helpful sign-in guidance where Supabase safely exposes it.
 - [ ] Login with an unconfirmed email routes to confirmation guidance instead of only showing an alert.
 - [ ] Resend confirmation email works from the confirmation guidance screen when an email is available.
+- [ ] “Use a different email” returns to signup so another address can be entered.
 - [ ] Login with wrong password shows friendly copy and keeps Forgot password visible.
 - [ ] Login with a non-existent account shows friendly general copy and keeps Create Account visible.
 - [ ] Login after requesting a reset does not block the old password if it still works.
@@ -63,6 +64,9 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Signup confirmation deep link still routes into the authenticated app.
 - [ ] Expired or invalid signup confirmation link shows signup/sign-in actions.
 - [ ] Logout returns user to unauthenticated flow.
+- [ ] An existing parent PIN stays hidden until the correct account password is entered.
+- [ ] The revealed PIN hides when requested, after 30 seconds, and whenever the app leaves the foreground.
+- [ ] A parent can replace an existing PIN and use the new PIN to leave child mode.
 
 ## Notifications
 

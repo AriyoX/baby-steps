@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { FontAwesome } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { Text } from "@/components/StyledText";
@@ -29,7 +29,11 @@ import { supabase } from "../lib/supabase";
 import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network";
 
 export default function ForgotPassword() {
-  const [email, setEmail] = useState("");
+  const params = useLocalSearchParams<{ email?: string | string[] }>();
+  const initialEmail = Array.isArray(params.email)
+    ? params.email[0]
+    : params.email;
+  const [email, setEmail] = useState(initialEmail?.trim() ?? "");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 

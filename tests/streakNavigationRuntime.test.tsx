@@ -130,6 +130,7 @@ jest.mock("@/context/AudioContext", () => ({
 }));
 
 jest.mock("@/lib/accountManagement", () => ({
+  fetchActiveChildProfiles: jest.fn(async () => [mockChild]),
   fetchActiveChildProfile: jest.fn(async (childId: string) =>
     childId === mockChild.id ? mockChild : null,
   ),

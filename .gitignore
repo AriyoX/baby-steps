@@ -42,8 +42,8 @@ supabase/.temp/
 .vscode/settings.json
 
 *.apk
+*.aab
 
-
-
+bug.txt
 
 to_add.txt

@@ -7,7 +7,16 @@ import { BrandMark } from "@/components/brand/BrandMark"
 import { AppButton } from "@/components/common/AppButton"
 import { Text } from "@/components/StyledText"
 import { brandColors } from "@/constants/Brand"
-import { requestAndEnableRecurringReminders } from "@/lib/notifications"
+import {
+  completeNotificationOnboarding,
+  requestAndEnableRecurringReminders,
+} from "@/lib/notifications"
+import {
+  fetchActiveChildProfiles,
+  getAccountDeletionState,
+  getPostLoginRouteForAccountState,
+} from "@/lib/accountManagement"
+import { supabase } from "@/lib/supabase"
 
 const REMINDER_BENEFITS = [
   {
@@ -27,16 +36,71 @@ const REMINDER_BENEFITS = [
   },
 ]
 
+type NotificationNextRoute =
+  | "/parent"
+  | "/parent/add-child/gender"
+  | "/account-reactivation"
+
+const getNextRoute = (
+  value: string | string[] | undefined,
+): NotificationNextRoute | null => {
+  const route = Array.isArray(value) ? value[0] : value
+  return route === "/parent" ||
+    route === "/parent/add-child/gender" ||
+    route === "/account-reactivation"
+    ? route
+    : null
+}
+
 export default function NotificationPermissionScreen() {
   const router = useRouter()
-  const params = useLocalSearchParams<{ email?: string; flow?: "signup" }>()
+  const params = useLocalSearchParams<{ next?: string }>()
   const [loading, setLoading] = useState(false)
 
-  const continueToEmailCheck = () => {
-    router.replace({
-      pathname: "/check-email",
-      params: { flow: params.flow ?? "signup", email: params.email ?? "" },
-    } as any)
+  const continueToApp = async () => {
+    let accountId = ""
+    try {
+      const { data } = await supabase.auth.getSession()
+      accountId = data.session?.user.id ?? ""
+    } catch {
+      router.replace("/login")
+      return
+    }
+    if (!accountId) {
+      router.replace("/login")
+      return
+    }
+
+    try {
+      await completeNotificationOnboarding(accountId)
+    } catch (error) {
+      console.warn("Could not complete notification onboarding state:", error)
+    }
+
+    const requestedRoute = getNextRoute(params.next)
+    if (requestedRoute) {
+      router.replace(requestedRoute as any)
+      return
+    }
+
+    try {
+      const accountState = await getAccountDeletionState(accountId)
+      const accountRoute = getPostLoginRouteForAccountState(accountState)
+      if (accountRoute !== "/parent") {
+        router.replace(accountRoute as any)
+        return
+      }
+      const profiles = await fetchActiveChildProfiles(accountId)
+      router.replace(
+        (profiles.length > 0
+          ? "/parent"
+          : "/parent/add-child/gender") as any,
+      )
+    } catch {
+      // A slow connection must not strand an authenticated parent on this
+      // one-time prompt. The dashboard can retry its cached data safely.
+      router.replace("/parent")
+    }
   }
 
   const enableReminders = async () => {
@@ -54,7 +118,17 @@ export default function NotificationPermissionScreen() {
       Alert.alert("Could not set reminders", "You can try again later from Parent Settings.")
     } finally {
       setLoading(false)
-      continueToEmailCheck()
+      await continueToApp()
+    }
+  }
+
+  const skipForNow = async () => {
+    if (loading) return
+    setLoading(true)
+    try {
+      await continueToApp()
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -118,9 +192,9 @@ export default function NotificationPermissionScreen() {
           className="rounded-2xl min-h-[56px]"
         />
         <AppButton
-          label="Maybe later"
+          label="Not now"
           variant="ghost"
-          onPress={continueToEmailCheck}
+          onPress={() => void skipForNow()}
           disabled={loading}
         />
       </View>

@@ -1,5 +1,6 @@
 export type SettingsRoute =
   | "/parent/settings/account"
+  | "/parent/settings/parent-pin"
   | "/parent/settings/child-profiles"
   | "/parent/settings/audio"
   | "/parent/settings/notifications"
@@ -37,6 +38,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         icon: "people-outline",
         iconColor: "#F97316",
         route: "/parent/settings/child-profiles",
+      },
+      {
+        title: "Parent Access PIN",
+        description: "Set, change, or review the PIN used to leave child mode.",
+        icon: "keypad-outline",
+        iconColor: "#7C3AED",
+        route: "/parent/settings/parent-pin",
       },
     ],
   },
@@ -90,6 +98,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 export const REQUIRED_SETTINGS_ENTRY_TITLES = [
   "Account",
   "Child Profiles",
+  "Parent Access PIN",
   "Audio",
   "Notifications",
   "Privacy & Safety",

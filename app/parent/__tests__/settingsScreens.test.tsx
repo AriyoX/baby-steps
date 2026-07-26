@@ -177,6 +177,7 @@ describe("settings management screens", () => {
 
     expect(text).toContain("Account");
     expect(text).toContain("Child Profiles");
+    expect(text).toContain("Parent Access PIN");
     expect(text).toContain("Audio");
     expect(text).toContain("Privacy & Safety");
     expect(text).toContain("About Baby Steps");

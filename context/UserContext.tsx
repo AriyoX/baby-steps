@@ -1,6 +1,10 @@
 import React, { createContext, useContext, useState } from 'react';
 import { supabase } from '@/lib/supabase'; // Import Supabase client
 import type { SupportedLearningLanguageCode } from '@/content/types';
+import {
+  upsertCachedActiveChildProfile,
+  type ChildProfile,
+} from '@/lib/accountManagement';
 
 type ChildLearningLanguageCode = SupportedLearningLanguageCode | '';
 
@@ -110,7 +114,20 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('Failed to add child profile: no saved profile was returned.');
       }
 
-      console.log('Child profile added successfully!');
+      try {
+        await upsertCachedActiveChildProfile(
+          parent_id,
+          data as ChildProfile,
+        );
+      } catch (cacheError) {
+        console.warn('Could not cache the new child profile:', cacheError);
+      }
+
+      void import('@/lib/notifications').then(({ syncRecurringRemindersIfEnabled }) =>
+        syncRecurringRemindersIfEnabled(parent_id),
+      ).catch((error) => {
+        console.warn('Could not refresh learning reminders after child creation:', error);
+      });
       setOnboardingComplete(true); // Mark onboarding as complete
       return data as CreatedChildProfile;
     } catch (error) {

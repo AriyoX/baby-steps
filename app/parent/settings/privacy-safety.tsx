@@ -6,11 +6,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { SettingsRow } from "@/components/settings/SettingsRow";
 import { SettingsScaffold } from "@/components/settings/SettingsScaffold";
+import { LegalDocumentModal } from "@/components/auth/LegalDocumentModal";
 import { Text } from "@/components/StyledText";
+import { PRIVACY_POLICY, TERMS_OF_SERVICE } from "@/content/legal";
 import { BABY_STEPS_SUPPORT_EMAIL, getSupportMailtoUrl } from "@/lib/support";
 
 export default function PrivacySafetyScreen() {
   const router = useRouter();
+  const [activeLegalDocument, setActiveLegalDocument] = React.useState<
+    "privacy" | "terms" | null
+  >(null);
 
   const contactSupport = React.useCallback(async () => {
     try {
@@ -59,6 +64,20 @@ export default function PrivacySafetyScreen() {
 
       <View className="mt-5 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <SettingsRow
+          title="Privacy Policy"
+          description="Read how Baby Steps handles family information."
+          icon="shield-checkmark-outline"
+          iconColor="#0891B2"
+          onPress={() => setActiveLegalDocument("privacy")}
+        />
+        <SettingsRow
+          title="Terms of Service"
+          description="Review the terms for using Baby Steps."
+          icon="document-text-outline"
+          iconColor="#2563EB"
+          onPress={() => setActiveLegalDocument("terms")}
+        />
+        <SettingsRow
           title="Delete Account"
           description="Schedule account deletion from the Account settings screen."
           icon="trash-outline"
@@ -84,6 +103,14 @@ export default function PrivacySafetyScreen() {
           last
         />
       </View>
+
+      {activeLegalDocument ? (
+        <LegalDocumentModal
+          document={activeLegalDocument === "terms" ? TERMS_OF_SERVICE : PRIVACY_POLICY}
+          onClose={() => setActiveLegalDocument(null)}
+          visible
+        />
+      ) : null}
     </SettingsScaffold>
   );
 }

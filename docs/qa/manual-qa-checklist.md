@@ -50,6 +50,7 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Existing email signup gives helpful sign-in guidance where Supabase safely exposes it.
 - [ ] Login with an unconfirmed email routes to confirmation guidance instead of only showing an alert.
 - [ ] Resend confirmation email works from the confirmation guidance screen when an email is available.
+- [ ] “Use a different email” returns to signup so another address can be entered.
 - [ ] Login with wrong password shows friendly copy and keeps Forgot password visible.
 - [ ] Login with a non-existent account shows friendly general copy and keeps Create Account visible.
 - [ ] Login after requesting a reset does not block the old password if it still works.
@@ -63,6 +64,9 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Signup confirmation deep link still routes into the authenticated app.
 - [ ] Expired or invalid signup confirmation link shows signup/sign-in actions.
 - [ ] Logout returns user to unauthenticated flow.
+- [ ] An existing parent PIN stays hidden until the correct account password is entered.
+- [ ] The revealed PIN hides when requested, after 30 seconds, and whenever the app leaves the foreground.
+- [ ] A parent can replace an existing PIN and use the new PIN to leave child mode.
 
 ## Notifications
 
@@ -73,7 +77,7 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] The `notification-test` profile still exposes manual test-notification controls.
 - [ ] Denying permission does not block signup or login.
 - [ ] Dashboard bell opens notification settings.
-- [ ] Settings toggle pauses and resumes the three recurring reminders.
+- [ ] Settings toggle pauses and resumes the grouped account/device learning reminder.
 - [ ] Blocked permission state offers a route to device settings.
 - [ ] Test reminder appears after approximately three seconds.
 - [ ] Tapping a reminder opens the appropriate signed-in or signed-out root flow.
@@ -89,6 +93,21 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Child appears in child list and parent dashboard.
 - [ ] Child detail opens for the correct child.
 - [ ] Launch child mode sets active child.
+
+## Child Learning Streaks
+
+- [ ] Cold-start signed out, signed in as a parent, signed in in child mode, and with a missing/invalid active child; no state requests navigation context before Expo Router is ready.
+- [ ] Open a child from the dashboard; the child profile shows current, best, today, and seven-day history without mutation controls.
+- [ ] Open Settings -> Child Profiles -> child; streak status, enable switch, reminder participation, and reset are present for that child.
+- [ ] Disable a child's streak; the controls remain visible, the child flame disappears, qualification stops, and that child leaves reminder eligibility.
+- [ ] Re-enable the streak; a clean current epoch starts without bridging the old streak.
+- [ ] Reset after adult confirmation, then complete again on the same local date; only the post-reset completion qualifies the new epoch.
+- [ ] Switch repeatedly between two children; neither preference, history, error, nor loading state flashes from the previously viewed child.
+- [ ] Test offline/failed hydration and mutation failure; the setting remains visible, retry works, and authoritative state is restored.
+- [ ] Complete each qualifying learning/game/story outcome and save coloring; partial progress and unsaved coloring do not qualify.
+- [ ] Confirm only the first qualification of the day celebrates, reduced-motion behavior is acceptable, and child header accessibility text is correct.
+- [ ] On a physical device, verify permission-denied startup, grouped generic reminder copy, optional first names, all-complete one-shot behavior, foreground refresh, and timezone/date-boundary behavior.
+- [ ] Follow the full contract and troubleshooting notes in [Child Learning Streaks](../features/child-streaks.md).
 
 ## Stories
 
@@ -120,19 +139,16 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Color palette and brush size controls work.
 - [ ] Save to gallery works after granting permission.
 - [ ] Save handles denied permission gracefully.
-- [ ] Share does not request photo-library permission.
+- [ ] Save cancellation and permanently blocked permission leave the artwork intact and show honest guidance.
 - [ ] Eraser removes paint without drawing white over the template lines.
 - [ ] Saved pictures contain the artwork only, with no toolbar, loader, or message overlay.
-- [ ] Share works where device sharing is available.
+- [ ] No Share button or system share sheet is reachable from child mode.
 
 ## Museum
 
 - [ ] Museum is hidden from the child tab bar while archived.
-- [ ] Artifacts screen opens and each item modal renders.
-- [ ] Art screen opens, modal renders, and video links are valid or flagged.
-- [ ] Instruments screen opens, details render, and sounds play/stop.
-- [ ] Textiles screen opens, pinch behavior works, and details render.
-- [ ] Back button closes modals before leaving screens.
+- [ ] Direct Museum routes show an unavailable state because no reviewed Museum menu is published.
+- [ ] No external video, browser, or WebView surface is reachable from Museum.
 
 ## Content And Media Loading
 
@@ -150,7 +166,7 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Parent dashboard recent activities update.
 - [ ] All Activities search and filters work.
 - [ ] Achievements display correctly when definitions are seeded.
-- [ ] Static `/parent/child-progress` screen is either accepted as prototype-only or replaced before release.
+- [ ] Parent progress surfaces show only persisted activities/achievements or an honest empty state.
 
 ## Offline Or Poor Network Behavior
 
@@ -159,6 +175,9 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Launching while offline shows the pop-up after the splash animation finishes.
 - [ ] Changing connectivity while the app is backgrounded is detected when it returns to the foreground.
 - [ ] Login and signup explain which functionality requires internet.
+- [ ] Signup keeps account creation disabled until the parent checks legal consent.
+- [ ] Terms of Service and Privacy Policy links open readable, scrollable in-app pop-ups.
+- [ ] Privacy & Safety settings provide access to both legal documents after signup.
 - [ ] Offline sign-in, signup, password recovery, confirmation resend, and child-profile save show action-specific messages.
 - [ ] Restoring connectivity removes the banner and allows the action to be retried.
 - [ ] Local-only game progress still loads.
@@ -171,7 +190,7 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Test on emulator.
 - [ ] Test on physical Android device if available.
 - [ ] Test orientation changes and locks.
-- [ ] Test media save/share permissions.
+- [ ] Test add-only media save permission, cancellation, permanent denial, and failure.
 - [ ] Test Android hardware back in child, game, story, museum, and coloring screens.
 - [ ] Build with EAS profile if preparing a release.
 
@@ -180,7 +199,7 @@ Use this checklist for prototype regression passes and MVP launch readiness. Rec
 - [ ] Test on simulator if macOS/Xcode are available.
 - [ ] Test on physical iOS device before App Store release.
 - [ ] Test reset-password deep link.
-- [ ] Test media save/share permissions.
+- [ ] Test add-only media save permission, cancellation, permanent denial, and failure.
 - [ ] Test orientation changes and locks.
 
 ## Regression Checks After Refactors

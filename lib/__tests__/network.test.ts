@@ -12,16 +12,21 @@ jest.mock("react-native", () => ({
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const {
+  clearReportedConnectivityIssue,
+  getReportedConnectivityIssue,
   isDeviceOffline,
   isLikelyNetworkError,
+  reportConnectivityIssue,
   requireInternet,
   showNetworkErrorIfNeeded,
+  subscribeConnectivityIssues,
 } = require("../network")
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 describe("network helpers", () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    clearReportedConnectivityIssue()
     mockFetch.mockResolvedValue({ isConnected: true, isInternetReachable: true })
   })
 
@@ -72,5 +77,24 @@ describe("network helpers", () => {
       showNetworkErrorIfNeeded(new Error("Invalid password"), "Signing in"),
     ).resolves.toBe(false)
     expect(mockAlert).not.toHaveBeenCalled()
+  })
+
+  it("reports a slow-but-connected failure to the global notice", () => {
+    const listener = jest.fn()
+    const unsubscribe = subscribeConnectivityIssues(listener)
+
+    reportConnectivityIssue("Showing saved child profiles.")
+
+    expect(getReportedConnectivityIssue()).toEqual({
+      kind: "unstable",
+      message: "Showing saved child profiles.",
+    })
+    expect(listener).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: "unstable" }),
+    )
+
+    clearReportedConnectivityIssue()
+    expect(listener).toHaveBeenLastCalledWith(null)
+    unsubscribe()
   })
 })

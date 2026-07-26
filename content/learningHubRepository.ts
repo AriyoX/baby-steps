@@ -3,6 +3,8 @@ import {
   getLearningLanguage,
   normalizeLearningLanguageCode,
 } from "./languages";
+import { isProductionReadyLearningAudioAsset } from "@/lib/audioAssets";
+import { isProductionReadyBundledImageAsset } from "./assets";
 import type {
   ChooseCorrectWordItem,
   ContentReadiness,
@@ -224,6 +226,10 @@ const asContentReadiness = (
 
   return fallback;
 };
+
+export const isReleaseReadyContentReadiness = (
+  readiness: ContentReadiness | undefined,
+): boolean => readiness === "reviewed" || readiness === "production";
 
 const asMetadata = (value: unknown): Record<string, unknown> | undefined => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -999,13 +1005,112 @@ const isValidLessonItem = (item: LearningLessonItem): boolean => {
   return true;
 };
 
+const areOptionalImagesProductionReady = (
+  ...images: Array<string | undefined>
+): boolean =>
+  images
+    .filter((image): image is string => Boolean(image))
+    .every(isProductionReadyBundledImageAsset);
+
+const hasReleaseReadyMedia = (item: LearningLessonItem): boolean => {
+  if (!areOptionalImagesProductionReady(item.imageAsset, item.imageKey)) {
+    return false;
+  }
+
+  if (
+    (item.mechanic === "tap_to_learn" ||
+      item.mechanic === "listen_and_choose") &&
+    !isProductionReadyLearningAudioAsset(item.audioAsset, item.audioKey)
+  ) {
+    return false;
+  }
+
+  if (
+    (item.audioAsset || item.audioKey) &&
+    !isProductionReadyLearningAudioAsset(item.audioAsset, item.audioKey)
+  ) {
+    return false;
+  }
+
+  if (
+    item.mechanic === "listen_and_choose" ||
+    item.mechanic === "choose_correct_word" ||
+    item.mechanic === "match_word_picture"
+  ) {
+    if (
+      !item.options.every((option) =>
+        areOptionalImagesProductionReady(option.imageAsset, option.imageKey),
+      )
+    ) {
+      return false;
+    }
+  }
+
+  if (
+    item.mechanic === "match_word_picture" &&
+    !item.options.every(
+      (option) =>
+        Boolean(option.emoji?.trim()) ||
+        Boolean(
+          (option.imageAsset || option.imageKey) &&
+            areOptionalImagesProductionReady(
+              option.imageAsset,
+              option.imageKey,
+            ),
+        ),
+    )
+  ) {
+    return false;
+  }
+
+  if (item.mechanic === "story_bite") {
+    return item.pages.every(
+      (page) =>
+        areOptionalImagesProductionReady(page.imageAsset, page.imageKey) &&
+        (!(page.audioAsset || page.audioKey) ||
+          isProductionReadyLearningAudioAsset(
+            page.audioAsset,
+            page.audioKey,
+          )),
+    );
+  }
+
+  return true;
+};
+
+export const isLearningHubLessonReleaseReady = (
+  stage: LearningHubStage | undefined,
+  lesson: LearningHubLesson | undefined,
+): boolean => {
+  if (
+    !lesson ||
+    lesson.isStartable === false ||
+    !IMPLEMENTED_MECHANICS.has(lesson.mechanic) ||
+    !isReleaseReadyContentReadiness(lesson.readiness) ||
+    (stage &&
+      (!isReleaseReadyContentReadiness(stage.readiness) ||
+        stage.status === "planned"))
+  ) {
+    return false;
+  }
+
+  const mechanicItems = lesson.items.filter(
+    (item) => item.mechanic === lesson.mechanic,
+  );
+  return (
+    mechanicItems.length > 0 &&
+    mechanicItems.length === lesson.items.length &&
+    mechanicItems.every(
+      (item) =>
+        isReleaseReadyContentReadiness(item.readiness) &&
+        isValidLessonItem(item) &&
+        hasReleaseReadyMedia(item),
+    )
+  );
+};
+
 const shouldKeepNormalizedLessonItem = (item: LearningLessonItem): boolean =>
   !IMPLEMENTED_MECHANICS.has(item.mechanic) || isValidLessonItem(item);
-
-const hasValidLessonItems = (lesson: LearningHubLesson): boolean =>
-  lesson.items.some(
-    (item) => item.mechanic === lesson.mechanic && isValidLessonItem(item),
-  );
 
 const normalizeLesson = (
   lesson: RawLearningHubLesson,
@@ -1143,7 +1248,11 @@ export const getLessonStatus = (
     return "empty";
   }
 
-  if (!hasValidLessonItems(lesson)) {
+  if (
+    !lesson.items.some(
+      (item) => item.mechanic === lesson.mechanic && isValidLessonItem(item),
+    )
+  ) {
     return "empty";
   }
 
@@ -1204,6 +1313,25 @@ export const normalizeLearningHubLanguageContent = (
     pathTitle: asString(content?.pathTitle, `${language?.name ?? "Learning"} Path`),
     stages,
   };
+};
+
+export const filterReleaseReadyLearningHubContent = (
+  content: LearningLanguageContent,
+): LearningLanguageContent | null => {
+  const stages = content.stages
+    .map((stage) => {
+      const lessons = stage.lessons.filter((lesson) =>
+        isLearningHubLessonReleaseReady(stage, lesson),
+      );
+      return {
+        ...stage,
+        lessonCount: lessons.length,
+        lessons,
+      };
+    })
+    .filter((stage) => stage.lessons.length > 0);
+
+  return stages.length > 0 ? { ...content, stages } : null;
 };
 
 export const registerLearningHubLanguageContent = (

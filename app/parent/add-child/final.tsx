@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { View, TouchableOpacity, StatusBar, ActivityIndicator } from "react-native"
+import { Alert, View, TouchableOpacity, StatusBar, ActivityIndicator } from "react-native"
 import { AppButton } from "@/components/common/AppButton"
 import { useUser } from "@/context/UserContext"
 import { useChild } from "@/context/ChildContext"
@@ -15,6 +15,8 @@ import { BrandMark } from "@/components/brand/BrandMark"
 import { brandColors } from "@/constants/Brand"
 import { CHILD_HOME_ROUTE } from "@/constants/ChildNavigation"
 import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network"
+import { hasParentPin } from "@/lib/parentAccess"
+import { supabase } from "@/lib/supabase"
 
 type SavedChildProfile = {
   id: string
@@ -27,7 +29,7 @@ type SavedChildProfile = {
 export default function SubmitScreen() {
   const router = useRouter()
   const { name, gender, age, reason, selectedLanguageCode, addChildProfile } = useUser()
-  const { setActiveChild } = useChild()
+  const { activateChildMode } = useChild()
   const [isLoading, setIsLoading] = useState(true)
   const [isSuccess, setIsSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -70,18 +72,48 @@ export default function SubmitScreen() {
     router.replace("/parent/add-child/reason")
   }
 
-  const handleStartLearning = () => {
+  const handleStartLearning = async () => {
     if (!savedChild) return
 
-    setActiveChild({
-      ...savedChild,
-      selected_language_code: savedChild.selected_language_code || selectedLanguageCode,
-      avatar: savedChild.gender === "male" ? "boy" : savedChild.gender === "female" ? "girl" : "child",
-    })
-    router.replace({
-      pathname: CHILD_HOME_ROUTE as any,
-      params: { active: savedChild.id },
-    })
+    const { data } = await supabase.auth.getSession()
+    const accountId = data.session?.user.id
+    if (!accountId || !(await hasParentPin(accountId))) {
+      Alert.alert(
+        "Set a parent PIN first",
+        "A parent PIN is required before starting child mode.",
+        [
+          { text: "Not now", style: "cancel" },
+          {
+            text: "Set PIN",
+            onPress: () => router.push("/parent/settings/parent-pin" as any),
+          },
+        ],
+      )
+      return
+    }
+
+    try {
+      await activateChildMode({
+        ...savedChild,
+        selected_language_code:
+          savedChild.selected_language_code || selectedLanguageCode,
+        avatar:
+          savedChild.gender === "male"
+            ? "boy"
+            : savedChild.gender === "female"
+              ? "girl"
+              : "child",
+      })
+      router.replace({
+        pathname: CHILD_HOME_ROUTE as any,
+        params: { active: savedChild.id },
+      })
+    } catch {
+      Alert.alert(
+        "Could not start child mode",
+        "Baby Steps could not get child mode ready. Try again from the child profile.",
+      )
+    }
   }
 
   const handleViewDashboard = () => {
@@ -202,7 +234,7 @@ export default function SubmitScreen() {
                     <AppButton
                       label="Start learning"
                       icon="play"
-                      onPress={handleStartLearning}
+                      onPress={() => void handleStartLearning()}
                       disabled={!savedChild}
                     />
                     <AppButton

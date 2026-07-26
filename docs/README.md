@@ -12,9 +12,11 @@ This folder documents the current Baby Steps prototype and the work needed to mo
 | [Project structure](development/project-structure.md) | Developers | Where code and content live. |
 | [Testing guide](development/testing.md) | Developers, QA | Current test setup and test gaps. |
 | [Database-backed content](features/database-content.md) | Developers, product, QA | Runtime architecture, language isolation, security, cache, and deployed state. |
+| [Child learning streaks](features/child-streaks.md) | Product, QA, developers | Completion rules, parent controls, synchronization, reminders, security, and QA. |
 | [Content management](development/content-management.md) | Developers, content contributors | Database-content ownership and the migration-based update workflow. |
 | [Content authoring and new games](development/content-authoring-and-new-games.md) | Developers, content contributors | Payload examples, stable-ID rules, seeds, smoke test, and adding a language. |
 | [Database notes](development/database.md) | Developers | Current Supabase schema snapshot and gaps. |
+| [Scalability and capacity plan](development/scalability.md) | Developers, release owners | Codebase-specific user thresholds, bottlenecks, metrics, and staged scaling work. |
 | [Account deletion finalization](development/account-deletion-finalization.md) | Developers, release owners | Secure server-side final account deletion process and manual QA. |
 | [Deployment readiness](development/deployment.md) | Developers, release owners | Build commands, readiness status, blockers, and launch notes. |
 | [Manual QA checklist](qa/manual-qa-checklist.md) | QA, developers | Device and regression testing checklist. |
@@ -29,6 +31,7 @@ This folder documents the current Baby Steps prototype and the work needed to mo
 - [Verification report](../VERIFICATION_REPORT.md)
 - [Documentation verification report](../DOCS_VERIFICATION_REPORT.md)
 - [Privacy policy](../PRIVACY_POLICY.md)
+- [Terms of service](../TERMS_OF_SERVICE.md)
 - [Account and data deletion page](delete-account.html)
 
 ## Documentation Rules

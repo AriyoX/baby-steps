@@ -40,7 +40,9 @@ import { syncProgressNow } from "@/lib/progressRepository"
 import {
   completeLocallyFirst,
   type LocalFirstCompletionResult,
+  type LocalPersistenceStatus,
 } from "@/lib/completionReliability"
+import { recordQualifiedStreakActivity } from "@/lib/streakRepository"
 import { useAchievements } from "./achievements/useAchievements"
 import type { AchievementDefinition } from "./achievements/achievementTypes"
 import { playWordAudio, loadGameSounds } from "./utils/audioManager"
@@ -55,6 +57,7 @@ import {
 } from "./GameTour"
 
 import {
+  applyLegacyLearningAccessLocks,
   loadGameProgress as loadProgress,
   saveGameProgress as saveProgress,
   type UserStats,
@@ -66,7 +69,10 @@ type GameState = "menu" | "stageSelect" | "levelSelect" | "learning" | "playing"
 interface LearningGameCompletionOrderOptions {
   persistProgress: (totalScore: number) => Promise<unknown>
   revealCompletion: (totalScore: number) => void
-  runBestEffortNetworkWork: (totalScore: number) => Promise<void>
+  runBestEffortNetworkWork: (
+    totalScore: number,
+    persistence: LocalPersistenceStatus,
+  ) => Promise<void>
   onLocalError?: (error: unknown) => void
   onNetworkError?: (error: unknown) => void
 }
@@ -85,7 +91,8 @@ const completeLearningGameProgressLocallyFirst = (
     },
     fallbackValue: completedTotalScore,
     revealCompletion: (totalScore) => options.revealCompletion(totalScore),
-    runBestEffortNetworkWork: (totalScore) => options.runBestEffortNetworkWork(totalScore),
+    runBestEffortNetworkWork: (totalScore, persistence) =>
+      options.runBestEffortNetworkWork(totalScore, persistence),
     onLocalError: options.onLocalError,
     onNetworkError: options.onNetworkError,
   })
@@ -109,46 +116,6 @@ const isStageCompleted = (
 ): boolean => {
   const stage = stages.find((item) => item.id === stageId)
   return stage ? stage.levels.every((level) => completedLevels.includes(level.id)) : false
-}
-
-const unlockNextLevel = (
-  currentStageId: number,
-  currentLevelId: number,
-  stages: LearningGameStage[],
-): LearningGameStage[] => {
-  return stages.map((stage) => {
-    if (stage.id !== currentStageId) return stage
-
-    return {
-      ...stage,
-      levels: stage.levels.map((level, index, levels) => {
-        if (levels[index - 1]?.id === currentLevelId && level.isLocked) {
-          return { ...level, isLocked: false }
-        }
-
-        return level
-      }),
-    }
-  })
-}
-
-const unlockNextStage = (
-  currentStageId: number,
-  stages: LearningGameStage[],
-): LearningGameStage[] => {
-  return stages.map((stage, index, allStages) => {
-    if (allStages[index - 1]?.id === currentStageId && stage.isLocked) {
-      return {
-        ...stage,
-        isLocked: false,
-        levels: stage.levels.map((level, levelIndex) =>
-          levelIndex === 0 ? { ...level, isLocked: false } : level,
-        ),
-      }
-    }
-
-    return stage
-  })
 }
 
 const LugandaLearningGame: React.FC = () => {
@@ -300,7 +267,7 @@ const LugandaLearningGame: React.FC = () => {
     return () => {
       fadeAnim.setValue(0)
     }
-  }, [gameState, currentLearningIndex, currentWordIndex])
+  }, [currentLearningIndex, currentWordIndex, fadeAnim, gameState])
 
   // Load game progress on mount
   useEffect(() => {
@@ -430,6 +397,10 @@ const LugandaLearningGame: React.FC = () => {
         setOptions([])
       }
     }
+    // generateOptions uses the stage collection already listed here. Depending
+    // on its render-local identity would regenerate randomized options after
+    // each state update performed by this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedLevel, gameState, selectedStage, stages])
 
   // Update progress bar
@@ -441,7 +412,7 @@ const LugandaLearningGame: React.FC = () => {
         useNativeDriver: false,
       }).start()
     }
-  }, [currentWordIndex, gameState, currentWords])
+  }, [currentWordIndex, currentWords, gameState, progressWidth])
 
   // Handle shaking animation for wrong answers
   useEffect(() => {
@@ -473,7 +444,7 @@ const LugandaLearningGame: React.FC = () => {
         }
       })
     }
-  }, [shakingOption])
+  }, [shakeAnimation, shakingOption])
 
   const playWordSound = async (word: LearningGameWord = currentWord!): Promise<void> => {
     try {
@@ -561,20 +532,23 @@ const LugandaLearningGame: React.FC = () => {
   // Generate options for the game
   const generateOptions = (word: LearningGameWord, wordList: LearningGameWord[]): void => {
     const correctAnswer = word.english
-    let optionsArray: string[] = [correctAnswer]
+    const allGameWords = stages.flatMap((stage) =>
+      stage.levels.flatMap((level) => level.words),
+    )
+    const distractors = [...new Set(
+      [...wordList, ...allGameWords]
+        .map((candidate) => candidate.english)
+        .filter((answer) => answer && answer !== correctAnswer),
+    )]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 3)
+    const optionsArray = [correctAnswer, ...distractors].sort(
+      () => Math.random() - 0.5,
+    )
 
-    // Add 3 random incorrect options
-    while (optionsArray.length < 4) {
-      const randomIndex = Math.floor(Math.random() * wordList.length)
-      const randomOption = wordList[randomIndex].english
-
-      if (!optionsArray.includes(randomOption)) {
-        optionsArray.push(randomOption)
-      }
-    }
-
-    // Shuffle options
-    optionsArray = optionsArray.sort(() => Math.random() - 0.5)
+    // Small replacement content sets can contain fewer than four unique
+    // answers. Building from a finite pool avoids the old unbounded loop that
+    // froze the game as soon as a two-word level started.
     setOptions(optionsArray)
   }
 
@@ -720,30 +694,46 @@ const LugandaLearningGame: React.FC = () => {
 
     const completionChildId = activeChild.id
     const completionLanguageCode = languageCode
+    const completionSessionStartedAt = gameStartTime.current
     const newTotalScoreState = totalScore + completedLevelScore
     const newCompletedLevelsState = [...completedLevels]
     if (!newCompletedLevelsState.includes(selectedLevel.id)) {
       newCompletedLevelsState.push(selectedLevel.id)
     }
 
-    let currentLocalStagesState = [...stages]
-    let wasStageNewlyCompleted = false
-    let nextStageUnlocked = false
+    const previousStageIndex = stages.findIndex(
+      (stage) => stage.id === selectedStage.id,
+    )
+    const previouslyLockedNextStage =
+      previousStageIndex >= 0
+        ? stages[previousStageIndex + 1]?.isLocked
+        : undefined
+    const wasCurrentStageCompleted = isStageCompleted(
+      selectedStage.id,
+      completedLevels,
+      stages,
+    )
+    const currentLocalStagesState = applyLegacyLearningAccessLocks(
+      stages,
+      newCompletedLevelsState,
+      newTotalScoreState,
+    )
 
-    currentLocalStagesState = unlockNextLevel(selectedStage.id, selectedLevel.id, currentLocalStagesState)
-
-    // Check if current stage is completed and unlock next if criteria met
+    // The centralized access calculation unlocks exactly one next level and
+    // opens the following stage only after this stage is complete.
     const isCurrentStageNowCompleted = isStageCompleted(selectedStage.id, newCompletedLevelsState, currentLocalStagesState)
-    if (isCurrentStageNowCompleted) {
-      wasStageNewlyCompleted = true // Mark that this stage was just completed
-      const currentStageIndex = currentLocalStagesState.findIndex((s) => s.id === selectedStage.id)
-      const nextStageDefinition =
-        currentStageIndex >= 0 ? currentLocalStagesState[currentStageIndex + 1] : undefined
-      if (nextStageDefinition && newTotalScoreState >= nextStageDefinition.requiredScore) {
-        currentLocalStagesState = unlockNextStage(selectedStage.id, currentLocalStagesState)
-        nextStageUnlocked = true
-      }
-    }
+    const wasStageNewlyCompleted =
+      !wasCurrentStageCompleted && isCurrentStageNowCompleted
+    const currentStageIndex = currentLocalStagesState.findIndex(
+      (stage) => stage.id === selectedStage.id,
+    )
+    const nextStage =
+      currentStageIndex >= 0
+        ? currentLocalStagesState[currentStageIndex + 1]
+        : undefined
+    const nextStageUnlocked = Boolean(
+      previouslyLockedNextStage && nextStage && !nextStage.isLocked,
+    )
 
     const existingUserStats = userStatsRef.current
     const lastPlayedDate = new Date(existingUserStats.lastPlayed || 0)
@@ -820,7 +810,7 @@ const LugandaLearningGame: React.FC = () => {
     })
 
     let completionRevision = 0
-    const completionResult = await completeLearningGameProgressLocallyFirst(newTotalScoreState, {
+    await completeLearningGameProgressLocallyFirst(newTotalScoreState, {
       persistProgress: (completedTotalScore) =>
         saveProgress(
           completedTotalScore,
@@ -850,7 +840,7 @@ const LugandaLearningGame: React.FC = () => {
         setGameState("levelComplete")
         gameStartTime.current = Date.now()
       },
-      runBestEffortNetworkWork: async (completedTotalScore) => {
+      runBestEffortNetworkWork: async (completedTotalScore, persistence) => {
         const achievementWork = async () => {
           const outcomes = await Promise.allSettled(
             eventsForAchievements.map((event) => checkAndGrantNewAchievements(event)),
@@ -907,6 +897,15 @@ const LugandaLearningGame: React.FC = () => {
           trackActivity(nextStageUnlocked, completedLevelScore),
           achievementWork(),
           syncProgressNow(completionChildId),
+          persistence.persisted
+            ? recordQualifiedStreakActivity({
+                childId: completionChildId,
+                sourceType: "game",
+                sourceId: `learning-game:${selectedStage.id}:${selectedLevel.id}`,
+                completionId: `learning-game:${selectedStage.id}:${selectedLevel.id}:${completionSessionStartedAt}`,
+                completedAt: today.toISOString(),
+              })
+            : Promise.resolve(),
         ])
 
         outcomes.forEach((outcome) => {
@@ -923,29 +922,6 @@ const LugandaLearningGame: React.FC = () => {
       },
     })
 
-    if (completionResult.persistence.persisted) {
-      console.log("Learning game progress saved successfully.")
-    }
-  }
-
-  const saveGameProgress = async () => {
-    if (!activeChild) return
-
-    await saveProgress(
-      totalScore,
-      completedLevels,
-      stages,
-      {
-        totalWords: currentWords.length,
-        correctAnswers: levelScore / 10, // Assuming 10 points per correct answer
-        wrongAnswers: currentWords.length - levelScore / 10,
-        lastPlayed: new Date().toISOString(),
-        streakDays: 1, // This would need more complex logic to properly track
-      },
-      activeChild.id,
-      languageCode,
-      { contentRevision: contentProgressRevisionRef.current },
-    )
   }
 
   // STAGE SELECTION SCREEN
@@ -1860,7 +1836,8 @@ const LugandaLearningGame: React.FC = () => {
         </Animated.View>
         <GameTour
           visible={learningTour.visible}
-          onCancel={learningTour.close}
+          onDismiss={learningTour.dismiss}
+          onUnavailable={learningTour.close}
           onComplete={learningTour.complete}
           steps={[
             { id: "prompt", targetId: "learning-quiz-prompt", icon: "volume-high-outline", placement: "auto", title: "Listen or read", description: "Tap the speaker to hear the phrase." },

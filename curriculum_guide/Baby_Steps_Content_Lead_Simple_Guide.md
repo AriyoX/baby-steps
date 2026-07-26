@@ -6,6 +6,25 @@
 
 > Your role is to make sure every Luganda word, sentence, story, question, audio recording and image is correct, natural, suitable for children and culturally respectful.
 
+## Current app implementation
+
+The development seed now implements only the two initial curriculum stages:
+
+1. **Stage 1:** greetings, names and courtesy language.
+2. **Stage 2:** body parts and simple feelings.
+
+Each stage has six Learning Hub lessons. The Learning, Word, Cards Matching,
+Stories and Puzzle activities repeat the same 21 tracked concepts for practice;
+the extra game levels do not introduce a third stage or claim new language
+learning.
+
+The current build is a **playable technical draft**, not an approved release.
+Missing pictures point to non-empty images already bundled in the app, and all
+29 curriculum audio keys point to one temporary learning cue. This keeps the
+activities usable while final media is prepared. Do not tick a tracker row
+because its draft appears in the app: the checkbox still means that the final
+reviewed text, recording or image has been supplied.
+
 ## 1. What you are responsible for
 
 - Review every Luganda word and sentence. Approve it or replace it with the correct version.
@@ -44,6 +63,11 @@
 
 ## 4. Content areas to cover
 
+For the initial two-stage handover, complete the greetings/names/courtesy and
+body/feelings items first. The respectful-register, behaviour-story and deeper
+grammar items are explicitly later-stage backlog and must not delay or expand
+the initial seed.
+
 - Greetings, introductions, thanking, apologising, saying goodbye and other polite language.
 - The difference between speaking to a friend and speaking respectfully to an elder, parent, teacher or visitor.
 - Body parts and simple feelings such as happy, sad, tired and afraid.
@@ -68,6 +92,20 @@
 1. A folder containing the 29 final audio recordings.
 1. A folder containing the 30 final images or approved image briefs.
 1. The names of the language, education, cultural, audio and image-rights reviewers.
-1. Any unresolved item must remain unchecked and must not be added to the app.
+1. Any unresolved item must remain unchecked and must not be promoted as
+   reviewed or production-ready. A clearly labelled technical placeholder may
+   remain in the development seed, but it must be replaced or explicitly
+   approved before release.
 
 > Tick each row only after the final approved text, audio file or image has been provided.
+
+## 7. Technical handoff for the developer
+
+- The editable seed source is
+  `scripts/build-luganda-stage-1-2-content.mjs`.
+- `content/curriculum/lg-stage-1-2.json` and `supabase/seed.sql` are generated
+  outputs and should not be edited by hand.
+- Stable tracker IDs are reused as concept, lesson-item, story-page, quiz and
+  audio keys wherever the runtime contract allows it.
+- Replacement image and audio steps are documented in
+  `docs/development/luganda-seed-content-and-audio.md`.

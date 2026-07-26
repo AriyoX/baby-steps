@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useState, useEffect, useRef } from "react"
+import { useCallback, useState, useEffect, useMemo, useRef } from "react"
 import { View, ScrollView, TouchableOpacity } from "react-native"
 import { Text } from "@/components/StyledText"
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router"
@@ -13,13 +13,16 @@ import { TranslatedText } from "@/components/translated-text"
 import { BrandMark } from "@/components/brand/BrandMark"
 import { brandColors } from "@/constants/Brand"
 import { PARENTING_TIPS } from "@/content/parentingTips"
+import { getParentDashboardGreeting } from "@/content/parentDashboardGreeting"
 import { PARENT_DASHBOARD_TOUR_STEPS } from "@/lib/parentDashboardTour"
+import { fetchActiveChildProfiles } from "@/lib/accountManagement"
 import {
   GameTour,
   GameTourProvider,
   TourTarget,
   useGameTour,
 } from "@/components/games/GameTour"
+import { useParentProfile } from "@/context/ParentProfileContext"
 
 type ChildProfile = {
   id: string
@@ -28,12 +31,6 @@ type ChildProfile = {
   age: string
   reason: string
   created_at: string
-  // UI display properties with default values
-  level?: number
-  progress?: number
-  lastActive?: string
-  topSkill?: string
-  avatar?: string
 }
 
 // Portrait dashboard tuning only. Increase this value to move every Parent
@@ -42,18 +39,18 @@ const PARENT_DASHBOARD_ANDROID_SPOTLIGHT_OFFSET_Y = 0
 
 const ParentDashboard = () => {
   const router = useRouter()
+  const { profile: parentProfile } = useParentProfile()
   const params = useLocalSearchParams<{ showTour?: string }>()
   const [childProfiles, setChildProfiles] = useState<ChildProfile[]>([])
   const [parentId, setParentId] = useState<string>()
   const [loading, setLoading] = useState(true)
+  const [profileLoadError, setProfileLoadError] = useState(false)
+  const [greetingTime, setGreetingTime] = useState(() => new Date())
   const [recentActivities, setRecentActivities] = useState<any[]>([])
-  const [weeklyStats, setWeeklyStats] = useState({
-    dailyMinutes: [0, 0, 0, 0, 0, 0, 0],
-    totalActivities: 0,
-    averageScore: 0
-  })
   const {
+    close: closeParentTour,
     complete: completeParentTour,
+    dismiss: dismissParentTour,
     open: openParentTour,
     visible: parentTourVisible,
   } = useGameTour(
@@ -61,7 +58,36 @@ const ParentDashboard = () => {
     parentId,
     !loading && Boolean(parentId),
   )
+  const dashboardScrollRef = useRef<ScrollView>(null)
+  const dashboardTourOffsetsRef = useRef({ profiles: 0, progress: 0 })
   const replayRequestHandledRef = useRef(false)
+  const dashboardGreeting = getParentDashboardGreeting(greetingTime)
+  const prepareDashboardTourTarget = useCallback((stepId: string) => {
+    const y =
+      stepId === "progress"
+        ? dashboardTourOffsetsRef.current.progress
+        : stepId === "profiles" || stepId === "language"
+          ? dashboardTourOffsetsRef.current.profiles
+          : 0
+
+    dashboardScrollRef.current?.scrollTo({
+      animated: false,
+      y: Math.max(0, y - 12),
+    })
+  }, [])
+  const parentTourSteps = useMemo(
+    () =>
+      PARENT_DASHBOARD_TOUR_STEPS.map((step) => ({
+        ...step,
+        prepareTarget: () => prepareDashboardTourTarget(step.id),
+      })),
+    [prepareDashboardTourTarget],
+  )
+
+  useEffect(() => {
+    const interval = setInterval(() => setGreetingTime(new Date()), 60_000)
+    return () => clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     if (
@@ -80,12 +106,12 @@ const ParentDashboard = () => {
   const fetchChildProfiles = useCallback(async () => {
     try {
       setLoading(true)
+      setProfileLoadError(false)
 
       // Get the current user session
       const { data: sessionData } = await supabase.auth.getSession()
 
       if (!sessionData.session) {
-        console.log("No active session found")
         setParentId(undefined)
         setLoading(false)
         return
@@ -94,33 +120,12 @@ const ParentDashboard = () => {
       const userId = sessionData.session.user.id
       setParentId(userId)
 
-      // Fetch child profiles from the 'children' table
-      const { data, error } = await supabase
-        .from("children")
-        .select("*")
-        .eq("parent_id", userId)
-        .is("deleted_at", null)
-
-      if (error) {
-        console.error("Error fetching profiles:", error.message)
-        throw error
-      }
-
-      // Transform the data to include UI display properties
-      const transformedData =
-        data?.map((child) => ({
-          ...child,
-          level: 1, // Default level
-          progress: Math.random() * 0.7 + 0.1, // Random progress between 10-80%
-          lastActive: "Today", // Default last active
-          topSkill: child.reason || "Learning", // Use reason as top skill or default
-          avatar: child.gender === "male" ? "👦" : child.gender === "female" ? "👧" : "👶",
-        })) || []
-
-      setChildProfiles(transformedData)
+      const profiles = await fetchActiveChildProfiles(userId)
+      setChildProfiles(profiles as ChildProfile[])
       setLoading(false)
     } catch (error) {
       console.error("Error in fetchChildProfiles:", error)
+      setProfileLoadError(true)
       setLoading(false)
     }
   }, [])
@@ -154,23 +159,10 @@ const ParentDashboard = () => {
 
         // Combine all activities and stats
         const combinedActivities: any[] = []
-        const weeklyMinutes = [0, 0, 0, 0, 0, 0, 0]
-        let totalActivities = 0
-        let totalScore = 0
-        let activitiesWithScore = 0
-
         for (const stats of allStats) {
           if (stats) {
             const activities = await stats.recentActivities
             combinedActivities.push(...activities)
-            stats.dailyMinutes.forEach((minutes, i) => {
-              weeklyMinutes[i] += minutes
-            })
-            totalActivities += stats.totalActivities
-            if (stats.averageScore) {
-              totalScore += stats.averageScore
-              activitiesWithScore++
-            }
           }
         }
 
@@ -190,11 +182,6 @@ const ParentDashboard = () => {
         });
 
         setRecentActivities(combinedActivities.slice(0, 3)) // Show 3 most recent
-        setWeeklyStats({
-          dailyMinutes: weeklyMinutes,
-          totalActivities,
-          averageScore: activitiesWithScore ? Math.round(totalScore / activitiesWithScore) : 0
-        })
       } catch (error) {
         console.error("Error fetching activities:", error)
       }
@@ -218,7 +205,9 @@ const ParentDashboard = () => {
               <BrandMark kind="wordmark" tone="main" width={58} height={58} containerStyle={{ marginRight: 12 }} />
               <View className="flex-1">
                 <TranslatedText variant="bold" className="text-neutral-900 text-2xl">
-                  Your family
+                  {parentProfile?.displayName
+                    ? `Welcome, ${parentProfile.displayName}`
+                    : "Your family"}
                 </TranslatedText>
                 <TranslatedText className="text-neutral-500">Small steps worth celebrating</TranslatedText>
               </View>
@@ -248,23 +237,33 @@ const ParentDashboard = () => {
           </View>
 
           {/* Main content */}
-          <ScrollView className="flex-1" contentContainerClassName="p-4 pb-10" showsVerticalScrollIndicator={false}>
+          <ScrollView
+            ref={dashboardScrollRef}
+            className="flex-1"
+            contentContainerClassName="p-4 pb-10"
+            showsVerticalScrollIndicator={false}
+          >
             <View className="bg-primary-700 rounded-[28px] p-5 mb-6 overflow-hidden">
               <View className="absolute -right-8 -top-10 w-36 h-36 rounded-full bg-primary-500" />
               <View className="absolute right-16 -bottom-12 w-28 h-28 rounded-full bg-accent-400 opacity-30" />
               <View className="flex-row items-center justify-between">
                 <View className="flex-1 pr-4">
-                  <Text variant="bold" className="text-white text-xl mb-2">Ready for today’s little win?</Text>
-                  <Text className="text-primary-100 leading-5">Ten playful minutes together can be enough to build a habit.</Text>
+                  <Text variant="bold" className="text-white text-xl mb-2">{dashboardGreeting.title}</Text>
+                  <Text className="text-primary-100 leading-5">{dashboardGreeting.message}</Text>
                 </View>
                 <View className="w-14 h-14 rounded-2xl bg-white/20 items-center justify-center">
-                  <Ionicons name="sunny-outline" size={28} color={brandColors.equatorialGold} />
+                  <Ionicons name={dashboardGreeting.icon} size={28} color={brandColors.equatorialGold} />
                 </View>
               </View>
             </View>
             {/* Child profiles section */}
             <TourTarget id="parent-dashboard-profiles">
-            <View className="mb-6">
+            <View
+              className="mb-6"
+              onLayout={({ nativeEvent }) => {
+                dashboardTourOffsetsRef.current.profiles = nativeEvent.layout.y
+              }}
+            >
               <View className="flex-row justify-between items-center mb-3">
                 <TranslatedText variant="bold" className="text-neutral-800 text-lg">
                   Child Profiles
@@ -287,6 +286,31 @@ const ParentDashboard = () => {
                 <View className="items-center justify-center py-4">
                   <Text>Loading profiles...</Text>
                 </View>
+              ) : profileLoadError && childProfiles.length === 0 ? (
+                <View className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <View className="flex-row items-center">
+                    <Ionicons
+                      name="cloud-offline-outline"
+                      size={22}
+                      color={brandColors.gold[700]}
+                    />
+                    <Text variant="bold" className="ml-3 flex-1 text-amber-900">
+                      Child profiles could not refresh
+                    </Text>
+                  </View>
+                  <Text className="mt-2 text-sm leading-5 text-amber-800">
+                    Your profiles have not been removed. Check the connection and
+                    try again.
+                  </Text>
+                  <TouchableOpacity
+                    className="mt-3 self-start rounded-xl bg-amber-900 px-4 py-2"
+                    onPress={() => void fetchChildProfiles()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Retry loading child profiles"
+                  >
+                    <Text variant="bold" className="text-white">Try again</Text>
+                  </TouchableOpacity>
+                </View>
               ) : (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-4 pb-2">
                   {/* Child profile cards */}
@@ -294,11 +318,13 @@ const ParentDashboard = () => {
                     ? childProfiles.map((child) => (
                         <TouchableOpacity
                           key={child.id}
+                          accessibilityLabel={`Open profile for ${child.name}`}
+                          accessibilityRole="button"
                           className="bg-white rounded-xl p-4 w-[150px] shadow-sm border border-primary-100"
                           onPress={() =>
                             router.push({
-                              pathname: "/parent/child-detail/1" as any,
-                              params: { childId: child.id },
+                              pathname: "/parent/child-detail/[id]" as any,
+                              params: { id: child.id },
                             })
                           }
                           activeOpacity={0.8}
@@ -312,11 +338,6 @@ const ParentDashboard = () => {
                                   color={brandColors.victoriaBlue}
                                 />
                               </View>
-                              <View className="absolute -bottom-2 -right-2 bg-primary-500 rounded-full w-6 h-6 items-center justify-center shadow-sm">
-                                <Text variant="bold" className="text-xs text-white">
-                                  {child.level}
-                                </Text>
-                              </View>
                             </View>
                           </View>
 
@@ -325,15 +346,8 @@ const ParentDashboard = () => {
                           </Text>
                           <Text className="text-gray-500 text-xs text-center">{child.age} years old</Text>
 
-                          {/* Progress bar */}
-                          <View className="mt-3 bg-accent-100 h-2 rounded-full overflow-hidden">
-                            <View
-                              className="bg-accent-500 h-full rounded-full"
-                              style={{ width: `${(child.progress || 0.1) * 100}%` }}
-                            />
-                          </View>
-                          <Text className="text-gray-500 text-xs text-right mt-1">
-                            {Math.round((child.progress || 0) * 100)}%
+                          <Text className="text-primary-700 text-xs text-center mt-3">
+                            View learning activity
                           </Text>
                         </TouchableOpacity>
                       ))
@@ -359,7 +373,12 @@ const ParentDashboard = () => {
             </TourTarget>
 
             {/* Recent activities section */}
-            <View className="mb-6">
+            <View
+              className="mb-6"
+              onLayout={({ nativeEvent }) => {
+                dashboardTourOffsetsRef.current.progress = nativeEvent.layout.y
+              }}
+            >
               <TourTarget id="parent-dashboard-progress">
                 <View className="mb-3">
                   <TranslatedText variant="bold" className="text-neutral-800 text-lg">
@@ -486,10 +505,11 @@ const ParentDashboard = () => {
       <GameTour
         androidSpotlightOffsetY={PARENT_DASHBOARD_ANDROID_SPOTLIGHT_OFFSET_Y}
         visible={parentTourVisible}
-        onCancel={completeParentTour}
         onComplete={completeParentTour}
+        onDismiss={dismissParentTour}
+        onUnavailable={closeParentTour}
         finishLabel="Explore"
-        steps={PARENT_DASHBOARD_TOUR_STEPS}
+        steps={parentTourSteps}
       />
     </>
     </GameTourProvider>

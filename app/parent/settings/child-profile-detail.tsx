@@ -2,7 +2,11 @@
 
 import React from "react";
 import { Alert, Switch, View } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import {
+  useFocusEffect,
+  useLocalSearchParams,
+  useRouter,
+} from "expo-router";
 import { SettingsRow } from "@/components/settings/SettingsRow";
 import { SettingsScaffold } from "@/components/settings/SettingsScaffold";
 import { Text } from "@/components/StyledText";
@@ -14,6 +18,7 @@ import {
   loadChildUiLanguagePreference,
   saveChildUiLanguagePreference,
 } from "@/lib/childUiLanguagePreference";
+import { ChildStreakSection } from "@/components/parent/ChildStreakSection";
 
 export default function ChildProfileDetailManagementScreen() {
   const router = useRouter();
@@ -25,28 +30,27 @@ export default function ChildProfileDetailManagementScreen() {
   const [isUiLanguagePreferenceLoading, setIsUiLanguagePreferenceLoading] =
     React.useState(true);
 
-  React.useEffect(() => {
-    let isMounted = true;
-
-    const loadChild = async () => {
+  useFocusEffect(
+    React.useCallback(() => {
+      let isMounted = true;
       setLoading(true);
-      try {
-        const profile = await fetchActiveChildProfile(childId);
-        if (isMounted) setChild(profile);
-      } catch (error) {
-        console.error("Could not load child profile:", error);
-        Alert.alert("Could not load profile", "Please try again.");
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
+      void fetchActiveChildProfile(childId)
+        .then((profile) => {
+          if (isMounted) setChild(profile);
+        })
+        .catch((error) => {
+          console.error("Could not load child profile:", error);
+          Alert.alert("Could not load profile", "Please try again.");
+        })
+        .finally(() => {
+          if (isMounted) setLoading(false);
+        });
 
-    void loadChild();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [childId]);
+      return () => {
+        isMounted = false;
+      };
+    }, [childId]),
+  );
 
   React.useEffect(() => {
     let isMounted = true;
@@ -96,8 +100,22 @@ export default function ChildProfileDetailManagementScreen() {
         )}
       </View>
 
+      {child ? <ChildStreakSection childId={child.id} mode="settings" /> : null}
+
       {child ? (
         <View className="mt-5 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <SettingsRow
+            title="Edit child profile"
+            description="Update name, age, optional details, and learning language."
+            icon="create-outline"
+            iconColor="#2563EB"
+            onPress={() =>
+              router.push({
+                pathname: "/parent/settings/edit-child-profile" as any,
+                params: { childId: child.id },
+              })
+            }
+          />
           <View className="flex-row items-center px-4 py-4 border-b border-gray-100">
             <View className="flex-1 pr-4">
               <Text variant="medium" className="text-gray-800 text-base">
@@ -120,17 +138,10 @@ export default function ChildProfileDetailManagementScreen() {
             />
           </View>
           <SettingsRow
-            title="Edit child details"
-            description="Profile editing is coming soon."
-            icon="create-outline"
-            iconColor="#2563EB"
-            onPress={() => router.push("/parent/settings/child-profile-edit" as any)}
-          />
-          <SettingsRow
-            title="Delete child profile"
-            description="Archive this child and hide their learning progress."
-            icon="trash-outline"
-            iconColor="#DC2626"
+            title="Remove child profile"
+            description="Remove this child and their progress from normal selection."
+            icon="archive-outline"
+            iconColor="#B45309"
             destructive
             onPress={() =>
               router.push({

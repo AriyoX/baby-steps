@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Dimensions,
   BackHandler,
   Animated,
 } from "react-native"
@@ -31,7 +30,6 @@ interface Textile {
 export default function TextilesScreen() {
   const [selectedTextile, setSelectedTextile] = useState<Textile | null>(null)
   const [sound, setSound] = useState<Audio.Sound | null>(null)
-  const windowWidth = Dimensions.get("window").width
   const router = useRouter()
   const fadeAnim = useState<Animated.Value>(new Animated.Value(0))[0]
 
@@ -56,7 +54,7 @@ export default function TextilesScreen() {
     })
 
     return () => backHandler.remove()
-  }, [router, selectedTextile, sound])
+  }, [fadeAnim, router, selectedTextile, sound])
 
   const textiles = [
     {

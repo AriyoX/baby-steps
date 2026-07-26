@@ -1,62 +1,17 @@
 "use client";
 
-import React from "react";
-import { Alert, View } from "react-native";
+import { View } from "react-native";
 import { useRouter } from "expo-router";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { Text } from "@/components/StyledText";
 import { SettingsRow } from "@/components/settings/SettingsRow";
 import { SettingsScaffold } from "@/components/settings/SettingsScaffold";
-import { brandColors } from "@/constants/Brand";
 import { SETTINGS_SECTIONS } from "@/lib/settingsOptions";
+import { getAppRuntimeMetadata } from "@/lib/appMetadata";
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const testToolsEnabled = __DEV__ || process.env.EXPO_PUBLIC_ENABLE_TEST_TOOLS === "true";
-
-  const handleResetOnboardingForDev = React.useCallback(async () => {
-    try {
-      const { resetOnboardingForDev } = await import("@/lib/onboarding");
-      const clearedKeys = await resetOnboardingForDev();
-      Alert.alert(
-        "Onboarding reset",
-        `Cleared ${clearedKeys.join(", ")}. Sign out or restart the app while signed out to view onboarding again.`,
-      );
-    } catch (error) {
-      console.error("Could not reset onboarding:", error);
-      Alert.alert("Could not reset onboarding", "Please try again from a development build.");
-    }
-  }, []);
-
-  const handleTestNotification = React.useCallback(async () => {
-    try {
-      const {
-        requestNotificationPermission,
-        sendTestLearningReminder,
-      } = await import("@/lib/notifications");
-      const permission = await requestNotificationPermission();
-
-      if (permission !== "granted") {
-        Alert.alert(
-          "Notifications are not allowed",
-          "Allow Baby Steps notifications when prompted, or enable them in your device settings.",
-        );
-        return;
-      }
-
-      await sendTestLearningReminder();
-      Alert.alert(
-        "Test notification scheduled",
-        "Put Baby Steps in the background. The reminder should appear in about three seconds.",
-      );
-    } catch (error) {
-      console.error("Could not send a test notification:", error);
-      Alert.alert(
-        "Could not send a test notification",
-        "Install a fresh native test build and try again on an Android or iOS device.",
-      );
-    }
-  }, []);
+  const appMetadata = getAppRuntimeMetadata();
 
   return (
     <SettingsScaffold title="Settings" showBrandIcon>
@@ -94,60 +49,10 @@ export default function SettingsScreen() {
         </View>
       ))}
 
-      <View className="mb-5">
-        <Text
-          variant="medium"
-          className="text-gray-500 text-sm uppercase tracking-wider mb-2 px-1"
-        >
-          Guidance
-        </Text>
-        <View className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <SettingsRow
-            title="Show App Tour"
-            description="Replay the guided tour of the Parent Dashboard."
-            icon="compass-outline"
-            iconColor={brandColors.victoriaBlue}
-            onPress={() =>
-              router.replace({
-                pathname: "/parent",
-                params: { showTour: "1" },
-              } as any)
-            }
-            last
-          />
-        </View>
-      </View>
-
-      {testToolsEnabled ? (
-        <View className="mb-5">
-          <Text
-            variant="medium"
-            className="text-gray-500 text-sm uppercase tracking-wider mb-2 px-1"
-          >
-            Developer
-          </Text>
-          <View className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <SettingsRow
-              title="Send test notification"
-              description="Requests permission and shows a themed reminder in about 3 seconds."
-              icon="notifications-circle-outline"
-              iconColor={brandColors.victoriaBlue}
-              onPress={handleTestNotification}
-            />
-            <SettingsRow
-              title="Reset onboarding"
-              description="Clears the pre-login onboarding flag only."
-              icon="refresh-circle-outline"
-              iconColor={brandColors.shanaOrange}
-              onPress={handleResetOnboardingForDev}
-              last
-            />
-          </View>
-        </View>
-      ) : null}
-
       <View className="py-6 items-center">
-        <Text className="text-gray-400 text-sm">Baby Steps v1.0.0</Text>
+        <Text className="text-gray-400 text-sm">
+          Baby Steps v{appMetadata.version}
+        </Text>
       </View>
     </SettingsScaffold>
   );

@@ -8,12 +8,10 @@ import {
   Image,
   BackHandler,
   Animated,
-  Dimensions,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import type { Audio, AVPlaybackSource } from "expo-av"
-import { MaterialIcons } from "@expo/vector-icons"
-import { Ionicons } from "@expo/vector-icons"
+import { Ionicons, MaterialIcons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { TranslatedText } from "@/components/translated-text"
@@ -30,7 +28,6 @@ export default function ArtifactsScreen() {
   } | null>(null)
   const [sound, setSound] = useState<Audio.Sound | null>(null)
   const router = useRouter()
-  const { width } = Dimensions.get("window")
   const fadeAnim = useState<Animated.Value>(new Animated.Value(0))[0]
 
   useEffect(() => {
@@ -55,7 +52,7 @@ export default function ArtifactsScreen() {
     })
 
     return () => backHandler.remove()
-  }, [router, selectedArtifact, sound])
+  }, [fadeAnim, router, selectedArtifact, sound])
 
   const artifacts = [
     {

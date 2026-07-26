@@ -38,7 +38,7 @@ See [docs/mvp-roadmap.md](docs/mvp-roadmap.md) for the current 8-week MVP prepar
 | Backend | Supabase Auth and Supabase tables referenced by `schema.sql` |
 | Local storage | `@react-native-async-storage/async-storage` |
 | Audio | `expo-av` and `expo-speech` |
-| Media/export | `react-native-view-shot`, `expo-media-library`, `expo-sharing` |
+| Media/export | `react-native-view-shot`, `expo-media-library` |
 | Notifications | `expo-notifications` with device-local weekly schedules |
 | Connectivity | `@react-native-community/netinfo` |
 | Tests | Jest with `jest-expo` |
@@ -304,9 +304,9 @@ npm run ios
 
 `expo-av` is still used and is deprecated. Plan migration to `expo-audio` / `expo-video` during MVP hardening.
 
-### Coloring save/share fails
+### Coloring save fails
 
-Coloring uses `expo-media-library`, `expo-sharing`, and `react-native-view-shot`. Check device permissions and test on native Android/iOS builds.
+Coloring uses `expo-media-library` and `react-native-view-shot`. Check add-only photo permission behavior and test Save on a native Android/iOS build. Child mode does not expose a system Share action.
 
 ## Documentation
 
@@ -317,6 +317,7 @@ Coloring uses `expo-media-library`, `expo-sharing`, and `react-native-view-shot`
 - [Testing guide](docs/development/testing.md)
 - [Content management](docs/development/content-management.md)
 - [Database notes](docs/development/database.md)
+- [Scalability and capacity plan](docs/development/scalability.md)
 - [Deployment readiness](docs/development/deployment.md)
 - [Manual QA checklist](docs/qa/manual-qa-checklist.md)
 - [MVP roadmap](docs/mvp-roadmap.md)

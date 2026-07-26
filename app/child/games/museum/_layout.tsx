@@ -4,6 +4,7 @@ import { Slot } from "expo-router"
 import { ChildLoadingState } from "@/components/child/ChildLoadingState"
 import { ComingSoonState } from "@/components/child/ComingSoonState"
 import {
+  getStartableMenuCards,
   loadContentBundle,
   type ContentBundle,
 } from "@/content/contentRepository"
@@ -21,7 +22,7 @@ export const hasExactMuseumContent = (
   languageCode: string,
 ): boolean =>
   bundle?.languageCode === languageCode &&
-  (bundle.menuCardsByTab.museum?.length ?? 0) > 0
+  getStartableMenuCards(bundle, "museum").length > 0
 
 export default function MuseumRouteLayout() {
   const { activeChild } = useChild()

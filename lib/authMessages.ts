@@ -34,7 +34,7 @@ export const AUTH_LINK_EXPIRED_MESSAGE =
   "This link has expired or is no longer valid. Please request a new one.";
 
 export const SIGNUP_CONFIRMATION_LINK_EXPIRED_MESSAGE =
-  "This confirmation link has expired or is no longer valid. Please sign in or create your Baby Steps account again.";
+  "This confirmation link has expired or is no longer valid. Sign in with the account details to request a new confirmation link.";
 
 export const PASSWORD_REQUIREMENT_MESSAGE =
   `Please choose a password with at least ${MIN_AUTH_PASSWORD_LENGTH} characters.`;

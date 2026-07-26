@@ -17,6 +17,7 @@ import {
   buildContentBundleFromItems,
   clearContentBundleCache,
   findStoryById,
+  getStartableMenuCards,
   getContentBundleCacheKey,
   loadContentBundle,
   validateContentItemPayload,
@@ -134,10 +135,28 @@ const validLearningHubItem = (): ContentItemRecord => {
     throw new Error("Missing Luganda Learning Hub seed fixture.");
   }
 
+  const releaseReadyContent = JSON.parse(
+    JSON.stringify(content),
+  ) as Record<string, unknown>;
+  const firstStage = asPayloadRecords(releaseReadyContent, "stages")[0];
+  firstStage.readiness = "reviewed";
+  const firstLesson = asPayloadRecords(firstStage, "lessons")[0];
+  firstLesson.readiness = "reviewed";
+  const reviewedItem = asPayloadRecords(firstLesson, "items").find(
+    (item) => item.audioAsset === "webale",
+  );
+  if (!reviewedItem) {
+    throw new Error("Missing reviewed Learning Hub audio fixture.");
+  }
+  reviewedItem.readiness = "reviewed";
+  firstLesson.items = [reviewedItem];
+  firstStage.lessons = [firstLesson];
+  releaseReadyContent.stages = [firstStage];
+
   return published(
     "learning_hub",
     "curriculum",
-    JSON.parse(JSON.stringify(content)) as Record<string, unknown>,
+    releaseReadyContent,
   );
 };
 
@@ -236,7 +255,14 @@ const validStoryItem = (): ContentItemRecord =>
     id: "kintu",
     languageCode: "lg",
     title: "Kintu",
-    pages: [{ id: "page-1", text: "Olugero lutandika." }],
+    metadata: { status: "reviewed" },
+    pages: [
+      {
+        id: "page-1",
+        text: "Olugero lutandika.",
+        image: "story/kintu/kintu-cow.jpeg",
+      },
+    ],
     questions: [
       {
         id: "question-1",
@@ -491,6 +517,87 @@ describe("content payload mapping and publication gates", () => {
     expect(bundle.stories[0].questions?.[0].options).toEqual(["Kintu", "No one"]);
   });
 
+  it("exposes only menu routes with an approved child route and playable backing content", () => {
+    const gamesMenu = menuItem("lg", "words");
+    gamesMenu.payload.cards = [
+      ...(gamesMenu.payload.cards as Record<string, unknown>[]),
+      {
+        id: "missing-puzzle",
+        order: 2,
+        title: "Missing puzzle",
+        description: "No playable puzzle content",
+        image: "african-logic.png",
+        targetPage: "child/games/puzzlegame",
+      },
+      {
+        id: "external",
+        order: 3,
+        title: "External",
+        description: "Must never open",
+        image: "african-focus.png",
+        targetPage: "https://example.com",
+      },
+    ];
+    const bundle = buildContentBundleFromItems("lg", [
+      gamesMenu,
+      validWordGameItem(),
+    ]);
+
+    expect(getStartableMenuCards(bundle, "games").map((card) => card.id)).toEqual([
+      "words",
+    ]);
+  });
+
+  it("filters a published Learning Hub row when nested readiness is still draft", () => {
+    const draftContent = getLearningHubSeedFixture().languages.lg;
+    const bundle = buildContentBundleFromItems("lg", [
+      published(
+        "learning_hub",
+        "curriculum",
+        JSON.parse(JSON.stringify(draftContent)) as Record<string, unknown>,
+      ),
+      validWordGameItem(),
+    ]);
+
+    expect(bundle.learningHub).toBeUndefined();
+    expect(bundle.wordGame.levels).toHaveLength(1);
+  });
+
+  it.each([
+    {
+      name: "placeholder audio",
+      mutate: (item: Record<string, unknown>) => {
+        item.audioAsset = "placeholder_learning_cue";
+        item.audioKey = "lg.stage1.webale";
+      },
+    },
+    {
+      name: "placeholder artwork",
+      mutate: (item: Record<string, unknown>) => {
+        item.imageKey = "learning/lg/stage-1/thanks-webale.png";
+      },
+    },
+  ])("filters reviewed Learning Hub content with $name", ({ mutate }) => {
+    const learningHub = validLearningHubItem();
+    const stage = asPayloadRecords(learningHub.payload, "stages")[0];
+    const lesson = asPayloadRecords(stage, "lessons")[0];
+    mutate(asPayloadRecords(lesson, "items")[0]);
+
+    const bundle = buildContentBundleFromItems("lg", [learningHub]);
+
+    expect(bundle.learningHub).toBeUndefined();
+  });
+
+  it("rejects menu cards that use a known placeholder media key", () => {
+    const placeholderMenu = menuItem("lg", "placeholder-media");
+    const [card] = placeholderMenu.payload.cards as Record<string, unknown>[];
+    card.image = "learning/lg/menus/words.png";
+
+    const bundle = buildContentBundleFromItems("lg", [placeholderMenu]);
+
+    expect(bundle.menuCardsByTab.games).toBeUndefined();
+  });
+
   it("derives stable per-type progress revisions without using updated timestamps", () => {
     const learningItem = validLearningGameItem();
     learningItem.payload.progressRevision = "curriculum-v2";
@@ -533,6 +640,15 @@ describe("content payload mapping and publication gates", () => {
     const bundle = buildContentBundleFromItems("lg", [storyItem]);
 
     expect(bundle.stories[0].progressRevision).toBe("story/kintu#story-v2");
+  });
+
+  it("does not expose a published story whose content review is unfinished", () => {
+    const storyItem = validStoryItem();
+    storyItem.payload.metadata = { status: "existing-prototype" };
+
+    const bundle = buildContentBundleFromItems("lg", [storyItem]);
+
+    expect(bundle.stories).toEqual([]);
   });
 
   it("rejects globally duplicated legacy Learning level IDs", () => {
@@ -713,8 +829,20 @@ describe("content payload mapping and publication gates", () => {
       published("card_game", "cards", { items: cards }),
       published("puzzle_game", "puzzles", {
         puzzles: [
-          { id: 2, order: 2, name: "Two", description: "Two", image: "two.jpg" },
-          { id: 1, order: 1, name: "One", description: "One", image: "one.jpg" },
+          {
+            id: 2,
+            order: 2,
+            name: "Two",
+            description: "Two",
+            image: "puzzles/lubiri-palace.jpg",
+          },
+          {
+            id: 1,
+            order: 1,
+            name: "One",
+            description: "One",
+            image: "puzzles/kasubi-tombs.jpg",
+          },
         ],
       }),
     ]);
@@ -740,7 +868,14 @@ describe("content payload mapping and publication gates", () => {
           id: "new-story",
           languageCode: "nyn",
           title: "A new story",
-          pages: [{ id: "page-1", text: "Agandi" }],
+          metadata: { status: "reviewed" },
+          pages: [
+            {
+              id: "page-1",
+              text: "Agandi",
+              image: "story/kintu/kintu-cow.jpeg",
+            },
+          ],
         }),
         language_code: "nyn",
       },
@@ -749,7 +884,14 @@ describe("content payload mapping and publication gates", () => {
           id: "wrong",
           languageCode: "lg",
           title: "Wrong",
-          pages: [{ id: "page-1", text: "Wrong language" }],
+          metadata: { status: "reviewed" },
+          pages: [
+            {
+              id: "page-1",
+              text: "Wrong language",
+              image: "story/kintu/kintu-cow.jpeg",
+            },
+          ],
         }),
         language_code: "nyn",
       },
@@ -914,7 +1056,7 @@ describe("exact-language stale-while-revalidate cache", () => {
     expect(result.bundle?.menuCardsByTab.games[0].id).toBe("offline-nyn");
   });
 
-  it("retains the last valid cache when a forced response is malformed or empty", async () => {
+  it("retains a last-known-good malformed refresh but evicts it after a successful empty response", async () => {
     const malformed: ContentItemRecord = {
       ...menuItem("lg", "broken", 2),
       payload: {},
@@ -930,8 +1072,9 @@ describe("exact-language stale-while-revalidate cache", () => {
     const afterEmpty = await loadContentBundle("lg", { forceRefresh: true });
 
     expect(afterMalformed.bundle?.menuCardsByTab.games[0].id).toBe("last-good");
-    expect(afterEmpty.bundle?.menuCardsByTab.games[0].id).toBe("last-good");
-    expect(afterEmpty.cache?.isStale).toBe(true);
+    expect(afterEmpty.source).toBe("empty");
+    expect(afterEmpty.bundle).toBeUndefined();
+    expect(await AsyncStorage.getItem(getContentBundleCacheKey("lg"))).toBeNull();
   });
 
   it("returns a friendly empty result when the cache is empty and Supabase is offline", async () => {

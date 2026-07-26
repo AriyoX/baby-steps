@@ -37,7 +37,7 @@ Strict verdict:
 | --- | --- | --- | --- |
 | App name | `Baby Steps: Prototype` | `app.json` | Not store-ready. Remove `Prototype` before upload unless this is truly the public-facing title. |
 | Slug/project name | `baby-steps` | `app.json` | OK for Expo. |
-| Android package ID | `com.babysteps.babysteps_prototype` | `app.json` | High risk. Package ID is effectively permanent after first Play upload. Decide final stable ID before upload. |
+| Android package ID | Former prototype identifier (fixed after this audit) | `app.json` | High risk. Package ID is effectively permanent after first Play upload. Decide final stable ID before upload. |
 | Version name | `1.0.0` | `app.json`, `package.json` | OK as a starting version. |
 | Version code | Not stored in repo; EAS uses remote versioning. | `eas.json` `appVersionSource: remote`, production `autoIncrement: true` | Document EAS remote version-code process before release. |
 | Runtime version | Not configured. Expo Updates appears disabled in introspection. | `app.json`; `npx expo config --type introspect` | OK if not using Expo Updates. If OTA updates are later enabled, add runtime version policy. |
@@ -57,7 +57,7 @@ Strict verdict:
 | --- | --- | --- | --- | --- | --- |
 | Android App Bundle generation | Partially ready | `eas.json` production has `android.buildType: app-bundle` | No actual production AAB was built in this audit. | Run `eas build --platform android --profile production`, download artifact, inspect manifest, install via Play/internal track. | P0 |
 | Play App Signing | Not verified | No Play Console evidence in repo | Signing credentials and Play App Signing setup are not documented. | Configure Play App Signing in Play Console and document EAS credential flow. | P0 |
-| Package name stability | Not ready | `app.json` package contains `_prototype` | Package ID cannot be casually changed after first Play upload. | Decide final package ID before first upload. | P0 |
+| Package name stability | Repository-complete | `app.json` uses the final `com.babystepslearn.app` identity | The final production identity is fixed in repository configuration. | Confirm this exact ID in the first Play artifact and never change it after publication. | P0 |
 | Version code strategy | Partially ready | `eas.json` remote app version source and production `autoIncrement` | Version-code source is remote, but process is not documented. | Document who controls remote versioning and how to bump/recover. | P1 |
 | Target SDK/API level | Likely ready, not artifact-verified | `node_modules/react-native/gradle/libs.versions.toml` targetSdk 36; Google requires API 35+ for new apps/updates from Aug 31, 2025 | Final AAB targetSdk not inspected. | Confirm final release AAB manifest/Play upload shows target SDK 35+. | P0 |
 | Min SDK | Reasonable | React Native/Expo defaults show minSdk 24 | Not explicitly documented in repo. | Record final minSdk from release build. | P2 |
@@ -82,7 +82,7 @@ Strict verdict:
 | Orientation | Config portrait conflicts with landscape child-mode intent in code/docs. | Risk |
 | Assets | 204 files under `assets/`, about 94.5 MB. Largest images are roughly 2.5-4.3 MB. | App size optimization recommended |
 | App title | Includes `Prototype`. | Not store-ready |
-| Android package | Includes `_prototype`. | Not store-ready unless intentionally permanent |
+| Android package | Uses final `com.babystepslearn.app` identity. | Repository-ready; verify the generated application ID in the production AAB |
 
 ## Privacy, Child-Safety, And Policy Readiness
 

@@ -80,7 +80,7 @@ No tests currently cover child profile creation, listing, or child mode launch.
 
 ## Known Limitations Or Bugs
 
-- Child detail navigation uses the route path `/parent/child-detail/1` with `childId` passed as a param.
+- Child detail navigation uses the canonical route `/parent/child-detail/[id]` with the child's ID as the `id` parameter.
 - Add-child screens include marketing-style/sample claims that are not backed by app data.
 - Some UI copy has encoding artifacts.
 - Individual child profile deletion is archive-only for the MVP; full account deletion finalization permanently deletes child-owned rows after the grace period. Shared/global content is not deleted.

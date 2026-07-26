@@ -8,9 +8,15 @@ import {
 } from "@/lib/authMessages";
 import { getColoringStudioTutorialStorageKey } from "@/lib/coloringStudioTutorial";
 import { clearLearningProgressForChild } from "@/lib/learningProgressRepository";
+import {
+  clearReportedConnectivityIssue,
+  isLikelyNetworkError,
+  reportConnectivityIssue,
+} from "@/lib/network";
 import { clearProgressRepositoryStorageForChild } from "@/lib/progressRepository";
 import { supabase } from "@/lib/supabase";
 import { clearRecentActivitiesCache } from "@/lib/utils";
+import { clearChildStreakLocalData } from "@/lib/streakRepository";
 import { clearChildData, STORAGE_KEYS } from "@/utils/storage";
 
 export interface ChildProfile {
@@ -90,6 +96,157 @@ export const SHARED_REMOTE_TABLES_EXCLUDED_FROM_DELETION = [
 
 const CHILD_SELECT_COLUMNS =
   "id, parent_id, name, gender, age, reason, selected_language_code, created_at, deleted_at, archived_by_account_deletion_request_id";
+const ACTIVE_CHILD_PROFILE_CACHE_PREFIX =
+  "@BabySteps:ActiveChildProfiles:v1";
+export const CHILD_PROFILE_FETCH_TIMEOUT_MS = 10_000;
+
+type StoredActiveChildProfiles = {
+  version: 1;
+  parentId: string;
+  profiles: ChildProfile[];
+  updatedAt: string;
+};
+
+export type ChildProfileFetchOptions = {
+  timeoutMs?: number;
+  allowCachedFallback?: boolean;
+};
+
+export const getActiveChildProfileCacheKey = (parentId: string): string =>
+  `${ACTIVE_CHILD_PROFILE_CACHE_PREFIX}:${encodeURIComponent(parentId)}`;
+
+const isChildProfileForParent = (
+  value: unknown,
+  parentId: string,
+): value is ChildProfile => {
+  if (!value || typeof value !== "object") return false;
+  const profile = value as Partial<ChildProfile>;
+  return (
+    typeof profile.id === "string" &&
+    profile.id.length > 0 &&
+    profile.parent_id === parentId &&
+    typeof profile.name === "string" &&
+    typeof profile.gender === "string" &&
+    typeof profile.age === "string" &&
+    (profile.deleted_at === null || profile.deleted_at === undefined)
+  );
+};
+
+export const readCachedActiveChildProfiles = async (
+  parentId: string,
+): Promise<ChildProfile[] | null> => {
+  if (!parentId) return null;
+  const key = getActiveChildProfileCacheKey(parentId);
+  const stored = await AsyncStorage.getItem(key);
+  if (!stored) return null;
+
+  try {
+    const parsed = JSON.parse(stored) as Partial<StoredActiveChildProfiles>;
+    if (
+      parsed.version !== 1 ||
+      parsed.parentId !== parentId ||
+      !Array.isArray(parsed.profiles)
+    ) {
+      throw new Error("Invalid child profile cache.");
+    }
+
+    const profiles = parsed.profiles.filter((profile) =>
+      isChildProfileForParent(profile, parentId),
+    );
+    if (profiles.length !== parsed.profiles.length) {
+      throw new Error("Invalid child profile cache rows.");
+    }
+    return profiles;
+  } catch {
+    await AsyncStorage.removeItem(key);
+    return null;
+  }
+};
+
+export const cacheActiveChildProfiles = async (
+  parentId: string,
+  profiles: readonly ChildProfile[],
+): Promise<void> => {
+  if (!parentId) return;
+  const safeProfiles = profiles.filter((profile) =>
+    isChildProfileForParent(profile, parentId),
+  );
+  await AsyncStorage.setItem(
+    getActiveChildProfileCacheKey(parentId),
+    JSON.stringify({
+      version: 1,
+      parentId,
+      profiles: safeProfiles,
+      updatedAt: new Date().toISOString(),
+    } satisfies StoredActiveChildProfiles),
+  );
+};
+
+export const upsertCachedActiveChildProfile = async (
+  parentId: string,
+  profile: ChildProfile,
+): Promise<void> => {
+  if (!isChildProfileForParent(profile, parentId)) return;
+  const current = (await readCachedActiveChildProfiles(parentId)) ?? [];
+  await cacheActiveChildProfiles(parentId, [
+    profile,
+    ...current.filter((candidate) => candidate.id !== profile.id),
+  ]);
+};
+
+export const removeCachedActiveChildProfile = async (
+  parentId: string,
+  childId: string,
+): Promise<void> => {
+  const current = await readCachedActiveChildProfiles(parentId);
+  if (!current) return;
+  await cacheActiveChildProfiles(
+    parentId,
+    current.filter((profile) => profile.id !== childId),
+  );
+};
+
+export const clearCachedActiveChildProfiles = async (
+  parentId: string,
+): Promise<void> => {
+  if (!parentId) return;
+  await AsyncStorage.removeItem(getActiveChildProfileCacheKey(parentId));
+};
+
+const withChildProfileTimeout = async <T>(
+  request: PromiseLike<T>,
+  timeoutMs: number,
+): Promise<T> => {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      Promise.resolve(request),
+      new Promise<T>((_resolve, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error("Child profile request timed out.")),
+          timeoutMs,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+};
+
+const getParentIdForProfileRead = async (
+  parentId?: string,
+): Promise<string | null> => {
+  if (parentId) return parentId;
+  const auth = supabase.auth as typeof supabase.auth & {
+    getSession?: typeof supabase.auth.getSession;
+  };
+  if (typeof auth.getSession === "function") {
+    const { data, error } = await auth.getSession();
+    if (error) throw error;
+    return data.session?.user.id ?? null;
+  }
+  return (await getCurrentUser()).id;
+};
 
 const ACCOUNT_DELETION_REQUEST_SELECT_COLUMNS = [
   "id",
@@ -110,6 +267,7 @@ const ACCOUNT_DELETION_REQUEST_SELECT_COLUMNS = [
 
 const REQUEST_ACCOUNT_DELETION_RPC = "request_account_deletion_with_grace";
 const REACTIVATE_ACCOUNT_DELETION_RPC = "reactivate_account_deletion";
+const ARCHIVE_CHILD_PROFILE_RPC = "archive_child_profile";
 
 export const ACCOUNT_DELETION_GRACE_PERIOD_DAYS = 30;
 
@@ -372,6 +530,7 @@ export const clearChildLocalData = async (childId: string): Promise<string[]> =>
     clearAchievementCaches(childId),
     clearLearningProgressForChild(childId),
     clearProgressRepositoryStorageForChild(childId),
+    clearChildStreakLocalData(childId),
   ]);
 
   const keys = await AsyncStorage.getAllKeys();
@@ -388,43 +547,103 @@ export const clearAccountLocalData = async (
 
 export const fetchActiveChildProfiles = async (
   parentId?: string,
+  options: ChildProfileFetchOptions = {},
 ): Promise<ChildProfile[]> => {
-  const user = parentId ? null : await getCurrentUser();
-  const resolvedParentId = parentId ?? user?.id;
+  const resolvedParentId = await getParentIdForProfileRead(parentId);
 
   if (!resolvedParentId) return [];
 
-  const { data, error } = await supabase
-    .from("children")
-    .select(CHILD_SELECT_COLUMNS)
-    .eq("parent_id", resolvedParentId)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false });
+  try {
+    const request = supabase
+      .from("children")
+      .select(CHILD_SELECT_COLUMNS)
+      .eq("parent_id", resolvedParentId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false });
+    const { data, error } = await withChildProfileTimeout(
+      request,
+      options.timeoutMs ?? CHILD_PROFILE_FETCH_TIMEOUT_MS,
+    );
 
-  if (error) throw error;
-  return (data ?? []) as ChildProfile[];
+    if (error) throw error;
+    const profiles = (data ?? []) as ChildProfile[];
+    try {
+      await cacheActiveChildProfiles(resolvedParentId, profiles);
+    } catch (cacheError) {
+      console.warn("Could not cache child profiles:", cacheError);
+    }
+    clearReportedConnectivityIssue();
+    return profiles;
+  } catch (error) {
+    if (
+      options.allowCachedFallback !== false &&
+      isLikelyNetworkError(error)
+    ) {
+      const cached = await readCachedActiveChildProfiles(resolvedParentId);
+      reportConnectivityIssue(
+        cached
+          ? "The connection is very slow. Showing saved child profiles while Baby Steps reconnects."
+          : "The connection is very slow. Baby Steps could not refresh child profiles yet.",
+      );
+      if (cached) return cached;
+    }
+    throw error;
+  }
 };
 
 export const fetchActiveChildProfile = async (
   childId: string,
   parentId?: string,
+  options: ChildProfileFetchOptions = {},
 ): Promise<ChildProfile | null> => {
   if (!childId) return null;
 
-  const user = parentId ? null : await getCurrentUser();
-  const resolvedParentId = parentId ?? user?.id;
+  const resolvedParentId = await getParentIdForProfileRead(parentId);
   if (!resolvedParentId) return null;
 
-  const { data, error } = await supabase
-    .from("children")
-    .select(CHILD_SELECT_COLUMNS)
-    .eq("id", childId)
-    .eq("parent_id", resolvedParentId)
-    .is("deleted_at", null)
-    .maybeSingle();
+  try {
+    const request = supabase
+      .from("children")
+      .select(CHILD_SELECT_COLUMNS)
+      .eq("id", childId)
+      .eq("parent_id", resolvedParentId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    const { data, error } = await withChildProfileTimeout(
+      request,
+      options.timeoutMs ?? CHILD_PROFILE_FETCH_TIMEOUT_MS,
+    );
 
-  if (error) throw error;
-  return (data as ChildProfile | null) ?? null;
+    if (error) throw error;
+    const profile = (data as ChildProfile | null) ?? null;
+    try {
+      if (profile) {
+        await upsertCachedActiveChildProfile(resolvedParentId, profile);
+      } else {
+        await removeCachedActiveChildProfile(resolvedParentId, childId);
+      }
+    } catch (cacheError) {
+      console.warn("Could not update the cached child profile:", cacheError);
+    }
+    clearReportedConnectivityIssue();
+    return profile;
+  } catch (error) {
+    if (
+      options.allowCachedFallback !== false &&
+      isLikelyNetworkError(error)
+    ) {
+      const cached = await readCachedActiveChildProfiles(resolvedParentId);
+      const profile =
+        cached?.find((candidate) => candidate.id === childId) ?? null;
+      reportConnectivityIssue(
+        profile
+          ? "The connection is very slow. Showing the saved child profile while Baby Steps reconnects."
+          : "The connection is very slow. Baby Steps could not refresh this child profile yet.",
+      );
+      if (profile) return profile;
+    }
+    throw error;
+  }
 };
 
 export const getAccountDeletionState = async (
@@ -502,32 +721,41 @@ export const archiveChildProfile = async (
     throw new Error("Parent account is required.");
   }
 
-  const archivedAt = nowIso();
-  const { data, error } = await supabase
-    .from("children")
-    .update({
-      deleted_at: archivedAt,
-      archived_by_account_deletion_request_id: null,
-    })
-    .eq("id", childId)
-    .eq("parent_id", resolvedParentId)
-    .is("deleted_at", null)
-    .select(CHILD_SELECT_COLUMNS)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc(ARCHIVE_CHILD_PROFILE_RPC, {
+    p_child_id: childId,
+  });
 
   if (error) throw error;
-  if (!data) {
-    throw new Error("Child profile was not found or has already been archived.");
+  const result =
+    data && typeof data === "object" && !Array.isArray(data)
+      ? (data as { status?: unknown; archived_at?: unknown })
+      : null;
+  if (
+    result?.status !== "applied" ||
+    typeof result.archived_at !== "string"
+  ) {
+    throw new Error("Child profile was not found or has already been removed.");
   }
+  const archivedAt = result.archived_at;
 
-  await clearChildLocalData(childId);
+  await Promise.all([
+    clearChildLocalData(childId),
+    removeCachedActiveChildProfile(resolvedParentId, childId),
+  ]);
+  if (process.env.NODE_ENV !== "test") {
+    void import("@/lib/notifications").then(({ syncRecurringRemindersIfEnabled }) =>
+      syncRecurringRemindersIfEnabled(resolvedParentId),
+    ).catch((error) => {
+      console.warn("Could not refresh learning reminders after child archiving:", error);
+    });
+  }
   return { archivedAt };
 };
 
 export const requestAccountDeletion = async (
   note?: string,
 ): Promise<AccountDeletionResult> => {
-  await getCurrentUser();
+  const user = await getCurrentUser();
 
   const { data, error } = await supabase.rpc(REQUEST_ACCOUNT_DELETION_RPC, {
     p_note: note ?? null,
@@ -544,7 +772,10 @@ export const requestAccountDeletion = async (
 
   const result = normalizeRequestAccountDeletionRpcResult(data);
 
-  await clearAccountLocalData(result.archivedChildIds);
+  await Promise.all([
+    clearAccountLocalData(result.archivedChildIds),
+    clearCachedActiveChildProfiles(user.id),
+  ]);
 
   // Permanent deletion after grace_ends_at is handled by the server-side
   // finalize-account-deletions Edge Function, never by the client.
@@ -552,81 +783,6 @@ export const requestAccountDeletion = async (
   if (signOutError) throw signOutError;
 
   return result;
-};
-
-export const cancelAccountDeletionRequest = async (
-  userId?: string,
-  request?: AccountDeletionRequest,
-): Promise<AccountDeletionRequest> => {
-  const user = userId ? null : await getCurrentUser();
-  const resolvedUserId = userId ?? user?.id;
-  if (!resolvedUserId) {
-    throw new Error("Parent account is required.");
-  }
-
-  const state = request
-    ? {
-        phase: getDeletionPhaseForRequest(request),
-        request,
-        graceEndsAt: resolveGraceEndsAt(request),
-      } satisfies AccountDeletionState
-    : await getAccountDeletionState(resolvedUserId);
-
-  if (!state.request || state.phase === "active") {
-    throw new Error("There is no active account deletion request to cancel.");
-  }
-
-  if (state.phase === "expired" || state.phase === "completed") {
-    throw new Error("The 30-day window for this account has ended.");
-  }
-
-  const reactivatedAt = nowIso();
-  const { data, error } = await supabase
-    .from("account_deletion_requests")
-    .update({
-      status: "cancelled",
-      cancelled_at: reactivatedAt,
-      reactivated_at: reactivatedAt,
-    })
-    .eq("id", state.request.id)
-    .eq("user_id", resolvedUserId)
-    .in("status", ["requested", "processing"])
-    .select(ACCOUNT_DELETION_REQUEST_SELECT_COLUMNS)
-    .maybeSingle();
-
-  if (error) throw error;
-  if (!data) {
-    throw new Error("Account deletion request could not be cancelled.");
-  }
-
-  return data as unknown as AccountDeletionRequest;
-};
-
-export const restoreChildrenArchivedByAccountDeletion = async (
-  userId?: string,
-  request?: AccountDeletionRequest,
-): Promise<ChildProfile[]> => {
-  const user = userId ? null : await getCurrentUser();
-  const resolvedUserId = userId ?? user?.id;
-  if (!resolvedUserId) {
-    throw new Error("Parent account is required.");
-  }
-
-  const resolvedRequest = request ?? (await getAccountDeletionState(resolvedUserId)).request;
-  if (!resolvedRequest?.id) return [];
-
-  const { data, error } = await supabase
-    .from("children")
-    .update({
-      deleted_at: null,
-      archived_by_account_deletion_request_id: null,
-    })
-    .eq("parent_id", resolvedUserId)
-    .eq("archived_by_account_deletion_request_id", resolvedRequest.id)
-    .select(CHILD_SELECT_COLUMNS);
-
-  if (error) throw error;
-  return (data ?? []) as ChildProfile[];
 };
 
 export const reactivateAccount = async (

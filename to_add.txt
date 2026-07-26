@@ -1,7 +1,2 @@
-streaks
 points
-
-
 analytics
-
-work on bottom navigation panel, small text within cards, etc

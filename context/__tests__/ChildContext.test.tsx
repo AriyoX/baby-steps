@@ -5,6 +5,10 @@ const mockHydrateLearningProgressFromSharedProgress = jest.fn();
 const mockCancelScheduledProgressSync = jest.fn();
 const mockHydrateProgressFromRemote = jest.fn();
 const mockSyncProgressNow = jest.fn();
+const mockClearSecureActiveChildSession = jest.fn();
+const mockLoadSecureActiveChildSession = jest.fn();
+const mockSaveSecureActiveChildSession = jest.fn();
+const mockFetchActiveChildProfile = jest.fn();
 
 jest.mock("@/lib/learningProgressRepository", () => ({
   hydrateLearningProgressFromSharedProgress: (...args: unknown[]) =>
@@ -16,6 +20,20 @@ jest.mock("@/lib/progressRepository", () => ({
   hydrateProgressFromRemote: (...args: unknown[]) =>
     mockHydrateProgressFromRemote(...args),
   syncProgressNow: (...args: unknown[]) => mockSyncProgressNow(...args),
+}));
+
+jest.mock("@/lib/activeChildSession", () => ({
+  clearSecureActiveChildSession: (...args: unknown[]) =>
+    mockClearSecureActiveChildSession(...args),
+  loadSecureActiveChildSession: (...args: unknown[]) =>
+    mockLoadSecureActiveChildSession(...args),
+  saveSecureActiveChildSession: (...args: unknown[]) =>
+    mockSaveSecureActiveChildSession(...args),
+}));
+
+jest.mock("@/lib/accountManagement", () => ({
+  fetchActiveChildProfile: (...args: unknown[]) =>
+    mockFetchActiveChildProfile(...args),
 }));
 
 const {
@@ -60,6 +78,10 @@ describe("ChildProvider progress hydration", () => {
     });
     mockHydrateProgressFromRemote.mockResolvedValue({ activities: 0, stages: 0 });
     mockSyncProgressNow.mockResolvedValue({ pushed: 0, skipped: 0, failed: 0 });
+    mockClearSecureActiveChildSession.mockResolvedValue(undefined);
+    mockLoadSecureActiveChildSession.mockResolvedValue(null);
+    mockSaveSecureActiveChildSession.mockResolvedValue(undefined);
+    mockFetchActiveChildProfile.mockResolvedValue(null);
     api = undefined;
     tree = undefined;
   });
@@ -138,6 +160,188 @@ describe("ChildProvider progress hydration", () => {
       "child-2",
       "nyn",
     );
+  });
+
+  it("restores the account-scoped child boundary before parent routes can render", async () => {
+    const restoredChild = {
+      id: "child-restored",
+      name: "A",
+      gender: "girl",
+      age: "4",
+      selected_language_code: "lg",
+    };
+    mockLoadSecureActiveChildSession.mockResolvedValueOnce(restoredChild);
+    mockFetchActiveChildProfile.mockResolvedValueOnce({
+      ...restoredChild,
+      parent_id: "parent-a",
+      deleted_at: null,
+    });
+
+    await act(async () => {
+      tree = renderer.create(
+        <ChildProvider accountId="parent-a">
+          <Probe />
+        </ChildProvider>,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await flushChildEffects();
+
+    expect(mockLoadSecureActiveChildSession).toHaveBeenCalledWith("parent-a");
+    expect(mockFetchActiveChildProfile).toHaveBeenCalledWith(
+      "child-restored",
+      "parent-a",
+    );
+    expect(api?.isRestoringActiveChild).toBe(false);
+    expect(api?.activeChild).toEqual(restoredChild);
+  });
+
+  it("does not restore a missing or archived child and keeps the parent boundary locked", async () => {
+    const storedChild = {
+      id: "child-stale",
+      name: "Old child",
+      gender: "girl",
+      age: "4",
+      selected_language_code: "lg",
+    };
+    mockLoadSecureActiveChildSession.mockResolvedValueOnce(storedChild);
+    mockFetchActiveChildProfile.mockResolvedValueOnce(null);
+
+    await act(async () => {
+      tree = renderer.create(
+        <ChildProvider accountId="parent-a">
+          <Probe />
+        </ChildProvider>,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await flushChildEffects();
+
+    expect(api?.isRestoringActiveChild).toBe(false);
+    expect(api?.activeChild).toBeNull();
+    expect(api?.requiresParentUnlock).toBe(true);
+    expect(mockClearSecureActiveChildSession).toHaveBeenCalledWith("parent-a");
+  });
+
+  it("fails closed with the stored child when online validation is unavailable", async () => {
+    const storedChild = {
+      id: "child-offline",
+      name: "Saved child",
+      gender: "girl",
+      age: "4",
+      selected_language_code: "nyn",
+    };
+    mockLoadSecureActiveChildSession.mockResolvedValueOnce(storedChild);
+    mockFetchActiveChildProfile.mockRejectedValueOnce(new Error("offline"));
+
+    await act(async () => {
+      tree = renderer.create(
+        <ChildProvider accountId="parent-a">
+          <Probe />
+        </ChildProvider>,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await flushChildEffects();
+
+    expect(api?.activeChild).toEqual(storedChild);
+    expect(api?.requiresParentUnlock).toBe(false);
+  });
+
+  it("clears the secure boundary before completing a verified parent exit", async () => {
+    const secureClear = deferred<void>();
+    await act(async () => {
+      tree = renderer.create(
+        <ChildProvider accountId="parent-a">
+          <Probe />
+        </ChildProvider>,
+      );
+      await Promise.resolve();
+    });
+    await act(async () => {
+      api?.setActiveChild({
+        id: "child-1",
+        name: "A",
+        gender: "girl",
+        age: "4",
+        selected_language_code: "lg",
+      });
+    });
+    mockClearSecureActiveChildSession.mockReturnValueOnce(secureClear.promise);
+
+    let deactivation!: Promise<void>;
+    act(() => {
+      deactivation = api!.deactivateChildMode();
+    });
+    expect(api?.activeChild?.id).toBe("child-1");
+
+    await act(async () => {
+      secureClear.resolve();
+      await deactivation;
+    });
+    expect(api?.activeChild).toBeNull();
+  });
+
+  it("persists child mode before activating it and isolates an account switch", async () => {
+    const secureWrite = deferred<void>();
+    mockSaveSecureActiveChildSession.mockReturnValueOnce(secureWrite.promise);
+    const child = {
+      id: "child-1",
+      name: "A",
+      gender: "girl",
+      age: "4",
+      selected_language_code: "lg",
+    };
+
+    await act(async () => {
+      tree = renderer.create(
+        <ChildProvider accountId="parent-a">
+          <Probe />
+        </ChildProvider>,
+      );
+      await Promise.resolve();
+    });
+
+    let activation!: Promise<void>;
+    act(() => {
+      activation = api!.activateChildMode(child);
+    });
+    expect(api?.activeChild).toBeNull();
+    expect(api?.isEnteringChildMode).toBe(false);
+
+    await act(async () => {
+      secureWrite.resolve();
+      await activation;
+    });
+    expect(mockSaveSecureActiveChildSession).toHaveBeenCalledWith(
+      "parent-a",
+      child,
+    );
+    expect(api?.activeChild).toEqual(child);
+    expect(api?.isEnteringChildMode).toBe(true);
+
+    act(() => {
+      api?.completeChildModeEntry();
+    });
+    expect(api?.isEnteringChildMode).toBe(false);
+
+    mockLoadSecureActiveChildSession.mockResolvedValueOnce(null);
+    await act(async () => {
+      tree?.update(
+        <ChildProvider accountId="parent-b">
+          <Probe />
+        </ChildProvider>,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockLoadSecureActiveChildSession).toHaveBeenLastCalledWith("parent-b");
+    expect(api?.isRestoringActiveChild).toBe(false);
+    expect(api?.activeChild).toBeNull();
   });
 
   it("clears active-child state and cancels scheduled work when sign-out sync fails", async () => {

@@ -98,7 +98,7 @@ curl -sS -X POST "$SUPABASE_FUNCTION_URL/finalize-account-deletions" \
 
 ## Scheduling
 
-Configure a daily Supabase scheduled invocation after deploying the function. If scheduling is not configured yet, run the real invocation manually from a trusted admin environment.
+Read-only production inspection on 2026-07-23 found one active schedule named `finalize-account-deletions-daily` at `0 2 * * *`. Do not create another schedule. An authorized operator still needs to prove its secret, request body, execution history, alerts, and end-to-end deletion behavior.
 
 Example schedule intent:
 
@@ -128,11 +128,11 @@ Body: { "mode": "run", "limit": 25 }
 
 ## Production TODOs
 
-- Verify `hello@babystepslearn.com` is owned and monitored.
-- Host `docs/delete-account.html` publicly and link the hosted page from store review materials.
-- Deploy the Edge Function to the production Supabase project.
-- Set `BABY_STEPS_ACCOUNT_DELETION_ADMIN_SECRET`.
-- Configure the daily scheduled invocation.
-- Run the manual QA steps above against a non-production/test account before production scheduling.
+- Apply the unapplied 2026-07-23 security hardening migration so finalizer helper RPCs are no longer executable by client roles.
+- Verify `hello@babystepslearn.com` is owned, monitored, and deliverable.
+- Publish `docs/delete-account.html` at a stable HTTPS URL and link that exact page from store review materials.
+- Compare the active deployed Edge Function with repository source; verify the admin secret exists and can be rotated without printing it.
+- Verify the existing single daily schedule's headers/body, observe an execution, and configure failure/stuck-request alerts.
+- Run the manual QA steps above against an isolated disposable account before tester distribution.
 - Re-run static checks before store submission.
-- Update Play Console/App Store review notes to describe the 30-day grace period and secure server-side finalization.
+- Update Play Console review notes to describe the 30-day grace period and secure server-side finalization.

@@ -2,6 +2,41 @@ import type { ImageSourcePropType } from "react-native";
 
 const LEARNING_IMAGE_PLACEHOLDER = require("@/assets/images/learning-beginner.jpg");
 
+const PLACEHOLDER_IMAGE_ASSET_KEYS = new Set([
+  "learning/lg/counting/books.png",
+  "learning/lg/counting/children.png",
+  "learning/lg/counting/cups.png",
+  "learning/lg/counting/houses.png",
+  "learning/lg/counting/water-cups.png",
+  "learning/lg/menus/cards.png",
+  "learning/lg/menus/learning.png",
+  "learning/lg/menus/numbers.png",
+  "learning/lg/menus/puzzles.png",
+  "learning/lg/menus/words.png",
+  "learning/lg/puzzles/book-and-water.png",
+  "learning/lg/puzzles/family-home.png",
+  "learning/lg/puzzles/greeting.png",
+  "learning/lg/stage-1/greeting-oli-otya.png",
+  "learning/lg/stage-1/reply-gyendi.png",
+  "learning/lg/stage-1/stage-card.png",
+  "learning/lg/stage-1/story-greeting-1.png",
+  "learning/lg/stage-1/story-greeting-2.png",
+  "learning/lg/stage-1/story-greeting-3.png",
+  "learning/lg/stage-1/thanks-webale.png",
+  "learning/lg/stage-1/work-greeting-gyebale-ko.png",
+  "learning/lg/stage-2/amazzi.png",
+  "learning/lg/stage-2/ekitabo.png",
+  "learning/lg/stage-2/ennyumba.png",
+  "learning/lg/stage-2/maama.png",
+  "learning/lg/stage-2/omwana.png",
+  "learning/lg/stage-2/stage-card.png",
+  "learning/lg/stage-2/story-home-1.png",
+  "learning/lg/stage-2/story-home-2.png",
+  "learning/lg/stage-2/story-home-3.png",
+  "learning/lg/stage-2/story-home-4.png",
+  "learning/lg/stage-2/taata.png",
+]);
+
 const IMAGE_ASSETS: Record<string, ImageSourcePropType> = {
   "learning/lg/coloring/ennyumba.png": require("@/assets/images/learning/lg/coloring/ennyumba-v2.png"),
   "learning/lg/coloring/greeting.png": require("@/assets/images/learning/lg/coloring/greeting-v2.png"),
@@ -117,6 +152,11 @@ export const isRemoteImageUri = (uri: string): boolean =>
 
 export const isUriImageReference = (image: string): boolean =>
   /^(https?:\/\/|file:\/\/|data:image\/)/i.test(image.trim());
+
+export const isProductionReadyBundledImageAsset = (image: unknown): boolean =>
+  typeof image === "string" &&
+  Object.prototype.hasOwnProperty.call(IMAGE_ASSETS, image.trim()) &&
+  !PLACEHOLDER_IMAGE_ASSET_KEYS.has(image.trim());
 
 export const resolveImageSource = (
   image: unknown,

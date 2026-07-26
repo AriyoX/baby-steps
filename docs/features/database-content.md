@@ -55,17 +55,42 @@ Stable IDs are compatibility keys, not display copy. Do not normally rename or r
 
 `20260714182326_database_backed_learning_content.sql` remains the immutable initial deployed content migration. The later Stories-order migration is part of that historical migration chain.
 
-`supabase/seed.sql` is now a generated **development reset seed** for the Luganda Stage 1–2 curriculum cut. Its source is `scripts/build-luganda-stage-1-2-content.mjs`, and its reviewable manifest is `content/curriculum/lg-stage-1-2.json`. On a local reset it purges obsolete Luganda runtime rows and inserts the two-stage Hub, aligned menus/games, two stories, and explicit placeholder-media references. It does not delete child profiles, progress, activity history, achievements, auth users, or Runyankole editorial rows.
+`supabase/seed.sql` is a generated **development reset seed** for the Luganda
+initial Stage 1–2 curriculum cut. Its source is
+`scripts/build-luganda-stage-1-2-content.mjs`, and its reviewable manifest is
+`content/curriculum/lg-stage-1-2.json`. On a local reset it purges obsolete
+Luganda runtime rows and inserts the two-stage Hub, aligned menus/games and two
+stories. It does not delete child profiles, progress, activity history,
+achievements, auth users or Runyankole editorial rows.
 
-The Stage 1–2 seed is not a production migration and must not be used with a linked production database. Its image/audio files are intentionally empty and every affected payload remains review-required. Its progress-bearing payloads declare revision `2`, so legacy revision-1 Hub/game completions do not unlock the replacement curriculum. Run `npm run content:build:lg-stage-1-2` after editing its source and `npm run content:validate:lg-stage-1-2` before review. A later production deployment requires approved media/language/curriculum gates and a new migration created with `supabase migration new`; never edit the applied initial migration.
+Revision 4 includes 12 Hub lessons, 16 standalone Learning Game levels and all
+21 tracked concepts. It no longer references empty tracking files: missing
+artwork points to registered, non-empty bundled images, and the 29 stable
+curriculum audio keys resolve to one shared temporary cue. The affected nested
+payloads remain explicitly review-required.
+
+The Stage 1–2 seed is not a production migration and must not be used with a
+linked production database. Its progress-bearing payloads declare revision `4`,
+so revision-3 Hub/game completions remain historical but do not unlock the
+replacement curriculum. Run `npm run content:build:lg-stage-1-2` after editing
+its source and `npm run content:validate:lg-stage-1-2` before review. A later
+production deployment requires approved media/language/curriculum gates and a
+new migration created with `supabase migration new`; never edit an applied
+migration. Detailed editing and media-replacement steps are in
+[Luganda initial-stage seed](../development/luganda-seed-content-and-audio.md).
 
 Do not edit an applied migration. Create a new migration with `supabase migration new <descriptive_name>`, upsert the changed exact-language row, preserve all stable IDs and ordering, and increment `content_version`. Linked/deployed environments receive the same data through the migration chain. Fresh local resets will do the same after the repository's pre-existing [base-schema migration gap](../development/database.md#local-reset-caveat) is restored.
 
-## Verified Deployment State
+## Historical Deployment Note
 
-As of 2026-07-15, the repository and linked Baby-Steps project migration histories match through `20260714213732`. An anonymous Data API query can read 17 active/published/startable Luganda rows: three menus, Learning Hub, five standalone game bundles, and eight Stories. There are zero published/startable Runyankole rows. `anon` and `authenticated` cannot insert or update `content_items`.
+The 15 July 2026 deployment check covered migration history through
+`20260714213732` and the then-published content rows. It is retained only as
+historical context and is not a claim about the current linked database.
 
-The generated Stage 1–2 `seed.sql` has not been applied to that linked project. The verified deployment state above therefore describes the historical deployed migration content, not the local development seed.
+The generated revision-4 Stage 1–2 `seed.sql` is a local/disposable-development
+reset and is not automatically applied to a linked project. Linked environments
+receive reviewed content through later migrations, not by running this reset
+seed.
 
 The reversible [Learning Hub dynamic-stage smoke test](../database/learning-hub-dynamic-stage-smoke-test.sql) demonstrates that a new valid stage appears after a database-only payload/version update. It is a test helper, not a production migration; use its separate cleanup SQL after verification.
 

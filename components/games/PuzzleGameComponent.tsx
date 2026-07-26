@@ -43,6 +43,7 @@ import {
   type LocalFirstCompletionResult,
   type LocalPersistenceStatus,
 } from "@/lib/completionReliability";
+import { recordQualifiedStreakActivity } from "@/lib/streakRepository";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   GameHeader,
@@ -171,6 +172,10 @@ export interface PuzzleCompletionOptions {
     progress: PuzzleGameProgress,
     persistence: LocalPersistenceStatus,
   ) => Promise<void>;
+  recordStreakCompletion?: (
+    progress: PuzzleGameProgress,
+    persistence: LocalPersistenceStatus,
+  ) => Promise<unknown>;
   onLocalError?: (error: unknown) => void;
   onNetworkError?: (error: unknown) => void;
 }
@@ -215,6 +220,7 @@ export const completePuzzleLocallyFirst = async ({
   revealCompletion,
   saveCompletionActivity,
   evaluateAchievements,
+  recordStreakCompletion,
   onLocalError,
   onNetworkError,
 }: PuzzleCompletionOptions): Promise<LocalFirstCompletionResult<PuzzleGameProgress>> =>
@@ -229,6 +235,7 @@ export const completePuzzleLocallyFirst = async ({
       await Promise.all([
         saveCompletionActivity(saved, persistence),
         evaluateAchievements(saved, persistence),
+        recordStreakCompletion?.(saved, persistence),
       ]);
     },
     onLocalError,
@@ -325,7 +332,7 @@ const PuzzleGame: React.FC = () => {
       previewAnim.stopAnimation();
       successAnim.stopAnimation();
     };
-  }, []);
+  }, [previewAnim, successAnim]);
 
   useEffect(() => {
     let cancelled = false;
@@ -420,7 +427,7 @@ const PuzzleGame: React.FC = () => {
       cancelled = true;
       clearPendingTimers();
     };
-  }, [activeChild?.id, contentRetryVersion, languageCode]);
+  }, [activeChild?.id, contentRetryVersion, languageCode, previewAnim]);
 
   useEffect(() => {
     const loadedSounds: Audio.Sound[] = [];
@@ -493,7 +500,18 @@ const PuzzleGame: React.FC = () => {
       clearPendingTimers();
       previewAnim.stopAnimation();
     };
-  }, [contentScope, currentPuzzle, hydratedScope, puzzleImages.length, puzzleTour.visible, showPreview]);
+    // initializePuzzle consumes the selected entry in puzzleImages. Depending
+    // on its render-local identity would reset the preview timer every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    contentScope,
+    currentPuzzle,
+    hydratedScope,
+    previewAnim,
+    puzzleImages,
+    puzzleTour.visible,
+    showPreview,
+  ]);
 
   useEffect(() => {
     // Reset the game start time whenever a new puzzle starts
@@ -649,10 +667,8 @@ const PuzzleGame: React.FC = () => {
             const newlyEarned = await checkAndGrantNewAchievements(eventFirstPlay);
             if (!isMountedRef.current) return;
             if (newlyEarned.length > 0) {
-                newlyEarned.forEach(ach => {
-                    console.log(`PUZZLE GAME - FIRST PLAY - NEW ACHIEVEMENT: ${ach.name}`);
-                    enqueueAchievementUnlocked(ach);
-                    // Handle points if necessary
+                newlyEarned.forEach((achievement) => {
+                    enqueueAchievementUnlocked(achievement);
                 });
             }
         }
@@ -827,6 +843,7 @@ const PuzzleGame: React.FC = () => {
         details: `Completed the ${completedPuzzle.name} puzzle in ${completedMoves} moves`,
         level: currentPuzzle + 1,
       };
+      const puzzleSessionStartedAt = gameStartTime.current;
 
       await completePuzzleLocallyFirst({
         progress: newProgress,
@@ -839,6 +856,16 @@ const PuzzleGame: React.FC = () => {
           ),
         revealCompletion: revealPuzzleCompletion,
         saveCompletionActivity: () => saveActivity(activity),
+        recordStreakCompletion: (_savedProgress, persistence) =>
+          persistence.persisted
+            ? recordQualifiedStreakActivity({
+                childId,
+                sourceType: "game",
+                sourceId: `puzzle:${currentPuzzleId}`,
+                completionId: `puzzle:${currentPuzzleId}:${puzzleSessionStartedAt}`,
+                completedAt: activity.completed_at,
+              })
+            : Promise.resolve(),
         evaluateAchievements: async (savedProgress) => {
           const eventComplete: Parameters<typeof checkAndGrantNewAchievements>[0] = {
             type: 'puzzle_game_completed_successfully',
@@ -851,9 +878,8 @@ const PuzzleGame: React.FC = () => {
           };
           const newlyEarned = await checkAndGrantNewAchievements(eventComplete);
           if (!isMountedRef.current) return;
-          newlyEarned.forEach(ach => {
-            console.log(`PUZZLE GAME - COMPLETE - NEW ACHIEVEMENT: ${ach.name}`);
-            enqueueAchievementUnlocked(ach);
+          newlyEarned.forEach((achievement) => {
+            enqueueAchievementUnlocked(achievement);
           });
         },
         onLocalError: (error) => {
@@ -1162,7 +1188,8 @@ const PuzzleGame: React.FC = () => {
       </View>
       <GameTour
         visible={puzzleTour.visible}
-        onCancel={puzzleTour.close}
+        onDismiss={puzzleTour.dismiss}
+        onUnavailable={puzzleTour.close}
         onComplete={puzzleTour.complete}
         steps={[
           { id: "board", targetId: "puzzle-board", icon: "grid-outline", placement: "right", title: "Move the tiles", description: "Tap a tile next to the empty space." },

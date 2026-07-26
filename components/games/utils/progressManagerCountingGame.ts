@@ -228,9 +228,6 @@ export const loadGameProgress = async (
     if (!savedProgress && !contentRevision && languageCode === 'lg') {
       const legacyKey = getLegacyStorageKey(childId);
       savedProgress = await AsyncStorage.getItem(legacyKey);
-      if (savedProgress) {
-        console.log(`Using explicit legacy Luganda counting progress key: ${legacyKey}`);
-      }
     }
     
     if (savedProgress) {
@@ -396,7 +393,6 @@ export const saveGameProgress = async (
       options.availableStageIds,
       { markDirty: options.markDirty }
     );
-    console.log(`Saved progress for child: ${childId}`);
   } catch (error) {
     console.error('Failed to save counting game progress:', error);
     throw error;
@@ -491,7 +487,6 @@ export const resetProgress = async (childId: string, languageCode: string): Prom
   try {
     const key = getStorageKey(childId, languageCode);
     await AsyncStorage.removeItem(key);
-    console.log(`Reset progress for child: ${childId}`);
   } catch (error) {
     console.error('Failed to reset progress:', error);
   }

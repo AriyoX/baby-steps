@@ -9,6 +9,7 @@ const mockRouter = {
 }
 const mockUseLocalSearchParams = jest.fn(() => ({ childId: "child-1" }))
 const mockSetActiveChild = jest.fn()
+const mockActivateChildMode = jest.fn()
 const mockRequireInternet = jest.fn()
 const mockShowNetworkErrorIfNeeded = jest.fn()
 const mockRequestAccountDeletion = jest.fn()
@@ -67,8 +68,16 @@ jest.mock("@/components/games/achievements/useAchievements", () => {
   }
 })
 
+jest.mock("@/components/parent/ChildStreakSection", () => ({
+  ChildStreakSection: () => null,
+}))
+
 jest.mock("@/context/ChildContext", () => ({
-  useChild: () => ({ activeChild: null, setActiveChild: mockSetActiveChild }),
+  useChild: () => ({
+    activeChild: null,
+    activateChildMode: mockActivateChildMode,
+    setActiveChild: mockSetActiveChild,
+  }),
 }))
 
 jest.mock("@/lib/network", () => ({
@@ -191,7 +200,14 @@ describe("network-protected account and child actions", () => {
   it("does not schedule account deletion while explicitly offline", async () => {
     const tree = await renderScreen(<AccountDeleteScreen />)
     act(() => {
-      tree.root.findByType(TextInput).props.onChangeText("DELETE")
+      tree.root
+        .findByProps({ accessibilityLabel: "Account deletion confirmation" })
+        .props.onChangeText("DELETE")
+      tree.root
+        .findByProps({
+          accessibilityLabel: "Parent account password for deletion",
+        })
+        .props.onChangeText("current-password")
     })
     mockRequireInternet.mockResolvedValueOnce(false)
 
@@ -203,7 +219,7 @@ describe("network-protected account and child actions", () => {
     expect(mockRequestAccountDeletion).not.toHaveBeenCalled()
   })
 
-  it("does not archive a child profile while explicitly offline", async () => {
+  it("does not remove a child profile while explicitly offline", async () => {
     const tree = await renderScreen(<ChildProfileDeleteScreen />)
     act(() => {
       tree.root.findByType(TextInput).props.onChangeText("Amina")
@@ -211,10 +227,10 @@ describe("network-protected account and child actions", () => {
     mockRequireInternet.mockResolvedValueOnce(false)
 
     await act(async () => {
-      await findButtonByText(tree.root, "Archive Child Profile").props.onPress()
+      await findButtonByText(tree.root, "Remove Child Profile").props.onPress()
     })
 
-    expect(mockRequireInternet).toHaveBeenLastCalledWith("Archiving this child profile")
+    expect(mockRequireInternet).toHaveBeenLastCalledWith("Removing this child profile")
     expect(mockArchiveChildProfile).not.toHaveBeenCalled()
   })
 
@@ -247,7 +263,7 @@ describe("network-protected account and child actions", () => {
     })
 
     expect(mockRequireInternet).toHaveBeenLastCalledWith("Launching child mode")
-    expect(mockSetActiveChild).not.toHaveBeenCalled()
+    expect(mockActivateChildMode).not.toHaveBeenCalled()
     expect(mockRouter.push).not.toHaveBeenCalled()
   })
 

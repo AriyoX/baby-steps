@@ -52,7 +52,15 @@ Set `published_at` when publishing and increase `content_version` for every rele
 
 The production migration chain remains canonical for deployed environments: the earlier story migration owns its historical story payloads, `20260714182326_database_backed_learning_content.sql` owns the initial Hub/game/menu payloads plus publication state, and `20260714213732_normalize_published_story_menu_order.sql` normalizes the pre-existing Stories menu to the strict ordered-card contract. Future production changes belong in later migrations.
 
-For local curriculum replacement work, `supabase/seed.sql` is generated from `scripts/build-luganda-stage-1-2-content.mjs`. It is deliberately destructive only to Luganda `content_items` rows and must not be applied to production. Edit the generator source, regenerate, validate, and then create a separate reviewed migration when the content and media are genuinely deployable.
+For local curriculum replacement work, `supabase/seed.sql` is generated from
+`scripts/build-luganda-stage-1-2-content.mjs`. It is deliberately destructive
+only to Luganda `content_items` rows and must not be applied to production. Edit
+the generator source, regenerate, validate, and then create a separate reviewed
+migration when the content and media are genuinely deployable. The current
+revision-4 seed uses registered, non-empty bundled fallback images and 29 stable
+audio keys mapped to a shared temporary cue; see
+[Luganda initial-stage seed](./luganda-seed-content-and-audio.md) for the exact
+update procedure.
 
 For a reversible database-only proof, use the [Learning Hub dynamic-stage smoke test](../database/learning-hub-dynamic-stage-smoke-test.sql). It is intentionally not a migration and must not be treated as production curriculum.
 

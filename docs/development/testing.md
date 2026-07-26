@@ -42,9 +42,9 @@ Automated tests still do not replace end-to-end device QA for:
 - real signup, login, reset, add-child, and cold-start route recovery;
 - the full parent-gate UI and parent/child switching flow (challenge generation and answer validation have focused unit coverage);
 - real Supabase network failures and writes through an installed mobile build;
-- complete touch interaction for every game, Coloring drawing/save/share, and Museum gestures/media;
+- complete touch interaction for every published game and Coloring drawing/save;
 - native orientation, audio, media-library permissions, and Android/iOS behavior;
-- complete parent dashboard/settings flows and replacement of placeholder metrics.
+- complete parent dashboard/settings flows against the hardened production schema.
 
 ## Validation Commands
 
@@ -80,6 +80,6 @@ Supabase advisors report no content-specific finding for `content_items`. They s
 
 1. Add installed-build smoke coverage for auth, child mode entry/exit, and one complete Learning/game/story flow.
 2. Verify offline restart behavior and exact-language content recovery on Android and iOS.
-3. Exercise Coloring save/share and audio/media permissions on real devices.
+3. Exercise Coloring Save and add-only media permission behavior on real devices; verify no child-facing Share surface exists.
 4. Close the base-migration gap so `supabase db reset` can validate the full schema from an empty database.
 5. Resolve the remaining database/security advisor findings before release.

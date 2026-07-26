@@ -168,7 +168,7 @@ The current DB-backed route is `app/child/stories/[storyId].tsx`, rendered by `G
 4. Show completion without immediately navigating away.
 5. Let Read Again reset reader state without resetting the saved-completion guard.
 
-The old named story component files still contain a separate `StoryProgress` path. Do not update those unless the routes are reactivated.
+The old named routes are redirect-only compatibility routes. Story presentation and completion changes belong in `GenericStoryRenderer`.
 
 ### Learning Hub mechanics
 

@@ -14,12 +14,12 @@ The child should never see a purchase sheet. A locked child-facing card should o
 The app is not ready to take payments yet:
 
 - There is no StoreKit, Google Play Billing, RevenueCat, `expo-iap`, or other IAP dependency.
-- The parent Settings menu already has a `Subscription / Payments` entry, but it resolves to placeholder copy.
-- The app already has a child-to-parent arithmetic gate at `app/child/parent-gate.tsx`; this is the right interaction boundary for purchase access.
+- No subscription/payment action is exposed in the closed-beta Parent Settings UI.
+- Child-to-parent navigation now uses the account-scoped secure device PIN gate at `app/child/parent-gate.tsx`.
 - There is no subscription or entitlement table, webhook endpoint, receipt verification, restore flow, paywall, or lock state.
 - Every active/published `content_items` row is currently readable by `anon` and `authenticated`. A client-only lock would therefore be a UX gate, not server enforcement.
 - Stage 1 and Stage 2 are currently stored in one Learning Hub JSON payload. True server-side Stage 2 withholding would require a new tier-aware delivery contract or separate stage payloads.
-- Android currently uses `com.babysteps.babysteps_prototype`. The permanent package ID should be settled before Play products are created.
+- Android uses the permanent package ID `com.babystepslearn.app`.
 - The iOS configuration has no `bundleIdentifier`; one is required before App Store products can be configured.
 - This is an Expo 54 app. Native IAP libraries require a development build; they do not work in Expo Go. [Expo's current IAP guide](https://docs.expo.dev/guides/in-app-purchases/) lists both RevenueCat's `react-native-purchases` and `expo-iap` as supported approaches.
 

@@ -44,7 +44,17 @@ Every payload is authored independently for its row `language_code`. `learning_h
 
 The canonical initial deployed content migration is `supabase/migrations/20260714182326_database_backed_learning_content.sql`. It contains idempotent upserts for the historical Learning Hub, menus, standalone games, and known story publication state. `20260714213732_normalize_published_story_menu_order.sql` then upgrades the older Stories menu to the strict explicit-order contract. Both are applied to the linked Baby-Steps project. The chain intentionally leaves the existing Runyankole test samples draft and non-startable.
 
-The Luganda Stage 1–2 development reset is generated separately into `supabase/seed.sql` from `scripts/build-luganda-stage-1-2-content.mjs`; `content/curriculum/lg-stage-1-2.json` is its generated review manifest. Do not edit either generated file by hand, and do not apply the reset seed to production. Production rollout requires approved media and review gates followed by a new content migration.
+The Luganda initial Stage 1–2 development reset is generated separately into
+`supabase/seed.sql` from
+`scripts/build-luganda-stage-1-2-content.mjs`;
+`content/curriculum/lg-stage-1-2.json` is its generated review manifest. Revision
+4 contains 12 Hub lessons, 16 Learning Game levels and the 21 tracked concepts.
+Missing media resolves to registered, non-empty bundled fallbacks; nested
+readiness still records that review and final media are outstanding. Do not
+edit either generated file by hand, and do not apply the reset seed to
+production. The exact edit/regenerate/media-replacement workflow is in
+[Luganda initial-stage seed](./luganda-seed-content-and-audio.md). Production
+rollout requires the stated review gates followed by a new content migration.
 
 For every future change:
 
@@ -113,40 +123,41 @@ The `learning_hub` row is the main curriculum. Its payload envelope is:
   "pathTitle": "Luganda Learning Path",
   "stages": [
     {
-      "id": "first-words",
+      "id": "lg-stage-01-greetings",
       "order": 1,
       "stageNumber": 1,
-      "title": "First Words",
-      "description": "Start with useful everyday words.",
-      "imageKey": "learning-beginner.jpg",
+      "title": "Ennamusa, amannya n'empisa ennungi",
+      "description": "Greetings, names and courtesy language.",
+      "imageKey": "river-kids.jpg",
       "status": "preview",
       "estimatedMinutes": 4,
       "isPractice": false,
       "isLocked": false,
-      "readiness": "draft",
+      "readiness": "placeholder",
       "mechanics": ["tap_to_learn"],
       "learningGoals": ["Hear and recognize useful words"],
       "placeholderMessage": "More lessons are being prepared.",
       "lessons": [
         {
-          "id": "greetings-1",
+          "id": "lg-s1-l1-meet-greetings",
           "order": 1,
-          "title": "Greetings",
+          "title": "Meet the greetings",
           "description": "Tap each card to learn the word.",
           "mechanic": "tap_to_learn",
           "isStartable": true,
           "isLocked": false,
-          "readiness": "draft",
+          "readiness": "placeholder",
           "items": [
             {
-              "id": "thank-you",
+              "id": "lg-s1-l1-i01",
               "order": 1,
               "mechanic": "tap_to_learn",
-              "localText": "Webale",
-              "englishText": "Thank you",
-              "audioKey": "webale",
-              "audioAsset": "webale",
-              "readiness": "draft"
+              "localText": "Oli otya?",
+              "englishText": "How are you?",
+              "imageKey": "river-kids.jpg",
+              "audioKey": "lg-s1-oli-otya",
+              "audioAsset": "placeholder_learning_cue",
+              "readiness": "placeholder"
             }
           ]
         }
@@ -158,7 +169,14 @@ The `learning_hub` row is the main curriculum. Its payload envelope is:
 
 The repository orders stages, lessons, and items, validates all explicit IDs, removes invalid implemented items, and derives each lesson's `startable`, `coming_soon`, `locked`, `unsupported`, or `empty` status. UI code consumes only normalized repository objects.
 
-To extend the path, add a stage at a new explicit order, add globally unique lesson IDs inside it, and add uniquely identified items whose mechanic matches their lesson. Mark incomplete work `placeholder`/`draft` and `isStartable: false`; publish only the surrounding bundle version that is safe to deliver. To add an item to a shipped lesson, append a new ID/order without renumbering existing items, then bump the row `content_version` in a new migration.
+To extend the path, add a stage at a new explicit order, add globally unique
+lesson IDs inside it, and add uniquely identified items whose mechanic matches
+their lesson. Do not treat extra game levels as new Hub curriculum. Mark
+incomplete work `placeholder`/`draft` and normally `isStartable: false`; a
+deliberate development seed may keep technically playable placeholder lessons
+startable while its metadata remains explicit about the review boundary. To add
+an item to a shipped lesson, append a new ID/order without renumbering existing
+items, then bump the row `content_version` in a new migration.
 
 ### Mechanic Item Examples
 

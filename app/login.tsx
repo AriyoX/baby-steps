@@ -31,6 +31,7 @@ import {
 } from "@/lib/authMessages";
 import { supabase } from "../lib/supabase";
 import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network";
+import { shouldShowNotificationOnboarding } from "@/lib/notifications";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
@@ -133,7 +134,18 @@ export default function Auth() {
       }
 
       const accountState = await getAccountDeletionState(userId);
-      router.replace(getPostLoginRouteForAccountState(accountState) as any);
+      const postLoginRoute = getPostLoginRouteForAccountState(accountState);
+      if (
+        postLoginRoute === "/parent" &&
+        (await shouldShowNotificationOnboarding(userId))
+      ) {
+        router.replace({
+          pathname: "/notification-permission",
+          params: { next: postLoginRoute },
+        } as any);
+        return;
+      }
+      router.replace(postLoginRoute as any);
     } catch (error) {
       console.error("Could not complete sign in.");
       if (await showNetworkErrorIfNeeded(error, "Signing in")) return;
@@ -320,14 +332,10 @@ export default function Auth() {
               </TouchableOpacity>
             </View>
 
-            <View className="flex-row items-center justify-center mt-6 pt-5 border-t border-neutral-100">
-              <FontAwesome name="shield" size={14} color={brandColors.neutral[500]} />
-              <Text className="text-xs text-neutral-500 ml-2">Private parent account · No ads for children</Text>
-            </View>
-            <View className="flex-row items-start mt-3 bg-accent-50 rounded-xl px-3 py-2.5">
+            <View className="flex-row items-start mt-6 pt-5 border-t border-neutral-100">
               <FontAwesome name="wifi" size={13} color={brandColors.gold[700]} style={{ marginTop: 2 }} />
               <Text className="text-xs leading-4 text-neutral-600 ml-2 flex-1">
-                Internet is needed to sign in, sync profiles, and load some updates. Saved activities may still work offline.
+                Internet is needed to sign in and keep progress up to date.
               </Text>
             </View>
           </Animated.View>

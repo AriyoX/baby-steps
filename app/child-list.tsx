@@ -10,6 +10,7 @@ import { supabase } from "../lib/supabase"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { BrandMark } from "@/components/brand/BrandMark"
 import { brandColors } from "@/constants/Brand"
+import { fetchActiveChildProfiles } from "@/lib/accountManagement"
 
 // Define the child profile type
 type ChildProfile = {
@@ -26,6 +27,7 @@ type ChildProfile = {
 export default function ChildListScreen() {
   const [profiles, setProfiles] = useState<ChildProfile[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const router = useRouter()
 
   // Animation values
@@ -42,7 +44,7 @@ export default function ChildListScreen() {
     }).start()
 
     // Floating animation for decorative elements
-    Animated.loop(
+    const floatingAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(bounceValue, {
           toValue: 1,
@@ -55,44 +57,40 @@ export default function ChildListScreen() {
           useNativeDriver: true,
         }),
       ]),
-    ).start()
+    )
+    floatingAnimation.start()
 
     // Fetch child profiles
     fetchProfiles()
+
+    return () => {
+      floatingAnimation.stop()
+      bounceValue.stopAnimation()
+      scaleValue.stopAnimation()
+    }
   }, [bounceValue, scaleValue])
 
   const fetchProfiles = async () => {
     try {
       setLoading(true)
+      setLoadError(false)
 
       // Get the current user session
       const { data: sessionData } = await supabase.auth.getSession()
 
       if (!sessionData.session) {
-        console.log("No active session found")
         setLoading(false)
         return
       }
 
       const userId = sessionData.session.user.id
 
-      // Fetch child profiles from the 'children' table
-      const { data, error } = await supabase
-        .from("children")
-        .select("*")
-        .eq("parent_id", userId)
-        .is("deleted_at", null)
-
-      if (error) {
-        console.error("Error fetching profiles:", error.message)
-        throw error
-      }
-
-      console.log("Fetched profiles:", data)
-      setProfiles(data || [])
+      const data = await fetchActiveChildProfiles(userId)
+      setProfiles(data as ChildProfile[])
       setLoading(false)
     } catch (error) {
       console.error("Error in fetchProfiles:", error)
+      setLoadError(true)
       setLoading(false)
     }
   }
@@ -110,8 +108,8 @@ export default function ChildListScreen() {
   const navigateToProfile = (childId: string) => {
     // Navigate to profile and pass the child ID
     router.push({
-      pathname: "/parent/child-detail/1" as any,
-      params: { childId },
+      pathname: "/parent/child-detail/[id]" as any,
+      params: { id: childId },
     })
   }
 
@@ -126,15 +124,9 @@ export default function ChildListScreen() {
         onPress={() => navigateToProfile(item.id)}
         activeOpacity={0.8}
       >
-        {/* Avatar with gender-based emoji */}
+        {/* Profile avatar */}
         <View className="relative w-[70px] h-[70px] rounded-2xl bg-primary-50 justify-center items-center mr-4">
-          <Text className="text-[36px]">{item.gender === "male" ? "👦" : item.gender === "female" ? "👧" : "👶"}</Text>
-          {/* Level badge - using a placeholder level for now */}
-          <View className="absolute -bottom-1 -right-1 bg-primary-500 rounded-xl w-6 h-6 justify-center items-center border-2 border-white">
-            <Text variant="bold" className="text-[10px] text-white">
-              Lv1
-            </Text>
-          </View>
+          <FontAwesome5 name="child" size={34} color={brandColors.victoriaBlue} />
         </View>
 
         {/* Profile details */}
@@ -144,10 +136,12 @@ export default function ChildListScreen() {
           </Text>
           <Text className="text-sm text-neutral-500 mb-2">{item.age}</Text>
 
-          {/* Last activity indicator - using created_at for now */}
+          {/* Profile creation date */}
           <View className="flex-row items-center">
-            <FontAwesome5 name="clock" size={12} color={brandColors.victoriaBlue} />
-            <Text className="text-xs text-neutral-500 ml-1">{new Date(item.created_at).toLocaleDateString()}</Text>
+            <FontAwesome5 name="calendar-alt" size={12} color={brandColors.victoriaBlue} />
+            <Text className="text-xs text-neutral-500 ml-1">
+              Profile created {new Date(item.created_at).toLocaleDateString()}
+            </Text>
           </View>
         </View>
 
@@ -191,7 +185,34 @@ export default function ChildListScreen() {
           </View>
         ) : (
           <>
-            {profiles.length > 0 ? (
+            {loadError && profiles.length === 0 ? (
+              <View className="flex-1 items-center justify-center px-6">
+                <View className="w-full rounded-3xl border border-amber-200 bg-white p-6 items-center">
+                  <View className="w-16 h-16 rounded-2xl bg-amber-50 items-center justify-center">
+                    <FontAwesome5
+                      name="cloud"
+                      size={28}
+                      color={brandColors.gold[700]}
+                    />
+                  </View>
+                  <Text variant="bold" className="mt-4 text-xl text-neutral-900 text-center">
+                    Profiles could not refresh
+                  </Text>
+                  <Text className="mt-2 text-sm leading-5 text-neutral-600 text-center">
+                    Your saved profiles have not been removed. Try again when the
+                    connection improves.
+                  </Text>
+                  <TouchableOpacity
+                    className="mt-5 rounded-2xl bg-primary-500 px-6 py-3"
+                    onPress={() => void fetchProfiles()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Retry loading child profiles"
+                  >
+                    <Text variant="bold" className="text-white">Try again</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : profiles.length > 0 ? (
               <>
                 <FlatList
                   data={profiles}

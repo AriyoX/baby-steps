@@ -2,6 +2,9 @@ import {
   areTourMeasurementsStable,
   GAME_TOUR_LAYOUT,
   getModalCoordinateOffsetY,
+  getTourSpotlightPath,
+  getTourTooltipSize,
+  isTourTargetVisible,
 } from "@/components/games/GameTour"
 
 describe("shared game tour vertical alignment", () => {
@@ -72,5 +75,75 @@ describe("shared game tour vertical alignment", () => {
     expect(
       areTourMeasurementsStable(settled, { ...settled, y: 34 }),
     ).toBe(false)
+  })
+
+  it("accepts targets with a useful visible area", () => {
+    expect(
+      isTourTargetVisible(
+        { height: 80, width: 120, x: 20, y: 30 },
+        360,
+        640,
+      ),
+    ).toBe(true)
+    expect(
+      isTourTargetVisible(
+        { height: 80, width: 120, x: -108, y: 30 },
+        360,
+        640,
+      ),
+    ).toBe(true)
+  })
+
+  it("rejects off-screen targets and one-pixel edge slivers", () => {
+    expect(
+      isTourTargetVisible(
+        { height: 80, width: 120, x: 20, y: 700 },
+        360,
+        640,
+      ),
+    ).toBe(false)
+    expect(
+      isTourTargetVisible(
+        { height: 80, width: 120, x: 20, y: 639 },
+        360,
+        640,
+      ),
+    ).toBe(false)
+  })
+
+  it("builds one even-odd backdrop path with a rounded spotlight cutout", () => {
+    const path = getTourSpotlightPath(
+      { height: 60, width: 120, x: 20, y: 40 },
+      360,
+      640,
+    )
+
+    expect(path).toContain("M 0 0 H 360 V 640 H 0 Z")
+    expect(path).toContain("M 36 40")
+    expect(path).toContain("A 16 16")
+    expect(path.endsWith("Z")).toBe(true)
+  })
+
+  it("gives the tooltip a usable size before native layout measurement arrives", () => {
+    expect(
+      getTourTooltipSize({
+        availableHeight: 600,
+        measuredSize: null,
+        width: 340,
+      }),
+    ).toEqual({
+      height: GAME_TOUR_LAYOUT.tooltipEstimatedHeight,
+      width: 340,
+    })
+  })
+
+  it("uses the measured tooltip size once it is available", () => {
+    expect(
+      getTourTooltipSize({
+        availableHeight: 600,
+        measuredSize: { height: 214, width: 340 },
+        width: 340,
+      }),
+    ).toEqual({ height: 214, width: 340 })
   })
 })

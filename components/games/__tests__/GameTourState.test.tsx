@@ -101,4 +101,27 @@ describe("shared game tour state", () => {
     warning.mockRestore()
     act(() => tree.unmount())
   })
+
+  it("keeps unavailable closure retryable but persists an intentional dismissal", async () => {
+    const tree = await renderTourState()
+
+    act(() => latestTour?.close())
+    expect(latestTour?.visible).toBe(false)
+    expect(
+      await AsyncStorage.getItem(getGameGuideStorageKey("word", "child-1")),
+    ).toBeNull()
+
+    act(() => latestTour?.open())
+    await act(async () => {
+      latestTour?.dismiss()
+      await Promise.resolve()
+    })
+
+    expect(latestTour?.visible).toBe(false)
+    expect(
+      await AsyncStorage.getItem(getGameGuideStorageKey("word", "child-1")),
+    ).toBe("seen")
+
+    act(() => tree.unmount())
+  })
 })

@@ -243,7 +243,7 @@ const refreshRecentActivitiesInBackground = (
   const refresh = fetchRecentActivitiesFromRemote(childId, options)
     .then((activities) => writeRecentActivitiesCache(cacheKey, activities))
     .catch((error) => {
-      console.warn(`Could not refresh recent activities cache for ${childId}.`, error);
+      console.warn("Could not refresh the recent activities cache.", error);
     })
     .then(() => undefined)
     .finally(() => {

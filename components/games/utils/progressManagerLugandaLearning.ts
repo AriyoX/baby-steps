@@ -38,7 +38,7 @@ export const DEFAULT_USER_STATS: UserStats = {
   correctAnswers: 0,
   wrongAnswers: 0,
   lastPlayed: new Date().toISOString(),
-  streakDays: 1
+  streakDays: 0
 };
 
 const getStorageKey = (baseKey: string, childId: string, languageCode: string) =>
@@ -60,30 +60,54 @@ const asNumberArray = (value: unknown): number[] =>
     ? value.filter((item): item is number => Number.isInteger(item))
     : [];
 
-const mergeStagesWithSavedLocks = (
-  defaultStages: LearningGameStage[],
-  savedStages: LearningGameStage[] | undefined,
+/**
+ * Rebuild legacy Learning Game access from durable completion data.
+ *
+ * Lock flags in content and older AsyncStorage payloads are only snapshots.
+ * They became unreliable when a replacement content bundle published every
+ * stage and level with `isLocked: false`. Completions and score are the source
+ * of truth: the first incomplete level is playable, later incomplete levels
+ * wait, and the next stage opens only after the previous stage is complete.
+ */
+export const applyLegacyLearningAccessLocks = (
+  stages: LearningGameStage[],
+  completedLevels: number[],
+  totalScore: number,
 ): LearningGameStage[] => {
-  const savedStageById = new Map(
-    (savedStages ?? []).map((stage) => [stage.id, stage]),
-  );
+  const completedIds = new Set(completedLevels);
+  let previousStagesComplete = true;
 
-  return cloneStages(defaultStages).map((stage) => {
-    const savedStage = savedStageById.get(stage.id);
-    const savedLevelsById = new Map(
-      (savedStage?.levels ?? []).map((level) => [level.id, level]),
-    );
+  return cloneStages(stages).map((stage, stageIndex) => {
+    const stageCompleted =
+      stage.levels.length > 0 &&
+      stage.levels.every((level) => completedIds.has(level.id));
+    const scoreRequirementMet = totalScore >= Math.max(0, stage.requiredScore);
+    const stageUnlocked =
+      stageIndex === 0 || (previousStagesComplete && scoreRequirementMet);
+    let foundFirstIncompleteLevel = false;
+
+    const levels = stage.levels.map((level) => {
+      const isCompleted = completedIds.has(level.id);
+      const isCurrentLevel = !foundFirstIncompleteLevel && !isCompleted;
+
+      if (isCurrentLevel) {
+        foundFirstIncompleteLevel = true;
+      }
+
+      return {
+        ...level,
+        // Completed levels remain reviewable. Of the incomplete levels, only
+        // the first one in the current unlocked stage is startable.
+        isLocked: !stageUnlocked || (!isCompleted && !isCurrentLevel),
+      };
+    });
+
+    previousStagesComplete = previousStagesComplete && stageCompleted;
 
     return {
       ...stage,
-      isLocked: savedStage?.isLocked ?? stage.isLocked,
-      levels: stage.levels.map((level) => {
-        const savedLevel = savedLevelsById.get(level.id);
-        return {
-          ...level,
-          isLocked: savedLevel?.isLocked ?? level.isLocked,
-        };
-      }),
+      isLocked: !stageUnlocked,
+      levels,
     };
   });
 };
@@ -205,21 +229,24 @@ const restoreProgressFromSnapshot = (
   // Completed level IDs are historical records. Keep retired IDs in the payload;
   // completion/status calculations below still consider only current stages.
   const completedLevels = asNumberArray(payload.completedLevels);
-  const savedStages = Array.isArray(payload.stages)
-    ? (payload.stages as LearningGameStage[])
-    : undefined;
   const userStats = {
     ...DEFAULT_USER_STATS,
     ...asRecord(payload.userStats),
   } as UserStats;
 
+  const totalScore =
+    typeof payload.totalScore === 'number'
+      ? payload.totalScore
+      : fallbackScore;
+
   return {
-    totalScore:
-      typeof payload.totalScore === 'number'
-        ? payload.totalScore
-        : fallbackScore,
+    totalScore,
     completedLevels,
-    stages: mergeStagesWithSavedLocks(defaultStages, savedStages),
+    stages: applyLegacyLearningAccessLocks(
+      defaultStages,
+      completedLevels,
+      totalScore,
+    ),
     userStats,
   };
 };
@@ -252,12 +279,11 @@ export const loadGameProgress = async (
       userStatsData = await AsyncStorage.getItem(getLegacyStorageKey(LEGACY_USER_STATS_KEY, childId));
 
       if (scoreData || completedLevelsData || stagesData || userStatsData) {
-        console.log('Using explicit legacy Luganda learning progress keys');
       }
     }
 
     const hasLocalProgress = Boolean(scoreData || completedLevelsData || stagesData || userStatsData);
-    const fallbackStages = cloneStages(defaultStages);
+    const fallbackStages = applyLegacyLearningAccessLocks(defaultStages, [], 0);
 
     if (contentRevision && savedContentRevision !== contentRevision) {
       await AsyncStorage.multiRemove([
@@ -356,10 +382,13 @@ export const loadGameProgress = async (
 
     const completedLevels = completedLevelsData ? JSON.parse(completedLevelsData) : [];
     const normalizedCompletedLevels = asNumberArray(completedLevels);
-    const savedStages = stagesData ? JSON.parse(stagesData) : undefined;
     const userStats = userStatsData ? JSON.parse(userStatsData) : { ...DEFAULT_USER_STATS };
     const totalScore = scoreData ? parseInt(scoreData) : 0;
-    const stages = mergeStagesWithSavedLocks(fallbackStages, savedStages);
+    const stages = applyLegacyLearningAccessLocks(
+      fallbackStages,
+      normalizedCompletedLevels,
+      totalScore,
+    );
 
     if (hasLocalProgress) {
       void hydrateProgressFromRemote(childId, languageCode, {
@@ -392,7 +421,7 @@ export const loadGameProgress = async (
     return {
       totalScore: 0,
       completedLevels: [],
-      stages: cloneStages(defaultStages),
+      stages: applyLegacyLearningAccessLocks(defaultStages, [], 0),
       userStats: { ...DEFAULT_USER_STATS }
     };
   }
@@ -409,9 +438,14 @@ export const saveGameProgress = async (
   options: { markDirty?: boolean; contentRevision?: string } = {}
 ) => {
   try {
+    const normalizedStages = applyLegacyLearningAccessLocks(
+      stages,
+      completedLevels,
+      totalScore,
+    );
     await AsyncStorage.setItem(getStorageKey(SCORE_KEY, childId, languageCode), totalScore.toString());
     await AsyncStorage.setItem(getStorageKey(COMPLETED_LEVELS_KEY, childId, languageCode), JSON.stringify(completedLevels));
-    await AsyncStorage.setItem(getStorageKey(STAGES_DATA_KEY, childId, languageCode), JSON.stringify(stages));
+    await AsyncStorage.setItem(getStorageKey(STAGES_DATA_KEY, childId, languageCode), JSON.stringify(normalizedStages));
     await AsyncStorage.setItem(getStorageKey(USER_STATS_KEY, childId, languageCode), JSON.stringify(userStats));
     // Commit the compatibility marker last. If an earlier write fails, the
     // next load safely resets instead of interpreting partially written old
@@ -430,7 +464,7 @@ export const saveGameProgress = async (
         buildActivityProgressSnapshot(
           totalScore,
           completedLevels,
-          stages,
+          normalizedStages,
           userStats,
           options.contentRevision,
         ),
@@ -442,7 +476,7 @@ export const saveGameProgress = async (
         languageCode,
         totalScore,
         completedLevels,
-        stages,
+        normalizedStages,
         userStats,
         { contentRevision: options.contentRevision },
       );

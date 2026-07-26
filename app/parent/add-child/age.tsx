@@ -6,8 +6,10 @@ import { AddChildScaffold } from "@/components/parent/AddChildScaffold"
 import { Text } from "@/components/StyledText"
 import { useUser } from "@/context/UserContext"
 import { brandColors } from "@/constants/Brand"
-
-const AGE_OPTIONS = [...Array.from({ length: 10 }, (_, index) => String(index + 3)), "12+"]
+import {
+  CHILD_AGE_OPTIONS,
+  OLDER_CHILD_GUIDANCE,
+} from "@/lib/childProfileOptions"
 
 export default function AgeSelectionScreen() {
   const { age, setAge } = useUser()
@@ -36,13 +38,13 @@ export default function AgeSelectionScreen() {
         <View className="flex-row items-start bg-accent-50 border border-accent-100 rounded-2xl p-4">
           <Ionicons name="information-circle-outline" size={21} color={brandColors.gold[700]} />
           <Text className="flex-1 ml-2 text-sm leading-5 text-neutral-700">
-            Baby Steps is designed mainly for ages 3–12. Older learners can still use it for language practice and confidence.
+            {OLDER_CHILD_GUIDANCE}
           </Text>
         </View>
       }
     >
       <View className="flex-row flex-wrap justify-between">
-        {AGE_OPTIONS.map((option) => {
+        {CHILD_AGE_OPTIONS.map((option) => {
           const selected = selectedAge === option
           return (
             <TouchableOpacity

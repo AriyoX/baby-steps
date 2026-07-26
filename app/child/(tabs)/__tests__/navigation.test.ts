@@ -51,4 +51,18 @@ describe("child-mode navigation", () => {
     expect(gamesIndexSource).not.toContain("Redirect")
     expect(CHILD_GAMES_ROUTE).toBe("/child")
   })
+
+  it("keeps the bottom navigation simple, consistent, and accessible", () => {
+    const layoutSource = readProjectFile("app", "child", "(tabs)", "_layout.tsx")
+
+    expect(layoutSource).toContain('tabBarLabelPosition: "below-icon"')
+    expect(layoutSource).toContain("tabBarShowLabel: true")
+    expect(layoutSource).toContain("tabBarAccessibilityLabel: t(item.labelKey)")
+    expect(layoutSource).toContain("adjustsFontSizeToFit")
+    expect(layoutSource).toContain('iconName: "game-controller-outline"')
+    expect(layoutSource).toContain('iconName: "book-outline"')
+    expect(layoutSource).toContain('iconName: "color-palette-outline"')
+    expect(layoutSource).not.toContain("activeTabItemContent")
+    expect(layoutSource).not.toContain("getChildTabBarMetrics")
+  })
 })

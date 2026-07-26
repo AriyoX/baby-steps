@@ -16,6 +16,7 @@ import React, {
   type Ref,
 } from "react"
 import {
+  InteractionManager,
   Modal,
   Platform,
   ScrollView,
@@ -44,6 +45,7 @@ export type GameTourStep = {
   description: string
   icon?: keyof typeof Ionicons.glyphMap
   placement?: "top" | "bottom" | "left" | "right" | "auto"
+  prepareTarget?: () => Promise<void> | void
 }
 
 type MeasurableNode = {
@@ -165,9 +167,10 @@ export const useGameTour = (guideId: GameGuideId, childId?: string, enabled = tr
   }, [childId, guideId])
 
   const close = useCallback(() => setVisible(false), [])
+  const dismiss = complete
   const open = useCallback(() => setVisible(true), [])
 
-  return { close, complete, open, visible }
+  return { close, complete, dismiss, open, visible }
 }
 
 export type TourRect = {
@@ -177,27 +180,29 @@ export type TourRect = {
   y: number
 }
 
-type ValidStep = {
-  rect: TourRect
-  step: GameTourStep
-}
-
 // Android measureInWindow and a translucent Modal use different vertical
 // origins. StatusBar.currentHeight supplies the shared baseline correction;
 // androidSpotlightOffsetY is the one manual device-test tuning point. Increase
 // it to move every Android spotlight/tooltip target lower; iOS always uses 0.
 export const GAME_TOUR_LAYOUT = {
   androidSpotlightOffsetY: -16,
-  dimOpacity: 0.76,
+  dimColor: "#07182B",
+  dimOpacity: 0.82,
   measurementMinimumSize: 1,
   overlayEdgeInset: 2,
   safeAreaMargin: 10,
+  spotlightBorderWidth: 3,
   spotlightCornerRadius: 16,
+  spotlightGlowOpacity: 0.3,
+  spotlightGlowWidth: 9,
   spotlightPadding: 8,
+  targetMinimumVisiblePixels: 12,
+  targetPrepareDelayMs: 80,
   targetMeasurementTolerance: 1,
   targetRetryCount: 18,
   targetRetryDelayMs: 120,
   tooltipBoundsInset: 8,
+  tooltipEstimatedHeight: 190,
   tooltipGap: 12,
 } as const
 
@@ -210,6 +215,35 @@ const isValidMeasurement = (rect: TourRect) =>
   [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite) &&
   rect.width > GAME_TOUR_LAYOUT.measurementMinimumSize &&
   rect.height > GAME_TOUR_LAYOUT.measurementMinimumSize
+
+export const isTourTargetVisible = (
+  rect: TourRect,
+  screenWidth: number,
+  screenHeight: number,
+) => {
+  if (!isValidMeasurement(rect) || screenWidth <= 0 || screenHeight <= 0) {
+    return false
+  }
+
+  const visibleWidth = Math.max(
+    0,
+    Math.min(rect.x + rect.width, screenWidth) - Math.max(rect.x, 0),
+  )
+  const visibleHeight = Math.max(
+    0,
+    Math.min(rect.y + rect.height, screenHeight) - Math.max(rect.y, 0),
+  )
+  const requiredWidth = Math.min(
+    rect.width,
+    GAME_TOUR_LAYOUT.targetMinimumVisiblePixels,
+  )
+  const requiredHeight = Math.min(
+    rect.height,
+    GAME_TOUR_LAYOUT.targetMinimumVisiblePixels,
+  )
+
+  return visibleWidth >= requiredWidth && visibleHeight >= requiredHeight
+}
 
 const measureNode = (node: MeasurableNode | null | undefined): Promise<TourRect | null> =>
   new Promise((resolve) => {
@@ -296,7 +330,49 @@ const getPaddedTarget = (
   return { x, y, width: right - x, height: bottom - y }
 }
 
-type TooltipSize = { height: number; width: number }
+export const getTourSpotlightPath = (
+  target: TourRect,
+  screenWidth: number,
+  screenHeight: number,
+) => {
+  const right = target.x + target.width
+  const bottom = target.y + target.height
+  const radius = Math.min(
+    GAME_TOUR_LAYOUT.spotlightCornerRadius,
+    target.width / 2,
+    target.height / 2,
+  )
+
+  return [
+    `M 0 0 H ${screenWidth} V ${screenHeight} H 0 Z`,
+    `M ${target.x + radius} ${target.y}`,
+    `H ${right - radius}`,
+    `A ${radius} ${radius} 0 0 1 ${right} ${target.y + radius}`,
+    `V ${bottom - radius}`,
+    `A ${radius} ${radius} 0 0 1 ${right - radius} ${bottom}`,
+    `H ${target.x + radius}`,
+    `A ${radius} ${radius} 0 0 1 ${target.x} ${bottom - radius}`,
+    `V ${target.y + radius}`,
+    `A ${radius} ${radius} 0 0 1 ${target.x + radius} ${target.y}`,
+    "Z",
+  ].join(" ")
+}
+
+export type TooltipSize = { height: number; width: number }
+
+export const getTourTooltipSize = ({
+  availableHeight,
+  measuredSize,
+  width,
+}: {
+  availableHeight: number
+  measuredSize: TooltipSize | null
+  width: number
+}): TooltipSize =>
+  measuredSize ?? {
+    height: Math.min(GAME_TOUR_LAYOUT.tooltipEstimatedHeight, availableHeight),
+    width,
+  }
 
 const getTooltipPosition = ({
   bounds,
@@ -364,8 +440,9 @@ type GameTourProps = {
   accentColor?: string
   androidSpotlightOffsetY?: number
   finishLabel?: string
-  onCancel: () => void
   onComplete: () => void
+  onDismiss: () => void
+  onUnavailable: (step?: GameTourStep) => void
   steps: GameTourStep[]
   visible: boolean
 }
@@ -374,8 +451,9 @@ export function GameTour({
   accentColor = brandColors.victoriaBlue,
   androidSpotlightOffsetY = GAME_TOUR_LAYOUT.androidSpotlightOffsetY,
   finishLabel = "Let's play",
-  onCancel,
   onComplete,
+  onDismiss,
+  onUnavailable,
   steps,
   visible,
 }: GameTourProps) {
@@ -383,112 +461,125 @@ export function GameTour({
   const registry = useContext(TourTargetRegistryContext)
   const insets = useTourSafeAreaInsets()
   const { height, width } = useWindowDimensions()
-  const [validSteps, setValidSteps] = useState<ValidStep[]>([])
   const [activeIndex, setActiveIndex] = useState(0)
+  const [targetRect, setTargetRect] = useState<TourRect | null>(null)
   const [tooltipSize, setTooltipSize] = useState<TooltipSize | null>(null)
-  const activeStepIdRef = useRef<string | undefined>(undefined)
   const stepsRef = useRef(steps)
   stepsRef.current = steps
   const stepsKey = steps.map((step) => `${step.id}:${step.targetId}`).join("|")
+  const currentStep = steps[activeIndex]
 
   useEffect(() => {
-    const currentSteps = stepsRef.current
-    if (!visible || !registry || currentSteps.length === 0) {
-      activeStepIdRef.current = undefined
-      setValidSteps([])
+    if (!visible) {
       setActiveIndex(0)
+      setTargetRect(null)
       setTooltipSize(null)
       return
     }
 
-    let cancelled = false
+    // Every consumer is hosted in a landscape-only game route. A target can
+    // briefly produce stable portrait measurements while iOS is still pushing
+    // the route; presenting Modal in that window races the native orientation
+    // transition. Wait for the route's requested orientation before measuring.
+    if (width <= height) {
+      setTargetRect(null)
+      setTooltipSize(null)
+      return
+    }
 
-    const findTargets = async () => {
-      const measured = new Map<string, TourRect>()
-      const candidates = new Map<string, TourRect>()
+    const step = stepsRef.current[activeIndex]
+    if (!registry || !step) {
+      setTargetRect(null)
+      onUnavailable(step)
+      return
+    }
+
+    let cancelled = false
+    setTargetRect(null)
+    setTooltipSize(null)
+
+    const findTarget = async () => {
+      try {
+        await step.prepareTarget?.()
+      } catch (error) {
+        console.warn(`Could not prepare the ${step.id} tour target:`, error)
+      }
+
+      if (cancelled) return
+      if (step.prepareTarget) {
+        await wait(GAME_TOUR_LAYOUT.targetPrepareDelayMs)
+      }
+
+      let measured: TourRect | null = null
+      let candidate: TourRect | null = null
 
       for (
         let attempt = 0;
         attempt < GAME_TOUR_LAYOUT.targetRetryCount;
         attempt += 1
       ) {
-        const missingSteps = currentSteps.filter((step) => !measured.has(step.id))
-        const results = await Promise.all(
-          missingSteps.map(async (step) => ({
-            rect: await measureNode(registry.getTarget(step.targetId)),
-            step,
-          })),
-        )
+        const rect = await measureNode(registry.getTarget(step.targetId))
 
-        results.forEach(({ rect, step }) => {
-          if (!rect) {
-            candidates.delete(step.id)
-            return
-          }
-
-          const previous = candidates.get(step.id)
-          if (previous && areTourMeasurementsStable(previous, rect)) {
-            measured.set(step.id, rect)
-            return
-          }
-
+        if (!rect || !isTourTargetVisible(rect, width, height)) {
+          candidate = null
+        } else if (candidate && areTourMeasurementsStable(candidate, rect)) {
+          measured = rect
+          break
+        } else {
           // iOS can report a valid but stale window position while the route's
           // layout is settling. Keep retrying until two samples agree.
-          candidates.set(step.id, rect)
-        })
+          candidate = rect
+        }
 
-        if (measured.size === currentSteps.length || cancelled) break
+        if (cancelled) return
         await wait(GAME_TOUR_LAYOUT.targetRetryDelayMs)
       }
 
       if (cancelled) return
 
-      const nextValidSteps = currentSteps.flatMap((step) => {
-        // A latest valid sample is still safer than dismissing the entire tour
-        // if a continuously animating target never becomes pixel-stable.
-        const rect = measured.get(step.id) ?? candidates.get(step.id)
-        return rect ? [{ step, rect }] : []
-      })
-
-      if (nextValidSteps.length === 0) {
-        onCancel()
+      // A latest visible sample is still safer than failing a continuously
+      // animating target that never becomes pixel-stable.
+      const nextRect = measured ?? candidate
+      if (!nextRect) {
+        console.warn(
+          `Could not show the ${step.id} tour step because its target was unavailable or off-screen.`,
+        )
+        onUnavailable(step)
         return
       }
 
-      const previousStepId = activeStepIdRef.current
-      const nextIndex = previousStepId
-        ? Math.max(
-            0,
-            nextValidSteps.findIndex(({ step }) => step.id === previousStepId),
-          )
-        : 0
-
-      setValidSteps(nextValidSteps)
-      setActiveIndex(nextIndex)
-      setTooltipSize(null)
+      setTargetRect(nextRect)
     }
 
-    void findTargets()
+    // Route navigation and the landscape lock are native interactions. Let
+    // those finish before the measurement loop can make the modal eligible to
+    // mount, even on fast devices where content is already cached.
+    const interactionTask = InteractionManager.runAfterInteractions(() => {
+      if (!cancelled) {
+        void findTarget()
+      }
+    })
 
     return () => {
       cancelled = true
+      interactionTask.cancel()
     }
-  }, [height, onCancel, registry, stepsKey, visible, width])
+  }, [activeIndex, height, onUnavailable, registry, stepsKey, visible, width])
 
-  const current = validSteps[activeIndex]
-  activeStepIdRef.current = current?.step.id
+  if (!visible || !currentStep) return null
 
-  useEffect(() => {
-    setTooltipSize(null)
-  }, [current?.step.id])
-
-  if (!visible || !current) return null
+  // Do not present a native modal while a newly-pushed route is still
+  // measuring and rotating into landscape. In particular, iOS can terminate
+  // the route transition when an over-full-screen modal is presented during
+  // that orientation hand-off. The guide becomes visible as soon as its first
+  // stable target measurement is available.
+  if (!targetRect || width <= height) return null
 
   const target = getPaddedTarget(
     {
-      ...current.rect,
+      ...targetRect,
       y:
-        current.rect.y +
+        targetRect.y +
         getModalCoordinateOffsetY({
           androidSpotlightOffsetY,
           safeAreaTop: insets.top,
@@ -514,28 +605,28 @@ export function GameTour({
       GAME_TOUR_LAYOUT.tooltipBoundsInset,
   }
   const tooltipWidth = Math.min(380, Math.max(1, bounds.right - bounds.left))
-  const tooltipPosition = tooltipSize
-    ? getTooltipPosition({
-        bounds,
-        placement: current.step.placement,
-        target,
-        tooltip: tooltipSize,
-      })
-    : { left: bounds.left, top: bounds.top }
+  const positionedTooltipSize = getTourTooltipSize({
+    availableHeight: Math.max(1, bounds.bottom - bounds.top),
+    measuredSize: tooltipSize,
+    width: tooltipWidth,
+  })
+  const tooltipPosition = getTooltipPosition({
+    bounds,
+    placement: currentStep.placement,
+    target,
+    tooltip: positionedTooltipSize,
+  })
   const isFirst = activeIndex === 0
-  const isLast = activeIndex === validSteps.length - 1
+  const isLast = activeIndex === steps.length - 1
 
   return (
     <Modal
       animationType="fade"
       navigationBarTranslucent
-      onRequestClose={onCancel}
+      onRequestClose={onDismiss}
       presentationStyle="overFullScreen"
       statusBarTranslucent
       supportedOrientations={[
-        "portrait",
-        "portrait-upside-down",
-        "landscape",
         "landscape-left",
         "landscape-right",
       ]}
@@ -552,33 +643,28 @@ export function GameTour({
           width={width}
           height={height}
         >
-              <Defs>
-                <Mask id="game-tour-spotlight-mask">
-                  <SvgRect
-                    x={0}
-                    y={0}
-                    width={width}
-                    height={height}
-                    fill="white"
-                  />
-                  <SvgRect
-                    x={target.x}
-                    y={target.y}
-                    width={target.width}
-                    height={target.height}
-                    rx={GAME_TOUR_LAYOUT.spotlightCornerRadius}
-                    fill="black"
-                  />
-                </Mask>
-              </Defs>
+          <Defs>
+            <Mask id="game-tour-spotlight-mask">
+              <SvgRect x={0} y={0} width={width} height={height} fill="white" />
               <SvgRect
-                x={0}
-                y={0}
-                width={width}
-                height={height}
-                fill={`rgba(7, 24, 43, ${GAME_TOUR_LAYOUT.dimOpacity})`}
-                mask="url(#game-tour-spotlight-mask)"
+                x={target.x}
+                y={target.y}
+                width={target.width}
+                height={target.height}
+                rx={GAME_TOUR_LAYOUT.spotlightCornerRadius}
+                fill="black"
               />
+            </Mask>
+          </Defs>
+          <SvgRect
+            x={0}
+            y={0}
+            width={width}
+            height={height}
+            fill={GAME_TOUR_LAYOUT.dimColor}
+            fillOpacity={GAME_TOUR_LAYOUT.dimOpacity}
+            mask="url(#game-tour-spotlight-mask)"
+          />
         </Svg>
 
             <View
@@ -613,7 +699,6 @@ export function GameTour({
                 {
                   left: tooltipPosition.left,
                   maxHeight: Math.max(1, bounds.bottom - bounds.top),
-                  opacity: tooltipSize ? 1 : 0,
                   top: tooltipPosition.top,
                   width: tooltipWidth,
                 },
@@ -627,34 +712,34 @@ export function GameTour({
           >
             <View
               accessible
-              accessibilityLabel={`${current.step.title}. ${current.step.description}. Step ${activeIndex + 1} of ${validSteps.length}.`}
+              accessibilityLabel={`${currentStep.title}. ${currentStep.description}. Step ${activeIndex + 1} of ${steps.length}.`}
               style={styles.tooltipHeader}
             >
               <View style={[styles.iconBubble, { backgroundColor: `${accentColor}18` }]}>
                 <Ionicons
-                  name={current.step.icon ?? "sparkles"}
+                  name={currentStep.icon ?? "sparkles"}
                   size={24}
                   color={accentColor}
                 />
               </View>
               <View style={styles.tooltipCopy}>
                 <Text variant="bold" style={styles.title}>
-                  {current.step.title}
+                  {currentStep.title}
                 </Text>
-                <Text style={styles.description}>{current.step.description}</Text>
+                <Text style={styles.description}>{currentStep.description}</Text>
               </View>
               <View style={styles.progressPill}>
                 <Text variant="bold" style={styles.progressText}>
-                  {activeIndex + 1} of {validSteps.length}
+                  {activeIndex + 1} of {steps.length}
                 </Text>
               </View>
             </View>
 
             <View
-              accessibilityLabel={`Tour step ${activeIndex + 1} of ${validSteps.length}`}
+              accessibilityLabel={`Tour step ${activeIndex + 1} of ${steps.length}`}
               style={styles.dots}
             >
-              {validSteps.map(({ step }, index) => (
+              {steps.map((step, index) => (
                 <View
                   key={step.id}
                   accessible={false}
@@ -685,7 +770,11 @@ export function GameTour({
                 accessibilityState={{ disabled: isFirst }}
                 activeOpacity={0.75}
                 disabled={isFirst}
-                onPress={() => setActiveIndex((index) => Math.max(0, index - 1))}
+                onPress={() => {
+                  setTargetRect(null)
+                  setTooltipSize(null)
+                  setActiveIndex((index) => Math.max(0, index - 1))
+                }}
                 style={[styles.backButton, isFirst && styles.disabledButton]}
               >
                 <Ionicons name="arrow-back" size={17} color={brandColors.neutral[700]} />
@@ -701,7 +790,9 @@ export function GameTour({
                     onComplete()
                     return
                   }
-                  setActiveIndex((index) => Math.min(validSteps.length - 1, index + 1))
+                  setTargetRect(null)
+                  setTooltipSize(null)
+                  setActiveIndex((index) => Math.min(steps.length - 1, index + 1))
                 }}
                 style={[styles.nextButton, { backgroundColor: accentColor }]}
               >
@@ -833,7 +924,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     borderColor: brandColors.equatorialGold,
     borderRadius: GAME_TOUR_LAYOUT.spotlightCornerRadius,
-    borderWidth: 3,
+    borderWidth: GAME_TOUR_LAYOUT.spotlightBorderWidth,
     shadowColor: brandColors.equatorialGold,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.85,

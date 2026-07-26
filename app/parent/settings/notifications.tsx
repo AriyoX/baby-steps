@@ -10,7 +10,7 @@ import {
   getNotificationPermissionState,
   getNotificationPreferences,
   requestAndEnableRecurringReminders,
-  sendTestLearningReminder,
+  updateLearningReminderSettings,
   type NotificationPermissionState,
 } from "@/lib/notifications"
 
@@ -32,13 +32,14 @@ const NOTIFICATION_PRINCIPLES = [
   },
 ]
 
-const testToolsEnabled = __DEV__ || process.env.EXPO_PUBLIC_ENABLE_TEST_TOOLS === "true"
+const REMINDER_TIMES = ["08:00", "13:00", "18:00", "19:30"] as const
 
 export default function NotificationSettingsScreen() {
   const [enabled, setEnabled] = useState(false)
   const [permission, setPermission] = useState<NotificationPermissionState>("undetermined")
   const [loading, setLoading] = useState(true)
-  const [sendingTest, setSendingTest] = useState(false)
+  const [reminderTime, setReminderTime] = useState("18:00")
+  const [showChildNames, setShowChildNames] = useState(false)
 
   const loadState = useCallback(async () => {
     try {
@@ -47,6 +48,8 @@ export default function NotificationSettingsScreen() {
         getNotificationPermissionState(),
       ])
       setEnabled(preferences.enabled && permissionState === "granted")
+      setReminderTime(preferences.reminderTime)
+      setShowChildNames(preferences.showChildNames)
       setPermission(permissionState)
     } finally {
       setLoading(false)
@@ -91,18 +94,21 @@ export default function NotificationSettingsScreen() {
     }
   }
 
-  // const sendTest = async () => {
-  //   setSendingTest(true)
-  //   try {
-  //     await sendTestLearningReminder()
-  //     Alert.alert("Test on the way", "A Baby Steps reminder will appear in about three seconds.")
-  //   } catch (error) {
-  //     console.error("Could not send test reminder:", error)
-  //     Alert.alert("Could not send a test", "Check that notifications are allowed, then try again.")
-  //   } finally {
-  //     setSendingTest(false)
-  //   }
-  // }
+  const updateReminderOptions = async (
+    updates: { reminderTime?: string; showChildNames?: boolean },
+  ) => {
+    setLoading(true)
+    try {
+      const next = await updateLearningReminderSettings(updates)
+      setReminderTime(next.reminderTime)
+      setShowChildNames(next.showChildNames)
+    } catch (error) {
+      console.error("Could not update learning reminder options:", error)
+      Alert.alert("Could not update reminders", "Please try again in a moment.")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const permissionLabel =
     permission === "granted"
@@ -129,10 +135,56 @@ export default function NotificationSettingsScreen() {
       </View>
 
       <View className="mt-4 bg-white rounded-3xl border border-neutral-100 p-5 shadow-sm">
+        <Text variant="bold" className="text-lg text-neutral-900">Reminder time</Text>
+        <Text className="text-sm leading-5 text-neutral-500 mt-1">
+          One grouped reminder can be scheduled each day for this parent account on this device.
+        </Text>
+        <View className="mt-4 flex-row flex-wrap gap-2">
+          {REMINDER_TIMES.map((time) => (
+            <TouchableOpacity
+              key={time}
+              accessibilityRole="button"
+              accessibilityState={{ selected: reminderTime === time, disabled: loading }}
+              className={`rounded-full border px-4 py-2 ${
+                reminderTime === time
+                  ? "border-primary-500 bg-primary-50"
+                  : "border-neutral-200 bg-white"
+              }`}
+              disabled={loading}
+              onPress={() => void updateReminderOptions({ reminderTime: time })}
+            >
+              <Text
+                variant="bold"
+                className={reminderTime === time ? "text-primary-700" : "text-neutral-600"}
+              >
+                {time}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <View className="mt-5 flex-row items-center border-t border-neutral-100 pt-4">
+          <View className="flex-1 pr-4">
+            <Text variant="medium" className="text-neutral-800">Show child first names</Text>
+            <Text className="text-xs leading-5 text-neutral-500 mt-0.5">
+              Off by default. Names are limited to safe first names; otherwise the reminder stays generic.
+            </Text>
+          </View>
+          <Switch
+            accessibilityLabel="Show child first names in learning reminders"
+            accessibilityRole="switch"
+            accessibilityState={{ checked: showChildNames, disabled: loading }}
+            disabled={loading}
+            onValueChange={(value) => void updateReminderOptions({ showChildNames: value })}
+            value={showChildNames}
+          />
+        </View>
+      </View>
+
+      <View className="mt-4 bg-white rounded-3xl border border-neutral-100 p-5 shadow-sm">
         <View className="flex-row items-center justify-between">
           <View className="flex-1 pr-4">
             <Text variant="bold" className="text-lg text-neutral-900">Recurring reminders</Text>
-            <Text className="text-sm leading-5 text-neutral-500 mt-1">Choose whether Baby Steps can send occasional nudges.</Text>
+            <Text className="text-sm leading-5 text-neutral-500 mt-1">Choose whether Baby Steps can send one gentle grouped reminder each day.</Text>
           </View>
           <Switch
             value={enabled}
@@ -186,20 +238,6 @@ export default function NotificationSettingsScreen() {
           </Text>
         </View>
       </View>
-
-      {/* {enabled && testToolsEnabled ? (
-        <TouchableOpacity
-          className="mt-5 mb-3 min-h-[52px] rounded-2xl border border-primary-200 bg-white flex-row items-center justify-center"
-          onPress={() => void sendTest()}
-          disabled={sendingTest}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="paper-plane-outline" size={19} color={brandColors.victoriaBlue} />
-          <Text variant="bold" className="text-primary-700 ml-2">
-            {sendingTest ? "Sending…" : "Send a test reminder"}
-          </Text>
-        </TouchableOpacity>
-      ) : null} */}
 
     </SettingsScaffold>
   )

@@ -52,9 +52,19 @@ export default function HelpSupportScreen() {
         </Text>
       </View>
 
+      <View className="mt-5 bg-amber-50 border border-amber-100 rounded-xl p-5">
+        <Text variant="bold" className="text-amber-900 text-lg mb-2">
+          When sending feedback
+        </Text>
+        <Text className="text-amber-900 leading-6">
+          Do not send passwords, children’s full names, or screenshots that
+          contain personal information.
+        </Text>
+      </View>
+
       <View className="mt-5 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <SettingsRow
-          title="Contact Support"
+          title="Contact Support or Send Feedback"
           description={BABY_STEPS_SUPPORT_EMAIL}
           icon="mail-outline"
           iconColor="#4F46E5"

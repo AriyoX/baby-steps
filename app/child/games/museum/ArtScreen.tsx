@@ -7,18 +7,13 @@ import {
   TouchableOpacity,
   Image,
   BackHandler,
-  Dimensions,
-  Modal,
   Animated,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { MaterialIcons, Ionicons } from "@expo/vector-icons"
-import { WebView } from "react-native-webview"
 import { useRouter } from "expo-router"
 import { StatusBar } from "expo-status-bar"
-import { Text } from "@/components/StyledText"
 import { TranslatedText } from "@/components/translated-text"
-import { LinearGradient } from "expo-linear-gradient"
 
 export default function ArtScreen() {
   const [selectedArtwork, setSelectedArtwork] = useState<{
@@ -27,10 +22,8 @@ export default function ArtScreen() {
     artist: string
     image: any
     description: string
-    videoUrl: string
   } | null>(null)
   const [contrastLevel, setContrastLevel] = useState("normal")
-  const [videoModalVisible, setVideoModalVisible] = useState(false)
   const router = useRouter()
   const fadeAnim = useState<Animated.Value>(new Animated.Value(0))[0]
 
@@ -43,10 +36,6 @@ export default function ArtScreen() {
     }).start()
 
     const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (videoModalVisible) {
-        setVideoModalVisible(false)
-        return true
-      }
       if (selectedArtwork) {
         setSelectedArtwork(null)
         return true
@@ -56,7 +45,7 @@ export default function ArtScreen() {
     })
 
     return () => backHandler.remove()
-  }, [router, selectedArtwork, videoModalVisible])
+  }, [router, selectedArtwork, fadeAnim])
 
   const artworks = [
     {
@@ -66,7 +55,6 @@ export default function ArtScreen() {
       image: require("@/assets/images/barkcloth_art.png"),
       description:
         "Paintings created on traditional barkcloth (lubugo) using natural pigments. These artworks often depict daily life, cultural symbols, and stories from Buganda history.",
-      videoUrl: "https://www.youtube.com/watch?v=uhznFtHhkBo",
     },
     {
       id: 2,
@@ -75,7 +63,6 @@ export default function ArtScreen() {
       image: require("@/assets/images/kasubi_art.png"),
       description:
         "Decorative art found at the Kasubi Tombs, a UNESCO World Heritage site where Buganda kings are buried. These artworks include symbolic patterns and royal emblems.",
-      videoUrl: "https://www.youtube.com/watch?v=G2PDZZO6h68",
     },
     {
       id: 3,
@@ -84,7 +71,6 @@ export default function ArtScreen() {
       image: require("@/assets/images/basket_art.jpg"),
       description:
         "Intricate patterns and designs used in traditional Buganda basketry, which are considered both functional crafts and artistic expressions.",
-      videoUrl: "https://www.youtube.com/watch?v=ddqvWZhdOzM",
     },
     {
       id: 4,
@@ -93,7 +79,6 @@ export default function ArtScreen() {
       image: require("@/assets/images/court_art.png"),
       description:
         "Modern interpretations of the Buganda royal court, showing the Kabaka and his officials. These paintings blend traditional themes with contemporary artistic styles.",
-      videoUrl: "https://www.youtube.com/embed/exampleVideo2",
     },
     {
       id: 5,
@@ -102,7 +87,6 @@ export default function ArtScreen() {
       image: require("@/assets/images/symbol_art.jpg"),
       description:
         "Modern artwork featuring traditional Buganda symbols and motifs, reimagined through contemporary artistic techniques and materials.",
-      videoUrl: "https://www.youtube.com/embed/exampleVideo5",
     },
   ]
 
@@ -124,12 +108,6 @@ export default function ArtScreen() {
         return "bg-slate-100 border border-indigo-200"
       default:
         return "bg-white border-2 border-indigo-200"
-    }
-  }
-
-  const handleWatchVideo = () => {
-    if (selectedArtwork) {
-      setVideoModalVisible(true)
     }
   }
 
@@ -220,19 +198,7 @@ export default function ArtScreen() {
             </ScrollView>
 
             {/* Buttons section outside ScrollView to ensure visibility */}
-            <View className="p-3 pt-0 flex-row justify-center items-center space-x-4 bg-white border-slate-100">
-              {/* YouTube button */}
-              <TouchableOpacity
-                className="bg-red-100 p-2.5 mr-3 rounded-full shadow-sm border-2 border-red-200 flex-row items-center"
-                onPress={handleWatchVideo}
-              >
-                <Ionicons name="logo-youtube" size={20} color="#e11d48" />
-                <TranslatedText variant="medium" className="text-red-600 ml-1.5">
-                  Watch
-                </TranslatedText>
-              </TouchableOpacity>
-
-              {/* Close button */}
+            <View className="p-3 pt-0 flex-row justify-center items-center bg-white border-slate-100">
               <TouchableOpacity
                 className="bg-primary-500 py-2.5 px-6 rounded-full shadow-sm border-2 border-primary-400"
                 onPress={() => setSelectedArtwork(null)}
@@ -247,39 +213,6 @@ export default function ArtScreen() {
         </View>
       )}
 
-      {/* Video Modal - Full Screen Version */}
-      <Modal
-        visible={videoModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setVideoModalVisible(false)}
-      >
-        <SafeAreaView className="flex-1 bg-black">
-          {/* Close button positioned at top right */}
-          <View className="absolute top-4 right-4 z-10">
-            <TouchableOpacity
-              className="bg-primary-500 w-12 h-12 rounded-full justify-center items-center shadow-md border-2 border-white"
-              onPress={() => setVideoModalVisible(false)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="close" size={24} color="white" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Video container taking up full screen */}
-          <View className="flex-1 bg-black">
-            {selectedArtwork && (
-              <WebView
-                source={{ uri: selectedArtwork.videoUrl }}
-                allowsFullscreenVideo={true}
-                javaScriptEnabled={true}
-                domStorageEnabled={true}
-                style={{ flex: 1 }}
-              />
-            )}
-          </View>
-        </SafeAreaView>
-      </Modal>
     </SafeAreaView>
   )
 }

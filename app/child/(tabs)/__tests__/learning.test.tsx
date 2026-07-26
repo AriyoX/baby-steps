@@ -20,6 +20,10 @@ let mockCompletedLearningLessonIds: string[] = []
 let mockPathname = "/child/learning"
 
 jest.mock("@/content/contentRepository", () => ({
+  getStartableMenuCards: (
+    bundle: { menuCardsByTab?: Record<string, unknown[]> },
+    tab: string,
+  ) => bundle.menuCardsByTab?.[tab] ?? [],
   loadContentBundle: (...args: unknown[]) => mockLoadContentBundle(...args),
   resolveImageSource: (image: unknown, fallback: unknown) => image ?? fallback,
 }))
@@ -90,6 +94,10 @@ jest.mock("@/context/ChildContext", () => ({
       selected_language_code: mockSelectedLanguageCode,
     },
   }),
+}))
+
+jest.mock("@/context/StreakContext", () => ({
+  useStreak: () => ({ isLoading: false, snapshot: null }),
 }))
 
 jest.mock("@/hooks/useChildLandscapeOrientation", () => ({

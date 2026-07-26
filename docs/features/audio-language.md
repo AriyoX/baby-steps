@@ -12,7 +12,7 @@ Audio and language features support child-friendly feedback, Luganda learning, a
 
 1. Root layout starts background music after fonts and session state load.
 2. Games and stories play bundled sounds for feedback, page turns, pronunciation, and completion.
-3. Tap-to-learn Learning Hub cards play a bundled `audioAsset` when one is mapped locally, otherwise they use a short bundled placeholder learning cue.
+3. Published tap/listen Learning Hub items require a mapped bundled `audioAsset`; items with missing or placeholder audio are not selectable.
 4. Parent settings includes a language toggle.
 5. When Luganda is enabled, `TranslatedText` looks up exact string matches in a hardcoded translation map.
 6. Prototype Sunbird translation and text-to-speech helpers are disabled and are not the main UI translation path.
@@ -23,7 +23,6 @@ Audio and language features support child-friendly feedback, Luganda learning, a
 - `app/parent/settings.tsx`
 - `context/language-context.tsx`
 - `components/translated-text.tsx`
-- `components/test-translation.tsx`
 - `components/games/utils/audioManager.ts`
 - `lib/translations.ts`
 - `lib/sunbirdApi.ts`
@@ -39,9 +38,6 @@ Audio and language features support child-friendly feedback, Luganda learning, a
 - `playBackgroundMusic`
 - `playWordAudio`
 - `loadGameSounds`
-- `translateText`
-- `speakLuganda`
-- `TestTranslation`
 
 ## Data And Content Used
 
@@ -49,7 +45,7 @@ Audio and language features support child-friendly feedback, Luganda learning, a
 - Bundled word audio in `assets/audio/`.
 - Bundled game/museum/story sounds in `assets/sounds/` and `assets/audio/`.
 - Tap-to-learn audio keys in the exact-language `learning_hub` database payload, resolved through the bundled map in `lib/audioAssets.ts`.
-- Disabled prototype Sunbird helper functions.
+- Disabled credential-free Sunbird helper stubs, retained only to fail closed.
 
 ## State Management And Logic Notes
 
@@ -58,7 +54,7 @@ Audio and language features support child-friendly feedback, Luganda learning, a
 - Background music uses `expo-av` in the root layout and pauses/resumes with app state.
 - Games and museum screens create and unload local `Audio.Sound` instances.
 - Tap-to-learn does not use device TTS for Luganda or Runyankole pronunciation and does not fetch audio from the internet.
-- Settings has a `soundEffects` toggle, but it does not appear to control global game/audio behavior.
+- Background music and in-app sound settings are separate and use the shared audio manager.
 
 ## API Or Database Usage
 
@@ -67,23 +63,22 @@ Audio and language features support child-friendly feedback, Luganda learning, a
 
 ## Tests
 
-Learning audio asset key resolution is covered by `lib/__tests__/audioAssets.test.ts`. Translation lookup, runtime playback, app-state audio behavior, and Sunbird helpers still need broader test coverage.
+Learning audio asset key resolution and the separate background/in-app sound settings are covered by focused tests. Installed-device interruption and route-exit behavior still require manual QA.
 
 ## Known Limitations Or Bugs
 
 - `expo-av` is deprecated and should be replaced.
 - Hardcoded exact-string translations are brittle.
-- Sunbird helper behavior and API response shapes are not verified by integration tests.
 - Some source strings show encoding artifacts.
 
 ## Future MVP Improvements
 
 - Replace `expo-av` with supported Expo audio APIs.
 - If Sunbird becomes part of MVP, route it through a secure server-side endpoint.
-- Decide whether Sunbird is part of MVP or remove the disabled prototype helpers.
+- Remove the disabled Sunbird stubs if the integration is formally abandoned.
 - Define a localization strategy with stable keys instead of exact source strings.
 - Add audio error handling and tests for non-network translation paths.
-- Replace the tap-to-learn placeholder cue with reviewed native-speaker recorded audio before production.
+- Publish tap/listen content only after reviewed native-speaker audio is mapped.
 
 ## Manual QA Checklist
 

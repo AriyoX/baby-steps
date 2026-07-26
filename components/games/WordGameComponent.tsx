@@ -32,7 +32,9 @@ import {
   completeLocallyFirst,
   runCompletionOnce,
   type LocalFirstCompletionResult,
+  type LocalPersistenceStatus,
 } from "@/lib/completionReliability";
+import { recordQualifiedStreakActivity } from "@/lib/streakRepository";
 import {
   WordGameProgress,
   DEFAULT_PROGRESS,
@@ -69,7 +71,10 @@ const WORD_GAME_MODAL_SYSTEM_PROPS = {
 interface WordCompletionOrderOptions {
   persistProgress: (progress: WordGameProgress) => Promise<void>;
   revealCompletion: (progress: WordGameProgress) => void;
-  runBestEffortNetworkWork: (progress: WordGameProgress) => Promise<void>;
+  runBestEffortNetworkWork: (
+    progress: WordGameProgress,
+    persistence: LocalPersistenceStatus,
+  ) => Promise<void>;
   onLocalError?: (error: unknown) => void;
   onNetworkError?: (error: unknown) => void;
 }
@@ -85,8 +90,8 @@ const completeWordProgressLocallyFirst = (
     },
     fallbackValue: completedProgress,
     revealCompletion: (progress) => options.revealCompletion(progress),
-    runBestEffortNetworkWork: (progress) =>
-      options.runBestEffortNetworkWork(progress),
+    runBestEffortNetworkWork: (progress, persistence) =>
+      options.runBestEffortNetworkWork(progress, persistence),
     onLocalError: options.onLocalError,
     onNetworkError: options.onNetworkError,
   });
@@ -376,6 +381,8 @@ const WordGame: React.FC = () => {
   const performNextLevelCompletion = async (): Promise<void> => {
     const completionChildId = activeChild?.id;
     const completionLanguageCode = languageCode;
+    const completionSessionStartedAt = levelStartTime.current;
+    const streakCompletedAt = new Date().toISOString();
     const nextLevelIdx = currentLevelIndex + 1;
     const isLastLevel = nextLevelIdx >= gameLevels.length;
     const nextCurrentLevel = Math.min(
@@ -484,7 +491,7 @@ const WordGame: React.FC = () => {
       revealCompletion: (savedProgress) => {
         completionRevision = revealCompletion(savedProgress);
       },
-      runBestEffortNetworkWork: async (savedProgress) => {
+      runBestEffortNetworkWork: async (savedProgress, persistence) => {
         const achievementWork = async () => {
           const outcomes = await Promise.allSettled(
             achievementEvents.map((event) =>
@@ -553,6 +560,15 @@ const WordGame: React.FC = () => {
         if (isLastLevel) {
           networkTasks.push(trackGameCompletion());
         }
+        if (persistence.persisted) {
+          networkTasks.push(recordQualifiedStreakActivity({
+            childId: completionChildId,
+            sourceType: "game",
+            sourceId: `word-game:${gameLevels[currentLevelIndex]?.id ?? currentLevelIndex}`,
+            completionId: `word-game:${gameLevels[currentLevelIndex]?.id ?? currentLevelIndex}:${completionSessionStartedAt}`,
+            completedAt: streakCompletedAt,
+          }));
+        }
 
         const outcomes = await Promise.allSettled(networkTasks);
         outcomes.forEach((outcome) => {
@@ -606,8 +622,7 @@ const WordGame: React.FC = () => {
                 });
             }
           }
-        } catch (error) {
-          console.log("Could not load correct sound:", error);
+        } catch {
         }
 
         try {
@@ -626,8 +641,7 @@ const WordGame: React.FC = () => {
                 });
             }
           }
-        } catch (error) {
-          console.log("Could not load wrong sound:", error);
+        } catch {
         }
 
         try {
@@ -646,8 +660,7 @@ const WordGame: React.FC = () => {
                 });
             }
           }
-        } catch (error) {
-          console.log("Could not load success sound:", error);
+        } catch {
         }
       } catch (error) {
         console.error("Error in sound loading process", error);
@@ -729,9 +742,6 @@ const WordGame: React.FC = () => {
 
         if (requestedChildId) {
           try {
-            console.log(
-              `Loading word game progress for child: ${requestedChildId}`,
-            );
             const savedProgress = contentProgressRevision
               ? await loadGameProgress(
                   requestedChildId,
@@ -746,7 +756,6 @@ const WordGame: React.FC = () => {
                 );
             if (!isCurrentRequest()) return;
 
-            console.log("Loaded progress:", JSON.stringify(savedProgress));
             updateProgressState(savedProgress);
             levelToLoad = savedProgress.currentLevel;
           } catch (error) {
@@ -767,7 +776,6 @@ const WordGame: React.FC = () => {
         );
         if (!isCurrentRequest()) return;
 
-        console.log(`Loading level: ${safeLevelToLoad}`);
         loadLevel(safeLevelToLoad, levels);
 
         Animated.timing(fadeAnim, {
@@ -801,7 +809,11 @@ const WordGame: React.FC = () => {
         levelIntroTimeoutRef.current = null;
       }
     };
-  }, [activeChild?.id, languageCode, contentRetrySequence]);
+    // loadLevel receives the requested, language-scoped levels explicitly.
+    // Depending on its render-local identity would repeat hydration after the
+    // state updates it performs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeChild?.id, contentRetrySequence, fadeAnim, languageCode]);
 
   // Move to next level
   const animateLetterToWord = (
@@ -1435,7 +1447,6 @@ const WordGame: React.FC = () => {
         animationType="fade"
         presentationStyle="overFullScreen"
         supportedOrientations={WORD_GAME_MODAL_ORIENTATIONS}
-        onShow={() => console.log("Word game level intro modal shown")}
       >
         <View className="flex-1 justify-center items-center px-4" style={{ backgroundColor: "#020617B3" }}>
           <View className="bg-white rounded-2xl p-4 w-[80%] max-w-md items-center shadow-xl border-4 border-primary-100">
@@ -1748,7 +1759,8 @@ const WordGame: React.FC = () => {
       </Modal>
       <GameTour
         visible={wordTour.visible}
-        onCancel={wordTour.close}
+        onDismiss={wordTour.dismiss}
+        onUnavailable={wordTour.close}
         onComplete={wordTour.complete}
         steps={[
           { id: "clue", targetId: "word-clue", icon: "image-outline", placement: "right", title: "Look at the picture", description: "It helps you find the word." },

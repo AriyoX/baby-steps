@@ -8,6 +8,7 @@ import {
   getFriendlyAuthRedirectErrorMessage as getFriendlyAuthRedirectErrorMessageForFlow,
 } from "@/lib/authMessages";
 import { supabase } from "@/lib/supabase";
+import { shouldShowNotificationOnboarding } from "@/lib/notifications";
 
 export const APP_DEEP_LINK_SCHEME = "babysteps";
 export const AUTH_CALLBACK_PATH = "auth/callback";
@@ -23,6 +24,7 @@ export type AuthRedirectFlow = "signup" | "recovery" | "magiclink" | "email_chan
 export type PostAuthRoute =
   | "/parent"
   | "/parent/add-child/gender"
+  | "/notification-permission"
   | "/reset-password"
   | "/account-reactivation";
 
@@ -210,6 +212,9 @@ export const getPostAuthRedirectRoute = async ({
   const accountRoute = getPostLoginRouteForAccountState(accountState);
 
   if (accountRoute !== "/parent") return accountRoute;
+  if (await shouldShowNotificationOnboarding(session.user.id)) {
+    return "/notification-permission";
+  }
 
   const childProfiles = await fetchActiveChildProfiles(session.user.id);
   return childProfiles.length > 0 ? "/parent" : "/parent/add-child/gender";

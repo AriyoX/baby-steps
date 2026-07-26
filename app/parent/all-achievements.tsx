@@ -24,6 +24,7 @@ import { AchievementDefinition, ChildAchievement } from "@/components/games/achi
 interface BasicChildInfo {
   id: string;
   name: string;
+  selected_language_code: string;
   avatar?: string;
 }
 
@@ -70,14 +71,13 @@ export default function AllAchievementsScreen() {
         // 1. Fetch current parent's children
         const { data: sessionData } = await supabase.auth.getSession();
         if (!sessionData.session) {
-          console.log("No active session found for achievements screen");
           setLoading(false);
           return;
         }
         const userId = sessionData.session.user.id;
         const { data: childrenData, error: childrenError } = await supabase
           .from("children")
-          .select("id, name, gender")
+          .select("id, name, gender, selected_language_code")
           .eq("parent_id", userId)
           .is("deleted_at", null);
 
@@ -86,6 +86,7 @@ export default function AllAchievementsScreen() {
         const profiles: BasicChildInfo[] = childrenData?.map(c => ({
           id: c.id,
           name: c.name,
+          selected_language_code: c.selected_language_code,
           avatar: c.gender === "male" ? "👦" : c.gender === "female" ? "👧" : "👶",
         })) || [];
         setChildrenProfiles(profiles);
@@ -97,7 +98,10 @@ export default function AllAchievementsScreen() {
         // 3. For each child, fetch their earned achievements
         const earnedByChildMap: Record<string, ChildAchievement[]> = {};
         for (const child of profiles) {
-          const earned = await fetchChildEarnedAchievements(child.id);
+          const earned = await fetchChildEarnedAchievements(
+            child.id,
+            child.selected_language_code,
+          );
           earnedByChildMap[child.id] = earned;
         }
         setEarnedAchievementsByChild(earnedByChildMap);
@@ -122,7 +126,7 @@ export default function AllAchievementsScreen() {
       for (const child of childrenProfiles) {
         const childsEarned = earnedAchievementsByChild[child.id] || [];
         if (childsEarned.some(earnedAch => earnedAch.achievement_id === achDef.id)) {
-          earnedBy.push({ id: child.id, name: child.name, avatar: child.avatar });
+          earnedBy.push(child);
         }
       }
       return { ...achDef, earnedByChildren: earnedBy };

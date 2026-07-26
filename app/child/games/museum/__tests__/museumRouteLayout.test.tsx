@@ -18,6 +18,10 @@ jest.mock("@/context/ChildContext", () => ({
 
 jest.mock("@/content/contentRepository", () => ({
   loadContentBundle: (...args: unknown[]) => mockLoadContentBundle(...args),
+  getStartableMenuCards: (bundle: ContentBundle, tabSlug: string) =>
+    (bundle.menuCardsByTab[tabSlug] ?? []).filter((card) =>
+      card.targetPage.startsWith("child/games/museum/"),
+    ),
 }))
 
 jest.mock("expo-router", () => {
@@ -144,6 +148,17 @@ describe("MuseumRouteLayout", () => {
     expect(hasExactMuseumContent(contentBundle("lg", []), "lg")).toBe(false)
     expect(
       hasExactMuseumContent(contentBundle("lg", [museumCard()]), "nyn"),
+    ).toBe(false)
+    expect(
+      hasExactMuseumContent(
+        contentBundle("lg", [
+          {
+            ...museumCard(),
+            targetPage: "https://example.com/unreviewed-video",
+          },
+        ]),
+        "lg",
+      ),
     ).toBe(false)
   })
 

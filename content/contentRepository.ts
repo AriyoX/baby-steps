@@ -219,6 +219,73 @@ export interface ContentBundle {
   stories: LocalStory[];
 }
 
+const COLORING_ROUTES = new Set([
+  "child/games/coloring/animals",
+  "child/games/coloring/child",
+  "child/games/coloring/emblem",
+  "child/games/coloring/father",
+  "child/games/coloring/greeting",
+  "child/games/coloring/house",
+  "child/games/coloring/king",
+  "child/games/coloring/mask",
+  "child/games/coloring/mother",
+  "child/games/coloring/shapes",
+]);
+
+const MUSEUM_ROUTES = new Set([
+  "child/games/museum/ArtifactsScreen",
+  "child/games/museum/ArtScreen",
+  "child/games/museum/InstrumentsScreen",
+  "child/games/museum/TextilesScreen",
+]);
+
+const normalizeChildTargetPage = (targetPage: string): string =>
+  targetPage.trim().replace(/^\/+/, "");
+
+export const getStartableMenuCards = (
+  bundle: ContentBundle,
+  tabSlug: string,
+): ChildMenuCard[] => {
+  const cards = bundle.menuCardsByTab[tabSlug] ?? [];
+
+  return cards.filter((card) => {
+    const targetPage = normalizeChildTargetPage(card.targetPage);
+    if (!targetPage || /[?#]/.test(targetPage) || targetPage.includes("://")) {
+      return false;
+    }
+
+    if (tabSlug === "games") {
+      const routeChecks: Record<string, boolean> = {
+        "child/games/wordgame": bundle.wordGame.levels.length > 0,
+        "child/games/puzzlegame": bundle.puzzleGame.puzzles.length > 0,
+        "child/games/cardgame": bundle.cardGame.items.length >= 8,
+        "child/games/learninggame": bundle.learningGame.stages.length > 0,
+        "child/games/lugandacountinggame":
+          bundle.countingGame.stages.length > 0 &&
+          bundle.countingGame.numbers.length > 0,
+      };
+      return routeChecks[targetPage] === true;
+    }
+
+    if (tabSlug === "stories") {
+      const storyPrefix = "child/stories/";
+      if (!targetPage.startsWith(storyPrefix)) return false;
+      const storyId = targetPage.slice(storyPrefix.length);
+      return bundle.stories.some((story) => story.id === storyId);
+    }
+
+    if (tabSlug === "coloring") {
+      return COLORING_ROUTES.has(targetPage);
+    }
+
+    if (tabSlug === "museum") {
+      return MUSEUM_ROUTES.has(targetPage);
+    }
+
+    return false;
+  });
+};
+
 export interface ContentLoadResult {
   languageCode?: string;
   bundle?: ContentBundle;
@@ -230,6 +297,7 @@ export interface ContentLoadResult {
 export interface LoadContentBundleOptions {
   forceRefresh?: boolean;
   maxAgeMs?: number;
+  throwOnNetworkError?: boolean;
 }
 
 export interface ContentBundleCacheMetadata {
@@ -431,7 +499,8 @@ const isMenuCardPayloadValid = (value: unknown): boolean => {
     hasRequiredPositiveInteger(value, "order") &&
     hasRequiredString(value, "title") &&
     hasRequiredString(value, "description") &&
-    hasRequiredString(value, "targetPage")
+    hasRequiredString(value, "targetPage") &&
+    hasRequiredString(value, "image")
   );
 };
 
@@ -1234,21 +1303,22 @@ const buildContentBundleWithDiagnostics = (
     progressBearingItems.push(item);
   }
 
+  const bundle: ContentBundle = {
+    languageCode,
+    source: "database",
+    contentVersion: deriveContentVersion(orderedItems),
+    progressRevisions: deriveProgressRevisions(progressBearingItems),
+    menuCardsByTab,
+    learningHub,
+    learningGame,
+    wordGame,
+    countingGame,
+    cardGame,
+    puzzleGame,
+    stories,
+  };
   return {
-    bundle: {
-      languageCode,
-      source: "database",
-      contentVersion: deriveContentVersion(orderedItems),
-      progressRevisions: deriveProgressRevisions(progressBearingItems),
-      menuCardsByTab,
-      learningHub,
-      learningGame,
-      wordGame,
-      countingGame,
-      cardGame,
-      puzzleGame,
-      stories,
-    },
+    bundle,
     supportedRowCount,
     invalidSupportedRowCount,
   };
@@ -1401,6 +1471,12 @@ const writeCachedContentItems = async (
   return entry;
 };
 
+const evictCachedContentItems = async (languageCode: string): Promise<void> => {
+  contentItemsMemoryCache.delete(languageCode);
+  clearLearningHubContentRegistry(languageCode);
+  await AsyncStorage.removeItem(getContentBundleCacheKey(languageCode));
+};
+
 const loadDatabaseContentBundle = async (
   languageCode: string,
   maxAgeMs: number,
@@ -1417,7 +1493,14 @@ const loadDatabaseContentBundle = async (
     .order("sort_order", { ascending: true });
 
   if (error) throw error;
-  if (!data || data.length === 0) return undefined;
+  if (!data || data.length === 0) {
+    await evictCachedContentItems(languageCode);
+    return {
+      languageCode,
+      source: "empty",
+      missingReason: "No published content is available for this language yet.",
+    };
+  }
 
   const items = data as ContentItemRecord[];
   const bundle = buildLastKnownGoodBundle(languageCode, items);
@@ -1462,10 +1545,8 @@ export const clearContentBundleCache = async (languageCode?: string): Promise<vo
   if (languageCode) {
     const normalized = normalizeContentLanguageCode(languageCode);
     if (!normalized) return;
-    contentItemsMemoryCache.delete(normalized);
     contentItemsBackgroundRefreshes.delete(normalized);
-    clearLearningHubContentRegistry(normalized);
-    await AsyncStorage.removeItem(getContentBundleCacheKey(normalized));
+    await evictCachedContentItems(normalized);
     return;
   }
 
@@ -1518,6 +1599,7 @@ export const loadContentBundle = async (
     if (databaseResult) return databaseResult;
   } catch (error) {
     console.warn(`Could not load content for ${normalizedLanguageCode}.`, error);
+    if (options.throwOnNetworkError) throw error;
   }
 
   if (cached) {

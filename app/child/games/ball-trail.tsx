@@ -39,8 +39,7 @@ export default function BallTrail() {
   const velocity = useRef({ x: 0, y: 0 })
   const lastTouch = useRef({ x: 0, y: 0, time: 0 })
   const { width, height } = useWindowDimensions()
-  const [ballCount, setBallCount] = useState(40) // Increased ball count
-  const [isExploding, setIsExploding] = useState(false)
+  const ballCount = 40
 
   // Initialize with touch in the center
   useEffect(() => {
@@ -180,8 +179,6 @@ export default function BallTrail() {
 
   // Create explosion effect
   const triggerExplosion = () => {
-    setIsExploding(true)
-
     // Animate balls outward
     balls.forEach((ball, index) => {
       const angle = (index / balls.length) * Math.PI * 2
@@ -207,11 +204,6 @@ export default function BallTrail() {
         }),
       ]).start()
     })
-
-    // Reset explosion state after animation
-    setTimeout(() => {
-      setIsExploding(false)
-    }, 1300)
   }
 
   return (

@@ -2,10 +2,8 @@
 
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons"
 import { LinearGradient } from "expo-linear-gradient"
-import * as Linking from "expo-linking"
 import * as MediaLibrary from "expo-media-library"
 import { useRouter } from "expo-router"
-import * as Sharing from "expo-sharing"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
@@ -75,6 +73,7 @@ import {
   syncProgressNow,
   updateActivityProgress,
 } from "@/lib/progressRepository"
+import { recordQualifiedStreakActivity } from "@/lib/streakRepository"
 
 interface ColoringGameProps {
   imageSource: number
@@ -83,7 +82,7 @@ interface ColoringGameProps {
 }
 
 type ColoringTool = "crayon" | "eraser" | "stamp"
-type ExportAction = "save" | "share" | null
+type ExportAction = "save" | null
 
 const DEFAULT_COLORS = [
   "#F43F75",
@@ -284,6 +283,7 @@ export default function ColoringGameScreen({
   } | null>(null)
   const markSequenceRef = useRef(0)
   const celebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const coloringSessionIdRef = useRef(`coloring:${pageName}:${Date.now()}`)
   const celebrationAnimation = useRef(new Animated.Value(0)).current
 
   historyRef.current = history
@@ -537,7 +537,7 @@ export default function ColoringGameScreen({
     if (!isAvailable) {
       Alert.alert(
         "Saving is not available",
-        "This device cannot add pictures to its photo gallery. You can still use Share.",
+        "This device cannot add pictures to its photo gallery. Your colors will stay on screen while the app remains open.",
       )
       return false
     }
@@ -550,19 +550,12 @@ export default function ColoringGameScreen({
     const requested = await MediaLibrary.requestPermissionsAsync(true, granularPermissions)
     if (requested.granted) return true
 
-    const buttons: Parameters<typeof Alert.alert>[2] = [
-      { text: "Keep coloring", style: "cancel" },
-    ]
-    if (!requested.canAskAgain) {
-      buttons.push({ text: "Open settings", onPress: () => void Linking.openSettings() })
-    }
-
     Alert.alert(
       "Photo saving is off",
       requested.canAskAgain
         ? "Baby Steps only needs permission to add this picture. It does not need to read your photos."
-        : "Ask a grown-up to allow photo saving in Settings, then try again.",
-      buttons,
+        : "Ask a grown-up to allow photo saving in the device settings, then try again.",
+      [{ text: "Keep coloring", style: "cancel" }],
     )
     return false
   }
@@ -614,6 +607,17 @@ export default function ColoringGameScreen({
         ? await recordColoringSave(activeChild.id, pageName, usedColorCount)
         : undefined
       void syncSavedProgress(savedAt)
+      if (activeChild && localResult?.didPersist !== false) {
+        void recordQualifiedStreakActivity({
+          childId: activeChild.id,
+          sourceType: "coloring",
+          sourceId: pageName,
+          completionId: coloringSessionIdRef.current,
+          completedAt: savedAt,
+        }).catch((error) => {
+          console.warn("Could not record the coloring streak day:", error)
+        })
+      }
 
       const newAchievementNames =
         localResult?.newlyUnlockedIds
@@ -641,32 +645,6 @@ export default function ColoringGameScreen({
         "That picture did not save",
         "Your colors are still here. Check the device has free space, then try Save again.",
       )
-    } finally {
-      setExportAction(null)
-    }
-  }
-
-  const shareArtwork = async () => {
-    if (history.marks.length === 0) {
-      Alert.alert("Add a little color first", "Make a few marks before sharing your picture.")
-      return
-    }
-
-    setExportAction("share")
-    try {
-      if (!(await Sharing.isAvailableAsync())) {
-        Alert.alert("Sharing is not available", "You can still save the picture to this device.")
-        return
-      }
-      const uri = await captureArtwork()
-      await Sharing.shareAsync(uri, {
-        dialogTitle: `Share ${pageName} artwork`,
-        mimeType: "image/png",
-        UTI: "public.png",
-      })
-    } catch (error) {
-      console.error("Could not share coloring artwork:", error)
-      Alert.alert("Sharing did not open", "Your colors are still here. Please try again.")
     } finally {
       setExportAction(null)
     }
@@ -789,24 +767,6 @@ export default function ColoringGameScreen({
             ]}
           >
             <Ionicons name="arrow-redo" size={20} color={brandColors.blue[700]} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="Share artwork"
-            disabled={exportAction !== null}
-            onPress={() => void shareArtwork()}
-            style={[
-              styles.shareButton,
-              isSmallPhone && styles.smallPhoneShareButton,
-              exportAction !== null && styles.disabledAction,
-            ]}
-          >
-            {exportAction === "share" ? (
-              <ActivityIndicator size="small" color={brandColors.blue[700]} />
-            ) : (
-              <Ionicons name="share-outline" size={20} color={brandColors.blue[700]} />
-            )}
-            {!isCompact ? <Text variant="bold" style={styles.shareText}>{t("common.share")}</Text> : null}
           </TouchableOpacity>
           <TourTarget id="coloring-save">
           <TouchableOpacity
@@ -1073,7 +1033,7 @@ export default function ColoringGameScreen({
                 <View style={styles.exportBubble}>
                   <ActivityIndicator size="small" color={brandColors.victoriaBlue} />
                   <Text variant="bold" style={styles.exportText}>
-                    {exportAction === "save" ? "Saving your masterpiece..." : "Getting your picture ready..."}
+                    Saving your masterpiece...
                   </Text>
                 </View>
               </View>
@@ -1242,7 +1202,8 @@ export default function ColoringGameScreen({
 
       <GameTour
         visible={coloringTour.visible && imageLoaded}
-        onCancel={coloringTour.close}
+        onDismiss={coloringTour.dismiss}
+        onUnavailable={coloringTour.close}
         onComplete={coloringTour.complete}
         finishLabel="Let’s color!"
         steps={COLORING_TOUR_STEPS}
@@ -1355,29 +1316,6 @@ const styles = StyleSheet.create({
     width: SMALL_PHONE_CONTROL_SIZE.header,
     height: SMALL_PHONE_CONTROL_SIZE.header,
     borderRadius: 22,
-  },
-  shareButton: {
-    minWidth: 44,
-    height: 42,
-    borderRadius: 21,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.96)",
-    borderWidth: 1,
-    borderColor: brandColors.blue[200],
-    paddingHorizontal: 12,
-  },
-  smallPhoneShareButton: {
-    minWidth: SMALL_PHONE_CONTROL_SIZE.header,
-    width: SMALL_PHONE_CONTROL_SIZE.header,
-    height: SMALL_PHONE_CONTROL_SIZE.header,
-    paddingHorizontal: 0,
-  },
-  shareText: {
-    color: brandColors.blue[700],
-    fontSize: 12,
-    marginLeft: 5,
   },
   saveButton: {
     minWidth: 82,

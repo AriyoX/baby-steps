@@ -13,8 +13,8 @@ Authentication lets parents create accounts, sign in, sign out, and request pass
 1. After onboarding, unauthenticated users go to `/login`.
 2. Parents can sign in with email/password.
 3. Parents can navigate to `/signup` to create an account.
-4. Accepted new signup attempts route to `/notification-permission`, where parents can opt into gentle device-local notifications or continue without them.
-5. The permission step then routes to `/check-email` so parents know to confirm their Baby Steps account; if Supabase returns a session during signup, the app clears the local session before continuing.
+4. Accepted new signup attempts route to `/check-email`; if Supabase returns a session during signup, the app clears the local session before continuing.
+5. After confirmation, parents who have not completed notification onboarding route to `/notification-permission`, where they can opt into gentle device-local notifications or continue without them.
 6. Parents can request a reset link from `/forgot-password`.
 7. Reset links target the app scheme route `babysteps://auth/callback`; legacy `babysteps://reset-password` links remain supported.
 8. Recovery callbacks route to `/reset-password`.
@@ -62,6 +62,7 @@ The auth screens use local component state for form fields and Supabase Auth for
 - Unconfirmed-email login errors reuse the check-email screen instead of a transient alert.
 - Password reset and signup confirmation links are parsed in `lib/authRedirects.ts`.
 - The reset-password screen can process legacy reset-password links and validate an existing recovery session.
+- The pre-confirmation “Use a different email” action returns to signup so the parent can enter another address.
 
 ## API Or Database Usage
 

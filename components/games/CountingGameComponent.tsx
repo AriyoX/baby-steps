@@ -38,7 +38,9 @@ import { syncProgressNow } from "@/lib/progressRepository"
 import {
   completeLocallyFirst,
   type LocalFirstCompletionResult,
+  type LocalPersistenceStatus,
 } from "@/lib/completionReliability"
+import { recordQualifiedStreakActivity } from "@/lib/streakRepository"
 import { Text } from "@/components/StyledText"
 import {
   type CountingGameProgress,
@@ -68,7 +70,10 @@ const GAME_SCREEN_OVERLAY = "rgba(2, 116, 187, 0.88)"
 interface CountingCompletionOrderOptions {
   persistProgress: (progress: CountingGameProgress) => Promise<void>
   revealCompletion: (progress: CountingGameProgress) => void
-  runBestEffortNetworkWork: (progress: CountingGameProgress) => Promise<void>
+  runBestEffortNetworkWork: (
+    progress: CountingGameProgress,
+    persistence: LocalPersistenceStatus,
+  ) => Promise<void>
   onLocalError?: (error: unknown) => void
   onNetworkError?: (error: unknown) => void
 }
@@ -84,7 +89,8 @@ const completeCountingProgressLocallyFirst = (
     },
     fallbackValue: completedProgress,
     revealCompletion: (progress) => options.revealCompletion(progress),
-    runBestEffortNetworkWork: (progress) => options.runBestEffortNetworkWork(progress),
+    runBestEffortNetworkWork: (progress, persistence) =>
+      options.runBestEffortNetworkWork(progress, persistence),
     onLocalError: options.onLocalError,
     onNetworkError: options.onNetworkError,
   })
@@ -144,6 +150,7 @@ const LugandaCountingGame: React.FC = () => {
   const [isCorrect, setIsCorrect] = useState<boolean>(false)
   const [score, setScore] = useState<number>(0)
   const [sound, setSound] = useState<Audio.Sound | null>(null)
+  const soundRef = useRef<Audio.Sound | null>(null)
   const [numberOptions, setNumberOptions] = useState<number[]>([])
   const [levelSetupError, setLevelSetupError] = useState<string | null>(null)
   const [dimensions, setDimensions] = useState<WindowDimensions>({
@@ -210,6 +217,12 @@ const LugandaCountingGame: React.FC = () => {
       isMountedRef.current = false
       hydrationGenerationRef.current += 1
       clearGameTimers()
+      if (soundRef.current) {
+        void audioManager.unloadAppSound(soundRef.current).catch((error) => {
+          console.warn("Could not unload Counting Game sound:", error)
+        })
+        soundRef.current = null
+      }
     }
   }, [clearGameTimers])
 
@@ -300,7 +313,6 @@ const LugandaCountingGame: React.FC = () => {
         setCurrentItem(loadedCountingContent?.culturalItems[0] ?? null)
 
         if (requestedChildId) {
-          console.log(`Loading progress for child: ${requestedChildId}`)
           const availableStageIds =
             loadedCountingContent?.stages.map((stage) => stage.id) ?? []
           const savedProgress = contentProgressRevision
@@ -357,7 +369,7 @@ const LugandaCountingGame: React.FC = () => {
       correctAnswerLockRef.current = false
       stageCompletionLockRef.current = false
     }
-  }, [activeChild?.id, languageCode, clearGameTimers, contentRetrySequence])
+  }, [activeChild?.id, languageCode, clearGameTimers, contentRetrySequence, fadeAnim])
 
   useEffect(() => {
     setDimensions({
@@ -379,6 +391,8 @@ const LugandaCountingGame: React.FC = () => {
     const completionChildId = activeChild.id
     const completionLanguageCode = languageCode
     const completionStageId = currentStage
+    const completionSessionStartedAt = gameStartTime.current
+    const streakCompletedAt = new Date().toISOString()
     const progressAtCompletion = progressRef.current
     const completedProgress = updateProgressForStageCompletion(
       {
@@ -427,7 +441,7 @@ const LugandaCountingGame: React.FC = () => {
         completionRevision = updateProgressState(savedProgress)
         setStageCompleted(true)
       },
-      runBestEffortNetworkWork: async (savedProgress) => {
+      runBestEffortNetworkWork: async (savedProgress, persistence) => {
         const achievementWork = async () => {
           const outcomes = await Promise.allSettled(
             achievementEvents.map((event) => checkAndGrantNewAchievements(event)),
@@ -485,6 +499,15 @@ const LugandaCountingGame: React.FC = () => {
           trackActivity(true, completedStageScore),
           achievementWork(),
           syncProgressNow(completionChildId),
+          persistence.persisted
+            ? recordQualifiedStreakActivity({
+                childId: completionChildId,
+                sourceType: "game",
+                sourceId: `counting-stage-${completionStageId}`,
+                completionId: `counting:${completionStageId}:${completionSessionStartedAt}`,
+                completedAt: streakCompletedAt,
+              })
+            : Promise.resolve(),
         ])
 
         outcomes.forEach((outcome) => {
@@ -501,7 +524,6 @@ const LugandaCountingGame: React.FC = () => {
       },
     })
 
-    console.log(`Stage ${completionStageId} completed for child: ${completionChildId}`)
   }
 
   // Initialize exactly once when play starts or the selected stage changes.
@@ -509,7 +531,6 @@ const LugandaCountingGame: React.FC = () => {
   // sequences when gameState and currentStage change in the same render.
   useEffect(() => {
     if (gameState === "playing") {
-      console.log(`Stage changed to ${currentStage}`)
       initializeStage(currentStage)
       // Reset UI states when changing stages
       setShowFeedback(false)
@@ -517,12 +538,15 @@ const LugandaCountingGame: React.FC = () => {
       setNumberOptions([])
       setScore(0)
     }
+    // initializeStage intentionally reads the latest progress ref. Adding its
+    // render-local identity would re-randomize the level after every state
+    // update performed during initialization.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStage, countingStages, gameState])
 
   // When level changes, setup the level
   useEffect(() => {
     if (gameState === "playing" && gameLevels.length > 0) {
-      console.log(`Setting up level ${currentLevel} with game levels:`, gameLevels)
       const levelIndex = currentLevel - 1
       if (levelIndex < gameLevels.length) {
         setupLevel(gameLevels[levelIndex], currentStage)
@@ -534,32 +558,39 @@ const LugandaCountingGame: React.FC = () => {
         }
       }
 
-      if (activeChild) {
+      const activeChildId = activeChild?.id
+      if (activeChildId) {
         // Update last played level in progress
         const updatedProgress = updateLastPlayedLevel(
-          progress,
+          progressRef.current,
           currentStage,
           currentLevel,
-          activeChild.id, // Pass the child ID to ensure it's set correctly
+          activeChildId,
         )
         updateProgressState(updatedProgress)
-        void saveGameProgress(updatedProgress, activeChild.id, languageCode, {
-          availableStageIds: countingStageIds,
+        void saveGameProgress(updatedProgress, activeChildId, languageCode, {
+          availableStageIds: countingStages.map((stage) => stage.id),
           contentRevision: contentProgressRevisionRef.current,
         }).catch((error) => {
           console.warn("Could not save Counting Game level position:", error)
         })
       }
     }
-
-    return () => {
-      if (sound) {
-        void audioManager.unloadAppSound(sound).catch((error) => {
-          console.warn("Could not unload Counting Game sound:", error)
-        })
-      }
-    }
-  }, [currentLevel, gameLevels, gameState, activeChild, languageCode, dimensions.width, dimensions.height])
+    // setupLevel consumes the dependencies listed here. Depending on its
+    // render-local identity would rebuild a randomized question on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    activeChild?.id,
+    countingItems,
+    countingStages,
+    currentLevel,
+    currentStage,
+    dimensions.height,
+    dimensions.width,
+    gameLevels,
+    gameState,
+    languageCode,
+  ])
 
   // Initialize a stage with randomized levels
   const initializeStage = (stageId: number): void => {
@@ -577,19 +608,19 @@ const LugandaCountingGame: React.FC = () => {
         setGameLevels([])
         setLevelSetupError("This stage does not have any playable number activities yet.")
       } else {
-        console.log(`Stage ${stageId} initialized with levels:`, randomNumbers)
         setGameLevels(randomNumbers)
       }
 
       // Check if the stage is already completed
-      const isStageCompleted = progress.completedStages.includes(stageId)
+      const currentProgress = progressRef.current
+      const isStageCompleted = currentProgress.completedStages.includes(stageId)
 
       // If stage is completed, always start from level 1
       if (isStageCompleted) {
         setCurrentLevel(1)
       } else {
         // Only use saved level if the stage is in progress (not completed)
-        const savedLevel = progress.lastPlayedLevel[stageId]
+        const savedLevel = currentProgress.lastPlayedLevel[stageId]
         if (savedLevel && savedLevel > 1) {
           setCurrentLevel(savedLevel)
         } else {
@@ -637,7 +668,6 @@ const LugandaCountingGame: React.FC = () => {
       const levelIndex = currentLevel - 1
       // Use provided targetNum if available, otherwise get from gameLevels
       const numberToUse = targetNum || (gameLevels[levelIndex] ?? stage.numbersRange.min)
-      console.log(`Setting up level with target number: ${numberToUse}`)
       setTargetNumber(numberToUse)
 
       // Calculate container dimensions
@@ -756,6 +786,7 @@ const LugandaCountingGame: React.FC = () => {
       const targetText = getNumberLabel(number)
       const newSound = await playWordAudio({ targetText }, sound ?? undefined)
       if (isMountedRef.current) {
+        soundRef.current = newSound ?? null
         setSound(newSound ?? null)
       } else if (newSound) {
         void audioManager.unloadAppSound(newSound).catch((error) => {
@@ -949,31 +980,6 @@ const LugandaCountingGame: React.FC = () => {
     }
   }
 
-  const renderNumberOptions = (): React.ReactElement[] => {
-    return numberOptions.map((number) => (
-      <TouchableOpacity
-        key={number}
-        className={`w-16 h-16 rounded-full justify-center items-center shadow mb-3
-          ${
-            selectedCount === number && isCorrect
-              ? "bg-success"
-              : selectedCount === number && !isCorrect
-                ? "bg-destructive"
-                : "bg-secondary"
-          }`}
-        onPress={() => handleNumberPress(number)}
-        disabled={showFeedback && isCorrect} // Only disable if showing correct feedback
-      >
-        <Text variant="bold" className="text-lg text-white">
-          {number}
-        </Text>
-        <Text variant="bold" className="text-xs text-white">
-          {getNumberLabel(number)}
-        </Text>
-      </TouchableOpacity>
-    ))
-  }
-
   // Update the getImageSource function to return the appropriate image based on the current item
   const getImageSource = () => {
     return currentItem
@@ -1142,7 +1148,6 @@ const LugandaCountingGame: React.FC = () => {
         }).catch((error) => {
           console.warn("Could not save Counting Game stage selection:", error)
         })
-        console.log(`Selected stage ${stageId} for child: ${activeChild.id}`)
       }
 
       setGameState("playing")
@@ -1621,7 +1626,8 @@ const LugandaCountingGame: React.FC = () => {
       )}
       <GameTour
         visible={countingTour.visible}
-        onCancel={countingTour.close}
+        onDismiss={countingTour.dismiss}
+        onUnavailable={countingTour.close}
         onComplete={countingTour.complete}
         steps={[
           { id: "objects", targetId: "counting-objects", icon: "eye-outline", placement: "right", title: t("games.count"), description: t("games.countOnce") },

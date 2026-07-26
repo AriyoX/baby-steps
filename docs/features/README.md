@@ -9,6 +9,7 @@ These docs describe the current Baby Steps feature set as implemented in the cod
 | Recurring learning notifications | Implemented on native devices | [notifications.md](notifications.md) |
 | Network connectivity messaging | Implemented | [network-connectivity.md](network-connectivity.md) |
 | Child profiles and add-child flow | Implemented prototype | [child-profiles.md](child-profiles.md) |
+| Child learning streaks | Implemented; device QA pending | [child-streaks.md](child-streaks.md) |
 | Parent dashboard and settings | Partially implemented | [parent-dashboard.md](parent-dashboard.md) |
 | Child mode and navigation | Database-content-backed prototype | [navigation.md](navigation.md) |
 | Learning hub | Database-backed MVP curriculum | [learning-hub.md](learning-hub.md) |

@@ -44,6 +44,7 @@ import {
   type LocalFirstCompletionResult,
   type LocalPersistenceStatus,
 } from "@/lib/completionReliability";
+import { recordQualifiedStreakActivity } from "@/lib/streakRepository";
 import { getCardsMatchingGridSizing } from "./responsiveSizing";
 import {
   GameHeader,
@@ -195,6 +196,10 @@ export interface CardsMatchingCompletionOptions {
     overallStats: CardGameOverallStats,
     persistence: LocalPersistenceStatus,
   ) => Promise<unknown>;
+  recordStreakCompletion?: (
+    overallStats: CardGameOverallStats,
+    persistence: LocalPersistenceStatus,
+  ) => Promise<unknown>;
   onLocalError?: (error: unknown) => void;
   onNetworkError?: (error: unknown) => void;
 }
@@ -205,6 +210,7 @@ export const completeCardsMatchingGameLocallyFirst = async ({
   revealCompletion,
   evaluateAchievements,
   saveCompletionActivity,
+  recordStreakCompletion,
   onLocalError,
   onNetworkError,
 }: CardsMatchingCompletionOptions): Promise<
@@ -233,6 +239,7 @@ export const completeCardsMatchingGameLocallyFirst = async ({
       await Promise.all([
         evaluateAchievements(saved, persistence),
         saveCompletionActivity(saved, persistence),
+        recordStreakCompletion?.(saved, persistence),
       ]);
     },
     onLocalError,
@@ -290,10 +297,8 @@ const CardsMatchingGame: React.FC = () => {
   );
   const { enqueueAchievementUnlocked } = useChildNotice();
 
-  const [matchStreak, setMatchStreak] = useState(0); // For match streak achievement
   const [cards, setCards] = useState<Card[]>([]);
   const [boardSize, setBoardSize] = useState({ height: 0, width: 0 });
-  const [flippedCards, setFlippedCards] = useState<Card[]>([]);
   const [matchedCount, setMatchedCount] = useState(0);
   const [moves, setMoves] = useState(0);
   const [gameOver, setGameOver] = useState(false);
@@ -303,7 +308,6 @@ const CardsMatchingGame: React.FC = () => {
   const [hydratedScope, setHydratedScope] = useState<string | null>(null);
   const [gameTitle, setGameTitle] = useState("Cards Matching");
   const [cardItems, setCardItems] = useState<CardGameItem[]>([]);
-  const [gameState, setGameState] = useState<CardGameState | null>(null);
   const [infoModal, setInfoModal] = useState<{
     show: boolean;
     info: string;
@@ -409,7 +413,6 @@ const CardsMatchingGame: React.FC = () => {
             if (cancelled || !isMountedRef.current) return;
 
             if (savedState && savedState.matchedValues.length > 0) {
-              console.log("Loading saved game state:", savedState);
               initGameWithSavedState(savedState, playableContent.items, requestedChildId);
             } else {
               initGame(playableContent.items, requestedChildId);
@@ -459,7 +462,11 @@ const CardsMatchingGame: React.FC = () => {
       cancelled = true;
       clearPendingTimers();
     };
-  }, [activeChild?.id, contentRetryVersion, languageCode]);
+    // The initializers receive the requested child and content explicitly.
+    // Depending on their render-local identities would restart hydration after
+    // the state updates performed by those same initializers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeChild?.id, bounceAnim, contentRetryVersion, languageCode]);
 
   // Function to initialize game with saved state
   const initGameWithSavedState = (
@@ -519,17 +526,14 @@ const CardsMatchingGame: React.FC = () => {
     
     // Update state
     setCards(shuffledCards);
-    setFlippedCards([]);
     flippedCardsRef.current = [];
     setMatchedCount(matchedCount);
     matchedCountRef.current = matchedCount;
     setMoves(savedState.moves || 0);
     movesRef.current = savedState.moves || 0;
-    setMatchStreak(0);
     matchStreakRef.current = 0;
     setGameOver(false);
     setInfoModal({ show: false, info: "", value: "", symbol: "" });
-    setGameState(normalizedSavedState);
     gameStateRef.current = normalizedSavedState;
     
     // Reset game start time from saved state
@@ -582,13 +586,11 @@ const CardsMatchingGame: React.FC = () => {
     // Shuffle cards
     const shuffledCards = shuffleCards(cardPairs);
     setCards(shuffledCards);
-    setFlippedCards([]);
     flippedCardsRef.current = [];
     setMatchedCount(0);
     matchedCountRef.current = 0;
     setMoves(0);
     movesRef.current = 0;
-    setMatchStreak(0);
     matchStreakRef.current = 0;
     setGameOver(false);
     setInfoModal({ show: false, info: "", value: "", symbol: "" });
@@ -600,7 +602,6 @@ const CardsMatchingGame: React.FC = () => {
       gameStartTime: Date.now(),
       childId: childId || 'default'
     };
-    setGameState(newGameState);
     gameStateRef.current = newGameState;
     
     // Reset start time when restarting game
@@ -620,13 +621,11 @@ const CardsMatchingGame: React.FC = () => {
     }));
     
     setCards(resetCards);
-    setFlippedCards([]);
     flippedCardsRef.current = [];
     setMatchedCount(0);
     matchedCountRef.current = 0;
     setMoves(0);
     movesRef.current = 0;
-    setMatchStreak(0);
     matchStreakRef.current = 0;
     setGameOver(false);
     setInfoModal({ show: false, info: "", value: "", symbol: "" });
@@ -645,7 +644,6 @@ const CardsMatchingGame: React.FC = () => {
       gameStartTime: Date.now(),
       childId: activeChild?.id || 'default'
     };
-    setGameState(newGameState);
     gameStateRef.current = newGameState;
     
     // Reset start time when resetting game
@@ -662,6 +660,7 @@ const CardsMatchingGame: React.FC = () => {
       }
 
       const childId = activeChild.id;
+      const completionSessionStartedAt = gameStartTime.current;
       const duration = Math.round((Date.now() - gameStartTime.current) / 1000);
       const { achievementEvent, activity } = buildCardsMatchingCompletionData(
         childId,
@@ -680,12 +679,21 @@ const CardsMatchingGame: React.FC = () => {
         evaluateAchievements: async () => {
           const newlyEarnedFromEvent = await checkAndGrantNewAchievements(achievementEvent);
           if (!isMountedRef.current) return;
-          newlyEarnedFromEvent.forEach(ach => {
-            console.log(`CARD MATCH - GAME COMPLETE - NEW ACHIEVEMENT: ${ach.name}`);
-            enqueueAchievementUnlocked(ach);
+          newlyEarnedFromEvent.forEach((achievement) => {
+            enqueueAchievementUnlocked(achievement);
           });
         },
         saveCompletionActivity: () => saveActivity(activity),
+        recordStreakCompletion: (_stats, persistence) =>
+          persistence.persisted
+            ? recordQualifiedStreakActivity({
+                childId,
+                sourceType: "game",
+                sourceId: "cards-matching",
+                completionId: `cards-matching:${completionSessionStartedAt}`,
+                completedAt: activity.completed_at,
+              })
+            : Promise.resolve(),
         onLocalError: (error) => {
           console.warn("Could not persist Cards Matching completion locally:", error);
         },
@@ -716,8 +724,8 @@ const CardsMatchingGame: React.FC = () => {
     try {
       try {
         await audioManager.playAppSound(require("@/assets/audio/page-turn.mp3"));
-      } catch (error) {
-        console.log("Error playing sound", error);
+      } catch {
+        console.warn("Could not play the Cards Matching sound.");
       }
       if (!isMountedRef.current) return;
 
@@ -752,7 +760,6 @@ const CardsMatchingGame: React.FC = () => {
             currentCard.id === card.id ? flippedCard : currentCard,
           ),
         );
-        setFlippedCards(updatedFlippedCards);
         setMoves(completedMoves);
 
         if (isMatch) {
@@ -773,9 +780,7 @@ const CardsMatchingGame: React.FC = () => {
                     : currentCard,
                 ),
               );
-              setFlippedCards([]);
               setMatchedCount(nextMatchedCount);
-              setMatchStreak(nextMatchStreak);
 
               if (activeChild) {
                 const previousGameState = gameStateRef.current;
@@ -802,7 +807,6 @@ const CardsMatchingGame: React.FC = () => {
                   revealPersistedPair: ({ gameState: savedState }) => {
                     if (!isMountedRef.current) return;
                     gameStateRef.current = savedState;
-                    setGameState(savedState);
                   },
                   evaluateAchievements: async ({ overallStats: savedStats }, persistence) => {
                     const eventsForAchievements: Parameters<
@@ -834,9 +838,8 @@ const CardsMatchingGame: React.FC = () => {
                     for (const event of eventsForAchievements) {
                       const newlyEarnedFromEvent = await checkAndGrantNewAchievements(event);
                       if (!isMountedRef.current) return;
-                      newlyEarnedFromEvent.forEach(ach => {
-                        console.log(`CARD MATCH - NEW ACHIEVEMENT: ${ach.name}`);
-                        enqueueAchievementUnlocked(ach);
+                      newlyEarnedFromEvent.forEach((achievement) => {
+                        enqueueAchievementUnlocked(achievement);
                       });
                     }
                   },
@@ -851,8 +854,8 @@ const CardsMatchingGame: React.FC = () => {
 
               try {
                 await audioManager.playAppSound(require("@/assets/sounds/correct.mp3"));
-              } catch (error) {
-                console.log("Error playing sound", error);
+              } catch {
+                console.warn("Could not play the Cards Matching sound.");
               }
               if (!isMountedRef.current) return;
 
@@ -907,8 +910,6 @@ const CardsMatchingGame: React.FC = () => {
             );
             flippedCardsRef.current = [];
             matchStreakRef.current = 0;
-            setFlippedCards([]);
-            setMatchStreak(0);
 
             if (activeChild && gameStateRef.current) {
               const updatedState: CardGameState = {
@@ -916,7 +917,6 @@ const CardsMatchingGame: React.FC = () => {
                 moves: completedMoves,
               };
               gameStateRef.current = updatedState;
-              setGameState(updatedState);
               void saveGameState(
                 updatedState,
                 activeChild.id,
@@ -936,7 +936,6 @@ const CardsMatchingGame: React.FC = () => {
             currentCard.id === card.id ? flippedCard : currentCard,
           ),
         );
-        setFlippedCards(updatedFlippedCards);
       }
     } finally {
       cardPressLockRef.current = false;
@@ -1257,7 +1256,8 @@ const CardsMatchingGame: React.FC = () => {
       )}
       <GameTour
         visible={matchingTour.visible}
-        onCancel={matchingTour.close}
+        onDismiss={matchingTour.dismiss}
+        onUnavailable={matchingTour.close}
         onComplete={matchingTour.complete}
         steps={[
           { id: "grid", targetId: "matching-card-grid", icon: "albums-outline", placement: "auto", title: "Flip a card", description: "Tap two cards to find a pair." },

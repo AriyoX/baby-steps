@@ -66,6 +66,7 @@ export type StageProgressInput = Partial<
 
 interface ProgressQueueItem {
   kind: "activity" | "stage";
+  account_id: string | null;
   child_id: string;
   language_code: string;
   activity_type: string;
@@ -266,8 +267,8 @@ const parseStageSnapshot = (
 
 const queueIdentity = (item: ProgressQueueItem): string =>
   item.kind === "activity"
-    ? `activity:${activityIdentity(item)}`
-    : `stage:${stageIdentity({
+    ? `${item.account_id ?? "unbound"}:activity:${activityIdentity(item)}`
+    : `${item.account_id ?? "unbound"}:stage:${stageIdentity({
         ...item,
         stage_id: item.stage_id ?? "",
         level_id: item.level_id ?? "",
@@ -371,25 +372,33 @@ const repairProgressQueue = async (): Promise<ProgressQueueItem[]> =>
     const existingSnapshotKeys = new Set(snapshotKeys);
     const validSnapshots = new Map<
       string,
-      { item: ProgressQueueItem; dirty: boolean }
+      {
+        item: Omit<ProgressQueueItem, "account_id">;
+        dirty: boolean;
+        storageKey: string;
+      }
     >();
 
     for (const [key, value] of storedSnapshots) {
       const activity = parseActivitySnapshot(key, value);
       if (activity) {
-        const item: ProgressQueueItem = {
+        const item: Omit<ProgressQueueItem, "account_id"> = {
           kind: "activity",
           child_id: activity.child_id,
           language_code: activity.language_code,
           activity_type: activity.activity_type,
         };
-        validSnapshots.set(queueIdentity(item), { item, dirty: Boolean(activity.dirty) });
+        validSnapshots.set(key, {
+          item,
+          dirty: Boolean(activity.dirty),
+          storageKey: key,
+        });
         continue;
       }
 
       const stage = parseStageSnapshot(key, value);
       if (stage) {
-        const item: ProgressQueueItem = {
+        const item: Omit<ProgressQueueItem, "account_id"> = {
           kind: "stage",
           child_id: stage.child_id,
           language_code: stage.language_code,
@@ -397,22 +406,51 @@ const repairProgressQueue = async (): Promise<ProgressQueueItem[]> =>
           stage_id: stage.stage_id,
           level_id: stage.level_id ?? "",
         };
-        validSnapshots.set(queueIdentity(item), { item, dirty: Boolean(stage.dirty) });
+        validSnapshots.set(key, {
+          item,
+          dirty: Boolean(stage.dirty),
+          storageKey: key,
+        });
       }
     }
 
     const repaired = new Map<string, ProgressQueueItem>();
+    const queuedByStorageKey = new Map<string, ProgressQueueItem>();
     for (const item of queue) {
-      const identity = queueIdentity(item);
-      const snapshot = validSnapshots.get(identity);
-      const snapshotExists = existingSnapshotKeys.has(queueItemStorageKey(item));
+      const normalizedItem: ProgressQueueItem = {
+        ...item,
+        account_id:
+          typeof item.account_id === "string" && item.account_id
+            ? item.account_id
+            : null,
+      };
+      queuedByStorageKey.set(queueItemStorageKey(normalizedItem), normalizedItem);
+      const identity = queueIdentity(normalizedItem);
+      const snapshot = validSnapshots.get(queueItemStorageKey(normalizedItem));
+      const snapshotExists = existingSnapshotKeys.has(
+        queueItemStorageKey(normalizedItem),
+      );
 
       if (!snapshotExists || (snapshot && !snapshot.dirty)) continue;
-      repaired.set(identity, item);
+      repaired.set(identity, normalizedItem);
     }
 
-    for (const [identity, snapshot] of validSnapshots) {
-      if (snapshot.dirty) repaired.set(identity, snapshot.item);
+    for (const snapshot of validSnapshots.values()) {
+      if (!snapshot.dirty) continue;
+      const existingQueueItem = queuedByStorageKey.get(snapshot.storageKey);
+      // A legacy dirty snapshot without a queue owner cannot safely be bound
+      // to whichever parent happens to sign in first. Leave it unbound until
+      // ownership can be proven instead of misattributing Parent A's work to B.
+      const accountId =
+        typeof existingQueueItem?.account_id === "string" &&
+        existingQueueItem.account_id
+          ? existingQueueItem.account_id
+          : null;
+      const item: ProgressQueueItem = {
+        ...snapshot.item,
+        account_id: accountId,
+      };
+      repaired.set(queueIdentity(item), item);
     }
 
     const repairedQueue = [...repaired.values()];
@@ -420,8 +458,14 @@ const repairProgressQueue = async (): Promise<ProgressQueueItem[]> =>
     return repairedQueue;
   });
 
-const enqueueDirty = async (item: ProgressQueueItem): Promise<void> => {
-  await mutateQueue((queue) => [...queue, item]);
+const enqueueDirty = async (
+  item: Omit<ProgressQueueItem, "account_id">,
+): Promise<void> => {
+  const accountId = await getSupabaseSessionUserId();
+  await mutateQueue((queue) => [
+    ...queue,
+    { ...item, account_id: accountId ?? null },
+  ]);
 };
 
 const removeQueueItems = async (itemsToRemove: ProgressQueueItem[]): Promise<void> => {
@@ -1061,7 +1105,12 @@ export const getPendingProgressSyncCount = async (
   childId?: string,
 ): Promise<number> => {
   const queue = await loadQueue();
-  return childId ? queue.filter((item) => item.child_id === childId).length : queue.length;
+  const accountId = await getSupabaseSessionUserId();
+  return queue.filter(
+    (item) =>
+      (accountId ? item.account_id === accountId : !item.account_id) &&
+      (!childId || item.child_id === childId),
+  ).length;
 };
 
 const fetchRemoteActivityRows = async (
@@ -1243,21 +1292,27 @@ export const syncProgressNow = async (
   cancelScheduledProgressSync();
 
   const queue = await repairProgressQueue();
-  const pending = childId
+  const selectedPending = childId
     ? queue.filter((item) => item.child_id === childId)
     : queue;
 
-  if (pending.length === 0) {
+  if (selectedPending.length === 0) {
     return { pushed: 0, skipped: 0, failed: 0 };
   }
 
   if (options.signal?.aborted) {
-    return { pushed: 0, skipped: pending.length, failed: 0 };
+    return { pushed: 0, skipped: selectedPending.length, failed: 0 };
   }
 
   const parentId = await getSupabaseSessionUserId();
   if (!parentId || options.signal?.aborted) {
-    return { pushed: 0, skipped: pending.length, failed: 0 };
+    return { pushed: 0, skipped: selectedPending.length, failed: 0 };
+  }
+  const pending = selectedPending.filter(
+    (item) => !item.account_id || item.account_id === parentId,
+  );
+  if (pending.length === 0) {
+    return { pushed: 0, skipped: 0, failed: 0 };
   }
 
   let ownedChildIds: Set<string>;
@@ -1272,11 +1327,45 @@ export const syncProgressNow = async (
     return { pushed: 0, skipped: 0, failed: pending.length };
   }
 
-  const ownedPending = pending.filter((item) => ownedChildIds.has(item.child_id));
+  let ownedPending = pending.filter((item) => ownedChildIds.has(item.child_id));
   const unownedPendingCount = pending.length - ownedPending.length;
 
   if (ownedPending.length === 0) {
     return { pushed: 0, skipped: unownedPendingCount, failed: 0 };
+  }
+
+  const unboundOwnedItems = ownedPending.filter((item) => !item.account_id);
+  if (unboundOwnedItems.length > 0) {
+    // A legacy entry becomes account-scoped only after the current
+    // authenticated parent has proved ownership through the trusted children
+    // relation. Persist that proof before attempting the remote write.
+    const unboundStorageKeys = new Set(
+      unboundOwnedItems.map(queueItemStorageKey),
+    );
+    try {
+      await assertProgressSyncSession(parentId, options.signal);
+      await mutateQueue((currentQueue) =>
+        currentQueue.map((item) =>
+          !item.account_id &&
+          unboundStorageKeys.has(queueItemStorageKey(item))
+            ? { ...item, account_id: parentId }
+            : item,
+        ),
+      );
+      ownedPending = ownedPending.map((item) =>
+        !item.account_id &&
+        unboundStorageKeys.has(queueItemStorageKey(item))
+          ? { ...item, account_id: parentId }
+          : item,
+      );
+      await assertProgressSyncSession(parentId, options.signal);
+    } catch {
+      return {
+        pushed: 0,
+        skipped: unownedPendingCount,
+        failed: ownedPending.length,
+      };
+    }
   }
 
   const activityItems = ownedPending.filter((item) => item.kind === "activity");
@@ -1330,13 +1419,13 @@ export const syncProgressNow = async (
         (data ?? []) as ChildActivityProgress[],
       );
       pushed += activityRecordsToPush.length;
+      const syncedActivityIdentities = new Set(
+        syncedActivityRecords.map(activityIdentity),
+      );
       syncedQueueItems.push(
-        ...syncedActivityRecords.map((record) => ({
-          kind: "activity" as const,
-          child_id: record.child_id,
-          language_code: record.language_code,
-          activity_type: record.activity_type,
-        })),
+        ...activityItems.filter((item) =>
+          syncedActivityIdentities.has(activityIdentity(item)),
+        ),
       );
     }
   } catch {
@@ -1390,15 +1479,19 @@ export const syncProgressNow = async (
         (data ?? []) as ChildStageProgress[],
       );
       pushed += stageRecordsToPush.length;
+      const syncedStageIdentities = new Set(
+        syncedStageRecords.map(stageIdentity),
+      );
       syncedQueueItems.push(
-        ...syncedStageRecords.map((record) => ({
-          kind: "stage" as const,
-          child_id: record.child_id,
-          language_code: record.language_code,
-          activity_type: record.activity_type,
-          stage_id: record.stage_id,
-          level_id: record.level_id,
-        })),
+        ...stageItems.filter((item) =>
+          syncedStageIdentities.has(
+            stageIdentity({
+              ...item,
+              stage_id: item.stage_id ?? "",
+              level_id: item.level_id ?? "",
+            }),
+          ),
+        ),
       );
     }
   } catch {

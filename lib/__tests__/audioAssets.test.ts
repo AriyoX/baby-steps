@@ -16,6 +16,48 @@ describe("learning audio assets", () => {
     })
   })
 
+  it("registers every stable initial-curriculum audio key as a placeholder", () => {
+    const initialCurriculumKeys = [
+      "lg-s1-oli-otya",
+      "lg-s1-gyendi",
+      "lg-s1-wasuze-otya-nno",
+      "lg-s1-osiibye-otya-nno",
+      "lg-s1-weebale",
+      "lg-s1-nsonyiwa",
+      "lg-s1-weeraba",
+      "lg-s1-nze-amina",
+      "lg-s1-ggwe-ani",
+      "lg-s1-story-p01",
+      "lg-s1-story-p02",
+      "lg-s1-story-p03",
+      "lg-s1-story-p04",
+      "lg-s2-omutwe",
+      "lg-s2-amaaso",
+      "lg-s2-amatu",
+      "lg-s2-ennyindo",
+      "lg-s2-akamwa",
+      "lg-s2-omukono",
+      "lg-s2-okugulu",
+      "lg-s2-ekigere",
+      "lg-s2-ndi-musanyufu",
+      "lg-s2-ndi-munakuwavu",
+      "lg-s2-nkooye",
+      "lg-s2-ntya",
+      "lg-s2-story-p01",
+      "lg-s2-story-p02",
+      "lg-s2-story-p03",
+      "lg-s2-story-p04",
+    ]
+
+    for (const audioKey of initialCurriculumKeys) {
+      expect(isValidLearningAudioAsset(audioKey)).toBe(true)
+      expect(resolveLearningAudioSource(undefined, audioKey)).toEqual({
+        source: LEARNING_PLACEHOLDER_SOUND,
+        isPlaceholder: true,
+      })
+    }
+  })
+
   it("resolves Bulungi mp3 aliases as bundled learning audio", () => {
     const resolution = resolveLearningAudioSource("assets/audio/Bulungi.mp3")
 

@@ -1,6 +1,6 @@
 # Privacy Policy for Baby Steps
 
-**Last updated:** July 2, 2026
+**Last updated:** July 23, 2026
 
 Baby Steps ("we," "our," or "us") is an educational app for young children and their parents/guardians. This Privacy Policy explains what the app collects or processes, how it is used, and the choices users have.
 
@@ -13,7 +13,7 @@ When a parent/guardian creates an account, the app processes:
 - Email address
 - Password
 
-Passwords are handled by our authentication provider.
+Passwords are handled by our authentication provider and are not available to Baby Steps in readable form. Our service providers may also process limited technical and security information, such as network address, device/browser information, and request logs, as needed to deliver and protect the service.
 
 ### Child Profile Information
 
@@ -22,6 +22,7 @@ When adding a child profile, the app stores parent-provided information such as:
 - Child name
 - Child gender
 - Child age/range
+- Preferred learning language
 - Learning focus/reason from the add-child flow
 
 ### Learning And Progress Information
@@ -42,17 +43,19 @@ The app stores certain data locally on the device with AsyncStorage, including:
 - Language preference
 - Game progress
 - Session and weekly learning stats in some utilities
+- Device-local learning reminder preferences and schedule identifiers
 
 ### Optional Media Access
 
-The coloring feature uses device media and sharing APIs. If a user chooses to save or share artwork, the app may request media/photo access to:
+The coloring feature uses the device media API only when a user chooses Save. The app may request add-only media/photo access to:
 
 - Save images to the device gallery, including a `ColoringBook` album where supported
-- Share images using the device share sheet
 
-### Text Sent To Third-Party Language Services
+Baby Steps does not request access to read existing photos, does not expose a child-facing system Share action, and does not upload coloring artwork to our servers. Saved copies are controlled by the device.
 
-The current UI language toggle uses hardcoded local translations. Some translation and text-to-speech helpers also exist in the codebase. If those helpers are enabled or used, text may be sent to third-party language service providers.
+### Notifications, Audio, And Language Features
+
+If a parent enables gentle learning reminders, Baby Steps schedules those reminders on the device. The feature does not require a push token or a child's contact information. Audio playback and text-to-speech may use the device's operating-system services. The app's third-party online translation helper is currently disabled, and current UI translations are stored in the app.
 
 ## 2. Information We Do Not Intentionally Collect
 
@@ -63,6 +66,7 @@ Based on the current app implementation, we do not intentionally collect:
 - Precise location data
 - Contacts
 - In-app advertising identifiers for ad targeting
+- A child's email address or phone number
 
 ## 3. How We Use Information
 
@@ -74,7 +78,8 @@ We use collected information to:
 - Show parent dashboard summaries
 - Display earned achievements
 - Provide password reset and account security features
-- Support optional translation/text-to-speech features when used
+- Sync supported family progress across devices
+- Schedule optional device-local learning reminders
 - Improve app reliability and quality
 
 ## 4. How We Share Information
@@ -82,14 +87,13 @@ We use collected information to:
 We may share information with service providers that help operate the app:
 
 - **Supabase** for authentication and database storage
-- Third-party language service providers for translation/text-to-speech processing if those features are used
+- Device and operating-system providers when a user enables notifications, text-to-speech, or saving
 
 We may also share information:
 
-- When a user explicitly shares content through device sharing features
 - If required by law or to protect rights, safety, and security
 
-We do not sell personal information.
+We do not sell personal information, and Baby Steps does not show targeted advertising to children.
 
 ## 5. Data Retention
 
@@ -103,11 +107,13 @@ Saved images remain in the device gallery until the user deletes them.
 
 ## 6. Children's Privacy
 
-Baby Steps is intended for children's learning, but account control is designed for parents/guardians. Parents/guardians are responsible for:
+Baby Steps is intended for children's learning, but children cannot create their own Baby Steps account. Account control is designed for parents/guardians. Parents/guardians are responsible for:
 
 - Providing child profile information
 - Supervising a child's use of the app
 - Requesting updates or deletion of child-related data
+
+By creating a child profile, the parent or guardian confirms that they have authority to provide and manage that child's information.
 
 ## 7. Security
 
@@ -123,7 +129,7 @@ Users can:
 
 - Update profile details where the app supports it
 - Manage optional media permissions through device settings
-- Avoid optional translation/text-to-speech features if they do not want text sent to a third-party language service
+- Manage optional notification permissions through device settings
 - Request account or data deletion in the app or by contacting us
 
 ## 10. Account And Data Deletion

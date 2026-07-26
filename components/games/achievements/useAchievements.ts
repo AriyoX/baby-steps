@@ -6,13 +6,24 @@ import {
   checkAndGrantNewAchievements as checkAndGrantNewAchievementsLogic,
 } from './achievementManager';
 import { AchievementDefinition, ChildAchievement } from './achievementTypes';
+import { getDbLanguageCodeForLearningLanguage } from '@/content/languages';
 // Remove game-specific progress types from here unless absolutely needed by the hook itself
 // The game component will prepare the event data.
 
 // Add gameKey to the hook's parameters
-export const useAchievements = (specificChildId?: string, gameKey?: string) => {
+export const useAchievements = (
+  specificChildId?: string,
+  gameKey?: string,
+  specificLanguageCode?: string,
+) => {
   const { activeChild } = useChild();
   const childIdToFetchFor = specificChildId || activeChild?.id;
+  const languageCodeToFetchFor = getDbLanguageCodeForLearningLanguage(
+    specificLanguageCode ??
+      (activeChild && activeChild.id === childIdToFetchFor
+        ? activeChild.selected_language_code
+        : undefined),
+  );
 
   const [definedAchievements, setDefinedAchievements] = useState<AchievementDefinition[]>([]);
   const [earnedChildAchievements, setEarnedChildAchievements] = useState<ChildAchievement[]>([]);
@@ -26,12 +37,16 @@ export const useAchievements = (specificChildId?: string, gameKey?: string) => {
       return;
     }
     setIsLoadingAchievements(true);
+    setEarnedChildAchievements([]);
     try {
       // Fetch all defined achievements OR only for the specific gameKey if provided
       // For profile screens, you might want all achievements. For in-game, maybe just game-specific.
       // Let's assume for now it fetches all, and manager filters. Or fetchAll can take gameKey.
       const allDefs = await fetchAllDefinedAchievementsLogic(); // Fetches ALL by default now
-      const childEarned = await fetchChildEarnedAchievements(childIdToFetchFor);
+      const childEarned = await fetchChildEarnedAchievements(
+        childIdToFetchFor,
+        languageCodeToFetchFor,
+      );
       
       setDefinedAchievements(allDefs);
       setEarnedChildAchievements(childEarned);
@@ -42,7 +57,7 @@ export const useAchievements = (specificChildId?: string, gameKey?: string) => {
     } finally {
       setIsLoadingAchievements(false);
     }
-  }, [childIdToFetchFor]); // Removed gameKey dependency for initial load, as manager will filter later
+  }, [childIdToFetchFor, languageCodeToFetchFor]); // Manager filters definitions by game later.
 
   useEffect(() => {
     loadInitialAchievements();
@@ -61,6 +76,7 @@ export const useAchievements = (specificChildId?: string, gameKey?: string) => {
       
       const newlyEarned = await checkAndGrantNewAchievementsLogic({
         childId: currentChildId,
+        languageCode: languageCodeToFetchFor,
         definedAchievements, // Pass all loaded definitions
         earnedAchievementIds: earnedIds,
         event: eventPayload, // The game component constructs this event object
@@ -68,13 +84,16 @@ export const useAchievements = (specificChildId?: string, gameKey?: string) => {
 
       if (newlyEarned.length > 0) {
         if (childIdToFetchFor) {
-            const updatedEarned = await fetchChildEarnedAchievements(childIdToFetchFor);
+            const updatedEarned = await fetchChildEarnedAchievements(
+              childIdToFetchFor,
+              languageCodeToFetchFor,
+            );
             setEarnedChildAchievements(updatedEarned);
         }
       }
       return newlyEarned;
     },
-    [activeChild, specificChildId, definedAchievements, earnedChildAchievements, isLoadingAchievements, childIdToFetchFor]
+    [activeChild, specificChildId, definedAchievements, earnedChildAchievements, isLoadingAchievements, childIdToFetchFor, languageCodeToFetchFor]
   );
 
   return {

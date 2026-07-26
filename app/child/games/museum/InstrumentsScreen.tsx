@@ -1,15 +1,13 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { View, ScrollView, TouchableOpacity, Image, Animated, BackHandler } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import type { Audio, AVPlaybackSource } from "expo-av"
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
 import { StatusBar } from "expo-status-bar"
-import { Text } from "@/components/StyledText"
 import { TranslatedText } from "@/components/translated-text"
-import { LinearGradient } from "expo-linear-gradient"
 import { audioManager } from "@/lib/audioManager"
 
 export default function InstrumentsScreen() {
@@ -23,7 +21,7 @@ export default function InstrumentsScreen() {
     howToPlay: string
   } | null>(null)
   const [playingId, setPlayingId] = useState<number | null>(null)
-  const pulseAnim = new Animated.Value(1)
+  const pulseAnim = useRef(new Animated.Value(1)).current
   const router = useRouter()
   const fadeAnim = useState<Animated.Value>(new Animated.Value(0))[0]
 
@@ -49,7 +47,7 @@ export default function InstrumentsScreen() {
     })
 
     return () => backHandler.remove()
-  }, [router, selectedInstrument, sound])
+  }, [fadeAnim, router, selectedInstrument, sound])
 
   const instruments = [
     {
@@ -107,7 +105,7 @@ export default function InstrumentsScreen() {
   // Start pulsing animation when an instrument is playing
   useEffect(() => {
     if (playingId !== null) {
-      Animated.loop(
+      const pulseLoop = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
             toValue: 1.1,
@@ -120,11 +118,17 @@ export default function InstrumentsScreen() {
             useNativeDriver: true,
           }),
         ])
-      ).start()
-    } else {
-      pulseAnim.setValue(1)
+      )
+      pulseLoop.start()
+      return () => {
+        pulseLoop.stop()
+        pulseAnim.setValue(1)
+      }
     }
-  }, [playingId])
+
+    pulseAnim.setValue(1)
+    return undefined
+  }, [playingId, pulseAnim])
 
   async function playSound(audioFile: AVPlaybackSource, instrumentId: number | null) {
     // Stop previous sound if playing

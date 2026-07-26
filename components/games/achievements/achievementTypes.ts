@@ -15,6 +15,7 @@ export interface AchievementDefinition {
 export interface ChildAchievement {
   id: string; // uuid
   child_id: string; // uuid
+  language_code: string;
   achievement_id: string; // uuid
   earned_at: string;
   created_at?: string;

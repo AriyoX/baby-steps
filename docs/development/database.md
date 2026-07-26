@@ -19,6 +19,9 @@ Baby Steps uses Supabase for auth-backed app data, account deletion lifecycle tr
 | `child_activity_progress` | Current child progress by language and activity type. |
 | `child_stage_progress` | Optional per-stage child progress. |
 | `account_deletion_requests` | Account deletion grace-period, reactivation, and finalization log. |
+| `child_streak_preferences` | Per-child streak and reminder-participation preferences. |
+| `child_streak_epochs` | Reset/disable/re-enable boundaries with retained history. |
+| `child_streak_days` | One qualified local date per child and epoch. |
 
 ## Current App Usage
 
@@ -30,6 +33,7 @@ Baby Steps uses Supabase for auth-backed app data, account deletion lifecycle tr
 | Achievements | Reads `achievements`, reads/writes `child_achievements`. |
 | Content | Reads shared `content_items` by active child language. |
 | Account deletion | Uses RPCs for grace-period requests/reactivation and a service-role Edge Function for final deletion. |
+| Child streaks | Reads parent-authorized snapshots and mutates only through five guarded application RPCs. |
 | Payments | Not implemented. |
 
 ## Main Files
@@ -180,6 +184,25 @@ Edge Function:
 
 See [account deletion finalization](account-deletion-finalization.md) for deployment and QA steps.
 
+### Child streak tables and RPCs
+
+`child_streak_preferences`, `child_streak_epochs`, and `child_streak_days` are
+defined by `20260718215448_add_child_learning_streaks.sql`. RLS limits reads to
+the authenticated owner of a non-archived child. App-role table writes are
+revoked; mutations use `create_child_streak_state`,
+`set_child_streak_enabled`, `reset_child_streak`,
+`set_child_streak_reminder_participation`, and `upsert_child_streak_day`.
+
+The migration was already applied before the 2026-07-19 runtime corrective
+pass. That pass did not create, edit, or apply a migration and did not mutate a
+Supabase project. See [Child Learning Streaks](../features/child-streaks.md) for
+the complete data, synchronization, security, and lifecycle contract.
+
+The streak table excerpt in `schema.sql` mirrors the live composite foreign
+keys, cascades, checks, and indexes, but the migration remains canonical for
+RLS policies, grants, triggers, and RPC definitions. Do not treat the context
+snapshot as a deployable schema dump.
+
 ## Known Schema Gaps
 
 - No stable content IDs in `activities`.
@@ -210,8 +233,9 @@ Current migrations include:
 - `supabase/migrations/20260709225210_seed_learning_hub_achievements.sql`
 - `supabase/migrations/20260714182326_database_backed_learning_content.sql`
 - `supabase/migrations/20260714213732_normalize_published_story_menu_order.sql`
+- `supabase/migrations/20260718215448_add_child_learning_streaks.sql`
 
-This chain adds language selection, shared content, progress, account-deletion lifecycle support, Learning Hub achievements, database-backed curriculum/game seeds, strict content security metadata, and the Stories ordered-menu correction. As of 2026-07-15, local and linked Baby-Steps migration histories align through `20260714213732`.
+This chain adds language selection, shared content, progress, account-deletion lifecycle support, Learning Hub achievements, database-backed curriculum/game seeds, strict content security metadata, the Stories ordered-menu correction, and child learning streaks. The streak migration is recorded as already applied; this documentation does not instruct contributors to rerun it.
 
 ## Local Reset Caveat
 
@@ -226,7 +250,9 @@ bootstrapped with the base tables.
 
 ## Security Advisor Snapshot
 
-As of 2026-07-15, the linked-project advisors report no content-specific finding for `public.content_items`; its child-facing read policy and separate Data API grants are in place. Pre-existing findings elsewhere still need release review: RLS is disabled on `activities`, `achievements`, `child_achievements`, and `languages`; two functions have mutable search paths; account-deletion `SECURITY DEFINER` execution grants need review; `uuid-ossp` is installed in `public`; leaked-password protection is disabled; and database patches are available. These are not reasons to add a service-role key or weaken the content policy.
+The 2026-07-19 live streak audit found no RLS, grant, RPC, migration, or data-integrity defect in the three streak tables. The five exposed mutation RPCs intentionally use `SECURITY DEFINER`; each has an empty `search_path`, authenticated-only execution, and an ownership/active-child guard. Their advisor warnings must be reviewed in that context rather than “fixed” by exposing direct table writes.
+
+The linked-project advisors also report no content-specific finding for `public.content_items`; its child-facing read policy and separate Data API grants are in place. Pre-existing findings elsewhere still need release review: RLS is disabled on `activities`, `achievements`, `child_achievements`, and `languages`; two functions have mutable search paths; account-deletion `SECURITY DEFINER` execution grants need review; `uuid-ossp` is installed in `public`; leaked-password protection is disabled; and database patches are available. These are not reasons to add a service-role key or weaken the content or streak policies.
 
 ## Change Guidance
 

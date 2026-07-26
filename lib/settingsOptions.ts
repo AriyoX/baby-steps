@@ -1,11 +1,10 @@
 export type SettingsRoute =
   | "/parent/settings/account"
+  | "/parent/settings/parent-pin"
   | "/parent/settings/child-profiles"
   | "/parent/settings/audio"
-  | "/parent/settings/language-learning"
   | "/parent/settings/notifications"
   | "/parent/settings/privacy-safety"
-  | "/parent/settings/subscription-payments"
   | "/parent/settings/help-support"
   | "/parent/settings/about";
 
@@ -20,11 +19,6 @@ export interface SettingsEntry {
 export interface SettingsSection {
   title: string;
   entries: SettingsEntry[];
-}
-
-export interface PlaceholderSettingsInfo {
-  title: string;
-  description: string;
 }
 
 export const SETTINGS_SECTIONS: SettingsSection[] = [
@@ -45,6 +39,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         iconColor: "#F97316",
         route: "/parent/settings/child-profiles",
       },
+      {
+        title: "Parent Access PIN",
+        description: "Set, change, or review the PIN used to leave child mode.",
+        icon: "keypad-outline",
+        iconColor: "#7C3AED",
+        route: "/parent/settings/parent-pin",
+      },
     ],
   },
   {
@@ -56,13 +57,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         icon: "volume-high-outline",
         iconColor: "#D97706",
         route: "/parent/settings/audio",
-      },
-      {
-        title: "Language & Learning",
-        description: "Choose learning languages and lesson preferences.",
-        icon: "language-outline",
-        iconColor: "#7C3AED",
-        route: "/parent/settings/language-learning",
       },
       {
         title: "Notifications",
@@ -84,13 +78,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         route: "/parent/settings/privacy-safety",
       },
       {
-        title: "Subscription / Payments",
-        description: "Manage plans, receipts, and payment options.",
-        icon: "card-outline",
-        iconColor: "#DB2777",
-        route: "/parent/settings/subscription-payments",
-      },
-      {
         title: "Help & Support",
         description: "Get help with accounts, deletion requests, and app questions.",
         icon: "help-circle-outline",
@@ -108,49 +95,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   },
 ];
 
-export const PLACEHOLDER_SETTINGS: Record<string, PlaceholderSettingsInfo> = {
-  "language-learning": {
-    title: "Language & Learning",
-    description: "Language choices and learning preferences will be managed here.",
-  },
-  "privacy-safety": {
-    title: "Privacy & Safety",
-    description: "Family privacy and child safety choices will be managed here.",
-  },
-  "subscription-payments": {
-    title: "Subscription / Payments",
-    description: "Plan, receipt, and payment settings will be managed here.",
-  },
-  "help-support": {
-    title: "Help & Support",
-    description: "Help articles and support contact options will be managed here.",
-  },
-  about: {
-    title: "About Baby Steps",
-    description: "App details, policies, and Baby Steps information will be shown here.",
-  },
-  "account-edit-profile": {
-    title: "Edit Parent Profile",
-    description: "Parent profile editing will be managed here.",
-  },
-  "account-security": {
-    title: "Email & Password",
-    description: "Email and password changes will be managed here.",
-  },
-  "child-profile-edit": {
-    title: "Edit Child Details",
-    description: "Child profile details and learning preferences will be managed here.",
-  },
-};
-
 export const REQUIRED_SETTINGS_ENTRY_TITLES = [
   "Account",
   "Child Profiles",
+  "Parent Access PIN",
   "Audio",
-  "Language & Learning",
   "Notifications",
   "Privacy & Safety",
-  "Subscription / Payments",
   "Help & Support",
   "About Baby Steps",
 ] as const;

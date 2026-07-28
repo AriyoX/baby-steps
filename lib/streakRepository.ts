@@ -44,6 +44,7 @@ export type StreakCelebrationEvent = {
   childId: string;
   localDate: string;
   currentStreak: number;
+  activityCount: number;
 };
 
 export type LearningReminderCandidate = {
@@ -109,6 +110,7 @@ const STREAK_VERSION = "v2";
 const RECEIPT_LIMIT = 200;
 const CELEBRATED_DATE_LIMIT = 60;
 const DEFAULT_SYNC_DELAY_MS = 3_000;
+export const DAILY_CELEBRATION_ACTIVITY_THRESHOLD = 3;
 
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
 let syncGeneration = 0;
@@ -912,7 +914,12 @@ export const recordQualifiedStreakActivity = async ({
     if (existingIndex >= 0) days[existingIndex] = day;
     else days.push(day);
 
-    const shouldCelebrate = !receipts.celebratedDates.includes(localDate);
+    const activityCount =
+      receipts.receipts.filter((receipt) => receipt.localDate === localDate)
+        .length + 1;
+    const shouldCelebrate =
+      activityCount >= DAILY_CELEBRATION_ACTIVITY_THRESHOLD &&
+      !receipts.celebratedDates.includes(localDate);
     const nextReceipts: CompletionReceiptCache = {
       receipts: [...receipts.receipts, { completionId, completedAt: timestamp, localDate }]
         .slice(-RECEIPT_LIMIT),
@@ -942,8 +949,14 @@ export const recordQualifiedStreakActivity = async ({
     scheduleStreakSync();
 
     const saved = memorySnapshots.get(snapshotIdentity(accountId, childId)) ?? { ...current, days };
-    if (shouldCelebrate && !existing) {
-      celebration = { accountId, childId, localDate, currentStreak: saved.summary.currentStreak };
+    if (shouldCelebrate) {
+      celebration = {
+        accountId,
+        childId,
+        localDate,
+        currentStreak: saved.summary.currentStreak,
+        activityCount,
+      };
     }
     return { recorded: true, firstLocalQualification: !existing, snapshot: saved };
   });

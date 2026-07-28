@@ -2,6 +2,7 @@ import { ImageBackground, ScrollView, TouchableOpacity, View } from "react-nativ
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { Text } from "@/components/StyledText";
+import { childHaptics } from "@/lib/childHaptics";
 
 type LearningLanguageUnavailableStateProps = {
   languageName?: string;
@@ -63,7 +64,10 @@ export function LearningLanguageUnavailableState({
             <View className="flex-row items-center justify-center flex-wrap">
               <TouchableOpacity
                 className="bg-primary-600 rounded-full px-6 py-3 m-1"
-                onPress={onAction}
+                onPress={() => {
+                  childHaptics.tap();
+                  onAction();
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={actionLabel}
               >
@@ -74,7 +78,10 @@ export function LearningLanguageUnavailableState({
               {secondaryActionLabel && onSecondaryAction ? (
                 <TouchableOpacity
                   className="bg-white border-2 border-primary-600 rounded-full px-6 py-3 m-1"
-                  onPress={onSecondaryAction}
+                  onPress={() => {
+                    childHaptics.tap();
+                    onSecondaryAction();
+                  }}
                   accessibilityRole="button"
                   accessibilityLabel={secondaryActionLabel}
                 >

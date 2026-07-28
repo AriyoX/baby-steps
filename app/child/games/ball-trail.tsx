@@ -13,6 +13,7 @@ import {
   type ViewStyle,
   Easing,
 } from "react-native"
+import { childHaptics } from "@/lib/childHaptics"
 
 interface Ball {
   position: Animated.ValueXY
@@ -179,6 +180,7 @@ export default function BallTrail() {
 
   // Create explosion effect
   const triggerExplosion = () => {
+    childHaptics.success()
     // Animate balls outward
     balls.forEach((ball, index) => {
       const angle = (index / balls.length) * Math.PI * 2
@@ -233,7 +235,13 @@ export default function BallTrail() {
       ))}
 
       {/* Exit button */}
-      <TouchableOpacity style={styles.exitButton} onPress={() => router.back()}>
+      <TouchableOpacity
+        style={styles.exitButton}
+        onPress={() => {
+          childHaptics.tap()
+          router.back()
+        }}
+      >
         <Text style={styles.exitButtonText}>✕</Text>
       </TouchableOpacity>
 

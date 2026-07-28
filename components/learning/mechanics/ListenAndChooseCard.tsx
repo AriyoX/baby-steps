@@ -18,6 +18,7 @@ import {
   resolveLearningAudioSource,
 } from "@/lib/audioAssets";
 import { MechanicScreenFrame } from "./MechanicScreenFrame";
+import { childHaptics } from "@/lib/childHaptics";
 
 type ListenAndChooseCardProps = {
   item: ListenAndChooseItem;
@@ -204,10 +205,12 @@ export function ListenAndChooseCard({
     const sound = learningSoundRef.current;
 
     if (!sound) {
+      childHaptics.warning();
       setAudioLoadFailed(true);
       return;
     }
 
+    childHaptics.selection();
     void playSound(sound);
   }, [playSound]);
 
@@ -221,10 +224,12 @@ export function ListenAndChooseCard({
     setSelectedOptionId(optionId);
 
     if (optionId === item.correctOptionId) {
+      childHaptics.success();
       setAnswerState("correct");
       return;
     }
 
+    childHaptics.error();
     setAnswerState("incorrect");
   };
 

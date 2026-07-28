@@ -12,6 +12,7 @@ import type {
   MatchWordPictureOption,
 } from "@/content/learningHubTypes";
 import { MechanicScreenFrame } from "./MechanicScreenFrame";
+import { childHaptics } from "@/lib/childHaptics";
 
 type MatchWordPictureCardProps = {
   item: MatchWordPictureItem;
@@ -79,10 +80,12 @@ export function MatchWordPictureCard({
     setSelectedOptionId(optionId);
 
     if (optionId === item.correctOptionId) {
+      childHaptics.success();
       setAnswerState("correct");
       return;
     }
 
+    childHaptics.error();
     setAnswerState("incorrect");
   };
 

@@ -14,6 +14,7 @@ import { MaterialIcons, Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { TranslatedText } from "@/components/translated-text"
+import { childHaptics } from "@/lib/childHaptics"
 
 export default function ArtScreen() {
   const [selectedArtwork, setSelectedArtwork] = useState<{
@@ -91,6 +92,7 @@ export default function ArtScreen() {
   ]
 
   const toggleContrast = () => {
+    childHaptics.selection()
     if (contrastLevel === "normal") {
       setContrastLevel("high")
     } else if (contrastLevel === "high") {
@@ -119,7 +121,10 @@ export default function ArtScreen() {
       <View className="flex-row justify-between items-center px-4 pt-6 pb-2">
         <TouchableOpacity
           className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
-          onPress={() => router.back()}
+          onPress={() => {
+            childHaptics.tap()
+            router.back()
+          }}
         >
           <Ionicons name="arrow-back" size={20} color="#7b5af0" />
         </TouchableOpacity>
@@ -154,7 +159,10 @@ export default function ArtScreen() {
                 key={artwork.id}
                 className={`rounded-xl overflow-hidden shadow-sm mr-4 ${getContrastStyle()}`}
                 style={{ width: 250 }}
-                onPress={() => setSelectedArtwork(artwork)}
+                onPress={() => {
+                  childHaptics.selection()
+                  setSelectedArtwork(artwork)
+                }}
                 activeOpacity={0.7}
               >
                 <Image source={artwork.image} className="w-full h-36" resizeMode="cover" />
@@ -201,7 +209,10 @@ export default function ArtScreen() {
             <View className="p-3 pt-0 flex-row justify-center items-center bg-white border-slate-100">
               <TouchableOpacity
                 className="bg-primary-500 py-2.5 px-6 rounded-full shadow-sm border-2 border-primary-400"
-                onPress={() => setSelectedArtwork(null)}
+                onPress={() => {
+                  childHaptics.tap()
+                  setSelectedArtwork(null)
+                }}
                 activeOpacity={0.8}
               >
                 <TranslatedText variant="bold" className="text-white">

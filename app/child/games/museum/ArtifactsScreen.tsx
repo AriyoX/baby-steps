@@ -17,6 +17,7 @@ import { StatusBar } from "expo-status-bar"
 import { TranslatedText } from "@/components/translated-text"
 import { LinearGradient } from "expo-linear-gradient"
 import { audioManager } from "@/lib/audioManager"
+import { childHaptics } from "@/lib/childHaptics"
 
 export default function ArtifactsScreen() {
   const [selectedArtifact, setSelectedArtifact] = useState<{
@@ -97,6 +98,7 @@ export default function ArtifactsScreen() {
   ]
 
   async function playSound(audioFile: AVPlaybackSource) {
+    childHaptics.selection()
     // Stop any currently playing sound
     if (sound) {
       await audioManager.unloadAppSound(sound)
@@ -121,10 +123,12 @@ export default function ArtifactsScreen() {
     description: string
     audio: AVPlaybackSource
   }) => {
+    childHaptics.selection()
     setSelectedArtifact(artifact)
   }
 
   const closeModal = () => {
+    childHaptics.tap()
     setSelectedArtifact(null)
     if (sound) {
       void audioManager.unloadAppSound(sound)
@@ -140,7 +144,10 @@ export default function ArtifactsScreen() {
       <View className="flex-row justify-between items-center px-4 pt-6 pb-2">
         <TouchableOpacity
           className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
-          onPress={() => router.back()}
+          onPress={() => {
+            childHaptics.tap()
+            router.back()
+          }}
         >
           <Ionicons name="arrow-back" size={20} color="#7b5af0" />
         </TouchableOpacity>

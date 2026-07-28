@@ -38,6 +38,7 @@ import {
   markGameGuideSeen,
   type GameGuideId,
 } from "@/lib/gameGuide"
+import { childHaptics } from "@/lib/childHaptics"
 
 export type GameTourStep = {
   id: string
@@ -853,7 +854,10 @@ export function GameTour({
               accessibilityLabel={t("common.skip")}
               accessibilityRole="button"
               activeOpacity={0.75}
-              onPress={onComplete}
+              onPress={() => {
+                childHaptics.tap()
+                onComplete()
+              }}
               style={styles.skipButton}
             >
               <Text variant="bold" style={styles.skipText}>{t("common.skip")}</Text>
@@ -867,6 +871,7 @@ export function GameTour({
                 activeOpacity={0.75}
                 disabled={isFirst}
                 onPress={() => {
+                  childHaptics.selection()
                   setTargetRect(null)
                   setTooltipSize(null)
                   setActiveIndex((index) => Math.max(0, index - 1))
@@ -882,6 +887,7 @@ export function GameTour({
                 accessibilityRole="button"
                 activeOpacity={0.8}
                 onPress={() => {
+                  childHaptics.selection()
                   if (isLast) {
                     onComplete()
                     return
@@ -933,7 +939,10 @@ export const GameHeader = ({
     <TouchableOpacity
       className="w-12 h-12 rounded-2xl bg-white items-center justify-center border border-blue-100"
       style={brandShadows.soft}
-      onPress={onBack}
+      onPress={() => {
+        childHaptics.tap()
+        onBack()
+      }}
       activeOpacity={0.76}
       accessibilityRole="button"
       accessibilityLabel={backAccessibilityLabel}
@@ -968,7 +977,10 @@ export const GameHeader = ({
       <TouchableOpacity
         className="w-12 h-12 rounded-2xl bg-white items-center justify-center border border-blue-100 ml-2"
         style={brandShadows.soft}
-        onPress={onHelp}
+        onPress={() => {
+          childHaptics.tap()
+          onHelp()
+        }}
         activeOpacity={0.76}
         accessibilityRole="button"
         accessibilityLabel={t("games.howToPlay")}

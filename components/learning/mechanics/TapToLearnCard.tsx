@@ -13,6 +13,7 @@ import {
   LEARNING_PLACEHOLDER_SOUND,
   resolveLearningAudioSource,
 } from "@/lib/audioAssets";
+import { childHaptics } from "@/lib/childHaptics";
 import { MechanicScreenFrame } from "./MechanicScreenFrame";
 
 type TapToLearnCardProps = {
@@ -185,10 +186,12 @@ export function TapToLearnCard({
 
     const sound = learningSoundRef.current;
     if (!sound) {
+      childHaptics.warning();
       setAudioLoadFailed(true);
       return;
     }
 
+    childHaptics.selection();
     void playSound(sound);
   }, [playSound]);
 

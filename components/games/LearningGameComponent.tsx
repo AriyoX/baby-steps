@@ -43,6 +43,7 @@ import {
   type LocalPersistenceStatus,
 } from "@/lib/completionReliability"
 import { recordQualifiedStreakActivity } from "@/lib/streakRepository"
+import { childHaptics } from "@/lib/childHaptics"
 import { useAchievements } from "./achievements/useAchievements"
 import type { AchievementDefinition } from "./achievements/achievementTypes"
 import { playWordAudio, loadGameSounds } from "./utils/audioManager"
@@ -463,6 +464,7 @@ const LugandaLearningGame: React.FC = () => {
   // Stage selection
   const selectStage = (stage: LearningGameStage) => {
     if (!stage.isLocked) {
+      childHaptics.tap()
       setSelectedStage(stage)
       setGameState("levelSelect")
       // Reset timer when selecting a stage
@@ -473,6 +475,7 @@ const LugandaLearningGame: React.FC = () => {
   // Level selection
   const selectLevel = (level: LearningGameLevel) => {
     if (!level.isLocked) {
+      childHaptics.tap()
       clearGameTimers()
       answerLockRef.current = false
       completionLockRef.current = false
@@ -501,6 +504,7 @@ const LugandaLearningGame: React.FC = () => {
   // Learning navigation
   const nextLearningWord = (): void => {
     if (currentLearningIndex < currentWords.length - 1) {
+      childHaptics.selection()
       fadeAnim.setValue(0)
       setCurrentLearningIndex(currentLearningIndex + 1)
     }
@@ -508,6 +512,7 @@ const LugandaLearningGame: React.FC = () => {
 
   const previousLearningWord = (): void => {
     if (currentLearningIndex > 0) {
+      childHaptics.selection()
       fadeAnim.setValue(0)
       fadeAnim.setValue(0)
       setCurrentLearningIndex(currentLearningIndex - 1)
@@ -515,6 +520,7 @@ const LugandaLearningGame: React.FC = () => {
   }
 
   const startGame = (): void => {
+    childHaptics.tap()
     clearGameTimers()
     answerLockRef.current = false
     completionLockRef.current = false
@@ -559,6 +565,7 @@ const LugandaLearningGame: React.FC = () => {
     setSelectedOption(option)
 
     if (option === currentWord.english) {
+      childHaptics.success()
       // Correct answer
       const scoreAfterAnswer = levelScore + 10
       setIsCorrect(true)
@@ -599,6 +606,7 @@ const LugandaLearningGame: React.FC = () => {
         nextWord(scoreAfterAnswer)
       }, 1500)
     } else {
+      childHaptics.error()
       // Wrong answer
       setIsCorrect(false)
       setShakingOption(option)
@@ -837,6 +845,7 @@ const LugandaLearningGame: React.FC = () => {
         setCompletedLevels(newCompletedLevelsState)
         setStages(currentLocalStagesState)
         updateUserStatsState(updatedUserStatsState)
+        childHaptics.success()
         setGameState("levelComplete")
         gameStartTime.current = Date.now()
       },

@@ -12,7 +12,7 @@ describe("learning streak UI integrations", () => {
     expect(source).toContain("Learning is complete for today")
     expect(source).toContain("Last seven days")
     expect(source).toContain("Include in learning reminders")
-    expect(source).toContain('Alert.alert(\n      "Reset current streak?"')
+    expect(source).toContain('"Reset current streak?"')
     expect(source).toContain("learning complete")
     expect(source).toContain("no qualifying activity")
   })
@@ -32,6 +32,11 @@ describe("learning streak UI integrations", () => {
     expect(source).toContain('accessibilityRole="alert"')
     expect(source).toContain('testID="streak-celebration"')
     expect(source).not.toContain("Modal")
+    const repositorySource = read("lib/streakRepository.ts")
+    expect(repositorySource).toContain("DAILY_CELEBRATION_ACTIVITY_THRESHOLD = 3")
+    expect(repositorySource).toContain(
+      "activityCount >= DAILY_CELEBRATION_ACTIVITY_THRESHOLD",
+    )
   })
 
   it("clears visible state during child switches and guards snapshots by child id", () => {

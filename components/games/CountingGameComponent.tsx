@@ -41,6 +41,7 @@ import {
   type LocalPersistenceStatus,
 } from "@/lib/completionReliability"
 import { recordQualifiedStreakActivity } from "@/lib/streakRepository"
+import { childHaptics } from "@/lib/childHaptics"
 import { Text } from "@/components/StyledText"
 import {
   type CountingGameProgress,
@@ -439,6 +440,7 @@ const LugandaCountingGame: React.FC = () => {
         }
 
         completionRevision = updateProgressState(savedProgress)
+        childHaptics.success()
         setStageCompleted(true)
       },
       runBestEffortNetworkWork: async (savedProgress, persistence) => {
@@ -829,6 +831,9 @@ const LugandaCountingGame: React.FC = () => {
     if (isAnswerCorrect && correctAnswerLockRef.current) return
     if (isAnswerCorrect) {
       correctAnswerLockRef.current = true
+      childHaptics.success()
+    } else {
+      childHaptics.error()
     }
 
     setSelectedCount(number)
@@ -1129,6 +1134,7 @@ const LugandaCountingGame: React.FC = () => {
 
   const selectStage = (stageId: number) => {
     if (isStageUnlocked(progress, stageId)) {
+      childHaptics.tap()
       clearGameTimers()
       correctAnswerLockRef.current = false
       stageCompletionLockRef.current = false
@@ -1155,6 +1161,7 @@ const LugandaCountingGame: React.FC = () => {
   }
 
   const continueStage = () => {
+    childHaptics.tap()
     // Continue with current stage
     setStageCompleted(false)
     setShowFeedback(false)

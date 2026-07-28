@@ -9,6 +9,7 @@ import { useRouter } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { TranslatedText } from "@/components/translated-text"
 import { audioManager } from "@/lib/audioManager"
+import { childHaptics } from "@/lib/childHaptics"
 
 export default function InstrumentsScreen() {
   const [sound, setSound] = useState<Audio.Sound | null>(null)
@@ -131,6 +132,7 @@ export default function InstrumentsScreen() {
   }, [playingId, pulseAnim])
 
   async function playSound(audioFile: AVPlaybackSource, instrumentId: number | null) {
+    childHaptics.selection()
     // Stop previous sound if playing
     if (sound) {
       await audioManager.unloadAppSound(sound)
@@ -167,7 +169,10 @@ export default function InstrumentsScreen() {
       <View className="flex-row justify-between items-center px-4 pt-6 pb-2">
         <TouchableOpacity
           className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
-          onPress={() => router.back()}
+          onPress={() => {
+            childHaptics.tap()
+            router.back()
+          }}
         >
           <Ionicons name="arrow-back" size={20} color="#7b5af0" />
         </TouchableOpacity>
@@ -207,7 +212,10 @@ export default function InstrumentsScreen() {
                 }}
               >
                 <TouchableOpacity
-                  onPress={() => setSelectedInstrument(instrument)}
+                  onPress={() => {
+                    childHaptics.selection()
+                    setSelectedInstrument(instrument)
+                  }}
                   activeOpacity={0.7}
                   className="bg-white rounded-xl overflow-hidden shadow-sm border-2 border-indigo-100 h-full"
                 >
@@ -302,7 +310,10 @@ export default function InstrumentsScreen() {
                 {/* Close button */}
                 <TouchableOpacity
                   className="bg-primary-500 py-2.5 px-6 rounded-full shadow-sm border-2 border-primary-400"
-                  onPress={() => setSelectedInstrument(null)}
+                  onPress={() => {
+                    childHaptics.tap()
+                    setSelectedInstrument(null)
+                  }}
                   activeOpacity={0.8}
                 >
                   <TranslatedText variant="bold" className="text-white">

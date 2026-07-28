@@ -44,6 +44,7 @@ import {
   type LocalPersistenceStatus,
 } from "@/lib/completionReliability";
 import { recordQualifiedStreakActivity } from "@/lib/streakRepository";
+import { childHaptics } from "@/lib/childHaptics";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   GameHeader,
@@ -702,6 +703,7 @@ const PuzzleGame: React.FC = () => {
     const isAdjacent = Math.abs(tr - er) + Math.abs(tc - ec) === 1;
 
     if (isAdjacent) {
+      childHaptics.selection();
       void audioManager.replayAppSound(soundEffects.tileMove).catch((error) => {
         console.warn("Could not play the Puzzle move sound:", error);
       });
@@ -740,6 +742,8 @@ const PuzzleGame: React.FC = () => {
         );
       });
       setMoves(m => m + 1);
+    } else {
+      childHaptics.warning();
     }
   };
 
@@ -778,6 +782,7 @@ const PuzzleGame: React.FC = () => {
       const revealPuzzleCompletion = (savedProgress: PuzzleGameProgress) => {
         if (!isMountedRef.current) return;
         setPuzzleProgress(savedProgress);
+        childHaptics.success();
         setIsComplete(true);
         void audioManager.replayAppSound(soundEffects.success).catch((error) => {
           console.warn("Could not play the Puzzle completion sound:", error);
@@ -893,6 +898,7 @@ const PuzzleGame: React.FC = () => {
   };
 
   const handleReset = () => {
+    childHaptics.tap();
     // Reset gameStartTime
     clearPendingTimers();
     gameStartTime.current = Date.now();

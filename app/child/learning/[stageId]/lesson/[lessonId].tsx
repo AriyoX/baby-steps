@@ -51,6 +51,7 @@ import {
   getLearningStageAccessState,
 } from "@/lib/learningStageAccess";
 import { recordQualifiedStreakActivity } from "@/lib/streakRepository";
+import { childHaptics } from "@/lib/childHaptics";
 
 const getRouteParam = (value: unknown): string => {
   if (Array.isArray(value)) {
@@ -121,7 +122,10 @@ const LessonState = ({
             </Text>
             <TouchableOpacity
               className="bg-primary-600 rounded-full px-7 py-3"
-              onPress={onButtonPress}
+              onPress={() => {
+                childHaptics.tap();
+                onButtonPress();
+              }}
               accessibilityRole="button"
               accessibilityLabel={buttonLabel}
             >
@@ -409,6 +413,12 @@ export default function LearningLessonSessionScreen() {
 
   const handleItemComplete = useCallback(
     (result: ItemResult) => {
+      if (result.correct === false) {
+        childHaptics.error();
+      } else {
+        childHaptics.success();
+      }
+
       const nextResults = [
         ...resultsRef.current.filter((itemResult) => itemResult.itemId !== result.itemId),
         result,
@@ -613,7 +623,10 @@ export default function LearningLessonSessionScreen() {
                 </Text>
                 <TouchableOpacity
                   className="bg-primary-600 rounded-full px-7 py-3"
-                  onPress={goBackToStagePath}
+                  onPress={() => {
+                    childHaptics.tap();
+                    goBackToStagePath();
+                  }}
                   accessibilityRole="button"
                   accessibilityLabel={t("common.continue")}
                 >
@@ -652,7 +665,10 @@ export default function LearningLessonSessionScreen() {
                   height: headerButtonSize,
                   width: headerButtonSize,
                 }}
-                onPress={goBackToStagePath}
+                onPress={() => {
+                  childHaptics.tap();
+                  goBackToStagePath();
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={t("learning.backToLessons")}
               >
@@ -713,7 +729,10 @@ export default function LearningLessonSessionScreen() {
                 <TouchableOpacity
                   className="rounded-full bg-white items-center justify-center border-2 border-accent-500 ml-2"
                   style={{ height: headerButtonSize, width: headerButtonSize }}
-                  onPress={lessonTour.open}
+                  onPress={() => {
+                    childHaptics.tap();
+                    lessonTour.open();
+                  }}
                   accessibilityRole="button"
                   accessibilityLabel="Show lesson guide"
                 >

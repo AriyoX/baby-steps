@@ -12,6 +12,7 @@ import type {
   ItemResult,
 } from "@/content/learningHubTypes";
 import { MechanicScreenFrame } from "./MechanicScreenFrame";
+import { childHaptics } from "@/lib/childHaptics";
 
 type ChooseCorrectWordCardProps = {
   item: ChooseCorrectWordItem;
@@ -79,10 +80,12 @@ export function ChooseCorrectWordCard({
     setSelectedOptionId(optionId);
 
     if (optionId === item.correctOptionId) {
+      childHaptics.success();
       setAnswerState("correct");
       return;
     }
 
+    childHaptics.error();
     setAnswerState("incorrect");
   };
 

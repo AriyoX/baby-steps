@@ -244,13 +244,16 @@ describe("local-first child streak repository", () => {
     expect(recovered?.epochs).toHaveLength(1)
   })
 
-  it("records one day per epoch, deduplicates completion receipts, and celebrates once", async () => {
+  it("records one day per epoch, deduplicates receipts, and celebrates after three activities", async () => {
     const celebrations: unknown[] = []
     const unsubscribe = subscribeToStreakCelebrations((event) => celebrations.push(event))
 
     const first = await completion("counting:session-1")
     const duplicate = await completion("counting:session-1")
     const secondActivity = await completion("story:session-2", "2026-07-19T10:00:00.000Z")
+    expect(celebrations).toHaveLength(0)
+    const thirdActivity = await completion("learning:session-3", "2026-07-19T11:00:00.000Z")
+    await completion("coloring:session-4", "2026-07-19T12:00:00.000Z")
     unsubscribe()
 
     expect(first.recorded).toBe(true)
@@ -262,11 +265,19 @@ describe("local-first child streak repository", () => {
     }))
     expect(secondActivity.recorded).toBe(true)
     expect(secondActivity.firstLocalQualification).toBe(false)
+    expect(thirdActivity.recorded).toBe(true)
+    expect(thirdActivity.firstLocalQualification).toBe(false)
     expect(secondActivity.snapshot?.days).toHaveLength(1)
     expect(secondActivity.snapshot?.days[0].firstCompletedAt).toBe("2026-07-19T09:00:00.000Z")
     expect(secondActivity.snapshot?.days[0].lastCompletedAt).toBe("2026-07-19T10:00:00.000Z")
     expect(secondActivity.snapshot?.summary.currentStreak).toBe(1)
-    expect(celebrations).toHaveLength(1)
+    expect(celebrations).toEqual([
+      expect.objectContaining({
+        childId: "child-1",
+        activityCount: 3,
+        currentStreak: 1,
+      }),
+    ])
   })
 
   it("uses explicit epoch boundaries for disable, re-enable, and same-day reset", async () => {

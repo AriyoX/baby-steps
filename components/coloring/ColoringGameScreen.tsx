@@ -74,6 +74,7 @@ import {
   updateActivityProgress,
 } from "@/lib/progressRepository"
 import { recordQualifiedStreakActivity } from "@/lib/streakRepository"
+import { childHaptics } from "@/lib/childHaptics"
 
 interface ColoringGameProps {
   imageSource: number
@@ -361,6 +362,7 @@ export default function ColoringGameScreen({
   }, [imageSource, pageName])
 
   const changeCanvasZoom = useCallback((direction: -1 | 1) => {
+    childHaptics.selection()
     const nextZoom = stepCanvasZoom(canvasZoomRef.current, direction)
     const nextOffset = clampCanvasOffset(
       canvasOffsetRef.current,
@@ -381,6 +383,7 @@ export default function ColoringGameScreen({
 
   const toggleCanvasMoveMode = useCallback(() => {
     if (canvasZoomRef.current === 1) return
+    childHaptics.selection()
     const nextMoveMode = !canvasMoveModeRef.current
     canvasMoveModeRef.current = nextMoveMode
     setIsCanvasMoveMode(nextMoveMode)
@@ -413,6 +416,7 @@ export default function ColoringGameScreen({
 
     markSequenceRef.current += 1
     const type = toolRef.current === "stamp" ? "stamp" : "stroke"
+    if (type === "stamp") childHaptics.tap()
     const markPoints = type === "stamp" ? [points[0]] : points
     updateHistory((current) =>
       commitColoringMark(current, {
@@ -497,6 +501,7 @@ export default function ColoringGameScreen({
 
   const usedColorCount = getUsedColorCount(history.marks)
   const requestExit = useCallback(() => {
+    childHaptics.tap()
     if (historyRef.current.marks.length === 0) {
       router.back()
       return
@@ -522,12 +527,16 @@ export default function ColoringGameScreen({
 
   const clearCanvas = () => {
     if (history.marks.length === 0) return
+    childHaptics.warning()
     Alert.alert("Start this picture again?", "You can undo this if you change your mind.", [
       { text: "Not yet", style: "cancel" },
       {
         text: "Clear colors",
         style: "destructive",
-        onPress: () => updateHistory(clearColoringHistory),
+        onPress: () => {
+          childHaptics.tap()
+          updateHistory(clearColoringHistory)
+        },
       },
     ])
   }
@@ -535,6 +544,7 @@ export default function ColoringGameScreen({
   const ensureSavePermission = async (): Promise<boolean> => {
     const isAvailable = await MediaLibrary.isAvailableAsync()
     if (!isAvailable) {
+      childHaptics.warning()
       Alert.alert(
         "Saving is not available",
         "This device cannot add pictures to its photo gallery. Your colors will stay on screen while the app remains open.",
@@ -557,6 +567,7 @@ export default function ColoringGameScreen({
         : "Ask a grown-up to allow photo saving in the device settings, then try again.",
       [{ text: "Keep coloring", style: "cancel" }],
     )
+    childHaptics.warning()
     return false
   }
 
@@ -593,6 +604,7 @@ export default function ColoringGameScreen({
 
   const saveToGallery = async () => {
     if (history.marks.length === 0) {
+      childHaptics.warning()
       Alert.alert("Add a little color first", "Make a few marks, then save your masterpiece.")
       return
     }
@@ -638,8 +650,10 @@ export default function ColoringGameScreen({
             : `Your ${pageName} picture is now in ${destination}.`,
         [{ text: "Keep creating" }],
       )
+      childHaptics.success()
       showCelebration("Masterpiece saved!")
     } catch (error) {
+      childHaptics.error()
       console.error("Could not save coloring artwork:", error)
       Alert.alert(
         "That picture did not save",
@@ -663,6 +677,7 @@ export default function ColoringGameScreen({
         accessibilityLabel={`${label} tool`}
         accessibilityState={{ selected }}
         onPress={() => {
+          childHaptics.selection()
           canvasMoveModeRef.current = false
           setIsCanvasMoveMode(false)
           setSelectedTool(tool)
@@ -735,7 +750,10 @@ export default function ColoringGameScreen({
           <TouchableOpacity
             accessibilityRole="button"
             accessibilityLabel="Show coloring guide"
-            onPress={coloringTour.open}
+            onPress={() => {
+              childHaptics.tap()
+              coloringTour.open()
+            }}
             style={[styles.roundAction, isSmallPhone && styles.smallPhoneHeaderButton]}
           >
             <Ionicons name="help-circle-outline" size={21} color={brandColors.blue[700]} />
@@ -745,7 +763,10 @@ export default function ColoringGameScreen({
             accessibilityLabel={t("common.undo")}
             accessibilityState={{ disabled: history.undoStack.length === 0 }}
             disabled={history.undoStack.length === 0 || exportAction !== null}
-            onPress={() => updateHistory(undoColoringHistory)}
+            onPress={() => {
+              childHaptics.selection()
+              updateHistory(undoColoringHistory)
+            }}
             style={[
               styles.roundAction,
               isSmallPhone && styles.smallPhoneHeaderButton,
@@ -759,7 +780,10 @@ export default function ColoringGameScreen({
             accessibilityLabel={t("common.redo")}
             accessibilityState={{ disabled: history.redoStack.length === 0 }}
             disabled={history.redoStack.length === 0 || exportAction !== null}
-            onPress={() => updateHistory(redoColoringHistory)}
+            onPress={() => {
+              childHaptics.selection()
+              updateHistory(redoColoringHistory)
+            }}
             style={[
               styles.roundAction,
               isSmallPhone && styles.smallPhoneHeaderButton,
@@ -949,7 +973,10 @@ export default function ColoringGameScreen({
                 accessibilityLabel="Zoom out"
                 accessibilityState={{ disabled: canvasZoom === 1 }}
                 disabled={canvasZoom === 1 || exportAction !== null}
-                onPress={() => changeCanvasZoom(-1)}
+                onPress={() => {
+                  childHaptics.selection()
+                  changeCanvasZoom(-1)
+                }}
                 style={[styles.zoomButton, canvasZoom === 1 && styles.disabledAction]}
               >
                 <Ionicons name="remove" size={23} color={brandColors.blue[700]} />
@@ -987,7 +1014,10 @@ export default function ColoringGameScreen({
                 accessibilityLabel="Zoom in"
                 accessibilityState={{ disabled: canvasZoom === 3 }}
                 disabled={canvasZoom === 3 || exportAction !== null}
-                onPress={() => changeCanvasZoom(1)}
+                onPress={() => {
+                  childHaptics.selection()
+                  changeCanvasZoom(1)
+                }}
                 style={[styles.zoomButton, canvasZoom === 3 && styles.disabledAction]}
               >
                 <Ionicons name="add" size={23} color={brandColors.blue[700]} />
@@ -1011,6 +1041,7 @@ export default function ColoringGameScreen({
                       accessibilityRole="button"
                       accessibilityLabel="Reload coloring picture"
                       onPress={() => {
+                        childHaptics.tap()
                         setImageLoadFailed(false)
                         setImageLoaded(false)
                         setImageRetryKey((current) => current + 1)
@@ -1020,7 +1051,13 @@ export default function ColoringGameScreen({
                       <Ionicons name="refresh" size={17} color={brandColors.white} />
                       <Text variant="bold" style={styles.retryText}>{t("common.retry")}</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => router.back()} style={styles.chooseAnotherButton}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        childHaptics.tap()
+                        router.back()
+                      }}
+                      style={styles.chooseAnotherButton}
+                    >
                       <Text variant="bold" style={styles.chooseAnotherText}>{t("coloring.chooseAnother")}</Text>
                     </TouchableOpacity>
                   </View>
@@ -1087,6 +1124,7 @@ export default function ColoringGameScreen({
                   accessibilityState={{ selected: isSelected }}
                   hitSlop={isSmallPhone ? SMALL_PHONE_CONTROL_SIZE.colorHitSlop : undefined}
                   onPress={() => {
+                    childHaptics.selection()
                     canvasMoveModeRef.current = false
                     setIsCanvasMoveMode(false)
                     setSelectedColor(color)
@@ -1117,7 +1155,10 @@ export default function ColoringGameScreen({
               accessibilityLabel="Use a smaller brush"
               accessibilityState={{ disabled: brushSize === BRUSH_SIZES[0] }}
               disabled={brushSize === BRUSH_SIZES[0]}
-              onPress={() => setBrushSize((current) => stepBrushSize(current, -1))}
+              onPress={() => {
+                childHaptics.selection()
+                setBrushSize((current) => stepBrushSize(current, -1))
+              }}
               style={({ pressed }) => [
                 styles.sizeButton,
                 brushSize === BRUSH_SIZES[0] && styles.disabledAction,
@@ -1159,7 +1200,10 @@ export default function ColoringGameScreen({
               accessibilityLabel="Use a bigger brush"
               accessibilityState={{ disabled: brushSize === BRUSH_SIZES.at(-1) }}
               disabled={brushSize === BRUSH_SIZES.at(-1)}
-              onPress={() => setBrushSize((current) => stepBrushSize(current, 1))}
+              onPress={() => {
+                childHaptics.selection()
+                setBrushSize((current) => stepBrushSize(current, 1))
+              }}
               style={({ pressed }) => [
                 styles.sizeButton,
                 brushSize === BRUSH_SIZES.at(-1) && styles.disabledAction,

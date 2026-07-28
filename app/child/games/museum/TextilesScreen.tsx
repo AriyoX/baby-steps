@@ -17,6 +17,7 @@ import { useRouter } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { TranslatedText } from "@/components/translated-text"
 import { audioManager } from "@/lib/audioManager"
+import { childHaptics } from "@/lib/childHaptics"
 
 interface Textile {
   id: number
@@ -87,6 +88,7 @@ export default function TextilesScreen() {
   ]
 
   async function playSound(audioFile: AVPlaybackSource) {
+    childHaptics.selection()
     if (sound) {
       await audioManager.unloadAppSound(sound)
     }
@@ -113,7 +115,10 @@ export default function TextilesScreen() {
 
     return (
       <TouchableOpacity
-        onPress={() => setSelectedTextile(item)}
+        onPress={() => {
+          childHaptics.selection()
+          setSelectedTextile(item)
+        }}
         activeOpacity={0.7}
         className="bg-white rounded-xl overflow-hidden shadow-sm border-2 border-indigo-100 h-full"
         style={{
@@ -160,7 +165,10 @@ export default function TextilesScreen() {
         <View className="flex-row justify-between items-center px-4 pt-6 pb-2">
           <TouchableOpacity
             className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
-            onPress={() => router.back()}
+            onPress={() => {
+              childHaptics.tap()
+              router.back()
+            }}
           >
             <Ionicons name="arrow-back" size={20} color="#7b5af0" />
           </TouchableOpacity>
@@ -199,7 +207,10 @@ export default function TextilesScreen() {
               {textiles.slice(0, 2).map((textile) => (
                 <TouchableOpacity
                   key={`featured-${textile.id}`}
-                  onPress={() => setSelectedTextile(textile)}
+                  onPress={() => {
+                    childHaptics.selection()
+                    setSelectedTextile(textile)
+                  }}
                   activeOpacity={0.7}
                   className="flex-row bg-white rounded-xl overflow-hidden shadow-sm border border-indigo-100 mb-4"
                 >
@@ -266,7 +277,10 @@ export default function TextilesScreen() {
                   {/* Close button */}
                   <TouchableOpacity
                     className="bg-primary-500 py-2.5 px-6 rounded-full shadow-sm border-2 border-primary-400"
-                    onPress={() => setSelectedTextile(null)}
+                    onPress={() => {
+                      childHaptics.tap()
+                      setSelectedTextile(null)
+                    }}
                     activeOpacity={0.8}
                   >
                     <TranslatedText variant="bold" className="text-white">

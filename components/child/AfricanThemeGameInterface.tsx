@@ -71,6 +71,7 @@ import {
 } from "@/lib/coloringProgress"
 import type { ChildUiTranslationKey } from "@/lib/childUiTranslations"
 import { ChildHeaderStreak } from "@/components/child/ChildHeaderStreak"
+import { childHaptics } from "@/lib/childHaptics"
 
 type LearningCard = ChildActivityCardModel
 
@@ -105,7 +106,10 @@ const HeaderIconButton = ({
       typeof selected === "boolean" ? { selected } : undefined
     }
     activeOpacity={0.78}
-    onPress={onPress}
+    onPress={() => {
+      childHaptics.tap()
+      onPress()
+    }}
     style={[
       styles.headerIconButton,
       compact && styles.headerIconButtonCompact,
@@ -420,6 +424,7 @@ const AfricanThemeGameInterface: React.FC = () => {
   }, [])
 
   const handleParentalPress = () => {
+    childHaptics.tap()
     audioManager.speakAppText("For parents only", {
       language: "en",
       pitch: 1,
@@ -431,9 +436,11 @@ const AfricanThemeGameInterface: React.FC = () => {
   // Updated function to navigate to the card's target page with type assertion
   const handleCardPress = (card: LearningCard) => {
     if (card.disabled) {
+      childHaptics.warning()
       return
     }
 
+    childHaptics.tap()
     if (card.stageId) {
       router.push({
         pathname: "/child/learning/[stageId]",

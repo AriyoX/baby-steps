@@ -16,6 +16,7 @@ import {
   isValidLearningAudioAsset,
   resolveLearningAudioSource,
 } from "@/lib/audioAssets";
+import { childHaptics } from "@/lib/childHaptics";
 import { MechanicScreenFrame } from "./MechanicScreenFrame";
 
 type StoryBiteCardProps = {
@@ -81,9 +82,11 @@ export function StoryBiteCard({
 
   const replayPageAudio = useCallback(() => {
     if (!pageHasAudio || !audioResolution || audioReplayInFlightRef.current) {
+      if (!pageHasAudio || !audioResolution) childHaptics.warning();
       return;
     }
 
+    childHaptics.selection();
     audioReplayInFlightRef.current = true;
     setAudioLoadFailed(false);
 
@@ -92,6 +95,7 @@ export function StoryBiteCard({
 
       try {
         if (!sound) {
+          childHaptics.warning();
           setAudioLoadFailed(true);
           return;
         }
@@ -122,6 +126,7 @@ export function StoryBiteCard({
       return;
     }
 
+    childHaptics.selection();
     setAudioLoadFailed(false);
     setCurrentPageIndex((index) => {
       const nextIndex = Math.min(index + 1, pages.length - 1);

@@ -7,6 +7,7 @@ import { brandColors } from "@/constants/Brand"
 import { CHILD_TAB_ITEMS, type ChildTabId } from "@/constants/ChildNavigation"
 import { useChildUiLanguage } from "@/context/ChildUiLanguageContext"
 import type { ChildUiTranslationKey } from "@/lib/childUiTranslations"
+import { childHaptics } from "@/lib/childHaptics"
 
 const TAB_BAR_HEIGHT = 58
 const TAB_BAR_EDGE_GAP = 10
@@ -89,6 +90,9 @@ export default function TabLayout() {
         <Tabs.Screen
           key={item.id}
           name={item.id}
+          listeners={{
+            tabPress: () => childHaptics.selection(),
+          }}
           options={{
             href: item.href,
             title: t(item.labelKey),

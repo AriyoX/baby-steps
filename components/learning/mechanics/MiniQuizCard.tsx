@@ -10,6 +10,7 @@ import type {
   MiniQuizOption,
 } from "@/content/learningHubTypes";
 import { MechanicScreenFrame } from "./MechanicScreenFrame";
+import { childHaptics } from "@/lib/childHaptics";
 
 type MiniQuizCardProps = {
   item: MiniQuizItem;
@@ -78,6 +79,7 @@ export function MiniQuizCard({
     setSelectedOptionId(optionId);
 
     if (optionId === currentQuestion.correctOptionId) {
+      childHaptics.success();
       const correctQuestionIds = new Set(correctQuestionIdsRef.current);
       correctQuestionIds.add(currentQuestion.id);
       correctQuestionIdsRef.current = correctQuestionIds;
@@ -86,6 +88,7 @@ export function MiniQuizCard({
       return;
     }
 
+    childHaptics.error();
     setAnswerState("incorrect");
   };
 

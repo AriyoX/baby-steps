@@ -38,6 +38,7 @@ import { audioManager } from "@/lib/audioManager";
 import { recordQualifiedStreakActivity } from "@/lib/streakRepository";
 import { saveActivity } from "@/lib/utils";
 import type { LocalStory } from "@/content/types";
+import { childHaptics } from "@/lib/childHaptics";
 
 interface GenericStoryRendererProps {
   story?: LocalStory;
@@ -592,6 +593,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
         setHasCompletedStory(true);
         setHasSavedCompletion(true);
         stopReading();
+        childHaptics.success();
         setShowCompletionCard(true);
       }
       void Promise.allSettled([
@@ -610,6 +612,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
   };
 
   const finishStory = () => {
+    childHaptics.tap();
     void saveCompletion().catch((error) => {
       console.warn("Could not process story completion:", error);
     });
@@ -640,7 +643,10 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
       className={`flex-1 py-3 mx-1 rounded-xl border ${
         isSelected ? "bg-amber-700 border-amber-800" : "bg-white border-amber-200"
       }`}
-      onPress={onPress}
+      onPress={() => {
+        childHaptics.selection();
+        onPress();
+      }}
       accessibilityRole="button"
       accessibilityState={{ selected: isSelected }}
     >
@@ -976,12 +982,17 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                                     ? "bg-emerald-50 border-emerald-200"
                                     : "bg-amber-100 border-amber-200"
                               }`}
-                              onPress={() =>
+                              onPress={() => {
+                                if (isCorrect) {
+                                  childHaptics.success();
+                                } else {
+                                  childHaptics.error();
+                                }
                                 setSelectedAnswers((current) => ({
                                   ...current,
                                   [question.id]: optionIndex,
-                                }))
-                              }
+                                }));
+                              }}
                               accessibilityRole="button"
                             >
                               <Text
@@ -1027,7 +1038,10 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                   width: footerButtonSize,
                   height: footerButtonSize,
                 }}
-                onPress={() => setPageIndex((current) => Math.max(0, current - 1))}
+                onPress={() => {
+                  childHaptics.selection();
+                  setPageIndex((current) => Math.max(0, current - 1));
+                }}
                 disabled={pageIndex === 0}
                 accessibilityLabel={t("stories.previousPage")}
                 accessibilityRole="button"
@@ -1067,9 +1081,12 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                     paddingHorizontal: isCompactReader ? 20 : 24,
                     paddingVertical: isCompactReader ? 10 : 12,
                   }}
-                  onPress={() =>
-                    setPageIndex((current) => Math.min(story.pages.length - 1, current + 1))
-                  }
+                  onPress={() => {
+                    childHaptics.selection();
+                    setPageIndex((current) =>
+                      Math.min(story.pages.length - 1, current + 1),
+                    );
+                  }}
                   accessibilityRole="button"
                 >
                   <Text
@@ -1090,9 +1107,12 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                   width: footerButtonSize,
                   height: footerButtonSize,
                 }}
-                onPress={() =>
-                  setPageIndex((current) => Math.min(story.pages.length - 1, current + 1))
-                }
+                onPress={() => {
+                  childHaptics.selection();
+                  setPageIndex((current) =>
+                    Math.min(story.pages.length - 1, current + 1),
+                  );
+                }}
                 disabled={isLastPage}
                 accessibilityLabel={t("stories.nextPage")}
                 accessibilityRole="button"

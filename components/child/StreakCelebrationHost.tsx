@@ -6,6 +6,7 @@ import { brandColors } from "@/constants/Brand";
 import { useChildUiLanguage } from "@/context/ChildUiLanguageContext";
 import { useStreak } from "@/context/StreakContext";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { childHaptics } from "@/lib/childHaptics";
 
 export function StreakCelebrationHost() {
   const { celebration, dismissCelebration } = useStreak();
@@ -16,6 +17,8 @@ export function StreakCelebrationHost() {
 
   useEffect(() => {
     if (!celebration) return;
+
+    childHaptics.success();
 
     if (reduceMotion) {
       opacity.setValue(1);

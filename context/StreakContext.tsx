@@ -225,19 +225,33 @@ export function StreakProvider({ children }: { children: React.ReactNode }) {
     if (next) setSnapshot(next);
   }, [activeChildId]);
 
+  const dismissCelebration = useCallback(() => {
+    setCelebration(null);
+  }, []);
+
   const value = useMemo<StreakContextValue>(
     () => ({
       childId: activeChildId,
       snapshot: snapshot?.childId === activeChildId ? snapshot : null,
       isLoading,
       celebration,
-      dismissCelebration: () => setCelebration(null),
+      dismissCelebration,
       refresh: load,
       setEnabled,
       setIncludeInReminders,
       reset,
     }),
-    [activeChildId, celebration, isLoading, load, reset, setEnabled, setIncludeInReminders, snapshot],
+    [
+      activeChildId,
+      celebration,
+      dismissCelebration,
+      isLoading,
+      load,
+      reset,
+      setEnabled,
+      setIncludeInReminders,
+      snapshot,
+    ],
   );
 
   return <StreakContext.Provider value={value}>{children}</StreakContext.Provider>;

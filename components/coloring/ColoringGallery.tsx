@@ -32,6 +32,7 @@ import { useChild } from "@/context/ChildContext"
 import { useChildUiLanguage } from "@/context/ChildUiLanguageContext"
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation"
 import { audioManager } from "@/lib/audioManager"
+import { childHaptics } from "@/lib/childHaptics"
 import {
   COLORING_ACHIEVEMENTS,
   EMPTY_COLORING_PROGRESS,
@@ -102,10 +103,12 @@ export function ColoringGallery() {
   )
 
   const openCard = (card: ChildMenuCard) => {
+    childHaptics.selection()
     router.push(`/${card.targetPage}` as never)
   }
 
   const openParentGate = () => {
+    childHaptics.tap()
     audioManager.speakAppText("For parents only", {
       language: "en",
       pitch: 1,
@@ -145,7 +148,10 @@ export function ColoringGallery() {
             <TouchableOpacity
               accessibilityRole="button"
               accessibilityLabel={audioSettings.backgroundMusicMuted ? "Turn music on" : "Turn music off"}
-              onPress={toggleBackgroundMusicMuted}
+              onPress={() => {
+                childHaptics.selection()
+                toggleBackgroundMusicMuted()
+              }}
               style={styles.headerIconButton}
             >
               <Ionicons
@@ -157,7 +163,10 @@ export function ColoringGallery() {
             <TouchableOpacity
               accessibilityRole="button"
               accessibilityLabel={audioSettings.appSoundsMuted ? "Turn sounds on" : "Turn sounds off"}
-              onPress={toggleAppSoundsMuted}
+              onPress={() => {
+                childHaptics.selection()
+                toggleAppSoundsMuted()
+              }}
               style={styles.headerIconButton}
             >
               <Ionicons
@@ -349,7 +358,10 @@ export function ColoringGallery() {
                   <TouchableOpacity
                     accessibilityRole="button"
                     accessibilityLabel="Try loading coloring pages again"
-                    onPress={() => setRetrySequence((current) => current + 1)}
+                    onPress={() => {
+                      childHaptics.tap()
+                      setRetrySequence((current) => current + 1)
+                    }}
                     style={styles.tryAgainButton}
                   >
                     <Ionicons name="refresh" size={16} color={brandColors.white} />

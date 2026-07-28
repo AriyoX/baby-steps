@@ -56,7 +56,7 @@ export const CHILD_UI_ENGLISH = {
   "streak.days": "days",
   "streak.accessibilityLabel": "{count}-day learning streak",
   "streak.celebration": "You built a {count}-day learning streak!",
-  "streak.learningComplete": "Learning complete for today!",
+  "streak.learningComplete": "Three activities done — great work! You can keep exploring.",
   "reminders.title": "Learning reminders",
   "reminders.description": "One gentle reminder for eligible learners on this device.",
   "reminders.enable": "Learning reminders",

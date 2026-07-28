@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/StyledText";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { brandColors } from "@/constants/Brand";
+import { childHaptics } from "@/lib/childHaptics";
 
 interface ComingSoonStateProps {
   title?: string;
@@ -30,7 +31,10 @@ export function ComingSoonState({
       {showBackButton && (
         <TouchableOpacity
           className="absolute left-5 top-5 w-11 h-11 rounded-full bg-white items-center justify-center border border-muted-200 shadow-sm"
-          onPress={() => router.back()}
+          onPress={() => {
+            childHaptics.tap();
+            router.back();
+          }}
         >
           <Ionicons name="arrow-back" size={22} color={brandColors.victoriaBlue} />
         </TouchableOpacity>
@@ -48,7 +52,10 @@ export function ComingSoonState({
       {onRetry ? (
         <TouchableOpacity
           className="mt-6 rounded-full bg-primary-600 px-6 py-3"
-          onPress={onRetry}
+          onPress={() => {
+            childHaptics.tap();
+            onRetry();
+          }}
           accessibilityRole="button"
           accessibilityLabel={actionAccessibilityLabel}
         >

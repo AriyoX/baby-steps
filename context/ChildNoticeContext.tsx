@@ -27,6 +27,7 @@ import {
 } from "@/constants/Brand";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { useChildUiLanguage } from "@/context/ChildUiLanguageContext";
+import { childHaptics } from "@/lib/childHaptics";
 
 const DEFAULT_NOTICE_DURATION_MS = 4500;
 const CHILD_HEADER_CLEARANCE = 56;
@@ -142,6 +143,7 @@ export function ChildNoticeHost({ notice, onDismiss }: ChildNoticeHostProps) {
       return;
     }
 
+    childHaptics.success();
     isExitingRef.current = false;
     clearDismissTimer();
     animationRef.current?.stop();
@@ -250,7 +252,10 @@ export function ChildNoticeHost({ notice, onDismiss }: ChildNoticeHostProps) {
           accessibilityLabel="Dismiss achievement notice"
           accessibilityRole="button"
           hitSlop={{ bottom: 8, left: 8, right: 8, top: 8 }}
-          onPress={dismiss}
+          onPress={() => {
+            childHaptics.tap();
+            dismiss();
+          }}
           style={styles.closeButton}
           testID="dismiss-child-notice"
         >

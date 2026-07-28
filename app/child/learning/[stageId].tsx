@@ -36,6 +36,7 @@ import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientati
 import { useLearningHubContent } from "@/hooks/useLearningHubContent";
 import { useLearningHubProgress } from "@/hooks/useLearningHubProgress";
 import { getLearningProgressChildId } from "@/lib/learningProgressRepository";
+import { childHaptics } from "@/lib/childHaptics";
 import {
   getLearningLessonAccessStates,
   getLearningStageAccessState,
@@ -366,6 +367,7 @@ export default function LearningStagePathScreen() {
   const lessonListEndPadding = Math.max(16, landscapeWidth - lessonCardWidth - 48);
 
   const goBackToLearning = () => {
+    childHaptics.tap();
     if (router.canGoBack()) {
       router.back();
       return;
@@ -382,6 +384,7 @@ export default function LearningStagePathScreen() {
       return;
     }
 
+    childHaptics.selection();
     router.push({
       pathname: "/child/learning/[stageId]/lesson/[lessonId]",
       params: { stageId: stage.id, lessonId: lesson.id },
@@ -490,7 +493,10 @@ export default function LearningStagePathScreen() {
               <View className="flex-row items-center">
                 <TouchableOpacity
                   className="w-12 h-12 rounded-full bg-white items-center justify-center border-2 border-accent-500 mr-2"
-                  onPress={stageTour.open}
+                  onPress={() => {
+                    childHaptics.tap();
+                    stageTour.open();
+                  }}
                   accessibilityRole="button"
                   accessibilityLabel="Show lesson path guide"
                 >

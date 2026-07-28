@@ -35,6 +35,7 @@ import {
   type LocalPersistenceStatus,
 } from "@/lib/completionReliability";
 import { recordQualifiedStreakActivity } from "@/lib/streakRepository";
+import { childHaptics } from "@/lib/childHaptics";
 import {
   WordGameProgress,
   DEFAULT_PROGRESS,
@@ -901,6 +902,7 @@ const WordGame: React.FC = () => {
     // Check if word is complete
     if (!newDisplay.includes("_")) {
       completionLockRef.current = null;
+      childHaptics.success();
 
       // Play success sound
       if (successSound) {
@@ -954,6 +956,7 @@ const WordGame: React.FC = () => {
       }
 
       if (remainingOccurrences > 0) {
+        childHaptics.selection();
         if (correctSound) {
           void audioManager.replayAppSound(correctSound).catch((error) => {
             console.warn("Could not replay Word Game correct sound:", error);
@@ -978,6 +981,7 @@ const WordGame: React.FC = () => {
           animateLetterToWord(letter, letterIndex, positions[0]);
         }
       } else {
+        childHaptics.error();
         if (wrongSound) {
           void audioManager.replayAppSound(wrongSound).catch((error) => {
             console.warn("Could not replay Word Game wrong sound:", error);
@@ -985,6 +989,7 @@ const WordGame: React.FC = () => {
         }
       }
     } else {
+      childHaptics.error();
       if (wrongSound) {
         void audioManager.replayAppSound(wrongSound).catch((error) => {
           console.warn("Could not replay Word Game wrong sound:", error);

@@ -45,6 +45,7 @@ import {
   type LocalPersistenceStatus,
 } from "@/lib/completionReliability";
 import { recordQualifiedStreakActivity } from "@/lib/streakRepository";
+import { childHaptics } from "@/lib/childHaptics";
 import { getCardsMatchingGridSizing } from "./responsiveSizing";
 import {
   GameHeader,
@@ -655,7 +656,10 @@ const CardsMatchingGame: React.FC = () => {
   const trackGameCompletion = (completedMoves: number): Promise<void> =>
     runCompletionOnce(completionWorkRef, async () => {
       if (!activeChild) {
-        if (isMountedRef.current) setGameOver(true);
+        if (isMountedRef.current) {
+          childHaptics.success();
+          setGameOver(true);
+        }
         return;
       }
 
@@ -674,7 +678,10 @@ const CardsMatchingGame: React.FC = () => {
         persistGamesPlayed: () => incrementGamesPlayed(childId),
         clearPersistedGame: () => clearGameState(childId, languageCode),
         revealCompletion: () => {
-          if (isMountedRef.current) setGameOver(true);
+          if (isMountedRef.current) {
+            childHaptics.success();
+            setGameOver(true);
+          }
         },
         evaluateAchievements: async () => {
           const newlyEarnedFromEvent = await checkAndGrantNewAchievements(achievementEvent);
@@ -721,6 +728,7 @@ const CardsMatchingGame: React.FC = () => {
     // This lock is synchronous so a second tap cannot enter while sound playback
     // is awaiting or before React has rendered the first flipped card.
     cardPressLockRef.current = true;
+    childHaptics.selection();
     try {
       try {
         await audioManager.playAppSound(require("@/assets/audio/page-turn.mp3"));
@@ -763,6 +771,7 @@ const CardsMatchingGame: React.FC = () => {
         setMoves(completedMoves);
 
         if (isMatch) {
+          childHaptics.success();
           scheduleTimer(() => {
             void (async () => {
               if (!isMountedRef.current) return;
@@ -897,6 +906,7 @@ const CardsMatchingGame: React.FC = () => {
             });
           }, 500);
         } else {
+          childHaptics.error();
           scheduleTimer(() => {
             if (!isMountedRef.current) return;
 

@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { ScrollView, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { Text } from "@/components/StyledText";
 import { brandColors } from "@/constants/Brand";
+import { childHaptics } from "@/lib/childHaptics";
 
 export type ChildCompletionMetric = {
   label: string;
@@ -174,7 +175,10 @@ export function ChildCompletionCard({
                 accessibilityState={{ disabled: Boolean(action.disabled) }}
                 activeOpacity={0.76}
                 disabled={action.disabled}
-                onPress={action.onPress}
+                onPress={() => {
+                  childHaptics.tap();
+                  action.onPress();
+                }}
                 className="rounded-full border-2 flex-row items-center justify-center"
                 style={{
                   backgroundColor: colors.backgroundColor,

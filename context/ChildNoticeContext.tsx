@@ -16,6 +16,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ShanaPortrait } from "@/components/brand/ShanaPortrait";
 import { Text } from "@/components/StyledText";
 import type { AchievementDefinition } from "@/components/games/achievements/achievementTypes";
 import {
@@ -211,15 +212,25 @@ export function ChildNoticeHost({ notice, onDismiss }: ChildNoticeHostProps) {
         ]}
         testID="achievement-unlocked-notice"
       >
-        <View style={styles.badge}>
-          <Ionicons
-            name={
-              (achievement.icon_name as keyof typeof Ionicons.glyphMap) ||
-              "star-outline"
-            }
-            size={27}
-            color={brandColors.white}
+        <View style={styles.mascotSpotlight}>
+          <View style={styles.mascotHalo} />
+          <ShanaPortrait
+            accessible={false}
+            importantForAccessibility="no"
+            variant="celebrate"
+            width={64}
+            height={82}
           />
+          <View style={styles.badge}>
+            <Ionicons
+              name={
+                (achievement.icon_name as keyof typeof Ionicons.glyphMap) ||
+                "star-outline"
+              }
+              size={16}
+              color={brandColors.white}
+            />
+          </View>
         </View>
         <View style={styles.copy}>
           <Text variant="bold" style={styles.kicker}>
@@ -394,23 +405,26 @@ const styles = StyleSheet.create({
     elevation: 10,
     flexDirection: "row",
     maxWidth: 520,
-    minHeight: 78,
-    paddingBottom: 11,
-    paddingLeft: 12,
+    minHeight: 94,
+    overflow: "hidden",
+    paddingBottom: 10,
+    paddingLeft: 8,
     paddingRight: 8,
-    paddingTop: 11,
+    paddingTop: 10,
     width: "100%",
   },
   badge: {
     alignItems: "center",
     backgroundColor: brandColors.shanaOrange,
-    borderColor: brandColors.orange[200],
+    borderColor: brandColors.white,
     borderRadius: brandRadius.pill,
-    borderWidth: 2,
-    height: 50,
+    borderWidth: 2.5,
+    bottom: 2,
+    height: 29,
     justifyContent: "center",
-    marginRight: 12,
-    width: 50,
+    position: "absolute",
+    right: 1,
+    width: 29,
   },
   copy: {
     flex: 1,
@@ -444,5 +458,22 @@ const styles = StyleSheet.create({
     height: 32,
     justifyContent: "center",
     width: 32,
+  },
+  mascotHalo: {
+    backgroundColor: brandColors.gold[50],
+    borderColor: brandColors.gold[200],
+    borderRadius: brandRadius.pill,
+    borderWidth: 1,
+    height: 66,
+    position: "absolute",
+    width: 66,
+  },
+  mascotSpotlight: {
+    alignItems: "center",
+    height: 82,
+    justifyContent: "center",
+    marginRight: 10,
+    position: "relative",
+    width: 74,
   },
 });

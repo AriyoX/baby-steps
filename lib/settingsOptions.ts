@@ -27,21 +27,21 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     entries: [
       {
         title: "Account",
-        description: "Manage parent account details and sign-in options.",
+        description: "Update your name, email, password, or sign-in.",
         icon: "person-circle-outline",
         iconColor: "#2563EB",
         route: "/parent/settings/account",
       },
       {
         title: "Child Profiles",
-        description: "View, add, edit, or archive learner profiles.",
+        description: "See, add, or change your children's profiles.",
         icon: "people-outline",
         iconColor: "#F97316",
         route: "/parent/settings/child-profiles",
       },
       {
         title: "Parent Access PIN",
-        description: "Set, change, or review the PIN used to leave child mode.",
+        description: "Choose the PIN that protects parent-only areas.",
         icon: "keypad-outline",
         iconColor: "#7C3AED",
         route: "/parent/settings/parent-pin",
@@ -53,14 +53,14 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     entries: [
       {
         title: "Audio",
-        description: "Adjust music, sounds, and background tracks.",
+        description: "Choose the music, sounds, and volume.",
         icon: "volume-high-outline",
         iconColor: "#D97706",
         route: "/parent/settings/audio",
       },
       {
         title: "Notifications",
-        description: "Manage reminders and learning updates.",
+        description: "Choose when Baby Steps reminds you.",
         icon: "notifications-outline",
         iconColor: "#059669",
         route: "/parent/settings/notifications",
@@ -72,21 +72,21 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     entries: [
       {
         title: "Privacy & Safety",
-        description: "Review family privacy, safety, and deletion information.",
+        description: "See how your family's information is kept safe.",
         icon: "shield-checkmark-outline",
         iconColor: "#0891B2",
         route: "/parent/settings/privacy-safety",
       },
       {
         title: "Help & Support",
-        description: "Get help with accounts, deletion requests, and app questions.",
+        description: "Find answers or contact us for help.",
         icon: "help-circle-outline",
         iconColor: "#4F46E5",
         route: "/parent/settings/help-support",
       },
       {
         title: "About Baby Steps",
-        description: "See app version, policies, and Baby Steps information.",
+        description: "Learn about Baby Steps and read our policies.",
         icon: "information-circle-outline",
         iconColor: "#475569",
         route: "/parent/settings/about",

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import { ScrollView, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -11,6 +11,8 @@ import { brandColors } from "@/constants/Brand";
 interface SettingsScaffoldProps {
   title: string;
   children: ReactNode;
+  headerAction?: ReactNode;
+  scrollRef?: RefObject<ScrollView | null>;
   showBrandIcon?: boolean;
   scroll?: boolean;
 }
@@ -18,12 +20,18 @@ interface SettingsScaffoldProps {
 export function SettingsScaffold({
   title,
   children,
+  headerAction,
+  scrollRef,
   showBrandIcon = false,
   scroll = true,
 }: SettingsScaffoldProps) {
   const router = useRouter();
   const content = scroll ? (
-    <ScrollView className="flex-1 px-4" contentContainerStyle={{ paddingBottom: 32 }}>
+    <ScrollView
+      ref={scrollRef}
+      className="flex-1 px-4"
+      contentContainerStyle={{ paddingBottom: 32 }}
+    >
       {children}
     </ScrollView>
   ) : (
@@ -46,9 +54,10 @@ export function SettingsScaffold({
           {showBrandIcon ? (
             <BrandMark kind="icon" width={32} height={32} containerStyle={{ marginRight: 10 }} />
           ) : null}
-          <Text variant="bold" className="text-xl text-neutral-800">
+          <Text variant="bold" className="flex-1 text-xl text-neutral-800">
             {title}
           </Text>
+          {headerAction}
         </View>
         {content}
       </SafeAreaView>

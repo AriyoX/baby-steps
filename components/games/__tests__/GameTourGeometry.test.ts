@@ -5,12 +5,14 @@ import {
   getTourSpotlightPath,
   getTourTooltipSize,
   isTourTargetVisible,
+  isTourOrientationReady,
 } from "@/components/games/GameTour"
 
 describe("shared game tour vertical alignment", () => {
-  it("adds the Android status bar and shared tuning offset", () => {
+  it("adds the Android status bar only when a parent screen opts in", () => {
     expect(
       getModalCoordinateOffsetY({
+        includeAndroidStatusBarOffset: true,
         platform: "android",
         safeAreaTop: 18,
         statusBarHeight: 24,
@@ -21,11 +23,22 @@ describe("shared game tour vertical alignment", () => {
   it("uses the safe-area top when Android has no status bar height", () => {
     expect(
       getModalCoordinateOffsetY({
+        includeAndroidStatusBarOffset: true,
         platform: "android",
         safeAreaTop: 18,
         statusBarHeight: undefined,
       }),
     ).toBe(18 + GAME_TOUR_LAYOUT.androidSpotlightOffsetY)
+  })
+
+  it("keeps fullscreen child targets in the same window coordinate system", () => {
+    expect(
+      getModalCoordinateOffsetY({
+        platform: "android",
+        safeAreaTop: 18,
+        statusBarHeight: 24,
+      }),
+    ).toBe(GAME_TOUR_LAYOUT.androidSpotlightOffsetY)
   })
 
   it("does not alter iOS coordinates", () => {
@@ -42,6 +55,7 @@ describe("shared game tour vertical alignment", () => {
     expect(
       getModalCoordinateOffsetY({
         androidSpotlightOffsetY: 0,
+        includeAndroidStatusBarOffset: true,
         platform: "android",
         safeAreaTop: 18,
         statusBarHeight: 24,
@@ -50,11 +64,20 @@ describe("shared game tour vertical alignment", () => {
     expect(
       getModalCoordinateOffsetY({
         androidSpotlightOffsetY: 30,
+        includeAndroidStatusBarOffset: true,
         platform: "ios",
         safeAreaTop: 18,
         statusBarHeight: 24,
       }),
     ).toBe(0)
+  })
+
+  it("allows parent portrait and child landscape tours explicitly", () => {
+    expect(isTourOrientationReady("portrait", 390, 844)).toBe(true)
+    expect(isTourOrientationReady("portrait", 844, 390)).toBe(false)
+    expect(isTourOrientationReady("landscape", 844, 390)).toBe(true)
+    expect(isTourOrientationReady("landscape", 390, 844)).toBe(false)
+    expect(isTourOrientationReady("any", 390, 844)).toBe(true)
   })
 
   it("accepts consecutive target measurements within the stability tolerance", () => {

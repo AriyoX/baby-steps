@@ -3,7 +3,10 @@ import React from "react"
 import { View } from "react-native"
 import renderer, { act } from "react-test-renderer"
 
-import { useGameTour } from "@/components/games/GameTour"
+import {
+  resetGameTourAutomaticOpenAttempts,
+  useGameTour,
+} from "@/components/games/GameTour"
 import { getGameGuideStorageKey, type GameGuideId } from "@/lib/gameGuide"
 
 type TourState = ReturnType<typeof useGameTour>
@@ -12,12 +15,14 @@ let latestTour: TourState | undefined
 
 function TourStateHarness({
   childId = "child-1",
+  enabled = true,
   guideId = "word",
 }: {
   childId?: string
+  enabled?: boolean
   guideId?: GameGuideId
 }) {
-  latestTour = useGameTour(guideId, childId)
+  latestTour = useGameTour(guideId, childId, enabled)
   return <View />
 }
 
@@ -37,6 +42,7 @@ describe("shared game tour state", () => {
   beforeEach(async () => {
     latestTour = undefined
     jest.clearAllMocks()
+    resetGameTourAutomaticOpenAttempts()
     await AsyncStorage.clear()
   })
 
@@ -123,5 +129,34 @@ describe("shared game tour state", () => {
     ).toBe("seen")
 
     act(() => tree.unmount())
+  })
+
+  it("does not automatically reopen an unavailable tour when its screen is focused again", async () => {
+    const tree = await renderTourState()
+
+    expect(latestTour?.visible).toBe(true)
+    act(() => latestTour?.close())
+    expect(latestTour?.visible).toBe(false)
+
+    await act(async () => {
+      tree.update(<TourStateHarness enabled={false} />)
+      await Promise.resolve()
+    })
+    await act(async () => {
+      tree.update(<TourStateHarness enabled />)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(latestTour?.visible).toBe(false)
+
+    act(() => tree.unmount())
+    const remountedTree = await renderTourState()
+    expect(latestTour?.visible).toBe(false)
+
+    act(() => latestTour?.open())
+    expect(latestTour?.visible).toBe(true)
+
+    act(() => remountedTree.unmount())
   })
 })

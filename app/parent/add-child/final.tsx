@@ -32,9 +32,11 @@ export default function SubmitScreen() {
   const { activateChildMode } = useChild()
   const [isLoading, setIsLoading] = useState(true)
   const [isSuccess, setIsSuccess] = useState(false)
+  const [isStartingLearning, setIsStartingLearning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [savedChild, setSavedChild] = useState<SavedChildProfile | null>(null)
   const hasSubmitted = useRef(false)
+  const startLearningInFlight = useRef(false)
   const selectedLanguage = getLearningLanguage(selectedLanguageCode)
 
   const submitData = useCallback(async () => {
@@ -73,26 +75,34 @@ export default function SubmitScreen() {
   }
 
   const handleStartLearning = async () => {
-    if (!savedChild) return
+    if (!savedChild || startLearningInFlight.current) return
 
-    const { data } = await supabase.auth.getSession()
-    const accountId = data.session?.user.id
-    if (!accountId || !(await hasParentPin(accountId))) {
-      Alert.alert(
-        "Set a parent PIN first",
-        "A parent PIN is required before starting child mode.",
-        [
-          { text: "Not now", style: "cancel" },
-          {
-            text: "Set PIN",
-            onPress: () => router.push("/parent/settings/parent-pin" as any),
-          },
-        ],
-      )
-      return
-    }
-
+    startLearningInFlight.current = true
+    setIsStartingLearning(true)
     try {
+      const { data, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) throw sessionError
+
+      const accountId = data.session?.user.id
+      if (!accountId) {
+        throw new Error("The signed-in parent session was unavailable.")
+      }
+
+      if (!(await hasParentPin(accountId))) {
+        Alert.alert(
+          "Set a parent PIN first",
+          "A parent PIN is required before starting child mode.",
+          [
+            { text: "Not now", style: "cancel" },
+            {
+              text: "Set PIN",
+              onPress: () => router.push("/parent/settings/parent-pin" as any),
+            },
+          ],
+        )
+        return
+      }
+
       await activateChildMode({
         ...savedChild,
         selected_language_code:
@@ -108,11 +118,18 @@ export default function SubmitScreen() {
         pathname: CHILD_HOME_ROUTE as any,
         params: { active: savedChild.id },
       })
-    } catch {
+    } catch (launchError) {
+      console.error(
+        "Could not launch child mode after creating a profile:",
+        launchError,
+      )
       Alert.alert(
         "Could not start child mode",
-        "Baby Steps could not get child mode ready. Try again from the child profile.",
+        "Baby Steps could not get child mode ready. Your new child profile is safe; open it from the dashboard and try again.",
       )
+    } finally {
+      startLearningInFlight.current = false
+      setIsStartingLearning(false)
     }
   }
 
@@ -235,13 +252,16 @@ export default function SubmitScreen() {
                       label="Start learning"
                       icon="play"
                       onPress={() => void handleStartLearning()}
-                      disabled={!savedChild}
+                      disabled={!savedChild || isStartingLearning}
+                      loading={isStartingLearning}
+                      loadingLabel="Starting child mode"
                     />
                     <AppButton
                       label="View dashboard"
                       variant="secondary"
                       icon="home-outline"
                       onPress={handleViewDashboard}
+                      disabled={isStartingLearning}
                     />
                   </View>
                 ) : (

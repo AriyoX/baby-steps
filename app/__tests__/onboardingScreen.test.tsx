@@ -1,5 +1,5 @@
 import React from "react";
-import { TouchableOpacity } from "react-native";
+import { StyleSheet, TouchableOpacity } from "react-native";
 import renderer, { act, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 
 const mockRouterReplace = jest.fn();
@@ -25,6 +25,13 @@ jest.mock("@/components/brand/BrandMark", () => ({
   BrandMark: ({ kind }: { kind: string }) => {
     const { View: MockView } = jest.requireActual("react-native");
     return <MockView testID={`brand-${kind}`} />;
+  },
+}));
+
+jest.mock("@/components/brand/ShanaPortrait", () => ({
+  ShanaPortrait: ({ variant }: { variant: string }) => {
+    const { View: MockView } = jest.requireActual("react-native");
+    return <MockView testID={`shana-${variant}`} />;
   },
 }));
 
@@ -94,14 +101,20 @@ describe("startup onboarding", () => {
     expect(rendered).toContain("Little steps, big adventures");
     expect(rendered).toContain("Learn through stories and play");
     expect(rendered).toContain("Their journey stays with you");
-    expect(rendered).toContain("\u00A0WELCOME TO BABY STEPS\u00A0");
-    expect(rendered).toContain("\u00A0Stories, words and play — all together!\u00A0");
-    expect(rendered).toContain("\u00A0Skip\u00A0");
-    expect(rendered).toContain("\u00A0Continue\u00A0");
-    expect(tree.root.findAllByProps({ testID: "brand-mascot" }).length).toBeGreaterThanOrEqual(3);
+    expect(rendered).toContain("WELCOME TO BABY STEPS");
+    expect(rendered).toContain("Stories, words and play — all together!");
+    expect(rendered).toContain("Skip");
+    expect(rendered).toContain("Continue");
+    expect(rendered).not.toContain("\u00A0");
+    expect(tree.root.findByProps({ testID: "shana-welcome" })).toBeTruthy();
+    expect(tree.root.findByProps({ testID: "shana-reading" })).toBeTruthy();
+    expect(tree.root.findByProps({ testID: "shana-family" })).toBeTruthy();
     expect(
       findTouchable(tree.root, "onboarding-skip").props.accessibilityLabel,
     ).toBe("Skip introduction and continue to sign in");
+    expect(
+      StyleSheet.flatten(findTouchable(tree.root, "onboarding-skip").props.style),
+    ).toEqual(expect.objectContaining({ flexShrink: 0, minWidth: 92 }));
     expect(tree.root.findByProps({ accessibilityLabel: "Page 1 of 3" })).toBeTruthy();
   });
 

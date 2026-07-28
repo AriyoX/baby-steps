@@ -48,6 +48,18 @@ describe("game guide storage", () => {
     )
   })
 
+  it("stores Settings and Child Profile tours separately for each parent", async () => {
+    await markGameGuideSeen("parent-settings", "parent-1")
+    await markGameGuideSeen("parent-child-profile", "parent-1")
+
+    expect(await hasSeenGameGuide("parent-settings", "parent-1")).toBe(true)
+    expect(await hasSeenGameGuide("parent-child-profile", "parent-1")).toBe(true)
+    expect(await hasSeenGameGuide("parent-settings", "parent-2")).toBe(false)
+    expect(getGameGuideStorageKey("parent-settings", "parent-1")).toBe(
+      "@BabySteps:GameGuide:v1:parent-1:parent-settings",
+    )
+  })
+
   it("preserves legacy Coloring Studio seen state without rewriting it", async () => {
     const legacyKey = getColoringStudioTutorialStorageKey("child-1")
     await AsyncStorage.setItem(legacyKey, "seen")

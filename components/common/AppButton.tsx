@@ -67,8 +67,6 @@ const variantStyles: Record<
   },
 };
 
-const protectLabelEdges = (label: string) => `\u00A0${label}\u00A0`;
-
 export function AppButton({
   label,
   variant = "primary",
@@ -126,7 +124,7 @@ export function AppButton({
           .filter(Boolean)
           .join(" ")}
       >
-        {protectLabelEdges(displayedLabel)}
+        {displayedLabel}
       </Text>
       {!loading && icon && iconPosition === "right" ? (
         <View className="ml-2">

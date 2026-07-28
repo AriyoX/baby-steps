@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router"
-import { StyleSheet } from "react-native"
+import { StyleSheet, View } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { Text } from "@/components/StyledText"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
@@ -8,10 +8,10 @@ import { CHILD_TAB_ITEMS, type ChildTabId } from "@/constants/ChildNavigation"
 import { useChildUiLanguage } from "@/context/ChildUiLanguageContext"
 import type { ChildUiTranslationKey } from "@/lib/childUiTranslations"
 
-const TAB_BAR_HEIGHT = 64
+const TAB_BAR_HEIGHT = 58
 const TAB_BAR_EDGE_GAP = 10
-const TAB_BAR_BOTTOM_GAP = 8
-const TAB_ICON_SIZE = 24
+const TAB_BAR_BOTTOM_GAP = 6
+const TAB_ICON_SIZE = 22
 
 type NavItem = {
   href: (typeof CHILD_TAB_ITEMS)[number]["href"]
@@ -39,7 +39,11 @@ const navigationItems: NavItem[] = CHILD_TAB_ITEMS.map((item) => ({
 export default function TabLayout() {
   const insets = useSafeAreaInsets()
   const { t } = useChildUiLanguage()
-  const horizontalInset = Math.max(TAB_BAR_EDGE_GAP, insets.left, insets.right)
+  const horizontalInset = Math.max(
+    TAB_BAR_EDGE_GAP,
+    insets.left,
+    insets.right,
+  )
   const bottomInset = Math.max(TAB_BAR_BOTTOM_GAP, insets.bottom)
 
   return (
@@ -52,21 +56,21 @@ export default function TabLayout() {
         freezeOnBlur: false,
         lazy: false,
         tabBarStyle: {
-          backgroundColor: brandColors.blue[700],
-          borderWidth: 1,
-          borderColor: "rgba(255, 255, 255, 0.18)",
-          borderRadius: 20,
+          backgroundColor: "rgba(255, 255, 255, 0.97)",
+          borderWidth: 1.5,
+          borderColor: brandColors.gold[200],
+          borderRadius: 21,
           height: TAB_BAR_HEIGHT,
           paddingHorizontal: 8,
           paddingVertical: 4,
           shadowColor: brandColors.charcoalBlack,
           shadowOffset: {
             width: 0,
-            height: 3,
+            height: 5,
           },
-          shadowOpacity: 0.14,
-          shadowRadius: 7,
-          elevation: 6,
+          shadowOpacity: 0.18,
+          shadowRadius: 10,
+          elevation: 8,
           position: "absolute",
           left: horizontalInset,
           right: horizontalInset,
@@ -74,8 +78,8 @@ export default function TabLayout() {
         },
         tabBarItemStyle: styles.tabBarItem,
         tabBarIconStyle: styles.tabBarIcon,
-        tabBarActiveTintColor: brandColors.equatorialGold,
-        tabBarInactiveTintColor: "rgba(255, 255, 255, 0.86)",
+        tabBarActiveTintColor: brandColors.victoriaBlue,
+        tabBarInactiveTintColor: brandColors.neutral[500],
         tabBarLabelPosition: "below-icon",
         tabBarShowLabel: true,
         tabBarHideOnKeyboard: true,
@@ -91,11 +95,18 @@ export default function TabLayout() {
             tabBarAccessibilityLabel: t(item.labelKey),
             tabBarIcon: ({ color, focused }) => {
               return (
-                <Ionicons
-                  name={focused ? item.activeIconName : item.iconName}
-                  size={TAB_ICON_SIZE}
-                  color={color}
-                />
+                <View
+                  style={[
+                    styles.iconPill,
+                    focused && styles.iconPillFocused,
+                  ]}
+                >
+                  <Ionicons
+                    name={focused ? item.activeIconName : item.iconName}
+                    size={focused ? TAB_ICON_SIZE : TAB_ICON_SIZE - 1}
+                    color={color}
+                  />
+                </View>
               )
             },
             tabBarLabel: ({ color, focused }) => (
@@ -125,7 +136,7 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabBarIcon: {
-    marginTop: 1,
+    marginTop: 0,
   },
   tabBarItem: {
     alignItems: "center",
@@ -134,10 +145,22 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   tabBarLabel: {
-    fontSize: 12,
-    lineHeight: 15,
+    fontSize: 10,
+    lineHeight: 12,
     maxWidth: "100%",
     paddingHorizontal: 2,
     textAlign: "center",
+  },
+  iconPill: {
+    alignItems: "center",
+    borderRadius: 13,
+    height: 27,
+    justifyContent: "center",
+    width: 38,
+  },
+  iconPillFocused: {
+    backgroundColor: brandColors.gold[100],
+    borderColor: brandColors.gold[200],
+    borderWidth: 1,
   },
 })

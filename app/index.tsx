@@ -73,7 +73,6 @@ export const ONBOARDING_SLIDES: readonly OnboardingSlide[] = [
 const MIN_HORIZONTAL_GUTTER = 20;
 const ARTWORK_BASE_HEIGHT = 260;
 const ARTWORK_BASE_WIDTH = 340;
-const protectTextEdges = (value: string) => `\u00A0${value}\u00A0`;
 
 export default function OnboardingScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -249,7 +248,7 @@ export default function OnboardingScreen() {
             style={[styles.copyScroller, { maxWidth: contentWidth }]}
           >
             <Text variant="bold" style={[styles.kicker, { color: item.accentColor }]}>
-              {protectTextEdges(item.kicker)}
+              {item.kicker}
             </Text>
             <Text
               variant="display"
@@ -260,7 +259,7 @@ export default function OnboardingScreen() {
                 isTablet && styles.tabletTitle,
               ]}
             >
-              {protectTextEdges(item.title)}
+              {item.title}
             </Text>
             <Text
               style={[
@@ -270,7 +269,7 @@ export default function OnboardingScreen() {
                 isTablet && styles.tabletDescription,
               ]}
             >
-              {protectTextEdges(item.description)}
+              {item.description}
             </Text>
           </ScrollView>
         </View>
@@ -346,9 +345,13 @@ export default function OnboardingScreen() {
           style={styles.skipButton}
           testID="onboarding-skip"
         >
-          <Text variant="semibold" style={styles.skipText}>
-            {protectTextEdges("Skip")}
-          </Text>
+            <Text
+              numberOfLines={1}
+              variant="semibold"
+              style={styles.skipText}
+            >
+              Skip
+            </Text>
           <Ionicons name="arrow-forward" color={brandColors.blue[700]} size={17} />
         </TouchableOpacity>
       </View>
@@ -442,7 +445,7 @@ const styles = StyleSheet.create({
   },
   compactTitle: {
     fontSize: 29,
-    lineHeight: 35,
+    lineHeight: 38,
   },
   completionError: {
     color: brandColors.danger,
@@ -547,9 +550,10 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1,
     flexDirection: "row",
+    flexShrink: 0,
     justifyContent: "center",
     minHeight: 46,
-    minWidth: 82,
+    minWidth: 92,
     paddingHorizontal: 15,
   },
   skipText: {
@@ -557,8 +561,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginRight: 4,
+    minWidth: 34,
     paddingHorizontal: 2,
     paddingVertical: 1,
+    textAlign: "center",
   },
   slide: {
     flex: 1,
@@ -569,17 +575,17 @@ const styles = StyleSheet.create({
   },
   tabletTitle: {
     fontSize: 38,
-    lineHeight: 46,
+    lineHeight: 50,
   },
   title: {
     alignSelf: "center",
     color: brandColors.neutral[900],
     fontSize: 33,
-    lineHeight: 41,
+    lineHeight: 45,
     marginBottom: 12,
     maxWidth: 500,
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 4,
     textAlign: "center",
     width: "100%",
   },
@@ -592,7 +598,7 @@ const styles = StyleSheet.create({
   },
   veryCompactTitle: {
     fontSize: 26,
-    lineHeight: 32,
+    lineHeight: 35,
     marginBottom: 9,
   },
 });

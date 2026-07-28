@@ -9,6 +9,7 @@ import { ChildNoticeProvider } from "@/context/ChildNoticeContext"
 import { ChildUiLanguageProvider } from "@/context/ChildUiLanguageProvider"
 import { StreakProvider } from "@/context/StreakContext"
 import { StreakCelebrationHost } from "@/components/child/StreakCelebrationHost"
+import { CHILD_FULLSCREEN_OPTIONS } from "@/constants/SystemUi"
 
 const CHILD_ROUTE_ORIENTATION = "landscape_left" as const
 const CHILD_ORIENTATION_LOCK = ScreenOrientation.OrientationLock.LANDSCAPE_LEFT
@@ -87,6 +88,7 @@ export default function TabLayout() {
     return (
       <Stack
         screenOptions={{
+          ...CHILD_FULLSCREEN_OPTIONS,
           headerShown: false,
           orientation: CHILD_ROUTE_ORIENTATION,
         }}
@@ -108,6 +110,7 @@ export default function TabLayout() {
         <ChildNoticeProvider key={activeChild.id} childId={activeChild.id}>
           <Stack
             screenOptions={{
+              ...CHILD_FULLSCREEN_OPTIONS,
               headerShown: false,
               orientation: CHILD_ROUTE_ORIENTATION,
             }}
@@ -121,12 +124,6 @@ export default function TabLayout() {
             />
             <Stack.Screen
               name="games"
-              options={{
-                orientation: CHILD_ROUTE_ORIENTATION,
-              }}
-            />
-            <Stack.Screen
-              name="learning"
               options={{
                 orientation: CHILD_ROUTE_ORIENTATION,
               }}

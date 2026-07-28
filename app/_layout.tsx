@@ -32,6 +32,10 @@ import {
 import { cancelScheduledStreakSync, clearStreakMemory } from "@/lib/streakRepository";
 import { clearParentSecuritySession } from "@/lib/parentAccess";
 import { ParentProfileProvider } from "@/context/ParentProfileContext";
+import {
+  ADULT_SYSTEM_UI_OPTIONS,
+  CHILD_FULLSCREEN_OPTIONS,
+} from "@/constants/SystemUi";
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -381,26 +385,35 @@ export default function RootLayout() {
         <ChildProvider accountId={session?.user.id ?? null}>
           <SessionSecurityBoundary accountId={session?.user.id ?? null} />
           <View style={{ flex: 1 }}>
-          <Stack
-            screenOptions={{
-              animation: "fade_from_bottom",
-              headerTitleStyle: { fontFamily: "Quicksand-Medium" },
-              headerShown: false,
-            }}
-          >
-            <Stack.Screen name="index" options={{ gestureEnabled: false, orientation: ADULT_ROUTE_ORIENTATION }} />
-            <Stack.Screen name="login" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
-            <Stack.Screen name="signup" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
-            <Stack.Screen name="notification-permission" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
-            <Stack.Screen name="check-email" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
-            <Stack.Screen name="forgot-password" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
-            <Stack.Screen name="auth/callback" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
-            <Stack.Screen name="reset-password" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
-            <Stack.Screen name="account-reactivation" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
-            <Stack.Screen name="child-list" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
-            <Stack.Screen name="parent" options={{ orientation: ADULT_ROUTE_ORIENTATION, animation: "none" }} />
-            <Stack.Screen name="child" options={{ orientation: CHILD_ROUTE_ORIENTATION, animation: "none" }} />
-          </Stack>
+            <Stack
+              key={fontsLoaded ? "fonts-ready" : "fonts-loading"}
+              screenOptions={{
+                ...ADULT_SYSTEM_UI_OPTIONS,
+                animation: "fade_from_bottom",
+                headerTitleStyle: { fontFamily: "Quicksand-Medium" },
+                headerShown: false,
+              }}
+            >
+              <Stack.Screen name="index" options={{ gestureEnabled: false, orientation: ADULT_ROUTE_ORIENTATION }} />
+              <Stack.Screen name="login" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+              <Stack.Screen name="signup" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+              <Stack.Screen name="notification-permission" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+              <Stack.Screen name="check-email" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+              <Stack.Screen name="forgot-password" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+              <Stack.Screen name="auth/callback" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+              <Stack.Screen name="reset-password" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+              <Stack.Screen name="account-reactivation" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+              <Stack.Screen name="child-list" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+              <Stack.Screen name="parent" options={{ orientation: ADULT_ROUTE_ORIENTATION, animation: "none" }} />
+              <Stack.Screen
+                name="child"
+                options={{
+                  ...CHILD_FULLSCREEN_OPTIONS,
+                  animation: "none",
+                  orientation: CHILD_ROUTE_ORIENTATION,
+                }}
+              />
+            </Stack>
           {fontsLoaded && !isLoading && showSplashTransition ? (
             <AnimatedSplashTransition onDone={handleSplashTransitionDone} />
           ) : null}

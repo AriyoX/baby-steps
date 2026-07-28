@@ -1,12 +1,25 @@
 "use client"
 
-import { useCallback, useState, useEffect, useMemo, useRef } from "react"
-import { View, ScrollView, TouchableOpacity } from "react-native"
+import {
+  useCallback,
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  type ReactNode,
+} from "react"
+import {
+  ActivityIndicator,
+  ScrollView,
+  TouchableOpacity,
+  View,
+} from "react-native"
 import { Text } from "@/components/StyledText"
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons"
+import { LinearGradient } from "expo-linear-gradient"
 import { supabase } from "@/lib/supabase"
 import { getActivityStats } from "@/lib/utils"
 import { TranslatedText } from "@/components/translated-text"
@@ -14,7 +27,10 @@ import { BrandMark } from "@/components/brand/BrandMark"
 import { brandColors } from "@/constants/Brand"
 import { PARENTING_TIPS } from "@/content/parentingTips"
 import { getParentDashboardGreeting } from "@/content/parentDashboardGreeting"
-import { PARENT_DASHBOARD_TOUR_STEPS } from "@/lib/parentDashboardTour"
+import {
+  PARENT_DASHBOARD_TOUR_POSITIONING,
+  PARENT_DASHBOARD_TOUR_STEPS,
+} from "@/lib/parentDashboardTour"
 import { fetchActiveChildProfiles } from "@/lib/accountManagement"
 import {
   GameTour,
@@ -33,9 +49,36 @@ type ChildProfile = {
   created_at: string
 }
 
-// Portrait dashboard tuning only. Increase this value to move every Parent
-// Dashboard spotlight lower on Android; the shared game-tour value stays intact.
-const PARENT_DASHBOARD_ANDROID_SPOTLIGHT_OFFSET_Y = 0
+const DashboardSectionHeader = ({
+  action,
+  subtitle,
+  title,
+}: {
+  action?: ReactNode
+  subtitle?: string
+  title: string
+}) => (
+  <View className="mb-3 flex-row items-end justify-between">
+    <View className="min-w-0 flex-1 pr-3">
+      <TranslatedText variant="bold" className="text-lg text-neutral-900">
+        {title}
+      </TranslatedText>
+      {subtitle ? (
+        <Text className="mt-0.5 text-xs leading-4 text-neutral-500">
+          {subtitle}
+        </Text>
+      ) : null}
+    </View>
+    {action}
+  </View>
+)
+
+const getChildAvatarEmoji = (gender: string) => {
+  const normalizedGender = gender.trim().toLowerCase()
+  if (normalizedGender === "male" || normalizedGender === "boy") return "👦"
+  if (normalizedGender === "female" || normalizedGender === "girl") return "👧"
+  return "🧒"
+}
 
 const ParentDashboard = () => {
   const router = useRouter()
@@ -202,14 +245,22 @@ const ParentDashboard = () => {
           {/* Header */}
           <View className="flex-row justify-between items-center px-5 py-4 border-b border-neutral-100 bg-white">
             <View className="flex-row items-center flex-1 pr-3">
-              <BrandMark kind="wordmark" tone="main" width={58} height={58} containerStyle={{ marginRight: 12 }} />
+              <BrandMark
+                containerStyle={{ marginRight: 12 }}
+                height={58}
+                kind="wordmark"
+                tone="main"
+                width={58}
+              />
               <View className="flex-1">
                 <TranslatedText variant="bold" className="text-neutral-900 text-2xl">
                   {parentProfile?.displayName
                     ? `Welcome, ${parentProfile.displayName}`
                     : "Your family"}
                 </TranslatedText>
-                <TranslatedText className="text-neutral-500">Small steps worth celebrating</TranslatedText>
+                <TranslatedText className="text-neutral-500">
+                  Small steps worth celebrating
+                </TranslatedText>
               </View>
             </View>
 
@@ -243,51 +294,97 @@ const ParentDashboard = () => {
             contentContainerClassName="p-4 pb-10"
             showsVerticalScrollIndicator={false}
           >
-            <View className="bg-primary-700 rounded-[28px] p-5 mb-6 overflow-hidden">
-              <View className="absolute -right-8 -top-10 w-36 h-36 rounded-full bg-primary-500" />
-              <View className="absolute right-16 -bottom-12 w-28 h-28 rounded-full bg-accent-400 opacity-30" />
+            <LinearGradient
+              colors={[brandColors.blue[800], brandColors.blue[600]]}
+              end={{ x: 1, y: 1 }}
+              start={{ x: 0, y: 0 }}
+              style={{
+                borderColor: "rgba(248,194,62,0.32)",
+                borderRadius: 28,
+                borderWidth: 1,
+                marginBottom: 24,
+                overflow: "hidden",
+                padding: 20,
+              }}
+            >
+              <View className="absolute -right-8 -top-10 h-36 w-36 rounded-full bg-primary-400 opacity-30" />
+              <View className="absolute -bottom-12 right-16 h-28 w-28 rounded-full bg-accent-400 opacity-20" />
               <View className="flex-row items-center justify-between">
                 <View className="flex-1 pr-4">
-                  <Text variant="bold" className="text-white text-xl mb-2">{dashboardGreeting.title}</Text>
-                  <Text className="text-primary-100 leading-5">{dashboardGreeting.message}</Text>
+                  <TranslatedText
+                    className="mb-1 text-[10px] uppercase tracking-[1.4px] text-accent-200"
+                    variant="bold"
+                  >
+                    Today with your family
+                  </TranslatedText>
+                  <Text variant="bold" className="mb-2 text-xl text-white">
+                    {dashboardGreeting.title}
+                  </Text>
+                  <Text className="leading-5 text-primary-100">
+                    {dashboardGreeting.message}
+                  </Text>
                 </View>
-                <View className="w-14 h-14 rounded-2xl bg-white/20 items-center justify-center">
-                  <Ionicons name={dashboardGreeting.icon} size={28} color={brandColors.equatorialGold} />
+                <View className="h-16 w-16 items-center justify-center rounded-3xl border border-accent-200 bg-accent-50">
+                  <Ionicons
+                    name={dashboardGreeting.icon}
+                    size={29}
+                    color={brandColors.gold[700]}
+                  />
                 </View>
               </View>
-            </View>
+            </LinearGradient>
             {/* Child profiles section */}
-            <TourTarget id="parent-dashboard-profiles">
             <View
               className="mb-6"
               onLayout={({ nativeEvent }) => {
                 dashboardTourOffsetsRef.current.profiles = nativeEvent.layout.y
               }}
             >
-              <View className="flex-row justify-between items-center mb-3">
-                <TranslatedText variant="bold" className="text-neutral-800 text-lg">
-                  Child Profiles
-                </TranslatedText>
-                <TourTarget id="parent-dashboard-language">
-                <TouchableOpacity
-                  className="bg-primary-100 px-3 py-1 rounded-full"
-                  onPress={() => router.push("/parent/settings/child-profiles" as any)}
-                  accessibilityRole="button"
-                  accessibilityLabel="View all child profiles and learning languages"
-                >
-                  <TranslatedText variant="medium" className="text-primary-700">
-                    View All
-                  </TranslatedText>
-                </TouchableOpacity>
-                </TourTarget>
-              </View>
+              <TourTarget id="parent-dashboard-profiles">
+                <View>
+                  <DashboardSectionHeader
+                    action={
+                      <TourTarget id="parent-dashboard-language">
+                        <TouchableOpacity
+                          accessibilityLabel="View all child profiles and learning languages"
+                          accessibilityRole="button"
+                          className="flex-row items-center rounded-full bg-primary-50 px-3 py-1.5"
+                          onPress={() =>
+                            router.push("/parent/settings/child-profiles" as any)
+                          }
+                        >
+                          <TranslatedText
+                            className="text-xs text-primary-700"
+                            variant="bold"
+                          >
+                            View all
+                          </TranslatedText>
+                          <Ionicons
+                            color={brandColors.victoriaBlue}
+                            name="chevron-forward"
+                            size={14}
+                          />
+                        </TouchableOpacity>
+                      </TourTarget>
+                    }
+                    subtitle="See each child's learning at a glance"
+                    title="Child profiles"
+                  />
+                </View>
+              </TourTarget>
 
               {loading ? (
-                <View className="items-center justify-center py-4">
-                  <Text>Loading profiles...</Text>
+                <View className="flex-row items-center justify-center rounded-3xl border border-primary-100 bg-white px-4 py-6">
+                  <ActivityIndicator
+                    color={brandColors.victoriaBlue}
+                    size="small"
+                  />
+                  <Text className="ml-3 text-sm text-neutral-600">
+                    Loading profiles...
+                  </Text>
                 </View>
               ) : profileLoadError && childProfiles.length === 0 ? (
-                <View className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <View className="rounded-3xl border border-amber-200 bg-amber-50 p-4">
                   <View className="flex-row items-center">
                     <Ionicons
                       name="cloud-offline-outline"
@@ -295,7 +392,7 @@ const ParentDashboard = () => {
                       color={brandColors.gold[700]}
                     />
                     <Text variant="bold" className="ml-3 flex-1 text-amber-900">
-                      Child profiles could not refresh
+                      {"We couldn't load child profiles"}
                     </Text>
                   </View>
                   <Text className="mt-2 text-sm leading-5 text-amber-800">
@@ -312,7 +409,11 @@ const ParentDashboard = () => {
                   </TouchableOpacity>
                 </View>
               ) : (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-4 pb-2">
+                <ScrollView
+                  contentContainerClassName="gap-4 pb-2 pr-4"
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                >
                   {/* Child profile cards */}
                   {childProfiles.length > 0
                     ? childProfiles.map((child) => (
@@ -320,7 +421,7 @@ const ParentDashboard = () => {
                           key={child.id}
                           accessibilityLabel={`Open profile for ${child.name}`}
                           accessibilityRole="button"
-                          className="bg-white rounded-xl p-4 w-[150px] shadow-sm border border-primary-100"
+                          className="min-h-[190px] w-[164px] rounded-3xl border border-primary-100 bg-white p-4 shadow-sm"
                           onPress={() =>
                             router.push({
                               pathname: "/parent/child-detail/[id]" as any,
@@ -329,48 +430,71 @@ const ParentDashboard = () => {
                           }
                           activeOpacity={0.8}
                         >
-                          <View className="items-center mb-2">
-                            <View className="relative">
-                              <View className="w-[60px] h-[60px] rounded-full bg-primary-100 items-center justify-center">
-                                <FontAwesome5
-                                  name={child.gender === "male" ? "child" : child.gender === "female" ? "star" : "smile"}
-                                  size={26}
-                                  color={brandColors.victoriaBlue}
-                                />
-                              </View>
+                          <View className="mb-3 items-center">
+                            <View className="h-16 w-16 items-center justify-center rounded-3xl border border-primary-100 bg-primary-50">
+                              <Text accessible={false} className="text-[32px]">
+                                {getChildAvatarEmoji(child.gender)}
+                              </Text>
                             </View>
                           </View>
 
-                          <Text variant="bold" className="text-gray-800 text-center mb-1">
+                          <Text
+                            className="mb-1 text-center text-neutral-800"
+                            numberOfLines={1}
+                            variant="bold"
+                          >
                             {child.name}
                           </Text>
-                          <Text className="text-gray-500 text-xs text-center">{child.age} years old</Text>
+                          <View className="flex-row items-center justify-center">
+                            <Ionicons
+                              color={brandColors.neutral[400]}
+                              name="calendar-outline"
+                              size={13}
+                            />
+                            <Text className="ml-1 text-center text-xs text-neutral-500">
+                              {child.age} years old
+                            </Text>
+                          </View>
 
-                          <Text className="text-primary-700 text-xs text-center mt-3">
-                            View learning activity
-                          </Text>
+                          <View className="mt-3 flex-row items-center justify-between border-t border-neutral-100 pt-3">
+                            <Text
+                              className="flex-1 text-[11px] text-primary-700"
+                              numberOfLines={1}
+                              variant="bold"
+                            >
+                              See their learning
+                            </Text>
+                            <Ionicons
+                              color={brandColors.victoriaBlue}
+                              name="arrow-forward"
+                              size={14}
+                            />
+                          </View>
                         </TouchableOpacity>
                       ))
                     : null}
 
                   {/* Add child card */}
                   <TouchableOpacity
-                    className="bg-white rounded-xl p-4 w-[150px] items-center justify-center border-2 border-dashed border-primary-200 shadow-sm"
+                    accessibilityLabel="Add a new child profile"
+                    accessibilityRole="button"
+                    className="min-h-[190px] w-[164px] items-center justify-center rounded-3xl border-2 border-dashed border-primary-200 bg-primary-50/60 p-4"
                     onPress={() => router.push("/parent/add-child/gender")}
                     activeOpacity={0.8}
                   >
-                    <View className="w-[60px] h-[60px] rounded-full bg-primary-100 items-center justify-center mb-3">
+                    <View className="mb-3 h-16 w-16 items-center justify-center rounded-3xl border border-primary-100 bg-white">
                       <Ionicons name="add" size={30} color={brandColors.victoriaBlue} />
                     </View>
-                    <TranslatedText variant="medium" className="text-gray-800 text-center">
+                    <TranslatedText variant="bold" className="text-center text-neutral-800">
                       Add Child
                     </TranslatedText>
-                    <TranslatedText className="text-gray-500 text-xs text-center mt-1">New profile</TranslatedText>
+                    <TranslatedText className="mt-1 text-center text-xs text-neutral-500">
+                      New profile
+                    </TranslatedText>
                   </TouchableOpacity>
                 </ScrollView>
               )}
             </View>
-            </TourTarget>
 
             {/* Recent activities section */}
             <View
@@ -380,97 +504,140 @@ const ParentDashboard = () => {
               }}
             >
               <TourTarget id="parent-dashboard-progress">
-                <View className="mb-3">
-                  <TranslatedText variant="bold" className="text-neutral-800 text-lg">
-                    Recent Activities
-                  </TranslatedText>
+                <View>
+                  <DashboardSectionHeader
+                    subtitle="What your children explored most recently"
+                    title="Recent Activities"
+                  />
                 </View>
               </TourTarget>
 
-              <View className="bg-white rounded-xl p-4 shadow-sm border border-muted-200">
+              <View className="rounded-3xl border border-neutral-100 bg-white p-4 shadow-sm">
                 {recentActivities.length > 0 ? (
                   recentActivities.map((activity, index) => (
                     <View
                       key={activity.id}
-                      className={`${index !== recentActivities.length - 1 ? "border-b border-gray-100 pb-3 mb-3" : ""}`}
+                      className={`${index !== recentActivities.length - 1 ? "mb-3 border-b border-neutral-100 pb-3" : ""}`}
                     >
-                      <View className="flex-row">
+                      <View className="flex-row items-center">
                         <View
                           style={{ backgroundColor: `${activity.color}15` }}
-                          className="w-10 h-10 rounded-full items-center justify-center mr-3"
+                          className="mr-3 h-11 w-11 items-center justify-center rounded-2xl"
                         >
                           <FontAwesome5 name={activity.icon} size={16} color={activity.color} />
                         </View>
                         <View className="flex-1">
-                          <Text variant="medium" className="text-gray-800 text-sm">
+                          <Text
+                            className="text-sm text-neutral-800"
+                            numberOfLines={2}
+                            variant="bold"
+                          >
                             {activity.childName} {activity.activity}
                           </Text>
-                          <View className="flex-row justify-between">
-                            <Text className="text-gray-500 text-xs">
+                          <View className="mt-1 flex-row items-center justify-between">
+                            <Text className="flex-1 text-xs text-neutral-500">
                               {activity.categoryLabel ? `${activity.time} - ${activity.categoryLabel}` : activity.time}
                             </Text>
-                            <Text className="text-primary-700 text-xs font-medium">{activity.score}</Text>
+                            <View className="ml-2 rounded-full bg-primary-50 px-2 py-1">
+                              <Text className="text-[11px] text-primary-700" variant="bold">
+                                {activity.score}
+                              </Text>
+                            </View>
                           </View>
                         </View>
                       </View>
                     </View>
                   ))
                 ) : (
-                  <Text className="text-gray-500 text-center py-2">No recent activities</Text>
+                  <View className="items-center py-4">
+                    <View className="mb-2 h-11 w-11 items-center justify-center rounded-2xl bg-primary-50">
+                      <Ionicons
+                        color={brandColors.victoriaBlue}
+                        name="sparkles-outline"
+                        size={21}
+                      />
+                    </View>
+                    <Text className="text-center text-sm text-neutral-500">
+                      No recent activities yet
+                    </Text>
+                  </View>
                 )}
 
                 <TouchableOpacity
-                  className="mt-3 border-t border-gray-100 pt-3"
+                  className="mt-3 flex-row items-center justify-center rounded-2xl bg-primary-50 px-4 py-3"
                   onPress={() => router.push("/parent/activities")}
                   accessibilityRole="button"
                   accessibilityLabel="View all child learning activities"
                 >
-                  <TranslatedText variant="medium" className="text-primary-700 text-center">
-                    View All Activities
+                  <TranslatedText variant="bold" className="text-center text-sm text-primary-700">
+                    See All Learning
                   </TranslatedText>
+                  <Ionicons
+                    color={brandColors.victoriaBlue}
+                    name="arrow-forward"
+                    size={16}
+                    style={{ marginLeft: 6 }}
+                  />
                 </TouchableOpacity>
               </View>
             </View>
 
             <View className="mb-6">
-              <View className="flex-row justify-between items-center mb-3">
-                <TranslatedText variant="bold" className="text-neutral-800 text-lg">
-                  Achievements Overview
-                </TranslatedText>
-                {/* Optional: maybe a small stat like "X total achievements defined" */}
-              </View>
+              <DashboardSectionHeader
+                subtitle="Celebrate every new badge and milestone"
+                title="Badges and proud moments"
+              />
 
               <TouchableOpacity
-                className="bg-white rounded-xl p-4 shadow-sm border border-muted-200 flex-row items-center justify-between"
-                onPress={() => router.push("/parent/all-achievements")} // Adjust route as needed
+                accessibilityLabel="View achievements for every child"
+                accessibilityRole="button"
                 activeOpacity={0.8}
+                className="flex-row items-center justify-between rounded-3xl border border-accent-200 bg-accent-50 p-4"
+                onPress={() => router.push("/parent/all-achievements")}
               >
-                <View className="flex-row items-center">
-                    <View className="w-10 h-10 bg-amber-100 rounded-full items-center justify-center mr-3">
-                        <Ionicons name="trophy-outline" size={20} color={brandColors.equatorialGold} />
-                    </View>
-                    <View>
-                        <Text variant="medium" className="text-gray-700">View All Achievements</Text>
-                        <Text className="text-xs text-gray-500">See progress for each child</Text>
-                    </View>
+                <View className="min-w-0 flex-1 flex-row items-center">
+                  <View className="mr-3 h-12 w-12 items-center justify-center rounded-2xl border border-accent-200 bg-white">
+                    <Ionicons
+                      name="trophy"
+                      size={24}
+                      color={brandColors.gold[700]}
+                    />
+                  </View>
+                  <View className="min-w-0 flex-1">
+                    <Text variant="bold" className="text-neutral-800">
+                      See Every Achievement
+                    </Text>
+                    <Text className="mt-0.5 text-xs text-neutral-600">
+                      See progress for each child
+                    </Text>
+                  </View>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+                <View className="ml-3 h-9 w-9 items-center justify-center rounded-full bg-white">
+                  <Ionicons
+                    name="chevron-forward"
+                    size={18}
+                    color={brandColors.gold[700]}
+                  />
+                </View>
               </TouchableOpacity>
             </View>
 
             {/* Parenting tips */}
             <View className="mb-8">
-              <View className="flex-row items-end justify-between mb-3">
-                <View className="flex-1 pr-4">
-                  <TranslatedText variant="bold" className="text-neutral-900 text-lg">
-                    Parenting ideas that work in real life
-                  </TranslatedText>
-                  <Text className="text-sm text-neutral-500 mt-1">Specific, gentle things to try—no perfection required.</Text>
-                </View>
-                <View className="bg-secondary-50 rounded-full px-3 py-1.5">
-                  <Text variant="bold" className="text-xs text-secondary-700">6 ideas</Text>
-                </View>
-              </View>
+              <DashboardSectionHeader
+                action={
+                  <View className="rounded-full bg-secondary-50 px-3 py-1.5">
+                    <Text
+                      className="text-xs text-secondary-700"
+                      variant="bold"
+                    >
+                      {PARENTING_TIPS.length} ideas
+                    </Text>
+                  </View>
+                }
+                subtitle="Specific, gentle things to try—no perfection required."
+                title="Parenting ideas that work in real life"
+              />
 
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-3 pr-4">
                 {PARENTING_TIPS.map((tip) => (
@@ -503,12 +670,12 @@ const ParentDashboard = () => {
         </View>
       </SafeAreaView>
       <GameTour
-        androidSpotlightOffsetY={PARENT_DASHBOARD_ANDROID_SPOTLIGHT_OFFSET_Y}
         visible={parentTourVisible}
         onComplete={completeParentTour}
         onDismiss={dismissParentTour}
         onUnavailable={closeParentTour}
         finishLabel="Explore"
+        positioning={PARENT_DASHBOARD_TOUR_POSITIONING}
         steps={parentTourSteps}
       />
     </>

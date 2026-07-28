@@ -25,6 +25,7 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   View,
+  type ModalProps,
 } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import Svg, { Defs, Mask, Rect as SvgRect } from "react-native-svg"
@@ -45,7 +46,20 @@ export type GameTourStep = {
   description: string
   icon?: keyof typeof Ionicons.glyphMap
   placement?: "top" | "bottom" | "left" | "right" | "auto"
+  targetAdjustment?: {
+    offsetX?: number
+    offsetY?: number
+    spotlightPadding?: number
+  }
   prepareTarget?: () => Promise<void> | void
+}
+
+export type GameTourOrientation = "any" | "landscape" | "portrait"
+
+export type GameTourPositioning = {
+  androidSpotlightOffsetY?: number
+  includeAndroidStatusBarOffset?: boolean
+  orientation?: GameTourOrientation
 }
 
 type MeasurableNode = {
@@ -133,6 +147,14 @@ export function TourTarget({ children, id }: TourTargetProps) {
   })
 }
 
+// Keep unavailable guides from auto-opening on every focus/remount in the same
+// app session. A fresh app launch can try again, and Help can always open one.
+const automaticOpenAttempts = new Set<string>()
+
+export const resetGameTourAutomaticOpenAttempts = () => {
+  automaticOpenAttempts.clear()
+}
+
 export const useGameTour = (guideId: GameGuideId, childId?: string, enabled = true) => {
   const [visible, setVisible] = useState(false)
 
@@ -146,11 +168,23 @@ export const useGameTour = (guideId: GameGuideId, childId?: string, enabled = tr
       }
     }
 
+    const automaticOpenKey = `${childId ?? "guest"}:${guideId}`
+    if (automaticOpenAttempts.has(automaticOpenKey)) {
+      return () => {
+        active = false
+      }
+    }
+
     void hasSeenGameGuide(guideId, childId)
       .then((seen) => {
+        // Record the attempt only after storage answers. This keeps React's
+        // development effect replay from consuming the one automatic open
+        // before its replacement effect can display the guide.
+        automaticOpenAttempts.add(automaticOpenKey)
         if (active && !seen) setVisible(true)
       })
       .catch((error) => {
+        automaticOpenAttempts.add(automaticOpenKey)
         console.warn(`Could not load the ${guideId} tour status:`, error)
       })
 
@@ -180,12 +214,13 @@ export type TourRect = {
   y: number
 }
 
-// Android measureInWindow and a translucent Modal use different vertical
-// origins. StatusBar.currentHeight supplies the shared baseline correction;
-// androidSpotlightOffsetY is the one manual device-test tuning point. Increase
-// it to move every Android spotlight/tooltip target lower; iOS always uses 0.
+// All target measurements and modal drawing use window coordinates. Child mode
+// is fullscreen, so it needs no status-bar correction. Portrait parent screens
+// opt into the Android status-bar correction through their screen positioning
+// config. androidSpotlightOffsetY remains the final manual device-test tuning
+// point after that correction.
 export const GAME_TOUR_LAYOUT = {
-  androidSpotlightOffsetY: -16,
+  androidSpotlightOffsetY: 0,
   dimColor: "#07182B",
   dimOpacity: 0.82,
   measurementMinimumSize: 1,
@@ -283,29 +318,34 @@ export const areTourMeasurementsStable = (
 
 export const getModalCoordinateOffsetY = ({
   androidSpotlightOffsetY = GAME_TOUR_LAYOUT.androidSpotlightOffsetY,
+  includeAndroidStatusBarOffset = false,
   platform = Platform.OS,
   safeAreaTop,
   statusBarHeight = NativeStatusBar.currentHeight,
 }: {
   androidSpotlightOffsetY?: number
+  includeAndroidStatusBarOffset?: boolean
   platform?: typeof Platform.OS
   safeAreaTop: number
   statusBarHeight?: number
 }) => {
   if (platform !== "android") return 0
 
-  return (
-    Math.max(0, statusBarHeight ?? safeAreaTop) +
-    androidSpotlightOffsetY
-  )
+  const statusBarOffset = includeAndroidStatusBarOffset
+    ? Math.max(0, statusBarHeight ?? safeAreaTop)
+    : 0
+
+  return statusBarOffset + androidSpotlightOffsetY
 }
 
 const getPaddedTarget = (
   rect: TourRect,
   screenWidth: number,
   screenHeight: number,
+  padding: number = GAME_TOUR_LAYOUT.spotlightPadding,
 ): TourRect => {
-  const { overlayEdgeInset, spotlightPadding } = GAME_TOUR_LAYOUT
+  const { overlayEdgeInset } = GAME_TOUR_LAYOUT
+  const spotlightPadding = Math.max(0, padding)
   const x = clamp(
     rect.x - spotlightPadding,
     overlayEdgeInset,
@@ -438,22 +478,50 @@ const getTooltipPosition = ({
 
 type GameTourProps = {
   accentColor?: string
-  androidSpotlightOffsetY?: number
   finishLabel?: string
   onComplete: () => void
   onDismiss: () => void
   onUnavailable: (step?: GameTourStep) => void
+  positioning?: GameTourPositioning
   steps: GameTourStep[]
   visible: boolean
 }
 
+export const isTourOrientationReady = (
+  orientation: GameTourOrientation,
+  width: number,
+  height: number,
+) =>
+  orientation === "any" ||
+  (orientation === "landscape" && width > height) ||
+  (orientation === "portrait" && height >= width)
+
+const getSupportedTourOrientations = (
+  orientation: GameTourOrientation,
+): ModalProps["supportedOrientations"] => {
+  if (orientation === "portrait") {
+    return ["portrait", "portrait-upside-down"]
+  }
+  if (orientation === "landscape") {
+    return ["landscape", "landscape-left", "landscape-right"]
+  }
+
+  return [
+    "portrait",
+    "portrait-upside-down",
+    "landscape",
+    "landscape-left",
+    "landscape-right",
+  ]
+}
+
 export function GameTour({
   accentColor = brandColors.victoriaBlue,
-  androidSpotlightOffsetY = GAME_TOUR_LAYOUT.androidSpotlightOffsetY,
   finishLabel = "Let's play",
   onComplete,
   onDismiss,
   onUnavailable,
+  positioning,
   steps,
   visible,
 }: GameTourProps) {
@@ -466,7 +534,15 @@ export function GameTour({
   const [tooltipSize, setTooltipSize] = useState<TooltipSize | null>(null)
   const stepsRef = useRef(steps)
   stepsRef.current = steps
-  const stepsKey = steps.map((step) => `${step.id}:${step.targetId}`).join("|")
+  const orientation = positioning?.orientation ?? "landscape"
+  const stepsKey = steps
+    .map(
+      (step) =>
+        `${step.id}:${step.targetId}:${step.targetAdjustment?.offsetX ?? 0}:${
+          step.targetAdjustment?.offsetY ?? 0
+        }:${step.targetAdjustment?.spotlightPadding ?? GAME_TOUR_LAYOUT.spotlightPadding}`,
+    )
+    .join("|")
   const currentStep = steps[activeIndex]
 
   useEffect(() => {
@@ -477,11 +553,11 @@ export function GameTour({
       return
     }
 
-    // Every consumer is hosted in a landscape-only game route. A target can
-    // briefly produce stable portrait measurements while iOS is still pushing
-    // the route; presenting Modal in that window races the native orientation
-    // transition. Wait for the route's requested orientation before measuring.
-    if (width <= height) {
+    // A target can briefly produce stable measurements in the previous route's
+    // orientation while iOS is still pushing the next route. Each screen now
+    // declares the orientation it expects, so parent portrait and child
+    // landscape tours can share the same engine without racing that hand-off.
+    if (!isTourOrientationReady(orientation, width, height)) {
       setTargetRect(null)
       setTooltipSize(null)
       return
@@ -551,7 +627,7 @@ export function GameTour({
       setTargetRect(nextRect)
     }
 
-    // Route navigation and the landscape lock are native interactions. Let
+    // Route navigation and orientation locking are native interactions. Let
     // those finish before the measurement loop can make the modal eligible to
     // mount, even on fast devices where content is already cached.
     const interactionTask = InteractionManager.runAfterInteractions(() => {
@@ -564,29 +640,52 @@ export function GameTour({
       cancelled = true
       interactionTask.cancel()
     }
-  }, [activeIndex, height, onUnavailable, registry, stepsKey, visible, width])
+  }, [
+    activeIndex,
+    height,
+    onUnavailable,
+    orientation,
+    registry,
+    stepsKey,
+    visible,
+    width,
+  ])
 
   if (!visible || !currentStep) return null
 
-  // Do not present a native modal while a newly-pushed route is still
-  // measuring and rotating into landscape. In particular, iOS can terminate
+  // Do not present a native modal while a newly-pushed route is still measuring
+  // and rotating to its requested orientation. In particular, iOS can terminate
   // the route transition when an over-full-screen modal is presented during
   // that orientation hand-off. The guide becomes visible as soon as its first
   // stable target measurement is available.
-  if (!targetRect || width <= height) return null
+  if (
+    !targetRect ||
+    !isTourOrientationReady(orientation, width, height)
+  ) {
+    return null
+  }
 
   const target = getPaddedTarget(
     {
       ...targetRect,
+      x:
+        targetRect.x +
+        (currentStep.targetAdjustment?.offsetX ?? 0),
       y:
         targetRect.y +
         getModalCoordinateOffsetY({
-          androidSpotlightOffsetY,
+          androidSpotlightOffsetY:
+            positioning?.androidSpotlightOffsetY ??
+            GAME_TOUR_LAYOUT.androidSpotlightOffsetY,
+          includeAndroidStatusBarOffset:
+            positioning?.includeAndroidStatusBarOffset ?? false,
           safeAreaTop: insets.top,
-        }),
+        }) +
+        (currentStep.targetAdjustment?.offsetY ?? 0),
     },
     width,
     height,
+    currentStep.targetAdjustment?.spotlightPadding,
   )
   const bounds = {
     bottom:
@@ -626,10 +725,7 @@ export function GameTour({
       onRequestClose={onDismiss}
       presentationStyle="overFullScreen"
       statusBarTranslucent
-      supportedOrientations={[
-        "landscape-left",
-        "landscape-right",
-      ]}
+      supportedOrientations={getSupportedTourOrientations(orientation)}
       transparent
       visible={visible}
     >

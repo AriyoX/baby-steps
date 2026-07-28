@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useState, useEffect } from "react"
+import { useCallback, useState, useEffect, useMemo, useRef } from "react"
 import { Alert, View, ScrollView, TouchableOpacity } from "react-native"
 import { Text } from "@/components/StyledText"
 import { TranslatedText } from "@/components/translated-text"
@@ -14,7 +14,17 @@ import { AchievementCard } from "@/components/games/achievements/AchievementCard
 import { CHILD_HOME_ROUTE } from "@/constants/ChildNavigation"
 import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network"
 import { ChildStreakSection } from "@/components/parent/ChildStreakSection"
+import {
+  GameTour,
+  GameTourProvider,
+  TourTarget,
+  useGameTour,
+} from "@/components/games/GameTour"
 import { fetchActiveChildProfile } from "@/lib/accountManagement"
+import {
+  PARENT_CHILD_PROFILE_TOUR_STEPS,
+  PARENT_SCREEN_TOUR_POSITIONING,
+} from "@/lib/parentScreenTours"
 import { hasParentPin } from "@/lib/parentAccess"
 import { supabase } from "@/lib/supabase"
 
@@ -46,6 +56,27 @@ export default function ChildDetailScreen() {
 
   const [childData, setChildData] = useState<ChildData | null>(null)
   const [loading, setLoading] = useState(true)
+  const profileScrollRef = useRef<ScrollView>(null)
+  const profileTourOffsetsRef = useRef<Record<string, number>>({})
+  const profileTour = useGameTour(
+    "parent-child-profile",
+    childId,
+    !loading && Boolean(childData && childId),
+  )
+  const prepareProfileTourTarget = useCallback((stepId: string) => {
+    profileScrollRef.current?.scrollTo({
+      animated: false,
+      y: Math.max(0, (profileTourOffsetsRef.current[stepId] ?? 0) - 12),
+    })
+  }, [])
+  const profileTourSteps = useMemo(
+    () =>
+      PARENT_CHILD_PROFILE_TOUR_STEPS.map((step) => ({
+        ...step,
+        prepareTarget: () => prepareProfileTourTarget(step.id),
+      })),
+    [prepareProfileTourTarget],
+  )
 
   const { 
     definedAchievements, 
@@ -186,6 +217,7 @@ export default function ChildDetailScreen() {
   };
   
   return (
+    <GameTourProvider>
     <>
       <StatusBar style="dark" />
       <SafeAreaView className="flex-1 bg-slate-50" edges={["top", "left", "right"]}>
@@ -194,12 +226,20 @@ export default function ChildDetailScreen() {
           <TouchableOpacity onPress={() => router.back()} className="mr-3 p-1">
             <Ionicons name="arrow-back" size={24} color="#374151" />
           </TouchableOpacity>
-          <TranslatedText variant="bold" className="text-xl text-gray-800">
+          <TranslatedText variant="bold" className="flex-1 text-xl text-gray-800">
             Child Profile
           </TranslatedText>
+          <TouchableOpacity
+            accessibilityLabel="Show the Child Profile guide"
+            accessibilityRole="button"
+            className="h-10 w-10 items-center justify-center rounded-full bg-primary-50"
+            onPress={profileTour.open}
+          >
+            <Ionicons name="help-circle-outline" size={23} color="#0274BB" />
+          </TouchableOpacity>
         </View>
 
-        <ScrollView className="flex-1">
+        <ScrollView ref={profileScrollRef} className="flex-1">
           {loading ? (
             <View className="flex-1 items-center justify-center p-6">
               <TranslatedText className="text-gray-600">Loading child profile...</TranslatedText>
@@ -207,7 +247,13 @@ export default function ChildDetailScreen() {
           ) : childData ? (
             <>
               {/* Child profile header ... same ... */}
-              <View className="p-4 border-b border-gray-200 bg-white">
+              <TourTarget id="parent-child-profile-summary">
+              <View
+                className="p-4 border-b border-gray-200 bg-white"
+                onLayout={({ nativeEvent }) => {
+                  profileTourOffsetsRef.current.profile = nativeEvent.layout.y
+                }}
+              >
                 <View className="flex-row items-center">
                   <View className="relative mr-4">
                     <View className="w-[80px] h-[80px] rounded-full bg-purple-100 items-center justify-center">
@@ -245,13 +291,27 @@ export default function ChildDetailScreen() {
                   </View>
                 </View>
               </View>
+              </TourTarget>
 
-              <View className="px-4">
+              <TourTarget id="parent-child-profile-streak">
+              <View
+                className="px-4"
+                onLayout={({ nativeEvent }) => {
+                  profileTourOffsetsRef.current.streak = nativeEvent.layout.y
+                }}
+              >
                 <ChildStreakSection childId={childId} mode="summary" />
               </View>
+              </TourTarget>
 
               {/* Achievements Section */}
-              <View className="p-4 mt-2">
+              <TourTarget id="parent-child-profile-achievements">
+              <View
+                className="p-4 mt-2"
+                onLayout={({ nativeEvent }) => {
+                  profileTourOffsetsRef.current.achievements = nativeEvent.layout.y
+                }}
+              >
                 <View className="flex-row justify-between items-center mb-3">
                     <TranslatedText variant="bold" className="text-gray-800 text-lg">
                     Achievements
@@ -309,6 +369,7 @@ export default function ChildDetailScreen() {
                   </View>
                 )}
               </View>
+              </TourTarget>
 
             </>
           ) : (
@@ -318,6 +379,16 @@ export default function ChildDetailScreen() {
           )}
         </ScrollView>
       </SafeAreaView>
+      <GameTour
+        finishLabel="Done"
+        onComplete={profileTour.complete}
+        onDismiss={profileTour.dismiss}
+        onUnavailable={profileTour.close}
+        positioning={PARENT_SCREEN_TOUR_POSITIONING}
+        steps={profileTourSteps}
+        visible={profileTour.visible}
+      />
     </>
+    </GameTourProvider>
   )
 }

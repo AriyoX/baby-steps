@@ -12,12 +12,22 @@ import ColoringTab from "../coloring"
 const mockRouterPush = jest.fn()
 const mockLoadContentBundle = jest.fn()
 const mockGetColoringProgress = jest.fn()
+const mockUseGameTour = jest.fn(
+  (_guideId?: unknown, _childId?: unknown, _enabled?: unknown) => ({
+    close: jest.fn(),
+    complete: jest.fn(),
+    dismiss: jest.fn(),
+    open: jest.fn(),
+    visible: false,
+  }),
+)
 let mockSelectedLanguageCode = "lg"
 let mockChildId = "child-1"
 let mockChildAvatar = "👧"
 let mockChildGender = "female"
 let mockCompletedLearningLessonIds: string[] = []
 let mockPathname = "/child/learning"
+let mockScreenFocused = true
 
 jest.mock("@/content/contentRepository", () => ({
   getStartableMenuCards: (
@@ -35,10 +45,21 @@ jest.mock("@/content/imagePreloader", () => ({
 jest.mock("expo-router", () => ({
   useFocusEffect: (callback: () => void | (() => void)) => {
     const ReactModule = jest.requireActual("react")
-    ReactModule.useEffect(callback, [callback])
+    ReactModule.useEffect(
+      () => (mockScreenFocused ? callback() : undefined),
+      [callback, mockScreenFocused],
+    )
   },
   usePathname: () => mockPathname,
   useRouter: () => ({ push: mockRouterPush }),
+}))
+
+jest.mock("@/components/games/GameTour", () => ({
+  GameTour: () => null,
+  GameTourProvider: ({ children }: { children: React.ReactNode }) => children,
+  TourTarget: ({ children }: { children: React.ReactNode }) => children,
+  useGameTour: (guideId: unknown, childId?: unknown, enabled?: unknown) =>
+    mockUseGameTour(guideId, childId, enabled),
 }))
 
 jest.mock("expo-status-bar", () => ({ StatusBar: "StatusBar" }))
@@ -188,6 +209,7 @@ beforeEach(() => {
   mockChildGender = "female"
   mockCompletedLearningLessonIds = []
   mockPathname = "/child/learning"
+  mockScreenFocused = true
   mockGetColoringProgress.mockResolvedValue({
     savedArtworkCount: 0,
     savedPages: [],
@@ -211,6 +233,46 @@ afterEach(() => {
 })
 
 describe("Learning tab shared African interface", () => {
+  it("arms the Learning Hub tour only after the focused tab has loaded stages", async () => {
+    mockScreenFocused = false
+    let tree = await renderLearningTab()
+    expect(mockUseGameTour).toHaveBeenLastCalledWith(
+      "learning-hub-home",
+      "child-1",
+      false,
+    )
+    act(() => tree.unmount())
+
+    mockUseGameTour.mockClear()
+    mockScreenFocused = true
+    let resolveContent!: (value: ReturnType<typeof bundleFor>) => void
+    const pendingContent = new Promise<ReturnType<typeof bundleFor>>((resolve) => {
+      resolveContent = resolve
+    })
+    mockLoadContentBundle.mockReturnValueOnce(pendingContent)
+
+    tree = await renderLearningTab()
+    expect(mockUseGameTour).toHaveBeenLastCalledWith(
+      "learning-hub-home",
+      "child-1",
+      false,
+    )
+
+    await act(async () => {
+      resolveContent(bundleFor("lg", getLearningLanguageContent("lg")))
+      await pendingContent
+      await Promise.resolve()
+    })
+
+    expect(mockUseGameTour).toHaveBeenLastCalledWith(
+      "learning-hub-home",
+      "child-1",
+      true,
+    )
+
+    act(() => tree.unmount())
+  })
+
   it("uses the same African interface for Coloring and shows local art progress", async () => {
     mockPathname = "/child/coloring"
     mockGetColoringProgress.mockResolvedValue({

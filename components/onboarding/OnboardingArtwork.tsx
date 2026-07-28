@@ -1,13 +1,11 @@
 import type { ComponentProps } from "react";
 import { StyleSheet, View, type ViewStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { BrandMark } from "@/components/brand/BrandMark";
+import { ShanaPortrait } from "@/components/brand/ShanaPortrait";
 import { Text } from "@/components/StyledText";
 import { brandColors, brandShadows } from "@/constants/Brand";
 
 export type OnboardingArtworkVariant = "play" | "discover" | "family";
-
-const protectTextEdges = (value: string) => `\u00A0${value}\u00A0`;
 
 type OnboardingArtworkProps = {
   variant: OnboardingArtworkVariant;
@@ -52,7 +50,7 @@ function PlayArtwork() {
         style={styles.playMusicBubble}
       />
       <View style={styles.playMascot}>
-        <BrandMark kind="mascot" width={134} height={176} />
+        <ShanaPortrait variant="welcome" width={162} height={210} />
       </View>
     </View>
   );
@@ -63,7 +61,7 @@ function FamilyArtwork() {
     <View style={styles.stage}>
       <View style={[styles.largeHalo, { backgroundColor: brandColors.orange[100] }]} />
       <View style={styles.familyMascot}>
-        <BrandMark kind="mascot" width={90} height={118} />
+        <ShanaPortrait variant="family" width={104} height={170} />
       </View>
 
       <View style={styles.familyCard}>
@@ -81,7 +79,7 @@ function FamilyArtwork() {
 
         <View style={styles.progressLabelRow}>
           <Text variant="bold" style={styles.familyCardLabel}>
-            {protectTextEdges("Family learning")}
+            Family learning
           </Text>
           <Ionicons name="sparkles" color={brandColors.equatorialGold} size={17} />
         </View>
@@ -108,7 +106,7 @@ function DiscoverArtwork() {
       <View style={[styles.largeHalo, { backgroundColor: brandColors.blue[100] }]} />
       <View style={styles.speechBubble}>
         <Text variant="bold" style={styles.speechBubbleText}>
-          {protectTextEdges("Stories, words and play — all together!")}
+          Stories, words and play — all together!
         </Text>
         <View style={styles.speechBubbleTail} />
       </View>
@@ -123,7 +121,7 @@ function DiscoverArtwork() {
         style={styles.discoverStarBubble}
       />
       <View style={styles.discoverMascot}>
-        <BrandMark kind="mascot" width={122} height={160} />
+        <ShanaPortrait variant="reading" width={148} height={222} />
       </View>
     </View>
   );
@@ -157,8 +155,8 @@ const styles = StyleSheet.create({
     paddingRight: 3,
   },
   familyMascot: {
-    bottom: 15,
-    left: 15,
+    bottom: 3,
+    left: 7,
     position: "absolute",
     zIndex: 2,
   },
@@ -197,8 +195,8 @@ const styles = StyleSheet.create({
     top: 77,
   },
   playMascot: {
-    bottom: 5,
-    left: 101,
+    bottom: -4,
+    left: 89,
     position: "absolute",
   },
   playMusicBubble: {
@@ -247,8 +245,8 @@ const styles = StyleSheet.create({
     top: 96,
   },
   discoverMascot: {
-    bottom: 0,
-    left: 107,
+    bottom: -7,
+    left: 96,
     position: "absolute",
   },
   discoverStarBubble: {

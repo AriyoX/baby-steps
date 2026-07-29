@@ -1,6 +1,7 @@
 "use client"
 
 import { Stack, useFocusEffect, usePathname, useRouter } from "expo-router"
+import { StatusBar } from "expo-status-bar"
 import { useCallback, useEffect, useRef } from "react"
 import { AppState } from "react-native"
 import * as ScreenOrientation from "expo-screen-orientation"
@@ -86,21 +87,24 @@ export default function TabLayout() {
     if (!requiresParentUnlock || !isParentGateRoute) return null
 
     return (
-      <Stack
-        screenOptions={{
-          ...CHILD_FULLSCREEN_OPTIONS,
-          headerShown: false,
-          orientation: CHILD_ROUTE_ORIENTATION,
-        }}
-      >
-        <Stack.Screen
-          name="parent-gate"
-          options={{
+      <>
+        <StatusBar hidden />
+        <Stack
+          screenOptions={{
+            ...CHILD_FULLSCREEN_OPTIONS,
             headerShown: false,
             orientation: CHILD_ROUTE_ORIENTATION,
           }}
-        />
-      </Stack>
+        >
+          <Stack.Screen
+            name="parent-gate"
+            options={{
+              headerShown: false,
+              orientation: CHILD_ROUTE_ORIENTATION,
+            }}
+          />
+        </Stack>
+      </>
     )
   }
 
@@ -108,6 +112,7 @@ export default function TabLayout() {
     <ChildUiLanguageProvider key={activeChild.id}>
       <StreakProvider key={activeChild.id}>
         <ChildNoticeProvider key={activeChild.id} childId={activeChild.id}>
+          <StatusBar hidden />
           <Stack
             screenOptions={{
               ...CHILD_FULLSCREEN_OPTIONS,

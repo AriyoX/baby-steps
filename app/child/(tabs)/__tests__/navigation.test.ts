@@ -92,6 +92,26 @@ describe("child-mode navigation", () => {
     expect(rootLayoutSource).toContain("...ADULT_SYSTEM_UI_OPTIONS")
     expect(rootLayoutSource).toContain("...CHILD_FULLSCREEN_OPTIONS")
     expect(childLayoutSource).toContain("...CHILD_FULLSCREEN_OPTIONS")
+    expect(childLayoutSource).toContain("<StatusBar hidden />")
+  })
+
+  it("keeps every tab title centered and lifts cards clear of the bottom navigation", () => {
+    const interfaceSource = readProjectFile(
+      "components",
+      "child",
+      "AfricanThemeGameInterface.tsx",
+    )
+
+    expect(interfaceSource).toContain("const CHILD_TAB_BAR_CLEARANCE = 76")
+    expect(interfaceSource).toContain(
+      '<View pointerEvents="none" style={styles.titleBlock}>',
+    )
+    expect(interfaceSource).toMatch(
+      /titleBlock:\s*\{[\s\S]*?position: "absolute"[\s\S]*?right: 0/,
+    )
+    expect(interfaceSource).toMatch(
+      /headerActions:\s*\{[\s\S]*?marginLeft: "auto"/,
+    )
   })
 
   it("does not register a nonexistent Learning stack route", () => {

@@ -355,6 +355,373 @@ parent to reconnect; never silently erase downloaded progress.
 Free bundled content should continue working offline. Premium downloads should
 activate atomically only after their manifest and required assets validate.
 
+## Potential Development Blueprint
+
+This section is a possible implementation shape, not a commitment to exact
+filenames or a database migration. Confirm current Expo, store, RevenueCat, and
+Supabase documentation again when development begins.
+
+### Proposed application boundaries
+
+Keep billing, entitlement, and feature-access concerns separate:
+
+```text
+Store / RevenueCat
+  -> verified provider webhook
+  -> server-owned parent entitlement
+  -> access snapshot
+  -> central access-policy functions
+  -> cards, routes, profile creation, and practice-session enforcement
+```
+
+The purchase provider answers “what did the store verify?” The Baby Steps
+access layer answers “what may this parent or child do?” UI components should
+not talk directly to the purchase SDK to decide access.
+
+Potential files:
+
+```text
+lib/subscription/subscriptionTypes.ts
+lib/subscription/subscriptionProducts.ts
+lib/subscription/entitlementRepository.ts
+lib/subscription/accessPolicy.ts
+lib/subscription/entitlementCache.ts
+lib/subscription/purchaseProvider.ts
+hooks/useParentEntitlement.ts
+components/subscription/SubscriptionLock.tsx
+components/subscription/SubscriptionSummary.tsx
+app/parent/subscription/index.tsx
+app/parent/subscription/manage.tsx
+supabase/functions/subscription-webhook/
+```
+
+`purchaseProvider.ts` should define a small Baby Steps-owned interface such as
+load products, purchase, restore, get customer state, and open store management.
+The rest of the app depends on that interface rather than importing a vendor
+SDK throughout the codebase. This makes sandbox testing and a future provider
+change less disruptive.
+
+The purchase SDK should be initialized from the authenticated parent
+subscription surface, not from the root child layout. Child mode should consume
+only the minimal Baby Steps access snapshot it needs.
+
+### Access snapshot
+
+Return one normalized, versioned snapshot for the signed-in parent:
+
+```ts
+type AccessSnapshot = {
+  parentId: string
+  plan: "free" | "premium"
+  status: "free" | "trial" | "active" | "grace" | "expired" | "revoked"
+  premiumUntil?: string
+  offlineValidUntil?: string
+  maxActiveChildren: number
+  freeActiveChildId?: string
+  dailyPracticeLimit: number | null
+  catalogVersion: string
+  snapshotVersion: number
+}
+```
+
+`dailyPracticeLimit: null` can mean no product limit for Premium, while server
+abuse protection remains possible. Do not place every accessible content ID in
+the entitlement row; calculate content access from the snapshot and versioned
+catalog metadata.
+
+The snapshot should be:
+
+- fetched after authentication and when parent mode regains focus;
+- refreshed after purchase, restore, sign-in, sign-out, and account switch;
+- cached per parent UUID, never globally across accounts;
+- invalidated when its version, account, verified expiry, or catalog version
+  changes;
+- unavailable to a child until the active child belongs to the same parent;
+- treated as a UI/offline optimization, not permission to bypass server
+  enforcement.
+
+### Suggested database responsibilities
+
+A later schema may need these concepts:
+
+| Concept | Visibility and writer |
+| --- | --- |
+| `subscription_entitlements` | Parent may select only their row; verified server process is the only writer |
+| `subscription_events` | Private webhook idempotency/audit data; no client access |
+| `content_access_rules` | Published read-only catalog metadata; editorial/server writers |
+| `parent_plan_settings` | Parent-owned free-profile selection and family timezone |
+| `practice_sessions` | Parent may read sessions belonging to owned children; atomic server start creates rows |
+
+Important constraints and indexes:
+
+- unique entitlement per `(parent_id, entitlement_key)`;
+- unique provider event per `(provider, environment, provider_event_id)`;
+- unique practice idempotency key per child;
+- indexed `parent_id` and `child_id` foreign keys;
+- composite index for practice lookup by `(child_id, local_date, status)`;
+- partial indexes for current active entitlements and non-deleted child
+  profiles if those match real query patterns;
+- check constraints for normalized status, provider, tier, positive limits, and
+  valid date boundaries;
+- timestamps stored as `timestamptz`, with the family-local date stored
+  separately where daily allowance reporting needs it.
+
+Avoid putting authorization in `auth.users.user_metadata`; it is client
+editable and may be stale. Do not expose the Supabase service-role key to the
+app.
+
+Every table in an exposed schema must have RLS and explicit, least-privilege
+grants. Parent selection policies should combine `TO authenticated` with an
+ownership predicate such as `(select auth.uid()) = parent_id`. Index the
+ownership columns used by those policies.
+
+Provider event payloads may contain support-sensitive identifiers. Keep the raw
+event or minimum reconciliation fields in a private/non-exposed boundary with
+a defined retention period. The child client should never receive them.
+
+### Atomic profile enforcement
+
+The current `UserContext.addChildProfile` inserts directly into `children`.
+That path would bypass a UI-only subscription limit, so development should
+replace it with one atomic server-authorized creation operation.
+
+Conceptual transaction:
+
+1. obtain the authenticated parent UUID;
+2. lock the relevant parent/plan row for the short transaction;
+3. read the current verified plan and count active, non-deleted children;
+4. reject with a stable `profile_limit_reached` result when the plan limit is
+   exhausted;
+5. validate language and profile fields;
+6. insert the child owned by that parent;
+7. initialize related preference rows;
+8. commit and return the new child.
+
+Do not perform a store or RevenueCat network request while holding a database
+lock. Reconcile the entitlement before entering the transaction and keep the
+transaction short.
+
+If implemented as a privileged Postgres function, it must explicitly verify
+`auth.uid()`, use an empty/fixed `search_path`, revoke default `PUBLIC` and
+`anon` execution, grant only the intended authenticated call, and be covered by
+cross-account tests. A server/Edge Function is another option, but it must
+validate the caller's JWT and still perform the count-and-insert atomically.
+Do not use `SECURITY DEFINER` merely to make an RLS error disappear.
+
+During subscription expiry, the parent selects `free_active_child_id`. Enforce
+that the selected child is active and owned by the parent. Profile deletion
+should clear or safely replace that selection without deleting other progress.
+
+### Atomic Practice Hub allowance
+
+`start_practice_session` should be the only supported way to consume a daily
+allowance:
+
+1. validate the parent, child ownership, active profile access, and timezone;
+2. return an existing session when the idempotency key was already used;
+3. serialize concurrent starts for that child/day with a short database lock;
+4. count already consumed free sessions for the family-local date;
+5. reject the sixth free start with `daily_limit_reached`;
+6. select only reviewed practice items the child is allowed to access;
+7. insert the new session and return the session plus remaining allowance.
+
+Use a unique constraint and an atomic insert/upsert rather than
+select-then-insert logic. Two devices starting practice at the same time must
+not both receive the fifth slot.
+
+Completion updates should be separate from session creation. A session can be
+`started`, `completed`, `abandoned`, or `invalidated`, but changing status
+should not refund an allowance automatically; interrupted sessions are resumed
+through the original idempotent session.
+
+### Catalog and content delivery changes
+
+The current database bundle can contain free and future premium levels in the
+same JSON payload. RLS can filter rows, not individual JSON array elements.
+Development therefore needs one of these transitions:
+
+1. **Short-term filtered response:** a server function validates the caller's
+   entitlement and returns a filtered, fully validated bundle.
+2. **Preferred normalized catalog:** split content into stable stages, levels,
+   stories, and packs with explicit access metadata, then assemble the allowed
+   manifest server-side.
+
+Before enforcing a paywall, remove or narrow any direct published-content
+policy that still lets free clients select the complete premium payload.
+Otherwise the lock protects navigation but not the content.
+
+The client should receive locked-card metadata—ID, title, artwork, description,
+and reason—without receiving the premium lesson/story body or private media
+URL. Keep free bundled assets available offline. Premium media should use
+private Storage paths and short-lived signed URLs or a versioned downloaded
+pack.
+
+### Central access-policy API
+
+Build pure functions first so the access matrix can be tested without React or
+the purchase SDK:
+
+```ts
+getGameLevelAccess(snapshot, gameKey, levelOrder)
+getLearningStageAccess(snapshot, stage, progression)
+getStoryAccess(snapshot, storyAccessTier)
+getChildProfileAccess(snapshot, childId)
+getPracticeAccess(snapshot, remainingAllowance)
+```
+
+Each returns a structured decision:
+
+```ts
+type AccessDecision =
+  | { allowed: true }
+  | {
+      allowed: false
+      reason:
+        | "subscription_locked"
+        | "progress_locked"
+        | "daily_limit_reached"
+        | "coming_soon"
+        | "unsupported_language"
+      parentAction?: "view_subscription" | "choose_free_profile"
+    }
+```
+
+Do not return only a boolean. The caller needs the correct child-safe message,
+parent action, analytics category, and accessibility state.
+
+### Integration points in the current app
+
+Likely changes, when implementation is authorized:
+
+- `app/parent/_layout.tsx`: provide parent entitlement state and refresh it
+  after returning from a store sheet;
+- `app/parent/settings.tsx`: add Subscription and Restore/Manage entry points;
+- `app/parent/add-child/*`: check the available slot before beginning setup and
+  enforce it again at final server creation;
+- `components/child/AfricanThemeGameInterface.tsx`: merge subscription
+  decisions into menu/stage card models without hiding the free catalog;
+- `lib/learningStageAccess.ts`: preserve the current progression algorithm and
+  combine its result with a separate subscription decision;
+- game components: enforce access at both selector and level-start boundaries;
+- `app/child/stories/[storyId].tsx`: recheck story access by stable story ID
+  before loading the full payload;
+- coloring routes: check page/pack entitlement before loading premium assets;
+- `app/child/parent-gate.tsx`: carry a validated parent-only return intent, not
+  a raw arbitrary redirect;
+- `context/ChildContext.tsx`: clear child-scoped cached access during parent
+  account changes and active-child changes.
+
+Deep links and direct route entry must pass the same access service. Disabled
+cards alone are not enforcement.
+
+### Webhook and purchase synchronization
+
+Potential verified event flow:
+
+```text
+Parent buys through store
+  -> purchase provider receives store result
+  -> parent UI may show temporary "confirming" state
+  -> authenticated webhook reaches a Supabase Edge Function
+  -> signature/authenticity and environment are verified
+  -> provider event ID is inserted idempotently
+  -> normalized entitlement is atomically upserted
+  -> access snapshot version increments
+  -> app refreshes and unlocks Premium
+```
+
+Webhook handling requirements:
+
+- reject unauthenticated or incorrectly signed requests;
+- separate sandbox and production events;
+- make event processing idempotent;
+- tolerate duplicate and out-of-order delivery;
+- derive current access from the newest verified store state rather than
+  blindly trusting arrival order;
+- retain enough audit information to investigate support cases;
+- redact event bodies and secrets from normal logs;
+- return quickly and move retryable processing out of long database
+  transactions;
+- provide reconciliation for missed webhooks.
+
+The client-side store result may refresh the UI optimistically only as
+“confirming.” Durable Premium access comes from verified entitlement state.
+Define a bounded fallback for webhook delay, such as an authenticated server
+reconciliation call, rather than permanently trusting a device receipt.
+
+### UI states
+
+The parent subscription surface needs explicit states:
+
+- loading products;
+- products unavailable;
+- free;
+- trial/active;
+- cancelled but active through period end;
+- grace/billing issue;
+- pending store confirmation;
+- expired;
+- restore in progress;
+- purchase failed/cancelled;
+- offline with cached access;
+- account mismatch requiring support.
+
+Child UI should use only calm states such as “Ask a grown-up” or “More
+activities are available with a grown-up,” then route through the parent gate.
+Store error text and prices should remain in parent mode.
+
+### Feature flags and safe rollout
+
+Use server-controlled flags independently:
+
+- `subscription_catalog_metadata_enabled`;
+- `subscription_paywall_enabled`;
+- `subscription_ui_locks_enabled`;
+- `subscription_server_enforcement_enabled`;
+- `profile_limit_enforcement_enabled`;
+- `practice_limit_enforcement_enabled`.
+
+Deploy schema and entitlement reads first with enforcement off. Compare access
+decisions in logs, correct catalog metadata, then enable UI locks before server
+enforcement. Every gate needs a kill switch that restores the free experience
+without requiring a store release; a kill switch must never disable privacy,
+deletion, restore, or subscription management.
+
+### Development sequence
+
+1. Write the complete access matrix as pure unit tests.
+2. Add stable catalog IDs, orders, packs, and tiers without changing access.
+3. Add entitlement/event schema, RLS, grants, constraints, and database tests.
+4. Add webhook verification and sandbox reconciliation.
+5. Add the provider abstraction and parent-only sandbox purchase client.
+6. Add the versioned access snapshot and account-scoped offline cache.
+7. Add parent Subscription, Restore, and Manage screens.
+8. Add neutral child lock UI and direct-route enforcement behind flags.
+9. Replace direct child insertion with atomic plan-aware creation.
+10. Add the Practice Hub session/allowance service when that product exists.
+11. Restrict premium payload/media delivery only after filtered delivery is
+    proven.
+12. Run store sandbox, database concurrency, offline, lifecycle, migration, and
+    family usability testing before gradual production enforcement.
+
+### Verification before each rollout stage
+
+- run existing TypeScript, Jest, lint, and focused route/component tests;
+- add migration tests following the repository's current
+  `supabase/migrations/__tests__` pattern;
+- test RLS as two different parents, `anon`, and a modified authenticated
+  client;
+- test duplicate and out-of-order provider events;
+- test two simultaneous profile creations at the final free/Premium slot;
+- test two simultaneous fifth Practice Hub starts;
+- inspect indexes used by ownership, entitlement, and daily-limit queries;
+- run Supabase database/security advisors before finalizing migrations;
+- verify Data API grants separately from RLS;
+- verify StoreKit sandbox/TestFlight and Play license-test purchases;
+- inspect generated native builds for expected billing dependencies and no
+  accidental ad or purchase SDK initialization in child mode;
+- rehearse rollback with entitlement and enforcement kill switches.
+
 ## Subscription Lifecycle
 
 | Store state | App behavior |
@@ -447,12 +814,182 @@ should be treated as minimum gates, not a guarantee of compliance:
 - remotely disable ads immediately if placement, data collection, or creative
   review fails.
 
+### Android-only recommendation
+
+If Baby Steps experiments with advertising, keep it on Android and keep the
+iOS app ad-free. Premium should be ad-free on both platforms. The recommended
+order is:
+
+1. test manually sold, first-party sponsor cards in Android parent mode;
+2. measure parent acceptance and sponsor renewals;
+3. consider a third-party Android ad network only if direct sponsorship cannot
+   support the operational effort.
+
+A first-party sponsor card is preferable because Baby Steps controls the
+creative, destination, frequency, and data flow. It does not require an
+advertising SDK or advertising identifier.
+
+Suggested source boundary:
+
+```text
+components/sponsorship/ParentSponsorCard.android.tsx
+components/sponsorship/ParentSponsorCard.ios.tsx       -> renders nothing
+```
+
+The Android component should render only within an authenticated parent route
+after the parent boundary has been satisfied. It must never appear in child
+navigation, games, lessons, stories, coloring, notifications, the parent-gate
+screen, or a purchase flow.
+
+For first-party sponsorship:
+
+- fetch only an approved campaign manifest from Baby Steps/Supabase;
+- store campaign ID, creative, disclosure label, destination, schedule,
+  platform, placement, and frequency cap;
+- do not target using a child's name, age, language progress, mistakes,
+  activity history, or profile;
+- allow only broad contextual placement such as `parent_dashboard`;
+- record aggregated parent-mode impressions and intentional taps;
+- use a confirmation screen before opening an external destination;
+- label every placement clearly as `Sponsored`;
+- show no more than one sponsor card on a parent screen;
+- give Premium families an ad-free experience;
+- include campaign and placement kill switches that work without an app
+  release.
+
+If a third-party SDK is introduced later, `Platform.OS === "android"` is not
+enough: that only hides the component. The native SDK should be excluded from
+iOS autolinking, have no iOS app/ad-unit configuration, and be imported only
+from Android-specific source. The generated iOS Pods and final binary should be
+inspected to confirm the SDK is absent.
+
+The Android SDK must not initialize at app launch. Initialize it only after an
+adult has entered parent mode, after consent and remote-disable state are known.
+Remove every ad view and stop requesting ads when child mode begins. Most ad
+SDKs cannot be fully unloaded from memory, so the SDK must use restricted
+settings from its first initialization:
+
+- contextual/non-personalized treatment only;
+- no AAID, cross-app tracking, profiling, or remarketing;
+- no child or learning data;
+- maximum content rating `G`;
+- an eligible Families self-certified SDK/version;
+- manually blocked sensitive categories;
+- an in-app inappropriate-ad reporting path.
+
+A parent PIN should not be treated as permission to serve personalized or
+adult-content advertising. It creates a useful product boundary, but Baby Steps
+must still make accurate Google Play audience, ads, privacy, and Data Safety
+declarations.
+
+### Direct sponsor pricing
+
+Start with direct sponsorship rather than automated advertising. Sell one
+clearly labelled Android parent-dashboard placement and price it from qualified
+parent impressions, not child activity, downloads, or promises of clicks.
+
+A **qualified parent impression** should count only when:
+
+- the Android app is in authenticated parent mode;
+- at least half of the sponsor card is visible for at least one continuous
+  second;
+- the impression has not already been counted for that campaign and parent
+  session;
+- it complies with the campaign frequency cap.
+
+Keep reports aggregated. A sponsor receives campaign impressions, approximate
+unique parent reach, intentional taps, tap-through rate, dates, and placement.
+They must not receive parent identities, child information, device identifiers,
+or individual activity logs.
+
+#### Pricing formula
+
+Use a transparent guaranteed-impression model:
+
+```text
+campaign price =
+  max(minimum campaign fee,
+      guaranteed qualified impressions / 1,000 x base CPM)
+  x placement multiplier
+  x exclusivity multiplier
+  + optional creative fee
+```
+
+Recommended launch inputs for testing in Uganda:
+
+| Input | Initial value |
+| --- | --- |
+| Base direct-sponsor CPM | UGX 25,000 |
+| Minimum four-week campaign | UGX 250,000 |
+| Parent dashboard placement multiplier | 1.0 |
+| Category exclusivity multiplier | 1.5 |
+| Three-month commitment discount | 10%, applied after other multipliers |
+| Creative adaptation fee | UGX 100,000 once, waived if approved assets are supplied |
+
+These are experimental launch rates, not a claim about a permanent market
+price. Review them every quarter using fill rate, qualified reach, tap-through
+rate, sponsor renewals, campaign-management time, and parent feedback.
+
+Illustrative launch packages:
+
+| Package | Deliverable | Price |
+| --- | --- | --- |
+| Starter | 10,000 qualified impressions, one approved creative, up to 4 weeks | UGX 250,000 |
+| Partner | 25,000 qualified impressions, up to two approved creatives, up to 4 weeks | UGX 625,000 |
+| Category Partner | 40,000 qualified impressions, one sponsor in its approved category, up to 4 weeks | UGX 1,500,000 |
+
+Do not sell impression guarantees that the current active parent audience
+cannot reasonably deliver. Before quoting, estimate:
+
+```text
+monthly available impressions =
+  monthly active Android parent accounts
+  x average qualified parent sessions per month
+  x sponsor-card fill rate
+```
+
+Reserve at least 20% of forecast inventory for delivery variance. For example,
+if the conservative forecast is 12,000 qualified impressions, sell no more than
+9,600 guaranteed impressions during that period.
+
+If Baby Steps misses a guarantee, extend the campaign for up to four additional
+weeks. If it is still short, give the sponsor a proportional credit or refund;
+do not substitute child-facing impressions. If the audience is too small for
+impression guarantees, offer a clearly described **Founding Sponsor pilot** at
+UGX 250,000 for four weeks with projected rather than guaranteed reach and a
+post-campaign report.
+
+Commercial rules:
+
+- invoice smaller campaigns in full before launch; for campaigns above
+  UGX 1,000,000, use 50% before launch and 50% at the midpoint;
+- state whether VAT and withholding tax are included after advice from the
+  business accountant;
+- include one creative revision, with extra production quoted separately;
+- never guarantee taps, purchases, enrolments, or learning outcomes;
+- reject misleading claims and sponsors involving gambling, alcohol, tobacco,
+  dating, adult content, weapons, political persuasion, predatory credit, or
+  products inappropriate for a family-learning app;
+- manually review the sponsor, creative, destination, redirects, and landing
+  page before launch and periodically while live;
+- let Baby Steps pause or remove unsafe creative immediately;
+- use a short written insertion order covering dates, platform, placement,
+  impression definition, cap, price, payment, reporting, make-good, brand
+  safety, cancellation, and data restrictions.
+
+Once three to five campaigns have completed, calculate the effective CPM,
+renewal rate, and internal servicing cost. Raise the CPM when inventory
+regularly sells out or sponsors renew readily; lower the package size rather
+than heavily discounting the CPM when the audience is still growing.
+
 Official references:
 
 - [Apple App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/)
 - [Apple child-safety design guidance](https://developer.apple.com/kids/)
 - [Google Play Families Policy](https://support.google.com/googleplay/android-developer/answer/9893335)
+- [Google Play target-audience guidance](https://support.google.com/googleplay/android-developer/answer/9867159)
 - [Google AdMob age-treatment guidance](https://support.google.com/admob/answer/6219315)
+- [Expo autolinking documentation](https://docs.expo.dev/modules/autolinking/)
 
 This is a product and engineering risk assessment, not legal advice.
 

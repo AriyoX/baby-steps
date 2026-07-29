@@ -75,7 +75,7 @@ import { childHaptics } from "@/lib/childHaptics"
 
 type LearningCard = ChildActivityCardModel
 
-const CHILD_TAB_BAR_CLEARANCE = 68
+const CHILD_TAB_BAR_CLEARANCE = 76
 const CHILD_LEARNING_TOUR_POSITIONING: GameTourPositioning = {
   androidSpotlightOffsetY: 0,
   includeAndroidStatusBarOffset: false,
@@ -570,7 +570,7 @@ const AfricanThemeGameInterface: React.FC = () => {
                   </View>
                 </TouchableOpacity>
 
-                <View style={styles.titleBlock}>
+                <View pointerEvents="none" style={styles.titleBlock}>
                   <View style={styles.titleAccentRow}>
                     <View style={styles.titleAccentDot} />
                     <View style={styles.titleAccentLine} />
@@ -1020,6 +1020,7 @@ const styles = StyleSheet.create({
   headerActions: {
     alignItems: "center",
     flexDirection: "row",
+    marginLeft: "auto",
   },
   headerIconButton: {
     ...brandShadows.soft,
@@ -1178,9 +1179,10 @@ const styles = StyleSheet.create({
   },
   titleBlock: {
     alignItems: "center",
-    flex: 1,
-    marginHorizontal: 10,
+    left: 0,
     minWidth: 56,
+    position: "absolute",
+    right: 0,
   },
   topBar: {
     alignItems: "center",
@@ -1188,6 +1190,7 @@ const styles = StyleSheet.create({
     height: 72,
     marginBottom: 2,
     marginTop: 28,
+    position: "relative",
   },
   topBarCompact: {
     height: 64,

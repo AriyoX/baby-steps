@@ -413,7 +413,21 @@ Return one normalized, versioned snapshot for the signed-in parent:
 type AccessSnapshot = {
   parentId: string
   plan: "free" | "premium"
-  status: "free" | "trial" | "active" | "grace" | "expired" | "revoked"
+  status:
+    | "free"
+    | "trial"
+    | "active"
+    | "grace"
+    | "pending"
+    | "hold"
+    | "expired"
+    | "revoked"
+  accessSource:
+    | "none"
+    | "app_store"
+    | "play_store"
+    | "promotional"
+    | "qa_grant"
   premiumUntil?: string
   offlineValidUntil?: string
   maxActiveChildren: number
@@ -448,6 +462,7 @@ A later schema may need these concepts:
 | --- | --- |
 | `subscription_entitlements` | Parent may select only their row; verified server process is the only writer |
 | `subscription_events` | Private webhook idempotency/audit data; no client access |
+| `subscription_access_grants` | Expiring QA/promotional access; server/admin writers only |
 | `content_access_rules` | Published read-only catalog metadata; editorial/server writers |
 | `parent_plan_settings` | Parent-owned free-profile selection and family timezone |
 | `practice_sessions` | Parent may read sessions belonging to owned children; atomic server start creates rows |
@@ -722,6 +737,141 @@ deletion, restore, or subscription management.
   accidental ad or purchase SDK initialization in child mode;
 - rehearse rollback with entitlement and enforcement kill switches.
 
+## Testing Subscription Access
+
+Use the same `baby_steps_premium` entitlement in testing and production, but
+allow it to come from different clearly identified sources. Do not create a
+cheap or hidden production store product just for testers: it pollutes the
+catalog, can be purchased unexpectedly, and does not reliably exercise the
+intended monthly/annual products.
+
+### Three testing mechanisms
+
+| Goal | Mechanism | Charges real money? | Appropriate users |
+| --- | --- | --- | --- |
+| Test store purchase, restore, renewal, cancellation, refund, grace, and hold | Apple Sandbox/TestFlight or Google Play license testing/Billing Lab | No, when correctly using sandbox/license accounts | Developer and designated billing QA |
+| Let selected accounts exercise Premium screens and limits without a store purchase | Time-limited Baby Steps QA grant in a staging/test environment | No | Internal team and selected closed testers |
+| Give a real production account temporary complimentary access | Expiring promotional entitlement, issued server-side or through the purchase provider | No | Courtesy beta, support, reviewer, or partnership cases |
+
+Store testing and QA grants test different things. A QA grant proves that
+Premium content, multiple profiles, expiry, and access decisions work. It does
+not prove that a store sheet, receipt/token, acknowledgement, webhook, renewal,
+or restore works. Release readiness requires both.
+
+### Accounts to prepare
+
+Keep dedicated accounts for repeatable scenarios:
+
+- one Baby Steps parent that always remains Free;
+- your own Premium QA parent;
+- one Premium QA parent that expires soon;
+- one parent for billing grace and recovery;
+- one parent for account hold/expired behavior;
+- one parent for refund/revoke and restore;
+- at least one second parent for cross-account/RLS tests.
+
+Use dedicated store tester identities rather than normal personal purchasing
+identities where possible:
+
+- Apple Sandbox accounts must use addresses that are not already Apple
+  Accounts. TestFlight and Sandbox accelerate subscription behavior and can
+  exercise renewal failures and server notifications.
+- On Android, add your Google account and chosen testers under Play Console
+  license testing, and distribute through an internal or closed track. The
+  publishing account is treated as a license tester, but a separate test
+  account is easier to reset and audit.
+- On multi-account Android devices, confirm that the account that downloaded
+  the app is the intended purchasing account. A closed-track tester who is not
+  also a license tester may make a real charged purchase.
+- Use Play Billing Lab to accelerate renewals and move an acknowledged test
+  subscription into grace period or account hold.
+
+If RevenueCat is selected, use its Test Store for early provider/UI work and
+platform sandboxes before release. Restrict sandbox entitlement access to an
+allowlist of known App User IDs once testing expands beyond the core team, so a
+sandbox purchase tied to an unexpected production parent UUID does not grant
+access. Keep Test Store keys out of production builds.
+
+### Time-limited QA grants
+
+A potential server-owned `subscription_access_grants` concept:
+
+| Field | Purpose |
+| --- | --- |
+| `id` | Stable audit identity |
+| `parent_id` | Exact Supabase parent UUID receiving access |
+| `entitlement_key` | `baby_steps_premium` |
+| `grant_type` | `qa_test`, `closed_beta`, `support`, or `promotional` |
+| `environment` | `development`, `staging`, or `production` |
+| `starts_at` / `expires_at` | Mandatory bounded access window |
+| `reason` | Internal reason/ticket, with no child information |
+| `granted_by` | Audited staff/admin identity |
+| `revoked_at` / `revoked_by` | Early revocation audit |
+| `created_at` | Grant creation timestamp |
+
+Recommendations:
+
+- use a separate staging Supabase project for internal QA if possible;
+- default QA grants to 24 hours or 7 days and require an explicit expiry;
+- use the parent UUID, never email matching in the client;
+- never use `user_metadata`, a bundled tester email list, or a local
+  `isPremium` switch for authorization;
+- let authenticated parents select only their own effective access snapshot,
+  never insert/update grants;
+- allow grant creation and revocation only through a server/admin operation
+  with least privilege and an audit trail;
+- filter grants by environment so staging access cannot unlock production;
+- make the effective Premium end the latest currently valid verified source,
+  without letting an expired QA grant shorten a real paid subscription;
+- show `Test Premium` or `Complimentary Premium` in parent mode where useful,
+  but keep child-facing access identical;
+- never auto-renew a grant, collect payment, or silently convert it into a paid
+  subscription.
+
+RevenueCat granted entitlements are another option for production courtesy
+access. They work independently from App Store/Play billing and can have a
+fixed expiry. Treat them as promotional access, not a trial that will convert
+to payment. Their server event must be normalized with `accessSource:
+"promotional"` and audited like any other grant.
+
+### Effective-access precedence
+
+Calculate access from all currently verified sources:
+
+```text
+refunded/revoked store entitlement
+  -> removes only the entitlement from that store transaction
+
+active store entitlement OR verified store grace
+OR active promotional grant
+OR active environment-matched QA grant
+  -> Premium
+
+otherwise
+  -> Free
+```
+
+A refund must not accidentally remove a separate valid promotional grant, and
+revoking a QA grant must not cancel a real store subscription. Preserve each
+source independently, then derive the effective access snapshot.
+
+### Testing checklist
+
+- Free account cannot open Premium routes through cards or deep links.
+- QA grant activates immediately, expires at the server timestamp, and cannot
+  be extended by changing a device clock.
+- Staging grants never affect production.
+- Removing a tester from an allowlist removes future sandbox access as
+  intended without affecting a real production purchase.
+- Store purchase and restore attach to the expected Baby Steps parent UUID.
+- Sign-out/account switch never carries cached Premium to another parent.
+- Promotional access expires without billing or store-management language.
+- Real paid access survives the expiry/revocation of a separate QA grant.
+- Duplicate webhook events and repeated grant requests do not create stacked
+  or permanent access.
+- Test data and sandbox provider events are excluded from production revenue
+  reporting.
+
 ## Subscription Lifecycle
 
 | Store state | App behavior |
@@ -730,7 +880,7 @@ deletion, restore, or subscription management.
 | Auto-renew disabled, period still active | Keep Premium until verified expiry. |
 | Billing retry / verified grace period | Keep Premium through the grace boundary. |
 | Pending purchase | Show waiting-for-store confirmation; do not unlock yet. |
-| Paused / account hold | Follow verified store state and preserve all data. |
+| Paused / account hold | Premium is unavailable; preserve all profiles, progress, and history. |
 | Expired | Return to free limits; pause rather than delete premium-only profile access. |
 | Refunded or revoked | Revoke access after the verified event; preserve progress and history. |
 | Offline | Honor the cached verified snapshot only within the documented offline window. |
@@ -740,6 +890,90 @@ Cross-platform access can follow the Baby Steps parent account, but subscription
 management must send the parent to the store where the purchase originated.
 Define and test how a restored purchase transfers between two Baby Steps parent
 accounts before launch.
+
+### Recommended billing grace-period policy
+
+Billing grace is for an otherwise valid auto-renewing subscriber whose renewal
+payment failed while the store retries payment. It is not a free trial,
+complimentary grant, cancellation extension, or reward for contacting support.
+
+Recommended Baby Steps behavior:
+
+- keep all Premium benefits active until the store-verified grace expiry;
+- show a calm billing notice only in parent mode, with a store-appropriate
+  action to update payment;
+- do not show billing trouble, prices, locks, or countdowns to the child;
+- keep extra child profiles usable during verified grace;
+- if payment recovers, clear the notice without interrupting child mode;
+- when verified grace ends without recovery, move to the store's hold/expired
+  behavior and preserve every profile, download record, and progress item;
+- never calculate grace solely as `current_period_ends_at + N days` on the
+  device; use the verified provider state and grace-expiry timestamp;
+- allow a verified renewal after hold/expiry to restore Premium immediately.
+
+Suggested launch configuration:
+
+- **Apple:** enable Billing Grace Period in Sandbox first, test entry, recovery,
+  and expiry, then enable it in production. Start with Apple's 16-day option
+  for paid-to-paid renewals. Apple applies the selected 3, 16, or 28-day setting
+  across the app's auto-renewing subscriptions rather than per individual
+  product.
+- **Google Play:** leave grace enabled on the monthly and annual auto-renewing
+  base plans and begin with the Play Console default/recommended recovery
+  configuration. Do not hardcode its duration in Baby Steps; read the current
+  verified subscription state and expiry. Google can move an unresolved
+  subscription from grace—where access remains active—to account hold, where
+  Premium access should stop.
+
+The stores do not have to use identical grace lengths. The product promise is
+“Premium remains available through the billing grace period verified by your
+store,” not a Baby Steps-guaranteed number of days on every platform.
+
+### Normalized grace and hold states
+
+| Normalized state | Access | Parent experience |
+| --- | --- | --- |
+| `active` / `trial` | Premium | Normal subscription summary |
+| `grace` | Premium through verified `grace_ends_at` | Gentle payment-update notice |
+| `hold` | Free limits; data preserved | Billing issue and Manage Subscription action |
+| `expired` | Free limits; data preserved | Resubscribe/restore options |
+| `revoked` | Free limits unless another valid source exists | Support-oriented message where appropriate |
+
+Webhook/provider normalization should store the provider-reported state,
+`current_period_ends_at`, `grace_ends_at`, last verified event time, and event
+ordering identity. Do not treat every billing-issue event as immediate expiry:
+a billing issue can exist while entitlement is still active in grace.
+
+For Apple, full service must continue through StoreKit's verified grace-period
+expiration. For Google Play, query the current subscription state rather than
+assuming a static recovery duration; account-hold defaults and recovery
+configuration can change.
+
+### Offline courtesy window is separate
+
+Keep the previously proposed offline window distinct from billing grace:
+
+- billing grace is a verified store state caused by payment failure;
+- offline courtesy is a short Baby Steps cache policy when current store state
+  cannot be reached.
+
+An initial offline courtesy cap of 48 hours after the last locally verified
+access boundary is reasonable for testing. It should apply only when the last
+known state was active/trial/grace and there is no known refund, revocation,
+account switch, or hold. It must not extend server-delivered premium content,
+create a new billing period, or overwrite a later verified provider state.
+Review the duration after observing real connectivity conditions in launch
+markets.
+
+Official testing and lifecycle references:
+
+- [Apple Sandbox testing overview](https://developer.apple.com/help/app-store-connect/test-in-app-purchases/overview-of-testing-in-sandbox)
+- [Apple Billing Grace Period setup](https://developer.apple.com/help/app-store-connect/manage-subscriptions/enable-billing-grace-period-for-auto-renewable-subscriptions/)
+- [Google Play Billing testing and Billing Lab](https://developer.android.com/google/play/billing/test)
+- [Google Play subscription lifecycle](https://developer.android.com/google/play/billing/lifecycle/subscriptions)
+- [Google Play payment-recovery changes](https://support.google.com/googleplay/android-developer/answer/16631229)
+- [RevenueCat sandbox access controls](https://www.revenuecat.com/docs/projects/sandbox-access)
+- [RevenueCat granted entitlements](https://www.revenuecat.com/docs/dashboard-and-metrics/customer-profile)
 
 ## Existing Families And Rollout
 

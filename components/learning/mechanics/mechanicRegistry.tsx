@@ -232,10 +232,7 @@ export const MECHANIC_RENDERERS: Partial<
 
 export const UnsupportedMechanicNotice = ({ item }: MechanicRendererProps) => (
   <View className="bg-white rounded-2xl border-2 border-accent-500 p-6 items-center">
-    <Text variant="bold" className="text-primary-700 text-2xl text-center mb-2">
-      Coming soon
-    </Text>
-    <Text className="text-neutral-600 text-base text-center leading-6">
+    <Text variant="bold" className="text-primary-700 text-2xl text-center">
       {getMechanicLabel(item.mechanic)} is being prepared.
     </Text>
   </View>

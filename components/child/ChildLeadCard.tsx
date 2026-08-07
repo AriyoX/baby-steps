@@ -16,8 +16,7 @@ type ColoringBadge = {
 type JourneyLeadCardProps = {
   cardHeight: number;
   mode: "journey";
-  startLabel: string;
-  subtitle: string;
+  title: string;
 };
 
 type ColoringLeadCardProps = {
@@ -25,7 +24,6 @@ type ColoringLeadCardProps = {
   badgeSummary: string;
   badges: ColoringBadge[];
   cardHeight: number;
-  creativePrompt: string;
   mode: "coloring";
   savedSummary: string;
   title: string;
@@ -110,20 +108,6 @@ export function ChildLeadCard(props: ChildLeadCardProps) {
           ))}
         </View>
 
-        <View style={styles.creativePrompt}>
-          <Ionicons
-            color={brandColors.equatorialGold}
-            name="sparkles"
-            size={14}
-          />
-          <Text
-            className="ml-1 flex-1 text-[11px] text-white"
-            numberOfLines={1}
-            variant="medium"
-          >
-            {props.creativePrompt}
-          </Text>
-        </View>
       </LinearGradient>
     );
   }
@@ -136,29 +120,15 @@ export function ChildLeadCard(props: ChildLeadCardProps) {
       style={[styles.card, styles.journeyCard, { height: props.cardHeight }]}
     >
       <View style={styles.journeyCopy}>
-        <View style={styles.startPill}>
-          <Ionicons
-            color={brandColors.orange[700]}
-            name="sparkles"
-            size={14}
-          />
-          <Text
-            className="ml-1 text-xs uppercase tracking-[0.8px]"
-            style={{ color: brandColors.orange[800] }}
-            variant="bold"
-          >
-            {props.startLabel}
-          </Text>
-        </View>
         <MarqueeText
           adjustsFontSizeToFit
-          className="mt-2 text-[21px] leading-6"
+          className="text-[21px] leading-6"
           containerStyle={{ maxWidth: 116 }}
           minimumFontScale={0.68}
           style={{ color: brandColors.blue[800] }}
           variant="display"
         >
-          {props.subtitle}
+          {props.title}
         </MarqueeText>
         <View style={styles.journeyMotif}>
           <View style={styles.journeyMotifDot} />
@@ -211,11 +181,6 @@ const styles = StyleSheet.create({
   coloringCard: {
     borderColor: "rgba(255,255,255,0.26)",
   },
-  creativePrompt: {
-    alignItems: "center",
-    flexDirection: "row",
-    marginTop: 8,
-  },
   decorativeOrb: {
     backgroundColor: "rgba(248,194,62,0.15)",
     borderRadius: 60,
@@ -266,15 +231,6 @@ const styles = StyleSheet.create({
     height: 30,
     justifyContent: "center",
     width: 30,
-  },
-  startPill: {
-    alignItems: "center",
-    alignSelf: "flex-start",
-    backgroundColor: "rgba(255,255,255,0.76)",
-    borderRadius: 14,
-    flexDirection: "row",
-    paddingHorizontal: 8,
-    paddingVertical: 5,
   },
   summaryPill: {
     backgroundColor: "rgba(255,255,255,0.13)",

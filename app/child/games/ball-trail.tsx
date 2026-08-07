@@ -247,8 +247,7 @@ export default function BallTrail() {
 
       {/* Instructions */}
       <View style={styles.instructions}>
-        <Text style={styles.instructionsText}>Drag your finger to create a trail</Text>
-        <Text style={styles.instructionsText}>Release to see an explosion!</Text>
+        <Text style={styles.instructionsText}>Drag to make a trail</Text>
       </View>
     </View>
   )

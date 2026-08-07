@@ -233,9 +233,6 @@ export default function Auth() {
               <Text variant="bold" className="text-[34px] leading-10 text-neutral-900 pt-2 text-center">
                 Welcome back
               </Text>
-              <Text className="text-base text-center text-neutral-600 mt-2 leading-6">
-                Pick up where your family left off.
-              </Text>
             </Animated.View>
           </View>
 

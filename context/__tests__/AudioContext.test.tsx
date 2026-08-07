@@ -6,10 +6,13 @@ import { AUDIO_SETTINGS_STORAGE_KEY, DEFAULT_AUDIO_SETTINGS } from "@/lib/audioS
 const mockUpdateSettings = jest.fn().mockResolvedValue(undefined)
 const mockSetAppIsActive = jest.fn().mockResolvedValue(undefined)
 const mockStartBackgroundMusic = jest.fn().mockResolvedValue(undefined)
+const mockSetBackgroundMusicSuppressed = jest.fn().mockResolvedValue(undefined)
 const mockUnloadBackgroundMusic = jest.fn().mockResolvedValue(undefined)
 const mockStopAppSpeech = jest.fn()
 const mockPlayAppSound = jest.fn()
 const mockCreateAppSound = jest.fn()
+const mockCreateLearningVoice = jest.fn()
+const mockPlayLearningVoice = jest.fn()
 const mockReplayAppSound = jest.fn()
 const mockUnloadAppSound = jest.fn()
 const mockGetSettingsSnapshot = jest.fn(() => DEFAULT_AUDIO_SETTINGS)
@@ -28,11 +31,14 @@ jest.mock("@/lib/audioManager", () => ({
     updateSettings: (...args: unknown[]) => mockUpdateSettings(...args),
     setAppIsActive: (...args: unknown[]) => mockSetAppIsActive(...args),
     startBackgroundMusic: (...args: unknown[]) => mockStartBackgroundMusic(...args),
+    setBackgroundMusicSuppressed: (...args: unknown[]) => mockSetBackgroundMusicSuppressed(...args),
     unloadBackgroundMusic: (...args: unknown[]) => mockUnloadBackgroundMusic(...args),
     stopAppSpeech: (...args: unknown[]) => mockStopAppSpeech(...args),
     getSettingsSnapshot: () => mockGetSettingsSnapshot(),
     playAppSound: (...args: unknown[]) => mockPlayAppSound(...args),
     createAppSound: (...args: unknown[]) => mockCreateAppSound(...args),
+    createLearningVoice: (...args: unknown[]) => mockCreateLearningVoice(...args),
+    playLearningVoice: (...args: unknown[]) => mockPlayLearningVoice(...args),
     replayAppSound: (...args: unknown[]) => mockReplayAppSound(...args),
     unloadAppSound: (...args: unknown[]) => mockUnloadAppSound(...args),
   },

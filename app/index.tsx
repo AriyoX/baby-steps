@@ -28,45 +28,30 @@ import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { setOnboardingCompleted } from "@/lib/onboarding";
 
 type OnboardingSlide = {
-  accentColor: string;
   artwork: OnboardingArtworkVariant;
   backgroundColor: string;
-  description: string;
   id: string;
-  kicker: string;
   title: string;
 };
 
 export const ONBOARDING_SLIDES: readonly OnboardingSlide[] = [
   {
     id: "little-steps",
-    kicker: "WELCOME TO BABY STEPS",
     title: "Little steps, big adventures",
-    description:
-      "Stories, games and first words help children learn with confidence and stay connected to culture.",
     artwork: "play",
     backgroundColor: brandColors.blue[100],
-    accentColor: brandColors.blue[700],
   },
   {
     id: "stories-and-play",
-    kicker: "DISCOVER AND CREATE",
     title: "Learn through stories and play",
-    description:
-      "Explore Luganda, African stories, puzzles and creative activities designed for young learners.",
     artwork: "discover",
     backgroundColor: brandColors.orange[100],
-    accentColor: brandColors.orange[700],
   },
   {
     id: "family-space",
-    kicker: "MADE FOR FAMILIES",
     title: "Their journey stays with you",
-    description:
-      "Create a profile for each child and follow their progress from one private family space.",
     artwork: "family",
     backgroundColor: brandColors.gold[100],
-    accentColor: brandColors.gold[800],
   },
 ] as const;
 
@@ -247,9 +232,6 @@ export default function OnboardingScreen() {
             showsVerticalScrollIndicator={false}
             style={[styles.copyScroller, { maxWidth: contentWidth }]}
           >
-            <Text variant="bold" style={[styles.kicker, { color: item.accentColor }]}>
-              {item.kicker}
-            </Text>
             <Text
               variant="display"
               style={[
@@ -260,16 +242,6 @@ export default function OnboardingScreen() {
               ]}
             >
               {item.title}
-            </Text>
-            <Text
-              style={[
-                styles.description,
-                isCompact && styles.compactDescription,
-                isVeryCompact && styles.veryCompactDescription,
-                isTablet && styles.tabletDescription,
-              ]}
-            >
-              {item.description}
             </Text>
           </ScrollView>
         </View>
@@ -439,10 +411,6 @@ const styles = StyleSheet.create({
   carouselContent: {
     flexGrow: 1,
   },
-  compactDescription: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
   compactTitle: {
     fontSize: 29,
     lineHeight: 38,
@@ -473,17 +441,6 @@ const styles = StyleSheet.create({
     paddingTop: 27,
     width: "100%",
   },
-  description: {
-    alignSelf: "center",
-    color: brandColors.neutral[700],
-    fontSize: 17,
-    lineHeight: 25,
-    maxWidth: 440,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    textAlign: "center",
-    width: "100%",
-  },
   errorSlot: {
     alignItems: "center",
     justifyContent: "center",
@@ -510,17 +467,6 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     zIndex: 10,
-  },
-  kicker: {
-    alignSelf: "center",
-    fontSize: 11,
-    letterSpacing: 1.4,
-    lineHeight: 18,
-    marginBottom: 7,
-    paddingHorizontal: 8,
-    paddingVertical: 1,
-    textAlign: "center",
-    width: "100%",
   },
   pagination: {
     alignItems: "center",
@@ -569,10 +515,6 @@ const styles = StyleSheet.create({
   slide: {
     flex: 1,
   },
-  tabletDescription: {
-    fontSize: 18,
-    lineHeight: 28,
-  },
   tabletTitle: {
     fontSize: 38,
     lineHeight: 50,
@@ -591,10 +533,6 @@ const styles = StyleSheet.create({
   },
   veryCompactCopySheet: {
     paddingTop: 20,
-  },
-  veryCompactDescription: {
-    fontSize: 14,
-    lineHeight: 20,
   },
   veryCompactTitle: {
     fontSize: 26,

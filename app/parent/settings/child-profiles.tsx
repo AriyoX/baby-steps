@@ -40,10 +40,7 @@ export default function ChildProfilesManagementScreen() {
 
   return (
     <SettingsScaffold title="Child Profiles">
-      <View className="mt-5 flex-row justify-between items-center">
-        <Text className="text-gray-600 flex-1 pr-3">
-          Manage child profiles and learning progress.
-        </Text>
+      <View className="mt-5 flex-row justify-end items-center">
         <TouchableOpacity
           className="bg-blue-600 rounded-full px-4 py-2 flex-row items-center"
           onPress={() => router.push("/parent/add-child/gender")}

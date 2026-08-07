@@ -14,8 +14,19 @@ const BACKGROUND_AUDIO_MODE = {
   shouldDuckAndroid: true,
 }
 
-const getAppliedAppSoundVolume = (settings: AudioSettings): number =>
-  settings.appSoundsMuted ? 0 : settings.appSoundsVolume
+type AppSoundRole = "effect" | "learningVoice"
+
+export const LEARNING_VOICE_VOLUME = 1
+
+const getAppliedAppSoundVolume = (
+  settings: AudioSettings,
+  role: AppSoundRole = "effect",
+): number =>
+  settings.appSoundsMuted
+    ? 0
+    : role === "learningVoice"
+      ? LEARNING_VOICE_VOLUME
+      : settings.appSoundsVolume
 
 const getAppliedBackgroundMusicVolume = (settings: AudioSettings): number =>
   settings.backgroundMusicMuted ? 0 : settings.backgroundMusicVolume
@@ -27,7 +38,8 @@ export class BabyStepsAudioManager {
   private backgroundLoadGeneration = 0
   private currentBackgroundTrackId: string | null = null
   private appIsActive = true
-  private managedAppSounds = new Set<Audio.Sound>()
+  private backgroundMusicSuppressed = false
+  private managedAppSounds = new Map<Audio.Sound, AppSoundRole>()
 
   constructor(private readonly backgroundTracks: readonly BackgroundTrack[] = BACKGROUND_TRACKS) {}
 
@@ -81,6 +93,13 @@ export class BabyStepsAudioManager {
     }
 
     await this.pauseBackgroundSound()
+  }
+
+  async setBackgroundMusicSuppressed(suppressed: boolean): Promise<void> {
+    if (this.backgroundMusicSuppressed === suppressed) return
+
+    this.backgroundMusicSuppressed = suppressed
+    await this.applyBackgroundMusicSettings()
   }
 
   async startBackgroundMusic(): Promise<void> {
@@ -143,13 +162,16 @@ export class BabyStepsAudioManager {
     }
   }
 
-  async createAppSound(source: AVPlaybackSource): Promise<Audio.Sound | null> {
+  async createAppSound(
+    source: AVPlaybackSource,
+    role: AppSoundRole = "effect",
+  ): Promise<Audio.Sound | null> {
     try {
       const { sound } = await Audio.Sound.createAsync(source, {
         shouldPlay: false,
-        volume: getAppliedAppSoundVolume(this.settings),
+        volume: getAppliedAppSoundVolume(this.settings, role),
       })
-      this.managedAppSounds.add(sound)
+      this.managedAppSounds.set(sound, role)
       return sound
     } catch (error) {
       console.warn("Could not create app sound:", error)
@@ -157,7 +179,14 @@ export class BabyStepsAudioManager {
     }
   }
 
-  async playAppSound(source: AVPlaybackSource): Promise<Audio.Sound | null> {
+  async createLearningVoice(source: AVPlaybackSource): Promise<Audio.Sound | null> {
+    return this.createAppSound(source, "learningVoice")
+  }
+
+  async playAppSound(
+    source: AVPlaybackSource,
+    role: AppSoundRole = "effect",
+  ): Promise<Audio.Sound | null> {
     if (this.settings.appSoundsMuted) {
       return null
     }
@@ -165,10 +194,10 @@ export class BabyStepsAudioManager {
     try {
       const { sound } = await Audio.Sound.createAsync(source, {
         shouldPlay: true,
-        volume: this.settings.appSoundsVolume,
+        volume: getAppliedAppSoundVolume(this.settings, role),
       })
 
-      this.managedAppSounds.add(sound)
+      this.managedAppSounds.set(sound, role)
       sound.setOnPlaybackStatusUpdate((status) => {
         if (status.isLoaded && status.didJustFinish) {
           this.managedAppSounds.delete(sound)
@@ -185,14 +214,19 @@ export class BabyStepsAudioManager {
     }
   }
 
+  async playLearningVoice(source: AVPlaybackSource): Promise<Audio.Sound | null> {
+    return this.playAppSound(source, "learningVoice")
+  }
+
   async replayAppSound(sound?: Audio.Sound | null): Promise<boolean> {
     if (!sound || this.settings.appSoundsMuted) {
       return false
     }
 
     try {
-      this.managedAppSounds.add(sound)
-      await sound.setVolumeAsync(this.settings.appSoundsVolume)
+      const role = this.managedAppSounds.get(sound) ?? "effect"
+      this.managedAppSounds.set(sound, role)
+      await sound.setVolumeAsync(getAppliedAppSoundVolume(this.settings, role))
       await sound.replayAsync()
       return true
     } catch (error) {
@@ -221,6 +255,19 @@ export class BabyStepsAudioManager {
     Speech.speak(text, {
       ...options,
       volume: this.settings.appSoundsVolume,
+    })
+
+    return true
+  }
+
+  speakLearningText(text: string, options: SpeechOptions = {}): boolean {
+    if (this.settings.appSoundsMuted) {
+      return false
+    }
+
+    Speech.speak(text, {
+      ...options,
+      volume: LEARNING_VOICE_VOLUME,
     })
 
     return true
@@ -291,11 +338,11 @@ export class BabyStepsAudioManager {
   }
 
   private async updateManagedAppSoundVolumes(): Promise<void> {
-    const volume = getAppliedAppSoundVolume(this.settings)
+    const sounds = Array.from(this.managedAppSounds.entries())
     await Promise.all(
-      Array.from(this.managedAppSounds).map(async (sound) => {
+      sounds.map(async ([sound, role]) => {
         try {
-          await sound.setVolumeAsync(volume)
+          await sound.setVolumeAsync(getAppliedAppSoundVolume(this.settings, role))
         } catch {
           this.managedAppSounds.delete(sound)
         }
@@ -304,7 +351,11 @@ export class BabyStepsAudioManager {
   }
 
   private shouldBackgroundMusicPlay(): boolean {
-    return this.appIsActive && !this.settings.backgroundMusicMuted
+    return (
+      this.appIsActive &&
+      !this.backgroundMusicSuppressed &&
+      !this.settings.backgroundMusicMuted
+    )
   }
 
   private async playBackgroundSound(): Promise<void> {

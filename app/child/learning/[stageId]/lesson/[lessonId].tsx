@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/StyledText";
+import { ChildCompletionCard } from "@/components/child/ChildCompletionCard";
 import { ChildLoadingState } from "@/components/child/ChildLoadingState";
 import {
   GameTour,
@@ -33,6 +34,7 @@ import {
 } from "@/content/learningHubRepository";
 import type {
   ItemResult,
+  LearningLessonItem,
   LearningLanguageContent,
 } from "@/content/learningHubTypes";
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation";
@@ -52,6 +54,7 @@ import {
 } from "@/lib/learningStageAccess";
 import { recordQualifiedStreakActivity } from "@/lib/streakRepository";
 import { childHaptics } from "@/lib/childHaptics";
+import { useNavigationGuard } from "@/hooks/useNavigationGuard";
 
 const getRouteParam = (value: unknown): string => {
   if (Array.isArray(value)) {
@@ -59,6 +62,39 @@ const getRouteParam = (value: unknown): string => {
   }
 
   return typeof value === "string" ? value : "";
+};
+
+const isQuizOnlyLesson = (items: LearningLessonItem[]): boolean =>
+  items.length > 0 && items.every((item) => item.mechanic === "mini_quiz");
+
+const getLessonResultScore = (
+  items: LearningLessonItem[],
+  itemResults: ItemResult[],
+): number => {
+  if (items.length === 0) return 0;
+
+  if (isQuizOnlyLesson(items)) {
+    const questionCount = items.reduce(
+      (total, item) =>
+        total + (item.mechanic === "mini_quiz" ? item.questions.length : 0),
+      0,
+    );
+    const attemptCount = itemResults.reduce(
+      (total, result) => total + Math.max(0, result.attempts ?? 0),
+      0,
+    );
+
+    if (questionCount > 0) {
+      return Math.round(
+        (questionCount / Math.max(questionCount, attemptCount)) * 100,
+      );
+    }
+  }
+
+  const correctItemCount = itemResults.filter(
+    (itemResult) => itemResult.correct !== false,
+  ).length;
+  return Math.round((correctItemCount / items.length) * 100);
 };
 
 type LessonStateProps = {
@@ -163,6 +199,7 @@ const ProgressDots = ({
 
 export default function LearningLessonSessionScreen() {
   const router = useRouter();
+  const { activeNavigationKey, navigateOnce } = useNavigationGuard();
   const params = useLocalSearchParams();
   const { height, width } = useWindowDimensions();
   const { activeChild } = useChild();
@@ -200,9 +237,10 @@ export default function LearningLessonSessionScreen() {
   );
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
-  const [results, setResults] = useState<ItemResult[]>([]);
+  const [isCompletionSaving, setIsCompletionSaving] = useState(false);
   const resultsRef = useRef<ItemResult[]>([]);
   const saveCompletionInFlightRef = useRef(false);
+  const sessionCompletionHandledRef = useRef(false);
   const isMountedRef = useRef(true);
   const completionScopeRef = useRef({ childId, languageCode, lessonId });
 
@@ -278,9 +316,10 @@ export default function LearningLessonSessionScreen() {
   useEffect(() => {
     setCurrentIndex(0);
     setIsComplete(false);
-    setResults([]);
     resultsRef.current = [];
     saveCompletionInFlightRef.current = false;
+    sessionCompletionHandledRef.current = false;
+    setIsCompletionSaving(false);
   }, [lesson?.id, stageId]);
 
   useEffect(() => {
@@ -318,6 +357,7 @@ export default function LearningLessonSessionScreen() {
       }
 
       saveCompletionInFlightRef.current = true;
+      setIsCompletionSaving(true);
       const completionScope = { childId, languageCode, lessonId };
       const completedAt = Date.now();
       const totalItems = items.length;
@@ -351,7 +391,7 @@ export default function LearningLessonSessionScreen() {
         stageId: stage.id,
         levelId: lesson.id,
         status: "completed",
-        score: totalItems > 0 ? Math.round((correctItems / totalItems) * 100) : 0,
+        score: getLessonResultScore(items, itemResults),
         attempts,
         completedAt,
         progressPayload: {
@@ -371,6 +411,9 @@ export default function LearningLessonSessionScreen() {
         },
         readiness: "local_only",
       });
+
+      saveCompletionInFlightRef.current = false;
+      if (isMountedRef.current) setIsCompletionSaving(false);
 
       void recordQualifiedStreakActivity({
         childId,
@@ -425,12 +468,13 @@ export default function LearningLessonSessionScreen() {
       ];
 
       resultsRef.current = nextResults;
-      setResults(nextResults);
-
       if (currentIndex >= items.length - 1) {
+        if (sessionCompletionHandledRef.current) return;
+        sessionCompletionHandledRef.current = true;
         setIsComplete(true);
         void saveLessonCompletion(nextResults).catch((error) => {
           saveCompletionInFlightRef.current = false;
+          if (isMountedRef.current) setIsCompletionSaving(false);
           console.warn("Could not save local Learning lesson completion:", error);
         });
         return;
@@ -573,6 +617,9 @@ export default function LearningLessonSessionScreen() {
   }
 
   if (isComplete) {
+    const isQuizLesson = isQuizOnlyLesson(items);
+    const score = getLessonResultScore(items, resultsRef.current);
+
     return (
       <>
         <Stack.Screen options={{ headerShown: false, animation: "slide_from_right" }} />
@@ -586,55 +633,58 @@ export default function LearningLessonSessionScreen() {
                 paddingVertical: isCompactLessonScreen ? 12 : 20,
               }}
             >
-              <View
-                className="bg-white rounded-2xl border-2 border-accent-500 w-full max-w-md items-center"
-                style={{ padding: isCompactLessonScreen ? 18 : 24 }}
-              >
-                <View
-                  className="rounded-full bg-green-100 items-center justify-center"
-                  style={{
-                    height: isCompactLessonScreen ? 68 : 80,
-                    marginBottom: isCompactLessonScreen ? 10 : 14,
-                    width: isCompactLessonScreen ? 68 : 80,
-                  }}
-                >
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={isCompactLessonScreen ? 40 : 46}
-                    color={brandColors.success}
-                  />
-                </View>
-                <Text
-                  variant="bold"
-                  className="text-primary-700 text-center mb-2"
-                  style={{ fontSize: isCompactLessonScreen ? 28 : 31 }}
-                >
-                  {t("learning.greatLearning")}
-                </Text>
-                <Text
-                  className="text-neutral-600 text-center mb-5"
-                  style={{ fontSize: 17, lineHeight: 24 }}
-                >
-                  {t("learning.finishedLesson", {
-                    lesson: lesson.title,
-                    stage: stage.title,
-                    count: results.length,
-                  })}
-                </Text>
-                <TouchableOpacity
-                  className="bg-primary-600 rounded-full px-7 py-3"
-                  onPress={() => {
-                    childHaptics.tap();
-                    goBackToStagePath();
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={t("common.continue")}
-                >
-                  <Text variant="bold" className="text-white" style={{ fontSize: 17 }}>
-                    {t("common.continue")}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              <ChildCompletionCard
+                accentColor={brandColors.success}
+                actions={[
+                  {
+                    accessibilityLabel: t("learning.backToLessons"),
+                    busy: activeNavigationKey === "completion:return",
+                    disabled: activeNavigationKey === "completion:return",
+                    icon: "arrow-back",
+                    label: t("learning.backToLessons"),
+                    onPress: () => {
+                      navigateOnce("completion:return", goBackToStagePath);
+                    },
+                    variant: "primary",
+                  },
+                  ...(isQuizLesson
+                    ? [{
+                        accessibilityLabel: t("learning.replayQuiz"),
+                        disabled: isCompletionSaving,
+                        icon: "refresh" as const,
+                        label: t("learning.replayQuiz"),
+                        onPress: () => {
+                          if (isCompletionSaving) return;
+                          resultsRef.current = [];
+                          sessionCompletionHandledRef.current = false;
+                          setCurrentIndex(0);
+                          setIsComplete(false);
+                        },
+                        variant: "quiet" as const,
+                      }]
+                    : []),
+                ]}
+                availableWidth={width}
+                icon="checkmark-circle"
+                metrics={[
+                  {
+                    icon: isQuizLesson ? "speedometer-outline" : "checkmark-done",
+                    label: isQuizLesson ? t("common.score") : t("learning.completed"),
+                    value: isQuizLesson
+                      ? `${score}%`
+                      : t("learning.progressPosition", {
+                          current: resultsRef.current.length,
+                          total: items.length,
+                        }),
+                  },
+                ]}
+                testID="learning-completion-card"
+                title={t(
+                  isQuizLesson
+                    ? "learning.quizComplete"
+                    : "learning.lessonComplete",
+                )}
+              />
             </View>
           </SafeAreaView>
         </ImageBackground>

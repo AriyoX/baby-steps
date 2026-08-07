@@ -4,7 +4,7 @@ import { ScrollView, TouchableOpacity } from "react-native";
 import type { StoryBiteItem } from "@/content/learningHubTypes";
 import { StoryBiteCard } from "../StoryBiteCard";
 
-const mockCreateAppSound = jest.fn();
+const mockCreateLearningVoice = jest.fn();
 const mockReplayAppSound = jest.fn();
 const mockUnloadAppSound = jest.fn();
 const mockResolveLearningAudioSource = jest.fn();
@@ -12,7 +12,7 @@ const mockSound = { id: "story-sound" };
 
 jest.mock("@/context/AudioContext", () => ({
   useAudio: () => ({
-    createAppSound: (...args: unknown[]) => mockCreateAppSound(...args),
+    createLearningVoice: (...args: unknown[]) => mockCreateLearningVoice(...args),
     replayAppSound: (...args: unknown[]) => mockReplayAppSound(...args),
     unloadAppSound: (...args: unknown[]) => mockUnloadAppSound(...args),
   }),
@@ -147,7 +147,7 @@ const renderCard = (
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockCreateAppSound.mockResolvedValue(mockSound);
+  mockCreateLearningVoice.mockResolvedValue(mockSound);
   mockReplayAppSound.mockResolvedValue(true);
   mockUnloadAppSound.mockResolvedValue(undefined);
   mockResolveLearningAudioSource.mockReturnValue({
@@ -202,7 +202,7 @@ describe("StoryBiteCard", () => {
     });
 
     expect(mockResolveLearningAudioSource).toHaveBeenCalledWith("webale", "webale");
-    expect(mockCreateAppSound).toHaveBeenCalledWith("webale-source");
+    expect(mockCreateLearningVoice).toHaveBeenCalledWith("webale-source");
     expect(mockReplayAppSound).toHaveBeenCalledWith(mockSound);
     expect(mockUnloadAppSound).toHaveBeenCalledWith(mockSound);
   });

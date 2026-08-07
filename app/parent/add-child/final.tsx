@@ -192,13 +192,11 @@ export default function SubmitScreen() {
               {isLoading ? "Saving profile" : isSuccess ? `${name} is ready!` : "Something went wrong"}
             </TranslatedText>
 
-            <TranslatedText className="text-base text-center text-neutral-600 mb-8">
-              {isLoading
-                ? `We're saving ${name}'s profile information...`
-                : isSuccess
-                  ? `${name} is ready to begin. Start with playful games, stories, and activities made for their learning journey.`
-                  : error || "An error occurred while saving the profile."}
-            </TranslatedText>
+            {!isLoading && !isSuccess ? (
+              <TranslatedText className="text-base text-center text-neutral-600 mb-8">
+                {error || "An error occurred while saving the profile."}
+              </TranslatedText>
+            ) : null}
 
             {/* Profile summary (only show on success) */}
             {isSuccess && (

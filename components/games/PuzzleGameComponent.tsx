@@ -1179,9 +1179,6 @@ const PuzzleGame: React.FC = () => {
             <Text variant="bold" className="text-2xl text-indigo-800 mb-2 text-center" numberOfLines={2}>
               {puzzleImages[currentPuzzle].name}
             </Text>
-            <Text className="text-base text-center text-slate-500" numberOfLines={4}>
-              {puzzleImages[currentPuzzle].description}
-            </Text>
             <View className="flex-row items-center justify-center mt-4 bg-blue-50 rounded-xl px-3 py-2.5">
               <Ionicons name="hand-left-outline" size={20} color="#0274BB" />
               <Text variant="medium" className="text-sm text-primary-700 ml-2" numberOfLines={2}>

@@ -22,17 +22,14 @@ const REMINDER_BENEFITS = [
   {
     icon: "sparkles-outline" as const,
     title: "Helpful check-ins",
-    description: "Thoughtful prompts that make it easier to return to Baby Steps.",
   },
   {
     icon: "heart-outline" as const,
     title: "Made for family life",
-    description: "Warm, encouraging messages designed to feel supportive, never demanding.",
   },
   {
     icon: "options-outline" as const,
     title: "Always in your control",
-    description: "Pause or resume notifications whenever you like from Parent Settings.",
   },
 ]
 
@@ -153,9 +150,6 @@ export default function NotificationPermissionScreen() {
         <Text variant="bold" className="text-[32px] leading-10 text-neutral-900 text-center mb-3">
           Want a gentle nudge?
         </Text>
-        <Text className="text-base leading-6 text-neutral-600 text-center px-3 mb-7">
-          Baby Steps can send timely, encouraging messages to help your family stay connected with the app.
-        </Text>
 
         <View className="bg-white rounded-[28px] p-5 border border-primary-100 shadow-sm">
           {REMINDER_BENEFITS.map((benefit, index) => (
@@ -168,7 +162,6 @@ export default function NotificationPermissionScreen() {
               </View>
               <View className="flex-1 ml-3">
                 <Text variant="bold" className="text-neutral-800">{benefit.title}</Text>
-                <Text className="text-sm leading-5 text-neutral-500 mt-0.5">{benefit.description}</Text>
               </View>
             </View>
           ))}

@@ -33,6 +33,8 @@ import { useChildUiLanguage } from "@/context/ChildUiLanguageContext"
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation"
 import { audioManager } from "@/lib/audioManager"
 import { childHaptics } from "@/lib/childHaptics"
+import { getConciseChildCardDescription } from "@/lib/childCardCopy"
+import { useNavigationGuard } from "@/hooks/useNavigationGuard"
 import {
   COLORING_ACHIEVEMENTS,
   EMPTY_COLORING_PROGRESS,
@@ -44,6 +46,7 @@ const TAB_BAR_CLEARANCE = 88
 
 export function ColoringGallery() {
   const router = useRouter()
+  const { activeNavigationKey, navigateOnce } = useNavigationGuard()
   const { activeChild } = useChild()
   const { t, translateAchievement } = useChildUiLanguage()
   const { width, height } = useWindowDimensions()
@@ -103,18 +106,22 @@ export function ColoringGallery() {
   )
 
   const openCard = (card: ChildMenuCard) => {
-    childHaptics.selection()
-    router.push(`/${card.targetPage}` as never)
+    navigateOnce(`coloring:${card.id}`, () => {
+      childHaptics.selection()
+      router.push(`/${card.targetPage}` as never)
+    })
   }
 
   const openParentGate = () => {
-    childHaptics.tap()
-    audioManager.speakAppText("For parents only", {
-      language: "en",
-      pitch: 1,
-      rate: 1,
+    navigateOnce("parent-gate", () => {
+      childHaptics.tap()
+      audioManager.speakAppText("For parents only", {
+        language: "en",
+        pitch: 1,
+        rate: 1,
+      })
+      router.push("/child/parent-gate" as never)
     })
-    router.push("/child/parent-gate" as never)
   }
 
   return (
@@ -137,9 +144,6 @@ export function ColoringGallery() {
             <View style={styles.headerCopy}>
               <Text variant="display" numberOfLines={1} style={[styles.title, isCompact && styles.compactTitle]}>
                 {t("coloring.title")}
-              </Text>
-              <Text variant="medium" numberOfLines={1} style={styles.subtitle}>
-                {t("coloring.subtitle")}
               </Text>
             </View>
           </View>
@@ -178,6 +182,11 @@ export function ColoringGallery() {
             <TouchableOpacity
               accessibilityRole="button"
               accessibilityLabel="Open parent area"
+              accessibilityState={{
+                busy: activeNavigationKey === "parent-gate",
+                disabled: activeNavigationKey === "parent-gate",
+              }}
+              disabled={activeNavigationKey === "parent-gate"}
               onPress={openParentGate}
               style={styles.parentButton}
             >
@@ -300,18 +309,31 @@ export function ColoringGallery() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.cardRail}
             >
-              {cards.map((card, index) => (
-                <Pressable
-                  key={card.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${card.title}. ${card.description}`}
-                  onPress={() => openCard(card)}
-                  style={({ pressed }) => [
-                    styles.pictureCard,
-                    isCompact && styles.compactPictureCard,
-                    pressed && styles.pressedCard,
-                  ]}
-                >
+              {cards.map((card, index) => {
+                const description = getConciseChildCardDescription(
+                  card.title,
+                  card.description,
+                )
+                const navigationPending =
+                  activeNavigationKey === `coloring:${card.id}`
+
+                return (
+                  <Pressable
+                    key={card.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${card.title}.${description ? ` ${description}.` : ""}`}
+                    accessibilityState={{
+                      busy: navigationPending,
+                      disabled: navigationPending,
+                    }}
+                    disabled={navigationPending}
+                    onPress={() => openCard(card)}
+                    style={({ pressed }) => [
+                      styles.pictureCard,
+                      isCompact && styles.compactPictureCard,
+                      (pressed || navigationPending) && styles.pressedCard,
+                    ]}
+                  >
                   <View style={styles.pictureFrame}>
                     <CachedImage
                       source={resolveImageSource(card.image, "african-focus.png")}
@@ -329,17 +351,15 @@ export function ColoringGallery() {
                     <Text variant="display" numberOfLines={1} style={styles.pictureTitle}>
                       {card.title}
                     </Text>
-                    <Text variant="medium" numberOfLines={2} style={styles.pictureDescription}>
-                      {card.description}
-                    </Text>
                     <View style={styles.openStudioPill}>
                       <Ionicons name="color-palette" size={15} color={brandColors.white} />
                       <Text variant="bold" style={styles.openStudioText}>{t("coloring.colorIt")}</Text>
                       <Ionicons name="arrow-forward" size={14} color={brandColors.white} />
                     </View>
                   </View>
-                </Pressable>
-              ))}
+                  </Pressable>
+                )
+              })}
 
               {isLoading ? (
                 <ChildLoadingCard
@@ -452,11 +472,6 @@ const styles = StyleSheet.create({
   compactTitle: {
     fontSize: 23,
     lineHeight: 25,
-  },
-  subtitle: {
-    color: brandColors.neutral[600],
-    fontSize: 11,
-    marginTop: 2,
   },
   headerActions: {
     flexDirection: "row",
@@ -768,13 +783,6 @@ const styles = StyleSheet.create({
   pictureTitle: {
     color: brandColors.blue[700],
     fontSize: 18,
-  },
-  pictureDescription: {
-    flex: 1,
-    color: brandColors.neutral[600],
-    fontSize: 9,
-    lineHeight: 12,
-    marginTop: 3,
   },
   openStudioPill: {
     height: 34,

@@ -10,6 +10,7 @@ import type {
   MiniQuizOption,
 } from "@/content/learningHubTypes";
 import { MechanicScreenFrame } from "./MechanicScreenFrame";
+import { LearningChoiceCard } from "./LearningChoiceCard";
 import { childHaptics } from "@/lib/childHaptics";
 
 type MiniQuizCardProps = {
@@ -34,7 +35,6 @@ export function MiniQuizCard({
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [answerState, setAnswerState] = useState<AnswerState>("idle");
-  const [attempts, setAttempts] = useState(0);
   const [correctQuestionCount, setCorrectQuestionCount] = useState(0);
   const [isCompleting, setIsCompleting] = useState(false);
   const attemptsRef = useRef(0);
@@ -64,7 +64,6 @@ export function MiniQuizCard({
     setCurrentQuestionIndex(0);
     setSelectedOptionId(null);
     setAnswerState("idle");
-    setAttempts(0);
     setCorrectQuestionCount(0);
     setIsCompleting(false);
   }, [item.id]);
@@ -75,7 +74,6 @@ export function MiniQuizCard({
     }
 
     attemptsRef.current += 1;
-    setAttempts(attemptsRef.current);
     setSelectedOptionId(optionId);
 
     if (optionId === currentQuestion.correctOptionId) {
@@ -289,37 +287,22 @@ export function MiniQuizCard({
                 const optionSubtitle = getOptionSubtitle(option);
 
                 return (
-                  <TouchableOpacity
+                  <LearningChoiceCard
                     key={option.id}
-                    className="rounded-2xl border-2 px-3 flex-row items-center"
-                    style={{
-                      marginBottom: optionGap,
-                      paddingVertical: isShortScreen ? 7 : 9,
-                      backgroundColor: correctSelection
-                        ? "#DCFCE7"
-                        : wrongSelection
-                          ? brandColors.orange[50]
-                          : selected
-                            ? brandColors.gold[50]
-                            : brandColors.neutral[50],
-                      borderColor: correctSelection
-                        ? brandColors.success
-                        : wrongSelection
-                          ? brandColors.shanaOrange
-                          : selected
-                            ? brandColors.equatorialGold
-                            : brandColors.neutral[200],
-                      opacity: canAnswer ? 1 : 0.64,
-                    }}
-                    onPress={() => selectOption(option.id)}
-                    disabled={!canAnswer || isCurrentQuestionCorrect || isCompleting}
-                    activeOpacity={0.76}
-                    accessibilityRole="button"
                     accessibilityLabel={`Choose ${option.text}`}
-                    accessibilityState={{
-                      disabled: !canAnswer || isCurrentQuestionCorrect || isCompleting,
-                      selected,
-                    }}
+                    disabled={!canAnswer || isCurrentQuestionCorrect || isCompleting}
+                    isShortScreen={isShortScreen}
+                    onPress={() => selectOption(option.id)}
+                    state={
+                      correctSelection
+                        ? "correct"
+                        : wrongSelection
+                          ? "incorrect"
+                          : selected
+                            ? "selected"
+                            : "default"
+                    }
+                    style={{ marginBottom: optionGap }}
                   >
                     <View
                       className="rounded-full items-center justify-center mr-3"
@@ -375,7 +358,7 @@ export function MiniQuizCard({
                         </Text>
                       ) : null}
                     </View>
-                  </TouchableOpacity>
+                  </LearningChoiceCard>
                 );
               })}
 
@@ -409,8 +392,8 @@ export function MiniQuizCard({
                       ? currentQuestion?.explanationText ?? "Yes, that's right!"
                       : answerState === "incorrect"
                         ? "Nice try. Choose another answer."
-                        : attempts > 0
-                          ? "Try another answer"
+                        : item.instructions
+                          ? ""
                           : "Tap the best answer"}
                 </Text>
               </View>

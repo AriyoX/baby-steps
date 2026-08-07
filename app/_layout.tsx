@@ -19,6 +19,7 @@ import { hasCompletedOnboarding } from "@/lib/onboarding";
 import "@/global.css";
 import { ChildProvider, useChild } from "@/context/ChildContext";
 import { AudioProvider } from "@/context/AudioContext";
+import { FocusedActivityAudio } from "@/components/audio/FocusedActivityAudio";
 import {
   NetworkStatusNotice,
   shouldShowPersistentNetworkBanner,
@@ -32,6 +33,7 @@ import {
 import { cancelScheduledStreakSync, clearStreakMemory } from "@/lib/streakRepository";
 import { clearParentSecuritySession } from "@/lib/parentAccess";
 import { ParentProfileProvider } from "@/context/ParentProfileContext";
+import { waitForStartupTask } from "@/lib/startup";
 import {
   ADULT_SYSTEM_UI_OPTIONS,
   CHILD_FULLSCREEN_OPTIONS,
@@ -143,12 +145,13 @@ export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isAccountStateLoading, setIsAccountStateLoading] = useState(false);
+  const [resumeDelayedSession, setResumeDelayedSession] = useState(false);
   const [showSplashTransition, setShowSplashTransition] = useState(true);
   const [accountDeletionState, setAccountDeletionState] =
     useState<AccountDeletionState | null>(null);
   const pathnameRef = useRef("/");
   const blockedRouteRefreshPathRef = useRef<string | null>(null);
+  const accountStateRequestRef = useRef(0);
   const lastRequestedOrientationMode = useRef<RouteOrientationMode | null>(null);
   const previousReminderAccountRef = useRef<string | null>(null);
   const router = useRouter();
@@ -222,44 +225,77 @@ export default function RootLayout() {
   }, []);
 
   const loadAccountDeletionState = useCallback(async (currentSession: Session | null) => {
+    const requestId = accountStateRequestRef.current + 1;
+    accountStateRequestRef.current = requestId;
+
     if (!currentSession) {
       setAccountDeletionState(null);
-      setIsAccountStateLoading(false);
       return;
     }
 
-    setIsAccountStateLoading(true);
     try {
       const state = await getAccountDeletionState(currentSession.user.id);
-      setAccountDeletionState(state);
+      if (accountStateRequestRef.current === requestId) {
+        setAccountDeletionState(state);
+      }
     } catch (error) {
       console.error("Could not load account deletion state:", error);
-      setAccountDeletionState(null);
-    } finally {
-      setIsAccountStateLoading(false);
+      if (accountStateRequestRef.current === requestId) {
+        setAccountDeletionState(null);
+      }
     }
   }, []);
 
   useEffect(() => {
-    const initApp = async () => {
-      await checkOnboardingStatus();
+    let isMounted = true;
 
-      // Check Supabase session
-      const { data } = await supabase.auth.getSession();
-      setSession(data.session);
-      await loadAccountDeletionState(data.session);
+    const initApp = async () => {
+      // Both reads are local in the normal case, so run them together. A token
+      // refresh may still wait on a poor connection, so it gets a short launch
+      // deadline and can finish in the background.
+      const sessionRequest = supabase.auth.getSession();
+      const [, sessionResult] = await Promise.all([
+        checkOnboardingStatus(),
+        waitForStartupTask(sessionRequest),
+      ]);
+      if (!isMounted) return;
+
+      if (sessionResult.status === "resolved") {
+        setSession(sessionResult.value.data.session);
+        setIsLoading(false);
+        void loadAccountDeletionState(sessionResult.value.data.session);
+        return;
+      }
 
       setIsLoading(false);
+      if (sessionResult.status === "rejected") {
+        console.error("Could not restore the app session:", sessionResult.error);
+        return;
+      }
+
+      void sessionRequest.then(
+        ({ data }) => {
+          if (!isMounted) return;
+          setSession(data.session);
+          setResumeDelayedSession(Boolean(data.session));
+          void loadAccountDeletionState(data.session);
+        },
+        (error) => {
+          console.error("Could not finish restoring the delayed app session:", error);
+        },
+      );
     };
 
-    initApp();
+    void initApp();
 
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (!session) setResumeDelayedSession(false);
       void loadAccountDeletionState(session);
     });
 
     return () => {
+      isMounted = false;
       data.subscription.unsubscribe();
     };
   }, [loadAccountDeletionState]);
@@ -272,7 +308,7 @@ export default function RootLayout() {
 
   // Handle routing based on authentication and onboarding state
   useEffect(() => {
-    if (isLoading || isAccountStateLoading || !fontsLoaded) return;
+    if (isLoading || !fontsLoaded) return;
 
     const isAccountReactivationRoute = pathname === "/account-reactivation";
     const accountAccessBlocked = isAccountDeletionBlockingNormalAccess(accountDeletionState);
@@ -305,6 +341,11 @@ export default function RootLayout() {
       return;
     }
 
+    if (session && resumeDelayedSession && pathname === "/login") {
+      router.replace(accountAccessBlocked ? ("/account-reactivation" as any) : "/parent");
+      return;
+    }
+
     // Only redirect if we're on the root ("/") to avoid redirect loops
     if (pathname === "/") {
       if (session) {
@@ -316,10 +357,10 @@ export default function RootLayout() {
   }, [
     accountDeletionState,
     fontsLoaded,
-    isAccountStateLoading,
     isLoading,
     loadAccountDeletionState,
     pathname,
+    resumeDelayedSession,
     router,
     session,
     showOnboarding,
@@ -352,13 +393,13 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (isLoading || isAccountStateLoading || !fontsLoaded) return;
+    if (isLoading || !fontsLoaded) return;
 
     void applyRouteOrientation(pathname);
-  }, [applyRouteOrientation, fontsLoaded, isAccountStateLoading, isLoading, pathname]);
+  }, [applyRouteOrientation, fontsLoaded, isLoading, pathname]);
 
   useEffect(() => {
-    if (isLoading || isAccountStateLoading || !fontsLoaded) return;
+    if (isLoading || !fontsLoaded) return;
 
     const subscription = AppState.addEventListener("change", (nextAppState) => {
       if (nextAppState !== "active") {
@@ -377,10 +418,11 @@ export default function RootLayout() {
     return () => {
       subscription.remove();
     };
-  }, [applyRouteOrientation, fontsLoaded, isAccountStateLoading, isLoading, session?.user.id]);
+  }, [applyRouteOrientation, fontsLoaded, isLoading, session?.user.id]);
 
   return (
     <AudioProvider>
+      <FocusedActivityAudio />
       <ParentProfileProvider accountId={session?.user.id ?? null}>
         <ChildProvider accountId={session?.user.id ?? null}>
           <SessionSecurityBoundary accountId={session?.user.id ?? null} />

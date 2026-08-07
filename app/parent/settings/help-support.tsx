@@ -30,14 +30,13 @@ export default function HelpSupportScreen() {
         <Text variant="bold" className="text-lg text-gray-800 mb-2">
           We are here to help
         </Text>
-        <Text className="text-gray-600 leading-6 mb-3">
+        <Text className="text-gray-600 leading-6">
           For account, privacy, or learning questions, contact Baby Steps support
           at {BABY_STEPS_SUPPORT_EMAIL}.
         </Text>
-        <Text className="text-gray-600 leading-6">
-          If you cannot access your account but want to request deletion, contact
-          Baby Steps support at {BABY_STEPS_SUPPORT_EMAIL}. Use the email address
-          for your Baby Steps account if you can.
+        <Text className="text-gray-600 leading-6 mt-3">
+          If you cannot access your account but want to request deletion, email
+          support from the address used for your Baby Steps account.
         </Text>
       </View>
 
@@ -65,7 +64,6 @@ export default function HelpSupportScreen() {
       <View className="mt-5 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <SettingsRow
           title="Contact Support or Send Feedback"
-          description={BABY_STEPS_SUPPORT_EMAIL}
           icon="mail-outline"
           iconColor="#4F46E5"
           onPress={() => {
@@ -74,7 +72,6 @@ export default function HelpSupportScreen() {
         />
         <SettingsRow
           title="Delete Account"
-          description="Schedule deletion from the Account settings screen."
           icon="trash-outline"
           iconColor="#DC2626"
           destructive

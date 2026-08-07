@@ -106,7 +106,6 @@ export default function ChildProfileDetailManagementScreen() {
         <View className="mt-5 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
           <SettingsRow
             title="Edit child profile"
-            description="Update name, age, optional details, and learning language."
             icon="create-outline"
             iconColor="#2563EB"
             onPress={() =>
@@ -139,7 +138,6 @@ export default function ChildProfileDetailManagementScreen() {
           </View>
           <SettingsRow
             title="Remove child profile"
-            description="Remove this child and their progress from normal selection."
             icon="archive-outline"
             iconColor="#B45309"
             destructive

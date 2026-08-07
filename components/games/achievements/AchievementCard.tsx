@@ -66,17 +66,11 @@ export function AchievementCard({
 
           <Text style={styles.description}>{achievement.description}</Text>
 
-          <View style={styles.metaRow}>
-            {achievement.points > 0 && (
-              <View style={styles.pointsPill}>
-                <Ionicons name="star" size={13} color={brandColors.gold[700]} />
-                <Text variant="bold" style={styles.pointsText}>
-                  +{achievement.points}
-                </Text>
-              </View>
-            )}
-            {earnedAtLabel && <Text style={styles.earnedAt}>{earnedAtLabel}</Text>}
-          </View>
+          {earnedAtLabel ? (
+            <View style={styles.metaRow}>
+              <Text style={styles.earnedAt}>{earnedAtLabel}</Text>
+            </View>
+          ) : null}
 
           {hasChildBadges && (
             <View style={styles.childSection}>
@@ -193,21 +187,6 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
     marginTop: 10,
-  },
-  pointsPill: {
-    alignItems: "center",
-    backgroundColor: brandColors.gold[50],
-    borderColor: brandColors.gold[200],
-    borderRadius: brandRadius.pill,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: 4,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-  },
-  pointsText: {
-    color: brandColors.gold[800],
-    fontSize: 12,
   },
   earnedAt: {
     color: brandColors.neutral[500],

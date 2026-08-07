@@ -116,11 +116,6 @@ export default function CanYourChildFigureOutWhatsChangedScreen() {
               </View>
             </View>
 
-            <TranslatedText className="text-base text-center text-neutral-600 mb-6 leading-6">
-              Can your child identify what has changed between these two scenes? This helps us understand their visual
-              attention to detail.
-            </TranslatedText>
-
             {/* Options */}
             <View className="flex-row justify-between mb-6">
               <TouchableOpacity
@@ -154,20 +149,6 @@ export default function CanYourChildFigureOutWhatsChangedScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Explanation message that shows based on selection */}
-            {selectedOption && (
-              <View
-                className={`p-3 rounded-xl mb-2 ${
-                  selectedOption === "yes" ? "bg-green-50 border border-green-200" : "bg-blue-50 border border-blue-200"
-                }`}
-              >
-                <TranslatedText className="text-sm text-neutral-700 text-center">
-                  {selectedOption === "yes"
-                    ? "Great! Your child is developing strong visual discrimination skills."
-                    : "No problem! We'll include fun activities to develop this important skill."}
-                </TranslatedText>
-              </View>
-            )}
           </View>
         </View>
 

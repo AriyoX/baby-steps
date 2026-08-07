@@ -65,14 +65,15 @@ const asNumberArray = (value: unknown): number[] =>
  *
  * Lock flags in content and older AsyncStorage payloads are only snapshots.
  * They became unreliable when a replacement content bundle published every
- * stage and level with `isLocked: false`. Completions and score are the source
- * of truth: the first incomplete level is playable, later incomplete levels
- * wait, and the next stage opens only after the previous stage is complete.
+ * stage and level with `isLocked: false`. Completion is the source of truth:
+ * the first incomplete level is playable, later incomplete levels wait, and
+ * the next stage opens only after the previous stage is complete. The score
+ * argument remains only so older stored progress can still be read.
  */
 export const applyLegacyLearningAccessLocks = (
   stages: LearningGameStage[],
   completedLevels: number[],
-  totalScore: number,
+  _totalScore: number,
 ): LearningGameStage[] => {
   const completedIds = new Set(completedLevels);
   let previousStagesComplete = true;
@@ -81,9 +82,7 @@ export const applyLegacyLearningAccessLocks = (
     const stageCompleted =
       stage.levels.length > 0 &&
       stage.levels.every((level) => completedIds.has(level.id));
-    const scoreRequirementMet = totalScore >= Math.max(0, stage.requiredScore);
-    const stageUnlocked =
-      stageIndex === 0 || (previousStagesComplete && scoreRequirementMet);
+    const stageUnlocked = stageIndex === 0 || previousStagesComplete;
     let foundFirstIncompleteLevel = false;
 
     const levels = stage.levels.map((level) => {
@@ -595,7 +594,7 @@ export const unlockNextLevel = (
 export const checkAndUnlockNextStage = (
   currentStageId: number,
   completedLevels: number[],
-  totalScore: number,
+  _totalScore: number,
   stages: LearningGameStage[]
 ): LearningGameStage[] => {
   // Make pure:
@@ -617,9 +616,7 @@ export const checkAndUnlockNextStage = (
     completedLevels.includes(level.id)
   );
 
-  const hasEnoughScore = totalScore >= nextStage.requiredScore;
-
-  if (allLevelsCompleted && hasEnoughScore) {
+  if (allLevelsCompleted) {
     nextStage.isLocked = false;
     if (nextStage.levels.length > 0) {
       nextStage.levels[0].isLocked = false;

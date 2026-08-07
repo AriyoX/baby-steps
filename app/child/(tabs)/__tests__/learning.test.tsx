@@ -1,6 +1,10 @@
 import React from "react"
-import { Animated, Text, TouchableOpacity } from "react-native"
+import { Animated, ScrollView, Text, TouchableOpacity } from "react-native"
 import renderer, { act } from "react-test-renderer"
+import {
+  CHILD_LEAD_CARD_GAP,
+  CHILD_LEAD_CARD_WIDTH,
+} from "@/components/child/ChildLeadCard"
 import {
   getLearningLanguageContent,
   getLessonStatus,
@@ -12,6 +16,7 @@ import ColoringTab from "../coloring"
 const mockRouterPush = jest.fn()
 const mockLoadContentBundle = jest.fn()
 const mockGetColoringProgress = jest.fn()
+const mockGameTour = jest.fn((_props: Record<string, unknown>) => null)
 const mockUseGameTour = jest.fn(
   (_guideId?: unknown, _childId?: unknown, _enabled?: unknown) => ({
     close: jest.fn(),
@@ -55,7 +60,7 @@ jest.mock("expo-router", () => ({
 }))
 
 jest.mock("@/components/games/GameTour", () => ({
-  GameTour: () => null,
+  GameTour: (props: Record<string, unknown>) => mockGameTour(props),
   GameTourProvider: ({ children }: { children: React.ReactNode }) => children,
   TourTarget: ({ children }: { children: React.ReactNode }) => children,
   useGameTour: (guideId: unknown, childId?: unknown, enabled?: unknown) =>
@@ -233,6 +238,48 @@ afterEach(() => {
 })
 
 describe("Learning tab shared African interface", () => {
+  it("restores the scrollable card rail with Learning Journey before the stages", async () => {
+    const tree = await renderLearningTab()
+    const rail = tree.root.findAllByType(ScrollView).find(
+      (candidate) => candidate.props.horizontal === true,
+    )
+    const visibleText = tree.root
+      .findAllByType(Text)
+      .map((node) => React.Children.toArray(node.props.children).join(""))
+      .join(" ")
+
+    expect(rail).toBeDefined()
+    expect(rail?.props.showsHorizontalScrollIndicator).toBe(false)
+    const normalizedText = visibleText.toLowerCase()
+    expect(normalizedText.indexOf("learning journey")).toBeGreaterThanOrEqual(0)
+    expect(normalizedText.indexOf("learning journey")).toBeLessThan(
+      normalizedText.indexOf("first words"),
+    )
+
+    act(() => tree.unmount())
+  })
+
+  it("prepares the first Learning stage tour target by scrolling past the lead card", async () => {
+    const scrollToSpy = jest
+      .spyOn(ScrollView.prototype, "scrollTo")
+      .mockImplementation(() => undefined)
+    const tree = await renderLearningTab()
+    const tourProps = mockGameTour.mock.calls.at(-1)?.[0] as {
+      steps?: { id: string; prepareTarget?: () => void }[]
+    }
+    const stageStep = tourProps.steps?.find((step) => step.id === "stages")
+
+    expect(stageStep?.prepareTarget).toEqual(expect.any(Function))
+    act(() => stageStep?.prepareTarget?.())
+    expect(scrollToSpy).toHaveBeenCalledWith({
+      animated: false,
+      x: CHILD_LEAD_CARD_WIDTH + CHILD_LEAD_CARD_GAP,
+      y: 0,
+    })
+
+    act(() => tree.unmount())
+  })
+
   it("arms the Learning Hub tour only after the focused tab has loaded stages", async () => {
     mockScreenFocused = false
     let tree = await renderLearningTab()
@@ -312,7 +359,7 @@ describe("Learning tab shared African interface", () => {
     expect(visibleText).toContain("Art journey")
     expect(visibleText).toContain("2 saved")
     expect(visibleText).toContain("2/3 badges")
-    expect(visibleText).toContain("Creative spark: try 3 colors!")
+    expect(visibleText).not.toContain("Creative spark: try 3 colors!")
     expect(visibleText).toContain("Friendly Cow")
     expect(mockGetColoringProgress).toHaveBeenCalledWith("child-1")
 
@@ -423,6 +470,26 @@ describe("Learning tab shared African interface", () => {
     expect(currentStage?.props.accessibilityLabel).toContain("Current")
 
     await act(async () => completedStage?.props.onPress())
+    expect(mockRouterPush).toHaveBeenCalledWith({
+      pathname: "/child/learning/[stageId]",
+      params: { stageId: "first-words" },
+    })
+
+    act(() => tree.unmount())
+  })
+
+  it("pushes one history entry when an unlocked stage is rapidly double-tapped", async () => {
+    const tree = await renderLearningTab()
+    const firstStage = tree.root.findAllByType(TouchableOpacity).find((candidate) =>
+      candidate.props.accessibilityLabel?.startsWith("First Words. 0/"),
+    )
+
+    act(() => {
+      firstStage?.props.onPress()
+      firstStage?.props.onPress()
+    })
+
+    expect(mockRouterPush).toHaveBeenCalledTimes(1)
     expect(mockRouterPush).toHaveBeenCalledWith({
       pathname: "/child/learning/[stageId]",
       params: { stageId: "first-words" },

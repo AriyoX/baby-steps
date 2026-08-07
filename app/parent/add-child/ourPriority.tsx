@@ -51,14 +51,6 @@ export default function YourChildIsOurPriorityScreen() {
               </View>
             </View>
 
-            <TranslatedText variant="bold" className="text-2xl text-center text-primary-800 mb-4">
-              Your Child is Our Priority
-            </TranslatedText>
-
-            <TranslatedText className="text-base text-center text-neutral-600 mb-6 leading-6">
-              {"At BabySteps, we understand the importance of fostering your child's growth and development. We are committed to providing content and activities that are tailored to their learning journey, helping them grow in a healthy and positive environment."}
-            </TranslatedText>
-
             {/* Key points with icons */}
             <View className="mb-6">
               <View className="flex-row items-center mb-3">
@@ -67,10 +59,7 @@ export default function YourChildIsOurPriorityScreen() {
                 </View>
                 <View className="flex-1">
                   <TranslatedText variant="bold" className="text-sm text-neutral-700">
-                    Safe Environment:
-                  </TranslatedText>
-                  <TranslatedText className="text-sm text-neutral-700">
-                    Child-friendly content with no ads
+                    Ad-free
                   </TranslatedText>
                 </View>
               </View>
@@ -81,10 +70,7 @@ export default function YourChildIsOurPriorityScreen() {
                 </View>
                 <View className="flex-1">
                   <TranslatedText variant="bold" className="text-sm text-neutral-700">
-                    Educational Focus:
-                  </TranslatedText>
-                  <TranslatedText className="text-sm text-neutral-700">
-                    Activities designed by child development experts
+                    Learning-focused
                   </TranslatedText>
                 </View>
               </View>
@@ -95,10 +81,7 @@ export default function YourChildIsOurPriorityScreen() {
                 </View>
                 <View className="flex-1">
                   <TranslatedText variant="bold" className="text-sm text-neutral-700">
-                    Personalized Journey:
-                  </TranslatedText>
-                  <TranslatedText className="text-sm text-neutral-700">
-                    {"Content adapts to your child's progress"}
+                    Personalized
                   </TranslatedText>
                 </View>
               </View>

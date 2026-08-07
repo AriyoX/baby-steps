@@ -59,10 +59,6 @@ export default function CanYourKidMatchNumbersToObjectsScreen() {
               Can Your Child Match Numbers to Objects?
             </TranslatedText>
 
-            <TranslatedText className="text-base text-center text-neutral-600 mb-8 leading-6">
-              {'Can your child match numbers with objects? For example, matching the number "3" with three apples or three toys.'}
-            </TranslatedText>
-
             {/* Options */}
             <View className="flex-row justify-between mb-6">
               <TouchableOpacity
@@ -96,20 +92,6 @@ export default function CanYourKidMatchNumbersToObjectsScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Explanation message that shows based on selection */}
-            {selectedOption && (
-              <View
-                className={`p-3 rounded-xl mb-4 ${
-                  selectedOption === "yes" ? "bg-green-50 border border-green-200" : "bg-blue-50 border border-blue-200"
-                }`}
-              >
-                <TranslatedText className="text-sm text-neutral-700 text-center">
-                  {selectedOption === "yes"
-                    ? "Great! Your child has started developing number sense."
-                    : "No problem! We'll help develop this skill with fun activities."}
-                </TranslatedText>
-              </View>
-            )}
           </View>
         </View>
 

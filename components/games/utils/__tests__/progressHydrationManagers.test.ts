@@ -5,9 +5,11 @@ jest.mock("@react-native-async-storage/async-storage", () =>
 
 const mockEnsureActivityProgressSnapshot = jest.fn();
 const mockGetActivityProgress = jest.fn();
+const mockGetStageProgress = jest.fn();
 const mockHydrateActivityProgressOnLocalMiss = jest.fn();
 const mockHydrateProgressFromRemote = jest.fn();
 const mockMarkStageCompleted = jest.fn();
+const mockMarkLevelCompleted = jest.fn();
 const mockMarkStageStarted = jest.fn();
 const mockUpdateActivityProgress = jest.fn();
 
@@ -15,11 +17,13 @@ jest.mock("@/lib/progressRepository", () => ({
   ensureActivityProgressSnapshot: (...args: unknown[]) =>
     mockEnsureActivityProgressSnapshot(...args),
   getActivityProgress: (...args: unknown[]) => mockGetActivityProgress(...args),
+  getStageProgress: (...args: unknown[]) => mockGetStageProgress(...args),
   hydrateActivityProgressOnLocalMiss: (...args: unknown[]) =>
     mockHydrateActivityProgressOnLocalMiss(...args),
   hydrateProgressFromRemote: (...args: unknown[]) =>
     mockHydrateProgressFromRemote(...args),
   markStageCompleted: (...args: unknown[]) => mockMarkStageCompleted(...args),
+  markLevelCompleted: (...args: unknown[]) => mockMarkLevelCompleted(...args),
   markStageStarted: (...args: unknown[]) => mockMarkStageStarted(...args),
   updateActivityProgress: (...args: unknown[]) =>
     mockUpdateActivityProgress(...args),
@@ -99,9 +103,11 @@ beforeEach(async () => {
   await AsyncStorage.clear();
   mockEnsureActivityProgressSnapshot.mockResolvedValue(undefined);
   mockGetActivityProgress.mockResolvedValue(null);
+  mockGetStageProgress.mockResolvedValue(null);
   mockHydrateActivityProgressOnLocalMiss.mockResolvedValue(null);
   mockHydrateProgressFromRemote.mockResolvedValue({ activities: 0, stages: 0 });
   mockMarkStageCompleted.mockResolvedValue(undefined);
+  mockMarkLevelCompleted.mockResolvedValue(undefined);
   mockMarkStageStarted.mockResolvedValue(undefined);
   mockUpdateActivityProgress.mockResolvedValue(undefined);
 });
@@ -113,6 +119,7 @@ describe("game progress hydration after a total local miss", () => {
       currentStage: 2,
       totalScore: 45,
       lastPlayedLevel: { 1: 3, 2: 1 },
+      completedLevelsByStage: { 1: [1, 2, 3] },
       completedStages: [1],
       playHistory: [{ date: "2026-07-11T00:00:00.000Z", score: 45 }],
       childId,

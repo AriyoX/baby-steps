@@ -1,45 +1,18 @@
 "use client";
 
 import React from "react";
-import { Alert, View } from "react-native";
+import { View } from "react-native";
 import type { User } from "@supabase/supabase-js";
 import { useRouter } from "expo-router";
 import { SettingsRow } from "@/components/settings/SettingsRow";
 import { SettingsScaffold } from "@/components/settings/SettingsScaffold";
 import { Text } from "@/components/StyledText";
-import { useChild } from "@/context/ChildContext";
-import { supabase } from "@/lib/supabase";
-import { clearParentSecuritySession } from "@/lib/parentAccess";
 import { useParentProfile } from "@/context/ParentProfileContext";
-
-interface NormalSignOutOptions {
-  clearActiveChildForSignOut: () => Promise<void>;
-  signOut: () => Promise<{ error: Error | null }>;
-  replace: (path: "/login") => void;
-}
-
-export const signOutNormally = async ({
-  clearActiveChildForSignOut,
-  signOut,
-  replace,
-}: NormalSignOutOptions): Promise<{ error: Error | null }> => {
-  try {
-    await clearActiveChildForSignOut();
-  } catch (error) {
-    console.warn("Could not finish progress synchronization before sign-out:", error);
-  }
-
-  const result = await signOut();
-  if (!result.error) {
-    clearParentSecuritySession();
-    replace("/login");
-  }
-  return result;
-};
+import { supabase } from "@/lib/supabase";
+export { signOutNormally } from "@/components/settings/SettingsSignOutSection";
 
 export default function AccountManagementScreen() {
   const router = useRouter();
-  const { clearActiveChildForSignOut } = useChild();
   const { profile } = useParentProfile();
   const [user, setUser] = React.useState<User | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -71,30 +44,6 @@ export default function AccountManagementScreen() {
     };
   }, []);
 
-  const handleSignOut = () => {
-    Alert.alert("Sign out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Sign Out",
-        style: "destructive",
-        onPress: () => {
-          void signOutNormally({
-            clearActiveChildForSignOut,
-            signOut: () => supabase.auth.signOut(),
-            replace: (path) => router.replace(path),
-          }).then(({ error }) => {
-            if (error) {
-              Alert.alert("Could not sign out", "Please try again.");
-            }
-          }).catch((error) => {
-            console.warn("Could not complete sign-out:", error);
-            Alert.alert("Could not sign out", "Please try again.");
-          });
-        },
-      },
-    ]);
-  };
-
   return (
     <SettingsScaffold title="Account">
       <View className="mt-5 bg-white rounded-xl border border-gray-100 p-4">
@@ -120,7 +69,6 @@ export default function AccountManagementScreen() {
       <View className="mt-5 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <SettingsRow
           title="Edit parent profile"
-          description="Update the parent display name. Email is read-only."
           icon="person-outline"
           iconColor="#2563EB"
           onPress={() =>
@@ -129,20 +77,12 @@ export default function AccountManagementScreen() {
         />
         <SettingsRow
           title="Parent access PIN"
-          description="View or change the PIN used to leave child mode."
           icon="keypad-outline"
           iconColor="#7C3AED"
           onPress={() => router.push("/parent/settings/parent-pin" as any)}
         />
         <SettingsRow
-          title="Sign out"
-          icon="log-out-outline"
-          iconColor="#F97316"
-          onPress={handleSignOut}
-        />
-        <SettingsRow
           title="Delete account"
-          description="Delete your account. You can come back within 30 days by signing in again."
           icon="trash-outline"
           iconColor="#DC2626"
           destructive
@@ -150,6 +90,9 @@ export default function AccountManagementScreen() {
           last
         />
       </View>
+      <Text className="mt-3 px-1 text-sm leading-5 text-gray-600">
+        You can come back within 30 days after requesting deletion.
+      </Text>
     </SettingsScaffold>
   );
 }

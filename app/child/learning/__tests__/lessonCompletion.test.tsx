@@ -198,6 +198,14 @@ const MockMechanicRenderer = ({
 };
 
 jest.mock("expo-router", () => ({
+  ...(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const ReactModule = require("react");
+    return {
+      useFocusEffect: (effect: () => void | (() => void)) =>
+        ReactModule.useEffect(effect, [effect]),
+    };
+  })(),
   Stack: {
     Screen: () => null,
   },
@@ -468,7 +476,7 @@ describe("Learning lesson completion persistence", () => {
     await completeRenderedItem(tree, "well-done");
 
     expect(mockSaveLearningLessonCompletion).not.toHaveBeenCalled();
-    expect(JSON.stringify(tree.toJSON())).not.toContain("Great learning!");
+    expect(JSON.stringify(tree.toJSON())).not.toContain("Lesson complete");
   });
 
   it("does not save or log activity before a mini quiz item fully completes", async () => {
@@ -496,13 +504,15 @@ describe("Learning lesson completion persistence", () => {
     });
 
     expect(mockSaveLearningLessonCompletion).not.toHaveBeenCalled();
-    expect(JSON.stringify(renderedTree.toJSON())).not.toContain("Great learning!");
+    expect(JSON.stringify(renderedTree.toJSON())).not.toContain("Quiz complete");
 
     await act(async () => {
-      findButtonByAccessibilityLabel(
+      const finishQuiz = findButtonByAccessibilityLabel(
         renderedTree.root,
         "Finish mini quiz",
-      ).props.onPress();
+      );
+      finishQuiz.props.onPress();
+      finishQuiz.props.onPress();
       await Promise.resolve();
     });
 
@@ -534,6 +544,10 @@ describe("Learning lesson completion persistence", () => {
         }),
       }),
     );
+    expect(JSON.stringify(renderedTree.toJSON())).toContain("Quiz complete");
+    expect(JSON.stringify(renderedTree.toJSON())).toContain("100%");
+    expect(findButtonByAccessibilityLabel(renderedTree.root, "Back to Lessons")).toBeDefined();
+    expect(findButtonByAccessibilityLabel(renderedTree.root, "Replay quiz")).toBeDefined();
   });
 
   it("does not save or log activity before a story bite item fully completes", async () => {
@@ -561,7 +575,7 @@ describe("Learning lesson completion persistence", () => {
     });
 
     expect(mockSaveLearningLessonCompletion).not.toHaveBeenCalled();
-    expect(JSON.stringify(renderedTree.toJSON())).not.toContain("Great learning!");
+    expect(JSON.stringify(renderedTree.toJSON())).not.toContain("Lesson complete");
 
     await act(async () => {
       findButtonByAccessibilityLabel(
@@ -662,7 +676,7 @@ describe("Learning lesson completion persistence", () => {
         readiness: "local_only",
       }),
     );
-    expect(JSON.stringify(tree.toJSON())).toContain("Great learning!");
+    expect(JSON.stringify(tree.toJSON())).toContain("Lesson complete");
   });
 
   it("reveals completion while local persistence is pending and waits to evaluate achievements", async () => {
@@ -683,7 +697,7 @@ describe("Learning lesson completion persistence", () => {
     }
 
     expect(mockSaveLearningLessonCompletion).toHaveBeenCalledTimes(1);
-    expect(JSON.stringify(tree.toJSON())).toContain("Great learning!");
+    expect(JSON.stringify(tree.toJSON())).toContain("Lesson complete");
     expect(mockAwardLearningLessonCompletionAchievements).not.toHaveBeenCalled();
 
     const savedCompletion = mockSaveLearningLessonCompletion.mock.calls[0][0];
@@ -765,7 +779,7 @@ describe("Learning lesson completion persistence", () => {
         readiness: "local_only",
       }),
     );
-    expect(JSON.stringify(tree.toJSON())).toContain("Great learning!");
+    expect(JSON.stringify(tree.toJSON())).toContain("Lesson complete");
   });
 
   it("saves cultural-card completion without correctness after the card completes", async () => {
@@ -837,7 +851,7 @@ describe("Learning lesson completion persistence", () => {
       await completeRenderedItem(tree, itemId);
     }
 
-    expect(JSON.stringify(tree.toJSON())).toContain("Great learning!");
+    expect(JSON.stringify(tree.toJSON())).toContain("Lesson complete");
     expect(warnSpy).toHaveBeenCalledWith(
       "Could not save local Learning lesson completion:",
       expect.any(Error),
@@ -884,7 +898,7 @@ describe("Learning lesson completion persistence", () => {
 
     expect(mockSaveLearningLessonCompletion).toHaveBeenCalledTimes(1);
     expect(mockAwardLearningLessonCompletionAchievements).toHaveBeenCalledTimes(1);
-    expect(JSON.stringify(tree.toJSON())).toContain("Great learning!");
+    expect(JSON.stringify(tree.toJSON())).toContain("Lesson complete");
     expect(mockEnqueueAchievementUnlocks).not.toHaveBeenCalled();
 
     achievementEvaluation.resolve([]);
@@ -917,7 +931,7 @@ describe("Learning lesson completion persistence", () => {
     });
 
     expect(mockSaveLearningLessonCompletion).toHaveBeenCalledTimes(1);
-    expect(JSON.stringify(tree.toJSON())).toContain("Great learning!");
+    expect(JSON.stringify(tree.toJSON())).toContain("Lesson complete");
     expect(mockEnqueueAchievementUnlocks).not.toHaveBeenCalled();
     expect(warnSpy).toHaveBeenCalledWith(
       "Could not award Learning Hub achievements:",
@@ -1008,7 +1022,7 @@ describe("Learning lesson completion persistence", () => {
     );
 
     await act(async () => {
-      findButtonByAccessibilityLabel(renderedTree.root, "Continue").props.onPress();
+      findButtonByAccessibilityLabel(renderedTree.root, "Back to Lessons").props.onPress();
     });
     expect(mockRouterReplace).toHaveBeenCalledWith({
       pathname: "/child/learning/[stageId]",

@@ -405,7 +405,7 @@ export function AudioSettingsPanel() {
       <ToggleRow
         icon={audioSettings.appSoundsMuted ? "volume-mute" : "volume-high"}
         iconColor="#3B82F6"
-        label="App sounds"
+        label="Voice & sounds"
         value={!audioSettings.appSoundsMuted}
         onChange={(enabled) => setAppSoundsMuted(!enabled)}
         disabled={audioControlsDisabled}
@@ -413,7 +413,7 @@ export function AudioSettingsPanel() {
       <AudioVolumeSlider
         icon="volume-high-outline"
         iconColor="#3B82F6"
-        label="App sounds volume"
+        label="Sound effects volume"
         value={audioSettings.appSoundsVolume}
         onChange={setAppSoundsVolume}
         disabled={audioControlsDisabled}

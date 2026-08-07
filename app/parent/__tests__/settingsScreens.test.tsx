@@ -184,6 +184,13 @@ describe("settings management screens", () => {
     expect(text).not.toContain("Show App Tour");
     expect(text).not.toContain("Developer");
     expect(text).not.toContain("coming soon");
+    expect(text).toContain("Sign out");
+    expect(text.lastIndexOf("Sign out")).toBeGreaterThan(
+      text.lastIndexOf("Baby Steps v1.0.0"),
+    );
+    expect(text.lastIndexOf("Sign out")).toBeGreaterThan(
+      text.lastIndexOf("About Baby Steps"),
+    );
   });
 
   it("renders the Account Management screen with user details", async () => {
@@ -206,6 +213,7 @@ describe("settings management screens", () => {
     expect(text).toContain("Parent access PIN");
     expect(text).toContain("Delete account");
     expect(text).toContain("You can come back within 30 days");
+    expect(text).not.toContain("Sign out");
   });
 
   it("clears child memory before normal Supabase sign-out", async () => {
@@ -371,7 +379,7 @@ describe("settings management screens", () => {
     expect(supportText).toContain("If you cannot access your account but want to request deletion");
     expect(supportText).toContain("within 30 days to keep your account");
     expect(supportText).toContain("hello@babystepslearn.com");
-    expect(aboutText).toContain("Privacy, account deletion, and support details");
+    expect(aboutText).not.toContain("Privacy, account deletion, and support details");
     expect(aboutText).toContain("Closed beta");
     expect(aboutText).toContain("Version 1.0.0");
     expect(aboutText).toContain("42");

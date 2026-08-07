@@ -64,5 +64,6 @@ describe("achievement UI components", () => {
     expect(json).toContain("Unlocked");
     expect(json).toContain("Jan 1, 2026");
     expect(json).toContain("Ari");
+    expect(json).not.toContain("+10");
   });
 });

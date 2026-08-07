@@ -174,7 +174,7 @@ jest.mock("@/context/AudioContext", () => ({
 
 jest.mock("@/lib/audioManager", () => ({
   audioManager: {
-    speakAppText: (text: string, options: Record<string, unknown>) =>
+    speakLearningText: (text: string, options: Record<string, unknown>) =>
       mockSpeakAppText(text, options),
   },
 }));

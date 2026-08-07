@@ -4,7 +4,6 @@ import { Text } from "@/components/StyledText";
 
 interface SettingsRowProps {
   title: string;
-  description?: string;
   icon: keyof typeof Ionicons.glyphMap;
   iconColor: string;
   onPress: () => void;
@@ -17,7 +16,6 @@ const getIconBackground = (color: string): string => `${color}18`;
 
 export function SettingsRow({
   title,
-  description,
   icon,
   iconColor,
   onPress,
@@ -48,9 +46,6 @@ export function SettingsRow({
         >
           {title}
         </Text>
-        {description ? (
-          <Text className="text-gray-500 text-sm mt-0.5 leading-5">{description}</Text>
-        ) : null}
       </View>
       <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
     </TouchableOpacity>

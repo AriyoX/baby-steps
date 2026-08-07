@@ -43,10 +43,6 @@ export default function AboutBabyStepsScreen() {
           Baby Steps helps families explore early learning, language, stories,
           games, and progress in a parent-guided space.
         </Text>
-        <Text className="text-gray-600 leading-6">
-          Privacy, account deletion, and support details are available from the
-          screens below.
-        </Text>
         <View className="mt-4 pt-4 border-t border-gray-100">
           <Text className="text-gray-600">Version {appMetadata.version}</Text>
           <Text className="text-gray-600 mt-1">
@@ -59,7 +55,6 @@ export default function AboutBabyStepsScreen() {
       <View className="mt-5 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <SettingsRow
           title="Send closed-beta feedback"
-          description={BABY_STEPS_SUPPORT_EMAIL}
           icon="chatbox-ellipses-outline"
           iconColor="#7C3AED"
           onPress={() => {
@@ -68,14 +63,12 @@ export default function AboutBabyStepsScreen() {
         />
         <SettingsRow
           title="Privacy & Safety"
-          description="Review family privacy and account deletion information."
           icon="shield-checkmark-outline"
           iconColor="#0891B2"
           onPress={() => router.push("/parent/settings/privacy-safety" as any)}
         />
         <SettingsRow
           title="Help & Support"
-          description="Contact support for account or deletion help."
           icon="help-circle-outline"
           iconColor="#4F46E5"
           onPress={() => router.push("/parent/settings/help-support" as any)}

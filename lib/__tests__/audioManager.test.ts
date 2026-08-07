@@ -95,6 +95,52 @@ describe("BabyStepsAudioManager", () => {
     expect(backgroundSound.pauseAsync).toHaveBeenCalled()
   })
 
+  it("pauses background music during focused activities without changing saved settings", async () => {
+    const backgroundSound = createMockSound()
+    mockCreateAsync.mockResolvedValueOnce({ sound: backgroundSound })
+    const manager = new BabyStepsAudioManager([
+      { id: "default", title: "Default", source: "background-source" as any },
+    ])
+
+    await manager.startBackgroundMusic()
+    await manager.setBackgroundMusicSuppressed(true)
+
+    expect(backgroundSound.setVolumeAsync).toHaveBeenLastCalledWith(
+      DEFAULT_AUDIO_SETTINGS.backgroundMusicVolume,
+    )
+    expect(backgroundSound.pauseAsync).toHaveBeenCalled()
+    expect(manager.getSettingsSnapshot().backgroundMusicMuted).toBe(false)
+
+    await manager.setBackgroundMusicSuppressed(false)
+    expect(backgroundSound.playAsync).toHaveBeenCalled()
+  })
+
+  it("plays learning voice at full volume while respecting app-sound mute", async () => {
+    const learningVoice = createMockSound()
+    mockCreateAsync.mockResolvedValueOnce({ sound: learningVoice })
+    const manager = new BabyStepsAudioManager([
+      { id: "default", title: "Default", source: "background-source" as any },
+    ])
+
+    await manager.updateSettings({
+      ...DEFAULT_AUDIO_SETTINGS,
+      appSoundsVolume: 0.2,
+    })
+    await manager.createLearningVoice("voice-source" as any)
+
+    expect(mockCreateAsync).toHaveBeenCalledWith(
+      "voice-source",
+      expect.objectContaining({ volume: 1 }),
+    )
+
+    await manager.updateSettings({
+      ...DEFAULT_AUDIO_SETTINGS,
+      appSoundsMuted: true,
+      appSoundsVolume: 0.2,
+    })
+    expect(learningVoice.setVolumeAsync).toHaveBeenLastCalledWith(0)
+  })
+
   it("applies app sound volume changes to managed app sounds", async () => {
     const appSound = createMockSound()
     mockCreateAsync.mockResolvedValueOnce({ sound: appSound })

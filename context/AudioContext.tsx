@@ -22,12 +22,15 @@ type AudioContextValue = {
   setBackgroundMusicMuted: (muted: boolean) => void
   toggleBackgroundMusicMuted: () => void
   setBackgroundMusicVolume: (volume: number) => void
+  setBackgroundMusicSuppressed: (suppressed: boolean) => void
   setAppSoundsMuted: (muted: boolean) => void
   toggleAppSoundsMuted: () => void
   setAppSoundsVolume: (volume: number) => void
   selectBackgroundTrack: (trackId: string) => void
   playAppSound: (source: AVPlaybackSource) => Promise<Audio.Sound | null>
   createAppSound: (source: AVPlaybackSource) => Promise<Audio.Sound | null>
+  createLearningVoice: (source: AVPlaybackSource) => Promise<Audio.Sound | null>
+  playLearningVoice: (source: AVPlaybackSource) => Promise<Audio.Sound | null>
   replayAppSound: (sound?: Audio.Sound | null) => Promise<boolean>
   unloadAppSound: (sound?: Audio.Sound | null) => Promise<void>
 }
@@ -57,6 +60,9 @@ const defaultContextValue: AudioContextValue = {
       ...audioManager.getSettingsSnapshot(),
       backgroundMusicVolume: clampVolume(volume, DEFAULT_AUDIO_SETTINGS.backgroundMusicVolume),
     }),
+  setBackgroundMusicSuppressed: (suppressed) => {
+    void audioManager.setBackgroundMusicSuppressed(suppressed)
+  },
   setAppSoundsMuted: (muted) =>
     commitSettingsOutsideProvider({
       ...audioManager.getSettingsSnapshot(),
@@ -79,6 +85,8 @@ const defaultContextValue: AudioContextValue = {
     }),
   playAppSound: (source) => audioManager.playAppSound(source),
   createAppSound: (source) => audioManager.createAppSound(source),
+  createLearningVoice: (source) => audioManager.createLearningVoice(source),
+  playLearningVoice: (source) => audioManager.playLearningVoice(source),
   replayAppSound: (sound) => audioManager.replayAppSound(sound),
   unloadAppSound: (sound) => audioManager.unloadAppSound(sound),
 }
@@ -164,6 +172,10 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
     })
   }, [applySettingsSideEffects])
 
+  const setBackgroundMusicSuppressed = useCallback((suppressed: boolean) => {
+    void audioManager.setBackgroundMusicSuppressed(suppressed)
+  }, [])
+
   const value = useMemo<AudioContextValue>(
     () => ({
       settings,
@@ -184,6 +196,7 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
           ...current,
           backgroundMusicVolume: clampVolume(volume, current.backgroundMusicVolume),
         })),
+      setBackgroundMusicSuppressed,
       setAppSoundsMuted: (muted) =>
         commitSettings((current) => ({
           ...current,
@@ -206,10 +219,12 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
         })),
       playAppSound: (source) => audioManager.playAppSound(source),
       createAppSound: (source) => audioManager.createAppSound(source),
+      createLearningVoice: (source) => audioManager.createLearningVoice(source),
+      playLearningVoice: (source) => audioManager.playLearningVoice(source),
       replayAppSound: (sound) => audioManager.replayAppSound(sound),
       unloadAppSound: (sound) => audioManager.unloadAppSound(sound),
     }),
-    [commitSettings, isSettingsLoaded, settings],
+    [commitSettings, isSettingsLoaded, setBackgroundMusicSuppressed, settings],
   )
 
   return <AudioContext.Provider value={value}>{children}</AudioContext.Provider>

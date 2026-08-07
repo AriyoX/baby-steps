@@ -51,11 +51,9 @@ type ChildProfile = {
 
 const DashboardSectionHeader = ({
   action,
-  subtitle,
   title,
 }: {
   action?: ReactNode
-  subtitle?: string
   title: string
 }) => (
   <View className="mb-3 flex-row items-end justify-between">
@@ -63,11 +61,6 @@ const DashboardSectionHeader = ({
       <TranslatedText variant="bold" className="text-lg text-neutral-900">
         {title}
       </TranslatedText>
-      {subtitle ? (
-        <Text className="mt-0.5 text-xs leading-4 text-neutral-500">
-          {subtitle}
-        </Text>
-      ) : null}
     </View>
     {action}
   </View>
@@ -311,17 +304,8 @@ const ParentDashboard = () => {
               <View className="absolute -bottom-12 right-16 h-28 w-28 rounded-full bg-accent-400 opacity-20" />
               <View className="flex-row items-center justify-between">
                 <View className="flex-1 pr-4">
-                  <TranslatedText
-                    className="mb-1 text-[10px] uppercase tracking-[1.4px] text-accent-200"
-                    variant="bold"
-                  >
-                    Today with your family
-                  </TranslatedText>
-                  <Text variant="bold" className="mb-2 text-xl text-white">
+                  <Text variant="bold" className="text-xl text-white">
                     {dashboardGreeting.title}
-                  </Text>
-                  <Text className="leading-5 text-primary-100">
-                    {dashboardGreeting.message}
                   </Text>
                 </View>
                 <View className="h-16 w-16 items-center justify-center rounded-3xl border border-accent-200 bg-accent-50">
@@ -367,7 +351,6 @@ const ParentDashboard = () => {
                         </TouchableOpacity>
                       </TourTarget>
                     }
-                    subtitle="See each child's learning at a glance"
                     title="Child profiles"
                   />
                 </View>
@@ -506,7 +489,6 @@ const ParentDashboard = () => {
               <TourTarget id="parent-dashboard-progress">
                 <View>
                   <DashboardSectionHeader
-                    subtitle="What your children explored most recently"
                     title="Recent Activities"
                   />
                 </View>
@@ -584,7 +566,6 @@ const ParentDashboard = () => {
 
             <View className="mb-6">
               <DashboardSectionHeader
-                subtitle="Celebrate every new badge and milestone"
                 title="Badges and proud moments"
               />
 
@@ -606,9 +587,6 @@ const ParentDashboard = () => {
                   <View className="min-w-0 flex-1">
                     <Text variant="bold" className="text-neutral-800">
                       See Every Achievement
-                    </Text>
-                    <Text className="mt-0.5 text-xs text-neutral-600">
-                      See progress for each child
                     </Text>
                   </View>
                 </View>
@@ -635,7 +613,6 @@ const ParentDashboard = () => {
                     </Text>
                   </View>
                 }
-                subtitle="Specific, gentle things to try—no perfection required."
                 title="Parenting ideas that work in real life"
               />
 

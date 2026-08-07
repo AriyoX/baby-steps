@@ -200,9 +200,6 @@ export default function ForgotPassword() {
               <Text variant="bold" className="text-3xl text-accent-800 pt-3 text-center px-4">
                 Forgot Your Password?
               </Text>
-              <Text className="text-lg text-center text-neutral-600 mt-3 px-8">
-                {"No worries! We'll send a reset link to your email."}
-              </Text>
             </Animated.View>
           </View>
 

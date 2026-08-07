@@ -518,10 +518,6 @@ const WordGame: React.FC = () => {
           });
 
           const awardedAchievements = [...newlyAwarded.values()];
-          const achievementPoints = awardedAchievements.reduce(
-            (total, achievement) => total + achievement.points,
-            0,
-          );
           const owner = progressOwnerRef.current;
           if (
             !isMountedRef.current ||
@@ -535,22 +531,6 @@ const WordGame: React.FC = () => {
 
           awardedAchievements.forEach((achievement) =>
             enqueueAchievementUnlocked(achievement),
-          );
-          if (achievementPoints <= 0) return;
-
-          const progressWithAchievementPoints = {
-            ...savedProgress,
-            totalScore: savedProgress.totalScore + achievementPoints,
-          };
-          updateProgressState(progressWithAchievementPoints);
-          await saveGameProgress(
-            progressWithAchievementPoints,
-            completionChildId,
-            completionLanguageCode,
-            {
-              levels: gameLevels,
-              contentRevision: contentProgressRevisionRef.current,
-            },
           );
         };
         const networkTasks: Promise<unknown>[] = [

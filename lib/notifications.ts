@@ -5,7 +5,8 @@ import { brandColors } from "@/constants/Brand";
 import { getLearningReminderCandidates } from "@/lib/streakRepository";
 import { supabase } from "@/lib/supabase";
 
-const LEARNING_REMINDER_SETTINGS_PREFIX = "@BabySteps:LearningReminderSettings:v1";
+const LEARNING_REMINDER_SETTINGS_PREFIX = "@BabySteps:LearningReminderSettings:v2";
+const LEGACY_LEARNING_REMINDER_SETTINGS_PREFIX = "@BabySteps:LearningReminderSettings:v1";
 const LEARNING_REMINDER_CANCELLATION_LEDGER_KEY =
   "@BabySteps:LearningReminderCancellationLedger:v1";
 const LEGACY_NOTIFICATION_PREFERENCES_KEY = "@baby_steps_notification_preferences";
@@ -15,14 +16,16 @@ const LEARNING_REMINDER_SCOPE = "baby-steps-learning-reminder-v1";
 const MAX_LEDGER_ACCOUNTS = 32;
 const MAX_LEDGER_IDS_PER_ACCOUNT = 64;
 export const LEARNING_REMINDER_CHANNEL_ID = "learning-reminders";
-export const DEFAULT_LEARNING_REMINDER_TIME = "18:00";
+export const STANDARD_LEARNING_REMINDER_TIMES = [
+  { id: "morning", hour: 8, minute: 0 },
+  { id: "evening", hour: 18, minute: 0 },
+] as const;
 
 export type NotificationPermissionState = "granted" | "denied" | "undetermined" | "unavailable";
 
 export type LearningReminderSettings = {
   accountId: string | null;
   enabled: boolean;
-  reminderTime: string;
   showChildNames: boolean;
   scheduledNotificationIds: string[];
   scheduleFingerprint: string | null;
@@ -51,7 +54,6 @@ let cancellationLedgerTail: Promise<void> = Promise.resolve();
 const defaultPreferences = (accountId: string | null): NotificationPreferences => ({
   accountId,
   enabled: false,
-  reminderTime: DEFAULT_LEARNING_REMINDER_TIME,
   showChildNames: false,
   scheduledNotificationIds: [],
   scheduleFingerprint: null,
@@ -121,6 +123,9 @@ const getAccountId = async (accountId?: string): Promise<string | null> => {
 export const getLearningReminderSettingsStorageKey = (accountId: string): string =>
   `${LEARNING_REMINDER_SETTINGS_PREFIX}:${encodeURIComponent(accountId)}`;
 
+const getLegacyLearningReminderSettingsStorageKey = (accountId: string): string =>
+  `${LEGACY_LEARNING_REMINDER_SETTINGS_PREFIX}:${encodeURIComponent(accountId)}`;
+
 export const getLearningReminderCancellationLedgerStorageKey = (): string =>
   LEARNING_REMINDER_CANCELLATION_LEDGER_KEY;
 
@@ -165,12 +170,6 @@ export const completeNotificationOnboarding = async (
   );
 };
 
-const isReminderTime = (value: unknown): value is string => {
-  if (typeof value !== "string" || !/^\d{2}:\d{2}$/.test(value)) return false;
-  const [hour, minute] = value.split(":").map(Number);
-  return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
-};
-
 const saveNotificationPreferences = async (preferences: NotificationPreferences) => {
   if (!preferences.accountId) return;
   await AsyncStorage.setItem(
@@ -188,9 +187,6 @@ const readNotificationPreferences = async (
   return {
     accountId,
     enabled: parsed.enabled === true,
-    reminderTime: isReminderTime(parsed.reminderTime)
-      ? parsed.reminderTime
-      : DEFAULT_LEARNING_REMINDER_TIME,
     showChildNames: parsed.showChildNames === true,
     scheduledNotificationIds: uniqueIds(
       Array.isArray(parsed.scheduledNotificationIds)
@@ -274,23 +270,43 @@ export async function getNotificationPreferences(
     );
     if (stored) return readNotificationPreferences(resolvedAccountId);
 
-    const legacyStored = await AsyncStorage.getItem(LEGACY_NOTIFICATION_PREFERENCES_KEY);
+    const legacyAccountKey = getLegacyLearningReminderSettingsStorageKey(
+      resolvedAccountId,
+    );
+    const legacyAccountStored = await AsyncStorage.getItem(legacyAccountKey);
+    const legacyGlobalStored = legacyAccountStored
+      ? null
+      : await AsyncStorage.getItem(LEGACY_NOTIFICATION_PREFERENCES_KEY);
+    const legacyStored = legacyAccountStored ?? legacyGlobalStored;
     if (!legacyStored) return defaultPreferences(resolvedAccountId);
     const legacy = JSON.parse(legacyStored) as {
       enabled?: unknown;
+      scheduledNotificationIds?: unknown;
       scheduledIds?: unknown;
+      showChildNames?: unknown;
       updatedAt?: unknown;
     };
-    const legacyIds = Array.isArray(legacy.scheduledIds)
-      ? legacy.scheduledIds.filter((id): id is string => typeof id === "string")
-      : [];
+    const legacyIds = uniqueIds(
+      Array.isArray(legacy.scheduledNotificationIds)
+        ? legacy.scheduledNotificationIds.filter(
+            (id): id is string => typeof id === "string",
+          )
+        : Array.isArray(legacy.scheduledIds)
+          ? legacy.scheduledIds.filter(
+              (id): id is string => typeof id === "string",
+            )
+          : [],
+    );
     if (isNativeNotificationsAvailable()) {
       await cancelIdsDurably(accountOwnerToken(resolvedAccountId), legacyIds);
     }
-    await AsyncStorage.removeItem(LEGACY_NOTIFICATION_PREFERENCES_KEY);
+    await AsyncStorage.removeItem(
+      legacyAccountStored ? legacyAccountKey : LEGACY_NOTIFICATION_PREFERENCES_KEY,
+    );
     const migrated: NotificationPreferences = {
       ...defaultPreferences(resolvedAccountId),
       enabled: legacy.enabled === true,
+      showChildNames: legacy.showChildNames === true,
       updatedAt: typeof legacy.updatedAt === "string" ? legacy.updatedAt : new Date().toISOString(),
     };
     await saveNotificationPreferences(migrated);
@@ -320,7 +336,7 @@ async function ensureLearningReminderChannel() {
   if (Platform.OS !== "android") return;
   await Notifications.setNotificationChannelAsync(LEARNING_REMINDER_CHANNEL_ID, {
     name: "Learning reminders",
-    description: "One gentle daily Baby Steps learning reminder.",
+    description: "Morning and evening Baby Steps learning reminders.",
     importance: Notifications.AndroidImportance.DEFAULT,
     lightColor: brandColors.equatorialGold,
     sound: "default",
@@ -426,19 +442,6 @@ export const buildGroupedReminderCopy = (
   };
 };
 
-const parseReminderTime = (value: string): { hour: number; minute: number } => {
-  const normalized = isReminderTime(value) ? value : DEFAULT_LEARNING_REMINDER_TIME;
-  const [hour, minute] = normalized.split(":").map(Number);
-  return { hour, minute };
-};
-
-const tomorrowAt = (hour: number, minute: number): Date => {
-  const date = new Date();
-  date.setDate(date.getDate() + 1);
-  date.setHours(hour, minute, 0, 0);
-  return date;
-};
-
 const getScopedScheduledIds = async (ownerToken: string): Promise<string[]> => {
   const getAll = (Notifications as typeof Notifications & {
     getAllScheduledNotificationsAsync?: () => Promise<Notifications.NotificationRequest[]>;
@@ -515,19 +518,15 @@ const scheduleInsideOperation = async (
 
   const candidates = await getLearningReminderCandidates(accountId);
   const incomplete = candidates.filter((candidate) => !candidate.completedToday);
-  const allCompleted = candidates.length > 0 && incomplete.length === 0;
-  const namedCandidates = allCompleted ? candidates : incomplete;
+  const namedCandidates = incomplete.length > 0 ? incomplete : candidates;
   const copy = buildGroupedReminderCopy(
     namedCandidates.map((candidate) => candidate.name),
     current.showChildNames,
   );
-  const { hour, minute } = parseReminderTime(current.reminderTime);
   const fingerprint = JSON.stringify({
-    allCompleted,
     candidateIds: namedCandidates.map((candidate) => candidate.childId).sort(),
     copy,
-    hour,
-    minute,
+    times: STANDARD_LEARNING_REMINDER_TIMES,
   });
   const inspectedIds = await getScopedScheduledIds(ownerToken);
   const knownIds = uniqueIds([...current.scheduledNotificationIds, ...inspectedIds]);
@@ -536,22 +535,14 @@ const scheduleInsideOperation = async (
     return disableInsideOperation(current, true);
   }
 
-  if (candidates.length === 0) {
-    const failed = await cancelIdsDurably(ownerToken, knownIds);
-    if (failed.length > 0) return persistCancellationBlockedState(current, failed);
-    const next = {
-      ...current,
-      enabled: true,
-      scheduledNotificationIds: [],
-      scheduleFingerprint: fingerprint,
-      updatedAt: new Date().toISOString(),
-    };
-    await saveNotificationPreferences(next);
-    return next;
-  }
-
-  if (knownIds.length === 1 && current.scheduleFingerprint === fingerprint) {
-    if (current.scheduledNotificationIds[0] !== knownIds[0]) {
+  if (
+    knownIds.length === STANDARD_LEARNING_REMINDER_TIMES.length &&
+    current.scheduleFingerprint === fingerprint
+  ) {
+    if (
+      current.scheduledNotificationIds.length !== knownIds.length ||
+      current.scheduledNotificationIds.some((id) => !knownIds.includes(id))
+    ) {
       const adopted = { ...current, scheduledNotificationIds: knownIds };
       await saveNotificationPreferences(adopted);
       return adopted;
@@ -563,43 +554,43 @@ const scheduleInsideOperation = async (
   if (failed.length > 0) return persistCancellationBlockedState(current, failed);
 
   await ensureLearningReminderChannel();
-  const identifier = await Notifications.scheduleNotificationAsync({
-    content: {
-      title: copy.title,
-      body: copy.body,
-      sound: "default",
-      data: {
-        url: "/parent",
-        kind: "learning-reminder",
-        babyStepsScope: LEARNING_REMINDER_SCOPE,
-        ownerToken,
-      },
-    },
-    trigger: allCompleted
-      ? {
-          type: Notifications.SchedulableTriggerInputTypes.DATE,
-          date: tomorrowAt(hour, minute),
-          channelId: LEARNING_REMINDER_CHANNEL_ID,
-        }
-      : {
-          type: Notifications.SchedulableTriggerInputTypes.DAILY,
-          hour,
-          minute,
-          channelId: LEARNING_REMINDER_CHANNEL_ID,
+  const identifiers: string[] = [];
+  for (const standardTime of STANDARD_LEARNING_REMINDER_TIMES) {
+    const identifier = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: copy.title,
+        body: copy.body,
+        sound: "default",
+        data: {
+          url: "/parent",
+          kind: "learning-reminder",
+          reminderPeriod: standardTime.id,
+          babyStepsScope: LEARNING_REMINDER_SCOPE,
+          ownerToken,
         },
-  });
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: standardTime.hour,
+        minute: standardTime.minute,
+        channelId: LEARNING_REMINDER_CHANNEL_ID,
+      },
+    });
 
-  // The new native ID is journaled before the settings write. If that write
-  // fails, restart/sign-out recovery can still discover and cancel it.
-  await setLedgerIds(ownerToken, [identifier]);
+    identifiers.push(identifier);
+    // Journal each native ID before scheduling the next one. A partial native
+    // schedule is therefore recoverable if the process stops between writes.
+    await setLedgerIds(ownerToken, identifiers);
+  }
+
   if ((await getAccountId()) !== accountId) {
-    const failedAfterAccountChange = await cancelIdsDurably(ownerToken, [identifier]);
+    const failedAfterAccountChange = await cancelIdsDurably(ownerToken, identifiers);
     return persistCancellationBlockedState(current, failedAfterAccountChange);
   }
   const next: NotificationPreferences = {
     ...current,
     enabled: true,
-    scheduledNotificationIds: [identifier],
+    scheduledNotificationIds: identifiers,
     scheduleFingerprint: fingerprint,
     updatedAt: new Date().toISOString(),
   };
@@ -613,6 +604,7 @@ export async function disableRecurringReminders(
 ): Promise<NotificationPreferences> {
   const resolved = await getAccountId(accountId);
   if (!resolved) return defaultPreferences(null);
+  await getNotificationPreferences(resolved);
   return runSerializedNotificationOperation(resolved, async () =>
     disableInsideOperation(await readNotificationPreferences(resolved), false));
 }
@@ -621,6 +613,7 @@ export async function deactivateAccountLearningReminders(
   accountId: string,
 ): Promise<NotificationPreferences> {
   if (!accountId) return defaultPreferences(null);
+  await getNotificationPreferences(accountId);
   return runSerializedNotificationOperation(accountId, async () =>
     disableInsideOperation(await readNotificationPreferences(accountId), true));
 }
@@ -632,28 +625,25 @@ export async function scheduleRecurringReminders(
   const resolved = await getAccountId(accountId);
   if (!resolved) return defaultPreferences(null);
   if (!isNativeNotificationsAvailable()) return disableRecurringReminders(resolved);
+  await getNotificationPreferences(resolved);
   const signedInAccount = await getAccountId();
   if (signedInAccount !== resolved) return deactivateAccountLearningReminders(resolved);
   return runSerializedNotificationOperation(resolved, () =>
     scheduleInsideOperation(resolved, permissionAlreadyGranted));
 }
 
-export async function updateLearningReminderSettings(
-  updates: Partial<Pick<NotificationPreferences, "reminderTime" | "showChildNames">>,
+export async function updateLearningReminderPrivacy(
+  showChildNames: boolean,
   accountId?: string,
 ): Promise<NotificationPreferences> {
   const resolved = await getAccountId(accountId);
   if (!resolved) return defaultPreferences(null);
+  await getNotificationPreferences(resolved);
   return runSerializedNotificationOperation(resolved, async () => {
     const current = await readNotificationPreferences(resolved);
     const next = {
       ...current,
-      reminderTime: isReminderTime(updates.reminderTime)
-        ? updates.reminderTime
-        : current.reminderTime,
-      showChildNames: typeof updates.showChildNames === "boolean"
-        ? updates.showChildNames
-        : current.showChildNames,
+      showChildNames,
       scheduleFingerprint: null,
       updatedAt: new Date().toISOString(),
     };
@@ -667,6 +657,7 @@ export async function requestAndEnableRecurringReminders(
 ): Promise<NotificationPermissionState> {
   const resolved = await getAccountId(accountId);
   if (!resolved) return "unavailable";
+  await getNotificationPreferences(resolved);
   const permission = await requestNotificationPermission();
   await runSerializedNotificationOperation(resolved, async () => {
     const current = await readNotificationPreferences(resolved);
@@ -687,6 +678,7 @@ export async function requestAndEnableRecurringReminders(
 export async function syncRecurringRemindersIfEnabled(accountId?: string) {
   const resolved = await getAccountId(accountId);
   if (!resolved) return defaultPreferences(null);
+  await getNotificationPreferences(resolved);
   return runSerializedNotificationOperation(resolved, async () => {
     const current = await readNotificationPreferences(resolved);
     if (!current.enabled) return current;

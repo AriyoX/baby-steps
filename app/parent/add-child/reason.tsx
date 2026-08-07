@@ -29,9 +29,7 @@ export default function ReasonForDownloadingScreen() {
   return (
     <AddChildScaffold
       step={4}
-      eyebrow="One last detail"
       title="What matters most right now?"
-      description="Choose one focus. This helps us recommend a friendly first activity, and you can explore everything later."
       onBack={() => router.replace("/parent/add-child/language" as any)}
       onNext={handleNext}
       nextLabel="Build their profile"

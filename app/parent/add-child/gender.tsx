@@ -29,9 +29,7 @@ export default function GenderScreen() {
   return (
     <AddChildScaffold
       step={1}
-      eyebrow="Let’s make it theirs"
       title="Who is learning?"
-      description="Create a simple profile so stories and progress feel personal. You can change these details later."
       onBack={() => router.replace("/parent")}
       onNext={handleNext}
       nextDisabled={!canContinue}

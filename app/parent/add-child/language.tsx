@@ -14,9 +14,7 @@ export default function LearningLanguageScreen() {
   return (
     <AddChildScaffold
       step={3}
-      eyebrow="Choose their learning voice"
       title="Which language comes first?"
-      description="Pick the language for lessons and stories. Your app interface can stay in your preferred language."
       onBack={() => router.replace("/parent/add-child/age")}
       onNext={() => router.replace("/parent/add-child/reason")}
       nextDisabled={!selectedLanguageCode}

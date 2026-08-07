@@ -212,11 +212,6 @@ export default function CheckEmail() {
                 </Text>
               </TouchableOpacity>
             ) : null}
-            {flow === "signup" ? (
-              <Text className="mt-1 text-center text-xs leading-4 text-neutral-500">
-                Go back to signup if you need to enter a different email.
-              </Text>
-            ) : null}
           </View>
         </View>
       </View>

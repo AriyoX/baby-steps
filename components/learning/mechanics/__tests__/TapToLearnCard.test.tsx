@@ -4,7 +4,7 @@ import { TouchableOpacity } from "react-native";
 import type { TapToLearnItem } from "@/content/learningHubTypes";
 import { TapToLearnCard } from "../TapToLearnCard";
 
-const mockCreateAppSound = jest.fn();
+const mockCreateLearningVoice = jest.fn();
 const mockReplayAppSound = jest.fn();
 const mockUnloadAppSound = jest.fn();
 const mockResolveLearningAudioSource = jest.fn();
@@ -12,7 +12,7 @@ const mockSound = { id: "sound" };
 
 jest.mock("@/context/AudioContext", () => ({
   useAudio: () => ({
-    createAppSound: (...args: unknown[]) => mockCreateAppSound(...args),
+    createLearningVoice: (...args: unknown[]) => mockCreateLearningVoice(...args),
     replayAppSound: (...args: unknown[]) => mockReplayAppSound(...args),
     unloadAppSound: (...args: unknown[]) => mockUnloadAppSound(...args),
   }),
@@ -133,7 +133,7 @@ const renderCard = async (
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockCreateAppSound.mockResolvedValue(mockSound);
+  mockCreateLearningVoice.mockResolvedValue(mockSound);
   mockReplayAppSound.mockResolvedValue(true);
   mockUnloadAppSound.mockResolvedValue(undefined);
   mockResolveLearningAudioSource.mockReturnValue({
@@ -172,7 +172,7 @@ describe("TapToLearnCard", () => {
   });
 
   it("still renders and completes when audio cannot be loaded", () => {
-    mockCreateAppSound.mockReturnValue(new Promise(() => undefined));
+    mockCreateLearningVoice.mockReturnValue(new Promise(() => undefined));
     mockResolveLearningAudioSource.mockReturnValue({
       source: "placeholder-sound",
       isPlaceholder: true,

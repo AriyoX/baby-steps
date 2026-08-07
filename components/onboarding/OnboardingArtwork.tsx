@@ -104,12 +104,6 @@ function DiscoverArtwork() {
   return (
     <View style={styles.stage}>
       <View style={[styles.largeHalo, { backgroundColor: brandColors.blue[100] }]} />
-      <View style={styles.speechBubble}>
-        <Text variant="bold" style={styles.speechBubbleText}>
-          Stories, words and play — all together!
-        </Text>
-        <View style={styles.speechBubbleTail} />
-      </View>
       <IconBubble
         color={brandColors.victoriaBlue}
         icon="language-outline"
@@ -267,37 +261,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     transform: [{ rotate: "18deg" }],
     width: 20,
-  },
-  speechBubble: {
-    ...brandShadows.soft,
-    backgroundColor: brandColors.white,
-    borderColor: brandColors.blue[200],
-    borderRadius: 20,
-    borderWidth: 1,
-    left: 56,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    position: "absolute",
-    top: 16,
-    width: 228,
-    zIndex: 4,
-  },
-  speechBubbleTail: {
-    backgroundColor: brandColors.white,
-    bottom: -7,
-    height: 15,
-    left: 54,
-    position: "absolute",
-    transform: [{ rotate: "45deg" }],
-    width: 15,
-  },
-  speechBubbleText: {
-    color: brandColors.blue[800],
-    fontSize: 14,
-    lineHeight: 20,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    textAlign: "center",
   },
   stage: {
     height: 260,

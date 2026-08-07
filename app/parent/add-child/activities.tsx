@@ -1,7 +1,6 @@
 "use client"
 
 import { View, TouchableOpacity, StatusBar, ScrollView } from "react-native"
-import { useUser } from "@/context/UserContext"
 import { useRouter } from "expo-router"
 import { Text } from "@/components/StyledText"
 import { TranslatedText } from "@/components/translated-text"
@@ -10,7 +9,6 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 export default function StatisticsDisplayScreen() {
   const router = useRouter()
-  const { name } = useUser()
 
   const handleBack = () => {
     router.replace("/parent/add-child/reason")
@@ -19,25 +17,6 @@ export default function StatisticsDisplayScreen() {
   const handleNext = () => {
     router.replace("/parent/add-child/ourPriority")
   }
-
-  // Sample testimonials data
-  const testimonials = [
-    {
-      quote: "My child has improved so much since we started using Baby Steps!",
-      author: "Sarah M.",
-      avatar: "👩‍👧",
-    },
-    {
-      quote: "An amazing tool for early childhood learning and development.",
-      author: "Michael P.",
-      avatar: "👨‍👦",
-    },
-    {
-      quote: "The perfect balance between fun and educational content.",
-      author: "Jessica T.",
-      avatar: "👩‍👧‍👦",
-    },
-  ]
 
   return (
     <>
@@ -99,31 +78,6 @@ export default function StatisticsDisplayScreen() {
               </View>
             </View>
 
-            {/* Testimonials section */}
-            <TranslatedText variant="semibold" className="text-lg text-primary-800 mb-4">
-              {"Here's what other parents are saying:"}
-            </TranslatedText>
-
-            {testimonials.map((testimonial, index) => (
-              <View key={index} className="bg-gray-50 p-3 rounded-xl mb-2 border border-gray-100">
-                <View className="flex-row items-center">
-                  <Text className="text-2xl mr-2">{testimonial.avatar}</Text>
-                  <View className="flex-1">
-                    <Text className="text-sm italic text-neutral-700 mb-1">{`"${testimonial.quote}"`}</Text>
-                    <Text className="text-xs text-neutral-500">— {testimonial.author}</Text>
-                  </View>
-                </View>
-              </View>
-            ))}
-
-            {/* Personal message for the user */}
-            {name && (
-              <View className="bg-secondary-50 rounded-xl p-3 mt-3 border border-secondary-100">
-                <TranslatedText className="text-sm text-primary-800 text-center">
-                  {`Ready to start ${name}'s learning adventure with Baby Steps!`}
-                </TranslatedText>
-              </View>
-            )}
           </View>
         </ScrollView>
 

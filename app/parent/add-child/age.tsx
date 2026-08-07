@@ -28,9 +28,7 @@ export default function AgeSelectionScreen() {
   return (
     <AddChildScaffold
       step={2}
-      eyebrow="Set the right pace"
       title="How old is your child?"
-      description="We’ll use this to choose suitable instructions and activity difficulty—not to limit what they can explore."
       onBack={() => router.replace("/parent/add-child/gender")}
       onNext={handleNext}
       nextDisabled={!selectedAge}

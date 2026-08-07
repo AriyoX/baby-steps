@@ -72,6 +72,11 @@ import {
 import type { ChildUiTranslationKey } from "@/lib/childUiTranslations"
 import { ChildHeaderStreak } from "@/components/child/ChildHeaderStreak"
 import { childHaptics } from "@/lib/childHaptics"
+import {
+  getConciseChildCardDescription,
+  getConciseLearningHubCardDescription,
+} from "@/lib/childCardCopy"
+import { useNavigationGuard } from "@/hooks/useNavigationGuard"
 
 type LearningCard = ChildActivityCardModel
 
@@ -141,7 +146,7 @@ const toLearningCards = (cards: ChildMenuCard[]): LearningCard[] =>
     id: card.id,
     title: card.title,
     image: card.image,
-    description: card.description,
+    description: getConciseChildCardDescription(card.title, card.description),
     targetPage: card.targetPage,
   }))
 
@@ -201,7 +206,11 @@ const toLearningHubCards = (
         id: stage.id,
         title: stage.title,
         image: stage.imageAsset ?? stage.imageKey,
-        description: stage.description,
+        description: getConciseLearningHubCardDescription(
+          stage.id,
+          stage.title,
+          stage.description,
+        ),
         targetPage: `child/learning/${stage.id}`,
         disabled: isLocked,
         stageId: stage.id,
@@ -230,6 +239,7 @@ const AfricanThemeGameInterface: React.FC = () => {
     EMPTY_COLORING_PROGRESS,
   )
   const router = useRouter()
+  const { activeNavigationKey, navigateOnce } = useNavigationGuard()
   const { activeChild } = useChild()
   const {
     enabled: useLearningLanguage,
@@ -301,13 +311,12 @@ const AfricanThemeGameInterface: React.FC = () => {
   // Add this effect to handle hardware back button
   useEffect(() => {
     const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
-      // Navigate to parent gate instead of default back behavior
-      router.push("/child/parent-gate")
+      navigateOnce("parent-gate", () => router.push("/child/parent-gate"))
       return true // Prevents default back behavior
     })
 
     return () => backHandler.remove() // Clean up on unmount
-  }, [router])
+  }, [navigateOnce, router])
 
   // Get the current path to determine which tab we're on
   const pathname = usePathname()
@@ -424,13 +433,15 @@ const AfricanThemeGameInterface: React.FC = () => {
   }, [])
 
   const handleParentalPress = () => {
-    childHaptics.tap()
-    audioManager.speakAppText("For parents only", {
-      language: "en",
-      pitch: 1,
-      rate: 1,
+    navigateOnce("parent-gate", () => {
+      childHaptics.tap()
+      audioManager.speakAppText("For parents only", {
+        language: "en",
+        pitch: 1,
+        rate: 1,
+      })
+      router.push("/child/parent-gate" as any)
     })
-    router.push("/child/parent-gate" as any)
   }
 
   // Updated function to navigate to the card's target page with type assertion
@@ -440,17 +451,18 @@ const AfricanThemeGameInterface: React.FC = () => {
       return
     }
 
-    childHaptics.tap()
-    if (card.stageId) {
-      router.push({
-        pathname: "/child/learning/[stageId]",
-        params: { stageId: card.stageId },
-      } as any)
-      return
-    }
+    navigateOnce(`card:${card.id}`, () => {
+      childHaptics.tap()
+      if (card.stageId) {
+        router.push({
+          pathname: "/child/learning/[stageId]",
+          params: { stageId: card.stageId },
+        } as any)
+        return
+      }
 
-    // Use type assertion to tell TypeScript this is a valid route
-    router.push(`/${card.targetPage}` as any)
+      router.push(`/${card.targetPage}` as any)
+    })
   }
 
   const { height, width } = useWindowDimensions()
@@ -641,7 +653,12 @@ const AfricanThemeGameInterface: React.FC = () => {
                   <TouchableOpacity
                     accessibilityLabel={t("child.forParents")}
                     accessibilityRole="button"
+                    accessibilityState={{
+                      busy: activeNavigationKey === "parent-gate",
+                      disabled: activeNavigationKey === "parent-gate",
+                    }}
                     activeOpacity={0.8}
+                    disabled={activeNavigationKey === "parent-gate"}
                     onPress={handleParentalPress}
                     style={[
                       styles.parentButton,
@@ -675,7 +692,7 @@ const AfricanThemeGameInterface: React.FC = () => {
               >
                 {isColoringTab ? (
                   <ChildLeadCard
-                    accessibilityLabel={`${coloringProgress.savedArtworkCount} saved pictures. ${coloringProgress.unlockedAchievementIds.length} of ${COLORING_ACHIEVEMENTS.length} coloring badges unlocked. Creative spark: try 3 colors today.`}
+                    accessibilityLabel={`${coloringProgress.savedArtworkCount} saved pictures. ${coloringProgress.unlockedAchievementIds.length} of ${COLORING_ACHIEVEMENTS.length} coloring badges unlocked.`}
                     badgeSummary={`${coloringProgress.unlockedAchievementIds.length}/${COLORING_ACHIEVEMENTS.length} ${t("coloring.badges")}`}
                     badges={COLORING_ACHIEVEMENTS.map((achievement) => {
                       const unlocked =
@@ -701,7 +718,6 @@ const AfricanThemeGameInterface: React.FC = () => {
                       }
                     })}
                     cardHeight={cardLayout.cardHeight}
-                    creativePrompt={t("coloring.creativeSparkShort")}
                     mode="coloring"
                     savedSummary={`${coloringProgress.savedArtworkCount} ${t("coloring.saved")}`}
                     title={t("coloring.artJourney")}
@@ -710,8 +726,7 @@ const AfricanThemeGameInterface: React.FC = () => {
                   <ChildLeadCard
                     cardHeight={cardLayout.cardHeight}
                     mode="journey"
-                    startLabel={t("common.start")}
-                    subtitle={t("child.learningJourney")}
+                    title={t("child.learningJourney")}
                   />
                 )}
 
@@ -730,7 +745,11 @@ const AfricanThemeGameInterface: React.FC = () => {
                       cardHeight={cardLayout.cardHeight}
                       cardWidth={cardLayout.cardWidth}
                       imageHeight={cardLayout.imageHeight}
+                      navigationPending={
+                        activeNavigationKey === `card:${card.id}`
+                      }
                       onPress={() => handleCardPress(card)}
+                      showDescription={contentSlug === "games" || isLearningTab}
                       textHeight={cardLayout.textHeight}
                     />
                   </TourTarget>

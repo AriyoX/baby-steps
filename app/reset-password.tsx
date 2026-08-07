@@ -295,9 +295,6 @@ export default function ResetPassword() {
               <Text variant="bold" className="text-3xl text-secondary-700 pt-3 text-center">
                 Reset Password
               </Text>
-              <Text className="text-lg text-center text-neutral-600 mt-3 px-8">
-                Enter your new password
-              </Text>
             </Animated.View>
           </View>
 

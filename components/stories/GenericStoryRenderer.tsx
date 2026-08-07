@@ -336,7 +336,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
     Speech.stop();
     speechBoundaryReceivedRef.current = false;
     setIsReading(true);
-    audioManager.speakAppText(storyText, {
+    audioManager.speakLearningText(storyText, {
       pitch: 1,
       rate: readingSpeedConfig.rate,
       onStart: startFallbackWordHighlight,
@@ -694,7 +694,6 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
         <View className="flex-1 items-center justify-center px-6 py-4">
           <ChildCompletionCard
             title={t("stories.complete")}
-            message={t("stories.finished", { story: story.title })}
             icon="book"
             accentColor="#8B4513"
             availableWidth={width}

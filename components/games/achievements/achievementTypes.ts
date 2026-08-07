@@ -6,6 +6,7 @@ export interface AchievementDefinition {
   description: string;
   icon_name: string;
   activity_type: string;
+  /** Retained for compatibility with existing achievement rows; points are archived in the UI. */
   points: number;
   trigger_value?: number | string | null; 
   game_key?: string | null;             

@@ -37,6 +37,7 @@ import { useLearningHubContent } from "@/hooks/useLearningHubContent";
 import { useLearningHubProgress } from "@/hooks/useLearningHubProgress";
 import { getLearningProgressChildId } from "@/lib/learningProgressRepository";
 import { childHaptics } from "@/lib/childHaptics";
+import { useNavigationGuard } from "@/hooks/useNavigationGuard";
 import {
   getLearningLessonAccessStates,
   getLearningStageAccessState,
@@ -133,6 +134,7 @@ type LessonPathCardProps = {
   height: number;
   gap: number;
   onPress: (lesson: LearningHubLesson) => void;
+  navigationPending?: boolean;
   tourTargetId?: string;
 };
 
@@ -145,6 +147,7 @@ const LessonPathCard = ({
   height,
   gap,
   onPress,
+  navigationPending = false,
   tourTargetId,
 }: LessonPathCardProps) => {
   const { t } = useChildUiLanguage();
@@ -168,14 +171,22 @@ const LessonPathCard = ({
         height,
         marginRight: gap,
         borderColor: status.disabled ? brandColors.neutral[200] : brandColors.equatorialGold,
-        opacity: lessonAccess.effectiveStatus === "locked" ? 0.72 : 1,
+        opacity:
+          lessonAccess.effectiveStatus === "locked"
+            ? 0.72
+            : navigationPending
+              ? 0.66
+              : 1,
       }}
       onPress={() => onPress(lesson)}
-      disabled={status.disabled}
+      disabled={status.disabled || navigationPending}
       activeOpacity={status.disabled ? 1 : 0.76}
       accessibilityRole="button"
       accessibilityLabel={`${lesson.title}. ${status.label}. ${mechanicLabel}. ${itemCount} items.${progressLockLabel ? ` ${progressLockLabel}` : ""}`}
-      accessibilityState={{ disabled: status.disabled }}
+      accessibilityState={{
+        busy: navigationPending,
+        disabled: status.disabled || navigationPending,
+      }}
     >
       <View className="p-4 flex-1 justify-between">
         <View>
@@ -216,9 +227,6 @@ const LessonPathCard = ({
             </View>
           </View>
 
-          <Text className="text-neutral-600 text-sm leading-5" numberOfLines={2}>
-            {lesson.description}
-          </Text>
           {lessonAccess.isCompleted && !status.disabled ? (
             <View className="flex-row items-center mt-2">
               <Ionicons name="checkmark-done" size={14} color={brandColors.success} />
@@ -299,6 +307,7 @@ const StageState = ({ icon, message, onBack, title }: StageStateProps) => {
 
 export default function LearningStagePathScreen() {
   const router = useRouter();
+  const { activeNavigationKey, navigateOnce } = useNavigationGuard();
   const params = useLocalSearchParams();
   const { activeChild } = useChild();
   const { t } = useChildUiLanguage();
@@ -384,11 +393,13 @@ export default function LearningStagePathScreen() {
       return;
     }
 
-    childHaptics.selection();
-    router.push({
-      pathname: "/child/learning/[stageId]/lesson/[lessonId]",
-      params: { stageId: stage.id, lessonId: lesson.id },
-    } as any);
+    navigateOnce(`lesson:${lesson.id}`, () => {
+      childHaptics.selection();
+      router.push({
+        pathname: "/child/learning/[stageId]/lesson/[lessonId]",
+        params: { stageId: stage.id, lessonId: lesson.id },
+      } as any);
+    });
   };
 
   if (!languageContent) {
@@ -485,9 +496,6 @@ export default function LearningStagePathScreen() {
                 <Text variant="bold" className="text-white text-3xl text-center" numberOfLines={1}>
                   {stage.title}
                 </Text>
-                <Text className="text-white/85 text-sm text-center" numberOfLines={2}>
-                  {stage.description}
-                </Text>
               </View>
 
               <View className="flex-row items-center">
@@ -562,6 +570,9 @@ export default function LearningStagePathScreen() {
                     stage={stage}
                     lesson={lesson}
                     lessonAccess={lessonAccessById.get(lesson.id)!}
+                    navigationPending={
+                      activeNavigationKey === `lesson:${lesson.id}`
+                    }
                     itemCount={lesson.items.length}
                     width={lessonCardWidth}
                     height={lessonCardHeight}

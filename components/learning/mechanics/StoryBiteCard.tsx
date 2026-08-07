@@ -39,7 +39,7 @@ export function StoryBiteCard({
   onComplete,
 }: StoryBiteCardProps) {
   const { t } = useChildUiLanguage();
-  const { createAppSound, replayAppSound, unloadAppSound } = useAudio();
+  const { createLearningVoice, replayAppSound, unloadAppSound } = useAudio();
   const { width, height } = useWindowDimensions();
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [isCompleting, setIsCompleting] = useState(false);
@@ -91,7 +91,7 @@ export function StoryBiteCard({
     setAudioLoadFailed(false);
 
     void (async () => {
-      const sound = await createAppSound(audioResolution.source);
+      const sound = await createLearningVoice(audioResolution.source);
 
       try {
         if (!sound) {
@@ -115,7 +115,7 @@ export function StoryBiteCard({
     });
   }, [
     audioResolution,
-    createAppSound,
+    createLearningVoice,
     pageHasAudio,
     replayAppSound,
     unloadAppSound,

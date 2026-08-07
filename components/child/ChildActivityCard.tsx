@@ -16,7 +16,7 @@ export type ChildActivityCardStatus = {
 };
 
 export type ChildActivityCardModel = {
-  description: string;
+  description?: string;
   disabled?: boolean;
   id: string;
   image?: string;
@@ -33,7 +33,9 @@ type ChildActivityCardProps = {
   cardHeight: number;
   cardWidth: number;
   imageHeight: number;
+  navigationPending?: boolean;
   onPress: () => void;
+  showDescription?: boolean;
   textHeight: number;
 };
 
@@ -47,19 +49,26 @@ export const ChildActivityCard = forwardRef<
     cardHeight,
     cardWidth,
     imageHeight,
+    navigationPending = false,
     onPress,
+    showDescription = false,
     textHeight,
   },
   ref,
 ) {
+  const isNarrow = cardWidth < 96;
+
   return (
     <TouchableOpacity
       ref={ref}
-      accessibilityLabel={`${card.title}. ${card.status?.label ?? "Open"}. ${card.description}${card.progressLabel ? `. ${card.progressLabel}` : ""}`}
+      accessibilityLabel={`${card.title}. ${card.status?.label ?? "Open"}.${card.description ? ` ${card.description}.` : ""}${card.progressLabel ? ` ${card.progressLabel}` : ""}`}
       accessibilityRole="button"
-      accessibilityState={{ disabled: card.disabled }}
+      accessibilityState={{
+        busy: navigationPending,
+        disabled: card.disabled || navigationPending,
+      }}
       activeOpacity={0.82}
-      disabled={card.disabled}
+      disabled={card.disabled || navigationPending}
       onPress={onPress}
       style={[
         brandShadows.soft,
@@ -72,7 +81,7 @@ export const ChildActivityCard = forwardRef<
           borderWidth: 1.5,
           height: cardHeight,
           marginRight: cardGap,
-          opacity: card.disabled ? 0.8 : 1,
+          opacity: card.disabled ? 0.8 : navigationPending ? 0.68 : 1,
           overflow: "hidden",
           width: cardWidth,
         },
@@ -99,39 +108,53 @@ export const ChildActivityCard = forwardRef<
         />
         {card.status ? (
           <View
-            className="absolute right-2 top-2 flex-row items-center rounded-full px-2.5 py-1"
-            style={{ backgroundColor: card.status.backgroundColor }}
+            className="absolute right-2 top-2 flex-row items-center justify-center rounded-full"
+            style={{
+              backgroundColor: card.status.backgroundColor,
+              height: isNarrow ? 28 : undefined,
+              paddingHorizontal: isNarrow ? 0 : 10,
+              paddingVertical: isNarrow ? 0 : 4,
+              width: isNarrow ? 28 : undefined,
+            }}
           >
             <Ionicons
               color={card.status.color}
               name={card.status.icon}
               size={13}
             />
-            <Text
-              className="ml-1 text-[10px]"
-              numberOfLines={1}
-              style={{ color: card.status.color }}
-              variant="bold"
-            >
-              {card.status.label}
-            </Text>
+            {!isNarrow ? (
+              <Text
+                className="ml-1 text-[10px]"
+                numberOfLines={1}
+                style={{ color: card.status.color }}
+                variant="bold"
+              >
+                {card.status.label}
+              </Text>
+            ) : null}
           </View>
         ) : null}
       </View>
 
       <View
-        className="justify-center bg-white px-3"
-        style={{ height: textHeight }}
+        className="justify-center bg-white"
+        style={{
+          height: textHeight,
+          paddingHorizontal: isNarrow ? 7 : 12,
+        }}
       >
         <View className="flex-row items-center">
           <MarqueeText
             className="text-[15px] text-primary-700"
-            containerStyle={{ flex: 1, marginRight: 8 }}
+            containerStyle={{ flex: 1, marginRight: isNarrow ? 4 : 8 }}
             variant="bold"
           >
             {card.title}
           </MarqueeText>
-          <View className="h-7 w-7 items-center justify-center rounded-full bg-primary-50">
+          <View
+            className="items-center justify-center rounded-full bg-primary-50"
+            style={{ height: isNarrow ? 24 : 28, width: isNarrow ? 24 : 28 }}
+          >
             <Ionicons
               color={
                 card.disabled
@@ -143,12 +166,14 @@ export const ChildActivityCard = forwardRef<
             />
           </View>
         </View>
-        <Text
-          className="mt-1 text-xs leading-4 text-neutral-600"
-          numberOfLines={2}
-        >
-          {card.description}
-        </Text>
+        {showDescription && card.description ? (
+          <Text
+            className="mt-0.5 text-[11px] leading-4 text-neutral-600"
+            numberOfLines={1}
+          >
+            {card.description}
+          </Text>
+        ) : null}
       </View>
     </TouchableOpacity>
   );

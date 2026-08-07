@@ -136,13 +136,6 @@ export default function ChildListScreen() {
           </Text>
           <Text className="text-sm text-neutral-500 mb-2">{item.age}</Text>
 
-          {/* Profile creation date */}
-          <View className="flex-row items-center">
-            <FontAwesome5 name="calendar-alt" size={12} color={brandColors.victoriaBlue} />
-            <Text className="text-xs text-neutral-500 ml-1">
-              Profile created {new Date(item.created_at).toLocaleDateString()}
-            </Text>
-          </View>
         </View>
 
         {/* Arrow indicator */}
@@ -172,7 +165,6 @@ export default function ChildListScreen() {
               Your little learners
             </TranslatedText>
           </View>
-          <TranslatedText className="text-sm text-neutral-500 mt-1 ml-1">Choose a profile or make a new one</TranslatedText>
         </View>
 
         {/* Main content */}
@@ -267,9 +259,6 @@ export default function ChildListScreen() {
                   </Text>
                   <TranslatedText variant="display" className="text-3xl text-primary-700 mb-3 text-center">
                     Let’s meet your learner
-                  </TranslatedText>
-                  <TranslatedText className="text-base text-neutral-500 text-center mb-6 leading-6">
-                    Add a few details so Baby Steps can save progress and suggest a friendly place to begin.
                   </TranslatedText>
 
                   <TouchableOpacity

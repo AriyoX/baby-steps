@@ -174,7 +174,7 @@ export const playWordAudio = async (
 
     // Load and play the sound through central app-sound settings.
     const source = await resolveAudioSource(audioFile)
-    const newSound = await audioManager.playAppSound(source)
+    const newSound = await audioManager.playLearningVoice(source)
 
     return newSound ?? undefined
   } catch (error) {

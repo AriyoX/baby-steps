@@ -33,7 +33,7 @@ interface ChildLoadingCardProps {
 
 export function ChildLoadingState({
   title,
-  message = "Getting everything ready for you.",
+  message,
   icon = "sparkles",
   onBack,
   backLabel = "Go back",
@@ -105,7 +105,7 @@ export function ChildLoadingState({
           testID={testID}
           accessibilityRole="progressbar"
           accessibilityLabel={title}
-          accessibilityValue={{ text: message }}
+          accessibilityValue={message ? { text: message } : undefined}
           accessibilityLiveRegion="polite"
           style={{
             width: cardWidth,
@@ -172,19 +172,6 @@ export function ChildLoadingState({
             >
               {title}
             </Text>
-            <Text
-              variant="medium"
-              style={{
-                color: brandColors.neutral[600],
-                fontSize: isCompactLandscape ? 14 : 15,
-                lineHeight: isCompactLandscape ? 20 : 22,
-                textAlign: "center",
-                marginTop: 7,
-                maxWidth: 440,
-              }}
-            >
-              {message}
-            </Text>
             <View
               style={{
                 marginTop: isCompactLandscape ? 14 : 18,
@@ -198,12 +185,6 @@ export function ChildLoadingState({
               }}
             >
               <ActivityIndicator size="small" color={brandColors.victoriaBlue} />
-              <Text
-                variant="bold"
-                style={{ color: brandColors.blue[700], fontSize: 12, marginLeft: 9 }}
-              >
-                Loading safely...
-              </Text>
             </View>
           </View>
         </View>

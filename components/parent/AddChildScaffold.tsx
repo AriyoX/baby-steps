@@ -9,9 +9,7 @@ import { brandColors } from "@/constants/Brand"
 type AddChildScaffoldProps = {
   step: number
   totalSteps?: number
-  eyebrow: string
   title: string
-  description: string
   children: ReactNode
   onBack: () => void
   onNext: () => void
@@ -24,9 +22,7 @@ type AddChildScaffoldProps = {
 export function AddChildScaffold({
   step,
   totalSteps = 4,
-  eyebrow,
   title,
-  description,
   children,
   onBack,
   onNext,
@@ -38,13 +34,9 @@ export function AddChildScaffold({
   const content = (
     <View className="px-5 pb-8">
       <View className="pt-7 pb-5">
-        <Text variant="bold" className="text-xs uppercase tracking-[2px] text-secondary-600 mb-2">
-          {eyebrow}
-        </Text>
-        <Text variant="bold" className="text-[30px] leading-9 text-neutral-900 mb-2">
+        <Text variant="bold" className="text-[30px] leading-9 text-neutral-900">
           {title}
         </Text>
-        <Text className="text-base leading-6 text-neutral-600">{description}</Text>
       </View>
 
       <View className="bg-white rounded-[28px] p-5 border border-primary-100 shadow-sm">

@@ -216,7 +216,7 @@ describe("Learning stage path screen", () => {
     expect(text).toContain("Quick quiz");
   });
 
-  it("starts only the first incomplete First Words lesson", async () => {
+  it("starts only the first incomplete lesson after a rapid double-tap", async () => {
     let tree: renderer.ReactTestRenderer | undefined;
 
     await act(async () => {
@@ -249,6 +249,7 @@ describe("Learning stage path screen", () => {
     expect(quickReviewCard.props.disabled).toBe(true);
 
     await act(async () => {
+      greetingsCard.props.onPress();
       greetingsCard.props.onPress();
     });
 

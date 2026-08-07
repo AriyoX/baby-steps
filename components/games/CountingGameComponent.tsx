@@ -4,14 +4,13 @@ import type React from "react"
 import { useState, useEffect, useRef, useCallback } from "react"
 import {
   View,
-  Image,
   ImageBackground,
   TouchableOpacity,
   Animated,
   ActivityIndicator,
   FlatList, // Ensure FlatList is imported
+  ScrollView,
   useWindowDimensions,
-  // ScrollView - Will be removed if FlatList replaces its primary use here
 } from "react-native"
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import type { Audio } from "expo-av"
@@ -48,6 +47,10 @@ import {
   DEFAULT_PROGRESS,
   loadGameProgress,
   saveGameProgress,
+  getCompletedCountingLevels,
+  getHighestUnlockedCountingLevel,
+  isCountingLevelUnlocked,
+  updateProgressForLevelCompletion,
   updateProgressForStageCompletion,
   updateLastPlayedLevel,
   isStageUnlocked,
@@ -65,6 +68,10 @@ import {
   TourTarget,
   useGameTour,
 } from "./GameTour"
+import {
+  buildCountingLevelChoices,
+  CountingLevelSelector,
+} from "./counting/CountingLevelSelector"
 
 const GAME_SCREEN_OVERLAY = "rgba(2, 116, 187, 0.88)"
 
@@ -121,7 +128,7 @@ interface WindowDimensions {
 }
 
 // Game states
-type GameState = "stageSelect" | "playing" | "stageComplete"
+type GameState = "stageSelect" | "levelSelect" | "playing"
 
 const LugandaCountingGame: React.FC = () => {
   const router = useRouter()
@@ -133,7 +140,7 @@ const LugandaCountingGame: React.FC = () => {
   const insets = useSafeAreaInsets()
   const landscapeWidth = Math.max(windowWidth, windowHeight)
   const landscapeHeight = Math.min(windowWidth, windowHeight)
-  const stageCardGap = 16
+  const stageCardGap = 8
   const stageCardWidth = Math.min(270, Math.max(230, landscapeWidth * 0.32))
   const stageCardHeight = Math.max(190, Math.min(232, landscapeHeight * 0.56))
   const stageCardImageHeight = Math.round(stageCardHeight * 0.54)
@@ -143,6 +150,7 @@ const LugandaCountingGame: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>("stageSelect")
   const [currentStage, setCurrentStage] = useState<number>(1)
   const [currentLevel, setCurrentLevel] = useState<number>(1)
+  const [selectedStartLevel, setSelectedStartLevel] = useState<number>(1)
   const [countingContent, setCountingContent] = useState<CountingGameContent | null>(null)
   const [currentItem, setCurrentItem] = useState<CountingGameItem | null>(null)
   const [itemsToCount, setItemsToCount] = useState<CountItem[]>([])
@@ -160,6 +168,7 @@ const LugandaCountingGame: React.FC = () => {
   })
   const [targetNumber, setTargetNumber] = useState<number>(1)
   const [gameLevels, setGameLevels] = useState<number[]>([])
+  const [completedLevelNumber, setCompletedLevelNumber] = useState<number | null>(null)
   const [stageCompleted, setStageCompleted] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [contentRetrySequence, setContentRetrySequence] = useState(0)
@@ -176,6 +185,8 @@ const LugandaCountingGame: React.FC = () => {
   const hydrationGenerationRef = useRef(0)
   const correctAnswerLockRef = useRef(false)
   const stageCompletionLockRef = useRef(false)
+  const selectionTransitionLockRef = useRef(false)
+  const completionTransitionLockRef = useRef(false)
   const answerAdvanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [fadeAnim] = useState(new Animated.Value(0))
@@ -184,7 +195,6 @@ const LugandaCountingGame: React.FC = () => {
   const rotateAnim = useRef(new Animated.Value(0)).current
   const gameStartTime = useRef(Date.now())
   const countingStages = countingContent?.stages ?? []
-  const countingStageIds = countingStages.map((stage) => stage.id)
   const countingItems = countingContent?.culturalItems ?? []
   const currencyItems = countingContent?.currency ?? []
 
@@ -314,19 +324,18 @@ const LugandaCountingGame: React.FC = () => {
         setCurrentItem(loadedCountingContent?.culturalItems[0] ?? null)
 
         if (requestedChildId) {
-          const availableStageIds =
-            loadedCountingContent?.stages.map((stage) => stage.id) ?? []
+          const availableStages = loadedCountingContent?.stages ?? []
           const savedProgress = contentProgressRevision
             ? await loadGameProgress(
                 requestedChildId,
                 requestedLanguageCode,
-                availableStageIds,
+                availableStages,
                 contentProgressRevision,
               )
             : await loadGameProgress(
                 requestedChildId,
                 requestedLanguageCode,
-                availableStageIds,
+                availableStages,
               )
 
           if (!isCurrentRequest()) return
@@ -379,8 +388,9 @@ const LugandaCountingGame: React.FC = () => {
     })
   }, [landscapeWidth, landscapeHeight])
 
-  // Handle stage completion and update progress before best-effort network work.
-  const handleStageCompletion = async (completedStageScore: number) => {
+  // Persist each level before revealing its completion state. The same lock
+  // also protects final-level stage completion from duplicate work.
+  const handleLevelCompletion = async (completedLevelScore: number) => {
     if (stageCompletionLockRef.current) return
     stageCompletionLockRef.current = true
 
@@ -392,41 +402,64 @@ const LugandaCountingGame: React.FC = () => {
     const completionChildId = activeChild.id
     const completionLanguageCode = languageCode
     const completionStageId = currentStage
+    const completionLevel = currentLevel
+    const completionStage = getStageById(completionStageId)
+    if (!completionStage) {
+      stageCompletionLockRef.current = false
+      return
+    }
+    const completesStage = completionLevel >= completionStage.levels
     const completionSessionStartedAt = gameStartTime.current
     const streakCompletedAt = new Date().toISOString()
     const progressAtCompletion = progressRef.current
-    const completedProgress = updateProgressForStageCompletion(
+    const completedLevelProgress = updateProgressForLevelCompletion(
       {
         ...progressAtCompletion,
         unlockedStages: [...progressAtCompletion.unlockedStages],
         completedStages: [...progressAtCompletion.completedStages],
         lastPlayedLevel: { ...progressAtCompletion.lastPlayedLevel },
+        completedLevelsByStage: Object.fromEntries(
+          Object.entries(progressAtCompletion.completedLevelsByStage).map(
+            ([stageId, levels]) => [stageId, [...levels]],
+          ),
+        ),
         playHistory: [...progressAtCompletion.playHistory],
       },
       completionStageId,
-      completedStageScore,
-      countingStageIds,
+      completionLevel,
+      countingStages,
       completionChildId,
     )
+    const completedProgress = completesStage
+      ? updateProgressForStageCompletion(
+          completedLevelProgress,
+          completionStageId,
+          completedLevelScore,
+          countingStages,
+          completionChildId,
+        )
+      : completedLevelProgress
     const achievementEvents: Parameters<typeof checkAndGrantNewAchievements>[0][] = [
       {
         type: "score_updated",
         gameKey: "counting_game",
-        newTotalScore: completedStageScore,
+        newTotalScore: completedLevelScore,
       },
-      {
+    ]
+    if (completesStage) {
+      achievementEvents.push({
         type: "stage_completed",
         gameKey: "counting_game",
         stageId: completionStageId,
         newTotalScore: completedProgress.totalScore,
-      },
-    ]
+      })
+    }
     let completionRevision = 0
 
     await completeCountingProgressLocallyFirst(completedProgress, {
       persistProgress: (nextProgress) =>
         saveGameProgress(nextProgress, completionChildId, completionLanguageCode, {
-          availableStageIds: countingStageIds,
+          availableStageIds: countingStages,
           contentRevision: contentProgressRevisionRef.current,
         }),
       revealCompletion: (savedProgress) => {
@@ -441,7 +474,10 @@ const LugandaCountingGame: React.FC = () => {
 
         completionRevision = updateProgressState(savedProgress)
         childHaptics.success()
-        setStageCompleted(true)
+        completionTransitionLockRef.current = false
+        setCompletedLevelNumber(completionLevel)
+        setShowFeedback(false)
+        setStageCompleted(completesStage)
       },
       runBestEffortNetworkWork: async (savedProgress, persistence) => {
         const achievementWork = async () => {
@@ -464,10 +500,6 @@ const LugandaCountingGame: React.FC = () => {
           })
 
           const awardedAchievements = [...newlyAwarded.values()]
-          const achievementPoints = awardedAchievements.reduce(
-            (total, achievement) => total + achievement.points,
-            0,
-          )
           const owner = progressOwnerRef.current
           if (
             !isMountedRef.current ||
@@ -480,28 +512,12 @@ const LugandaCountingGame: React.FC = () => {
           }
 
           awardedAchievements.forEach((achievement) => enqueueAchievementUnlocked(achievement))
-          if (achievementPoints <= 0) return
-
-          const progressWithAchievementPoints = {
-            ...savedProgress,
-            totalScore: savedProgress.totalScore + achievementPoints,
-          }
-          updateProgressState(progressWithAchievementPoints)
-          await saveGameProgress(
-            progressWithAchievementPoints,
-            completionChildId,
-            completionLanguageCode,
-            {
-              availableStageIds: countingStageIds,
-              contentRevision: contentProgressRevisionRef.current,
-            },
-          )
         }
         const outcomes = await Promise.allSettled([
-          trackActivity(true, completedStageScore),
+          trackActivity(completesStage, completedLevelScore),
           achievementWork(),
           syncProgressNow(completionChildId),
-          persistence.persisted
+          completesStage && persistence.persisted
             ? recordQualifiedStreakActivity({
                 childId: completionChildId,
                 sourceType: "game",
@@ -532,19 +548,27 @@ const LugandaCountingGame: React.FC = () => {
   // Keeping this in one effect avoids generating two different random level
   // sequences when gameState and currentStage change in the same render.
   useEffect(() => {
+    if (gameState === "stageSelect" || gameState === "levelSelect") {
+      selectionTransitionLockRef.current = false
+      completionTransitionLockRef.current = false
+    }
+  }, [gameState])
+
+  useEffect(() => {
     if (gameState === "playing") {
-      initializeStage(currentStage)
+      initializeStage(currentStage, selectedStartLevel)
       // Reset UI states when changing stages
       setShowFeedback(false)
       setSelectedCount(null)
       setNumberOptions([])
       setScore(0)
+      setCompletedLevelNumber(null)
     }
     // initializeStage intentionally reads the latest progress ref. Adding its
     // render-local identity would re-randomize the level after every state
     // update performed during initialization.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStage, countingStages, gameState])
+  }, [currentStage, countingStages, gameState, selectedStartLevel])
 
   // When level changes, setup the level
   useEffect(() => {
@@ -563,15 +587,16 @@ const LugandaCountingGame: React.FC = () => {
       const activeChildId = activeChild?.id
       if (activeChildId) {
         // Update last played level in progress
+        const lastSavedLevel = progressRef.current.lastPlayedLevel[currentStage] ?? 1
         const updatedProgress = updateLastPlayedLevel(
           progressRef.current,
           currentStage,
-          currentLevel,
+          Math.max(lastSavedLevel, currentLevel),
           activeChildId,
         )
         updateProgressState(updatedProgress)
         void saveGameProgress(updatedProgress, activeChildId, languageCode, {
-          availableStageIds: countingStages.map((stage) => stage.id),
+          availableStageIds: countingStages,
           contentRevision: contentProgressRevisionRef.current,
         }).catch((error) => {
           console.warn("Could not save Counting Game level position:", error)
@@ -595,7 +620,7 @@ const LugandaCountingGame: React.FC = () => {
   ])
 
   // Initialize a stage with randomized levels
-  const initializeStage = (stageId: number): void => {
+  const initializeStage = (stageId: number, requestedLevel?: number): void => {
     try {
       setLevelSetupError(null)
       correctAnswerLockRef.current = false
@@ -613,23 +638,18 @@ const LugandaCountingGame: React.FC = () => {
         setGameLevels(randomNumbers)
       }
 
-      // Check if the stage is already completed
       const currentProgress = progressRef.current
-      const isStageCompleted = currentProgress.completedStages.includes(stageId)
-
-      // If stage is completed, always start from level 1
-      if (isStageCompleted) {
-        setCurrentLevel(1)
-      } else {
-        // Only use saved level if the stage is in progress (not completed)
-        const savedLevel = currentProgress.lastPlayedLevel[stageId]
-        if (savedLevel && savedLevel > 1) {
-          setCurrentLevel(savedLevel)
-        } else {
-          // Reset level to 1 when starting a new stage
-          setCurrentLevel(1)
-        }
-      }
+      const savedLevel = currentProgress.lastPlayedLevel[stageId] ?? 1
+      const highestUnlockedLevel = getHighestUnlockedCountingLevel(
+        currentProgress,
+        stageId,
+        randomNumbers.length,
+      )
+      const startingLevel = Math.min(
+        highestUnlockedLevel,
+        Math.max(1, requestedLevel ?? savedLevel),
+      )
+      setCurrentLevel(startingLevel)
 
       setStageCompleted(false)
 
@@ -647,6 +667,8 @@ const LugandaCountingGame: React.FC = () => {
     try {
       setLevelSetupError(null)
       correctAnswerLockRef.current = false
+      stageCompletionLockRef.current = false
+      completionTransitionLockRef.current = false
 
       // Get the current stage
       const stage = getStageById(stageId)
@@ -877,14 +899,7 @@ const LugandaCountingGame: React.FC = () => {
         rotateAnim.setValue(0)
       })
 
-      // Create event object for score updated achievements
-      const scoreEvent = {
-        type: "score_updated" as const,
-        gameKey: "counting_game",
-        newTotalScore: newScore,
-      }
-
-      // Move to next level after a delay
+      // Persist this exact level before revealing completion actions.
       if (answerAdvanceTimeoutRef.current) {
         clearTimeout(answerAdvanceTimeoutRef.current)
       }
@@ -906,69 +921,16 @@ const LugandaCountingGame: React.FC = () => {
           correctAnswerLockRef.current = false
           return
         }
-        if (currentLevel < currentStageData.levels) {
-          setCurrentLevel((prevLevel) => prevLevel + 1)
-
-          const completionChildId = answerChildId
-          const completionLanguageCode = answerLanguageCode
-          const baselineProgress = progressRef.current
-          const baselineRevision = progressRevisionRef.current
-          void Promise.allSettled([
-            trackActivity(false, newScore),
-            checkAndGrantNewAchievements(scoreEvent).then(async (newlyAwarded) => {
-              const achievementPoints = newlyAwarded.reduce(
-                (total, achievement) => total + achievement.points,
-                0,
-              )
-              const owner = progressOwnerRef.current
-              if (
-                !completionChildId ||
-                !isMountedRef.current ||
-                owner.childId !== completionChildId ||
-                owner.languageCode !== completionLanguageCode ||
-                progressRevisionRef.current !== baselineRevision ||
-                progressRef.current !== baselineProgress
-              ) {
-                return
-              }
-
-              newlyAwarded.forEach((achievement) => enqueueAchievementUnlocked(achievement))
-              if (achievementPoints <= 0) return
-
-              const progressWithAchievementPoints = {
-                ...baselineProgress,
-                totalScore: baselineProgress.totalScore + achievementPoints,
-              }
-              updateProgressState(progressWithAchievementPoints)
-              await saveGameProgress(
-                progressWithAchievementPoints,
-                completionChildId,
-                completionLanguageCode,
-                {
-                  availableStageIds: countingStageIds,
-                  contentRevision: contentProgressRevisionRef.current,
-                },
-              )
-            }),
-          ]).then((outcomes) => {
-            outcomes.forEach((outcome) => {
-              if (outcome.status === "rejected") {
-                console.warn("Could not finish Counting Game level network work:", outcome.reason)
-              }
-            })
-          }).catch((error) => {
-            console.warn("Could not inspect Counting Game level network work:", error)
+        if (answerChildId) {
+          void handleLevelCompletion(newScore).catch((error) => {
+            stageCompletionLockRef.current = false
+            correctAnswerLockRef.current = false
+            console.warn("Could not finish Counting Game level completion:", error)
           })
         } else {
-          if (answerChildId) {
-            void handleStageCompletion(newScore).catch((error) => {
-              stageCompletionLockRef.current = false
-              correctAnswerLockRef.current = false
-              console.warn("Could not finish Counting Game stage completion:", error)
-            })
-          } else {
-            setStageCompleted(true)
-          }
+          setCompletedLevelNumber(currentLevel)
+          setStageCompleted(currentLevel >= currentStageData.levels)
+          setShowFeedback(false)
         }
       }, 1500)
     } else {
@@ -1133,12 +1095,25 @@ const LugandaCountingGame: React.FC = () => {
   }
 
   const selectStage = (stageId: number) => {
-    if (isStageUnlocked(progress, stageId)) {
+    if (isStageUnlocked(progress, stageId) && !selectionTransitionLockRef.current) {
+      selectionTransitionLockRef.current = true
       childHaptics.tap()
       clearGameTimers()
       correctAnswerLockRef.current = false
       stageCompletionLockRef.current = false
       setCurrentStage(stageId)
+      const stage = getStageById(stageId)
+      const savedLevel = stage
+        ? getHighestUnlockedCountingLevel(
+            progressRef.current,
+            stageId,
+            stage.levels,
+          )
+        : 1
+      const startingLevel = progressRef.current.completedStages.includes(stageId)
+        ? 1
+        : Math.min(stage?.levels ?? 1, Math.max(1, savedLevel))
+      setSelectedStartLevel(startingLevel)
 
       if (activeChild) {
         // Update current stage in progress
@@ -1149,30 +1124,205 @@ const LugandaCountingGame: React.FC = () => {
         }
         updateProgressState(updatedProgress)
         void saveGameProgress(updatedProgress, activeChild.id, languageCode, {
-          availableStageIds: countingStageIds,
+          availableStageIds: countingStages,
           contentRevision: contentProgressRevisionRef.current,
         }).catch((error) => {
           console.warn("Could not save Counting Game stage selection:", error)
         })
       }
 
-      setGameState("playing")
+      setGameState("levelSelect")
     }
   }
 
-  const continueStage = () => {
+  const selectLevel = (level: number) => {
+    const stage = getStageById(currentStage)
+    if (!stage || selectionTransitionLockRef.current) return
+
+    if (
+      !isCountingLevelUnlocked(
+        progressRef.current,
+        currentStage,
+        level,
+        stage.levels,
+      )
+    ) return
+
+    selectionTransitionLockRef.current = true
     childHaptics.tap()
-    // Continue with current stage
+    clearGameTimers()
+    setSelectedStartLevel(level)
+    gameStartTime.current = Date.now()
+    setGameState("playing")
+  }
+
+  const continueAfterStage = () => {
+    if (completionTransitionLockRef.current) return
+    completionTransitionLockRef.current = true
+    childHaptics.tap()
+    setCompletedLevelNumber(null)
     setStageCompleted(false)
     setShowFeedback(false)
     setSelectedCount(null)
 
-    if (currentStage < countingStages.length) {
-      setCurrentStage((prevStage) => prevStage + 1)
+    const currentStageIndex = countingStages.findIndex((stage) => stage.id === currentStage)
+    const nextStage = countingStages[currentStageIndex + 1]
+    if (nextStage) {
+      setCurrentStage(nextStage.id)
+      setSelectedStartLevel(1)
+      setGameState("levelSelect")
     } else {
       // If this was the last stage, go back to stage selection
       setGameState("stageSelect")
     }
+    gameStartTime.current = Date.now()
+  }
+
+  const returnToLevelSelection = () => {
+    if (completionTransitionLockRef.current) return
+    completionTransitionLockRef.current = true
+    clearGameTimers()
+    setSelectedStartLevel(currentLevel)
+    setCompletedLevelNumber(null)
+    setStageCompleted(false)
+    setShowFeedback(false)
+    setSelectedCount(null)
+    setGameState("levelSelect")
+    gameStartTime.current = Date.now()
+  }
+
+  const continueToNextLevel = () => {
+    if (completionTransitionLockRef.current || completedLevelNumber === null) return
+    const stage = getStageById(currentStage)
+    const nextLevel = completedLevelNumber + 1
+    if (!stage || nextLevel > stage.levels) return
+
+    completionTransitionLockRef.current = true
+    childHaptics.tap()
+    setCompletedLevelNumber(null)
+    setStageCompleted(false)
+    setShowFeedback(false)
+    setSelectedCount(null)
+    setCurrentLevel(nextLevel)
+    gameStartTime.current = Date.now()
+  }
+
+  const returnToStageSelection = () => {
+    if (selectionTransitionLockRef.current) return
+    selectionTransitionLockRef.current = true
+    setCompletedLevelNumber(null)
+    setStageCompleted(false)
+    setGameState("stageSelect")
+  }
+
+  const renderLevelSelectionScreen = () => {
+    const stage = getStageById(currentStage)
+    if (!stage) return renderStageSelectionScreen()
+
+    const completedLevels = getCompletedCountingLevels(progress, currentStage)
+    const completedLevelCount = completedLevels.filter(
+      (level) => level <= stage.levels,
+    ).length
+    const highestUnlockedLevel = getHighestUnlockedCountingLevel(
+      progress,
+      currentStage,
+      stage.levels,
+    )
+    const progressPercent = (completedLevelCount / stage.levels) * 100
+    const choices = buildCountingLevelChoices({
+      completedLevels,
+      levelCount: stage.levels,
+      highestUnlockedLevel,
+      selectedLevel: selectedStartLevel,
+      stageCompleted: progress.completedStages.includes(currentStage),
+    })
+
+    return (
+      <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
+        <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: GAME_SCREEN_OVERLAY }}>
+          <StatusBar style="light" translucent backgroundColor="transparent" />
+          <View className="flex-1 px-6 pt-6 pb-5">
+            <View className="flex-row items-center justify-between mb-4">
+              <TouchableOpacity
+                className="w-12 h-12 rounded-full bg-white justify-center items-center border-2 border-accent-500"
+                onPress={returnToStageSelection}
+                accessibilityRole="button"
+                accessibilityLabel="Back to counting stages"
+              >
+                <Ionicons name="arrow-back" size={22} color={brandColors.victoriaBlue} />
+              </TouchableOpacity>
+              <View className="flex-1 px-4">
+                <Text variant="bold" className="text-white text-3xl text-center" numberOfLines={1}>
+                  {stage.title}
+                </Text>
+              </View>
+              <View
+                accessible
+                accessibilityLabel={`${completedLevelCount} of ${stage.levels} levels completed`}
+                className="flex-row items-center bg-white rounded-full px-4 py-2 border-2 border-accent-500"
+              >
+                <Ionicons name="checkmark-circle" size={19} color={brandColors.success} />
+                <Text variant="bold" className="text-emerald-600 text-base ml-1.5">
+                  {completedLevelCount}/{stage.levels}
+                </Text>
+              </View>
+            </View>
+
+            <View className="bg-white/15 rounded-2xl px-4 py-3 mb-4">
+              <View className="flex-row items-center">
+                <View className="bg-white rounded-full w-14 h-14 items-center justify-center mr-4 border-2 border-accent-500">
+                  <CachedImage
+                    source={getCountingStageImage(stage)}
+                    fallbackSource={resolveImageSource("numbers.png")}
+                    style={{ width: 34, height: 34 }}
+                    resizeMode="contain"
+                    accessibilityLabel={`${stage.title} picture`}
+                  />
+                </View>
+                <View className="flex-1">
+                  <View className="flex-row items-center justify-between">
+                    <Text variant="bold" className="text-white text-lg" numberOfLines={1}>
+                      {t("learning.stage")} {stage.id}
+                    </Text>
+                    <Text className="text-white/90 text-xs" numberOfLines={1}>
+                      {completedLevelCount}/{stage.levels} {t("common.done").toLowerCase()}
+                    </Text>
+                  </View>
+                  <View className="h-2 bg-white/30 rounded-full overflow-hidden mt-2">
+                    <View className="h-full bg-white" style={{ width: `${progressPercent}%` }} />
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            <ScrollView
+              className="flex-1"
+              contentContainerStyle={{ paddingBottom: 10 }}
+              showsVerticalScrollIndicator={false}
+            >
+              <Animated.View style={{ opacity: fadeAnim }}>
+                <View className="flex-row justify-between items-center mb-3">
+                  <Text variant="bold" className="text-white text-lg" numberOfLines={1}>
+                    {t("learning.chooseLevel")}
+                  </Text>
+                  <Text className="text-white/85 text-xs" numberOfLines={1}>
+                    {t("games.levelsCount", { count: stage.levels })}
+                  </Text>
+                </View>
+                <CountingLevelSelector
+                  availableWidth={Math.max(0, landscapeWidth - 48)}
+                  choices={choices}
+                  compact={landscapeHeight < 430}
+                  levelLabel={t("learning.level")}
+                  metaLabel={t("games.countPictures")}
+                  onSelect={selectLevel}
+                />
+              </Animated.View>
+            </ScrollView>
+          </View>
+        </SafeAreaView>
+      </ImageBackground>
+    )
   }
 
   // RENDER: Stage Selection Screen
@@ -1197,15 +1347,16 @@ const LugandaCountingGame: React.FC = () => {
                 <Text variant="bold" className="text-white text-3xl text-center" numberOfLines={1}>
                   {countingContent?.title ?? "Counting Game"}
                 </Text>
-                <Text className="text-white/85 text-sm text-center" numberOfLines={2}>
-                  {t("games.chooseStageIntro")}
-                </Text>
               </View>
 
-              <View className="flex-row items-center bg-white rounded-full px-4 py-2 border-2 border-accent-500">
-                <Image source={require("@/assets/images/coin.png")} className="w-5 h-5 mr-1.5" resizeMode="contain" />
-                <Text variant="bold" className="text-amber-500 text-base" numberOfLines={1}>
-                  {progress.totalScore}
+              <View
+                accessible
+                accessibilityLabel={`${progress.completedStages.length} of ${countingStages.length} stages completed`}
+                className="flex-row items-center bg-white rounded-full px-4 py-2 border-2 border-accent-500"
+              >
+                <Ionicons name="checkmark-circle" size={19} color={brandColors.success} />
+                <Text variant="bold" className="text-emerald-600 text-base ml-1.5" numberOfLines={1}>
+                  {progress.completedStages.length}/{countingStages.length}
                 </Text>
               </View>
             </View>
@@ -1215,9 +1366,6 @@ const LugandaCountingGame: React.FC = () => {
                 <View className="flex-1 pr-4">
                   <Text variant="bold" className="text-white text-lg" numberOfLines={1}>
                     {t("learning.chooseStage")}
-                  </Text>
-                  <Text className="text-white/85 text-sm" numberOfLines={2}>
-                    {t("games.countingStageHint")}
                   </Text>
                 </View>
                 <View className="flex-row items-center">
@@ -1259,6 +1407,12 @@ const LugandaCountingGame: React.FC = () => {
                 renderItem={({ item: stage }) => {
                   const isUnlocked = isStageUnlocked(progress, stage.id)
                   const isCompleted = progress.completedStages.includes(stage.id)
+                  const isCurrent =
+                    isUnlocked && !isCompleted && progress.currentStage === stage.id
+                  const completedLevelCount = getCompletedCountingLevels(
+                    progress,
+                    stage.id,
+                  ).filter((level) => level <= stage.levels).length
 
                   let stageIconName: keyof typeof Ionicons.glyphMap = "list-outline"
                   if (stage.usesCurrency) {
@@ -1276,8 +1430,8 @@ const LugandaCountingGame: React.FC = () => {
                     ? t("common.locked")
                     : isCompleted
                       ? t("common.done")
-                      : progress.lastPlayedLevel[stage.id]
-                        ? `${t("learning.levelShort")} ${progress.lastPlayedLevel[stage.id]}`
+                      : isCurrent
+                        ? t("learning.current")
                         : t("common.start")
                   const statusColor = !isUnlocked
                     ? brandColors.neutral[600]
@@ -1334,16 +1488,13 @@ const LugandaCountingGame: React.FC = () => {
                           >
                             {stage.title}
                           </Text>
-                          <Text className="text-xs text-neutral-600 leading-4" numberOfLines={2}>
-                            {stage.description}
-                          </Text>
                         </View>
 
                         <View className="flex-row items-center justify-between mt-2">
                           <View className="flex-row items-center flex-1 pr-2">
                             <Ionicons name="layers-outline" size={14} color={brandColors.victoriaBlue} />
                             <Text variant="medium" className="text-[11px] text-primary-700 ml-1" numberOfLines={1}>
-                              {t("games.levelsCount", { count: stage.levels })}
+                              {completedLevelCount}/{stage.levels} {t("common.levels").toLowerCase()}
                             </Text>
                           </View>
                           <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: !isUnlocked ? brandColors.neutral[100] : brandColors.blue[50] }}>
@@ -1392,6 +1543,10 @@ const LugandaCountingGame: React.FC = () => {
     return renderStageSelectionScreen()
   }
 
+  if (gameState === "levelSelect") {
+    return renderLevelSelectionScreen()
+  }
+
   if (levelSetupError) {
     return (
       <ComingSoonState
@@ -1400,15 +1555,19 @@ const LugandaCountingGame: React.FC = () => {
         showBackButton={false}
         onRetry={() => {
           setLevelSetupError(null)
-          setGameState("stageSelect")
+          returnToLevelSelection()
         }}
-        actionLabel={t("games.chooseAnotherStage")}
-        actionAccessibilityLabel="Return to the counting stage list"
+        actionLabel={t("games.chooseAnotherLevel")}
+        actionAccessibilityLabel="Return to the counting level list"
       />
     )
   }
 
   const activeStage = getStageById(currentStage) ?? countingStages[0]
+  const activeStageIndex = countingStages.findIndex(
+    (stage) => stage.id === currentStage,
+  )
+  const nextCountingStage = countingStages[activeStageIndex + 1]
 
   // Render the game screen
   return (
@@ -1424,8 +1583,8 @@ const LugandaCountingGame: React.FC = () => {
           level: currentLevel,
           total: activeStage.levels,
         })}
-        onBack={() => setGameState("stageSelect")}
-        backAccessibilityLabel="Back to counting stages"
+        onBack={returnToLevelSelection}
+        backAccessibilityLabel="Back to counting levels"
         onHelp={countingTour.open}
         trailing={
           <>
@@ -1433,13 +1592,6 @@ const LugandaCountingGame: React.FC = () => {
               icon="layers-outline"
               label={`${currentLevel}/${activeStage.levels}`}
               accessibilityLabel={`Level ${currentLevel} of ${activeStage.levels}`}
-            />
-            <GameStatChip
-              icon="star"
-              label={`${score}`}
-              tint="#D99D19"
-              accessibilityLabel={`${score} points`}
-              tourTargetId="counting-score"
             />
           </>
         }
@@ -1573,6 +1725,56 @@ const LugandaCountingGame: React.FC = () => {
         </Animated.View>
       )}
 
+      {/* Level completion overlay */}
+      {completedLevelNumber !== null && !stageCompleted && (
+        <View
+          className="absolute inset-0 items-center justify-center"
+          style={{
+            backgroundColor: "#020617B3",
+            paddingBottom: Math.max(insets.bottom, 16),
+            paddingLeft: Math.max(insets.left, 20),
+            paddingRight: Math.max(insets.right, 20),
+            paddingTop: Math.max(insets.top, 16),
+          }}
+        >
+          <View className="bg-white rounded-2xl p-5 w-4/5 max-w-lg items-center shadow-xl">
+            <View className="absolute -top-10 bg-emerald-500 w-20 h-20 rounded-full items-center justify-center border-4 border-white">
+              <Ionicons name="checkmark" size={38} color="#ffffff" />
+            </View>
+            <Text variant="bold" className="text-2xl text-primary-700 mt-6 mb-2 text-center">
+              {t("learning.level")} {completedLevelNumber} {t("common.done").toLowerCase()}!
+            </Text>
+            <Text className="text-slate-600 text-center mb-5">
+              {completedLevelNumber < activeStage.levels
+                ? `${t("common.next")}: ${t("learning.level")} ${completedLevelNumber + 1}`
+                : t("games.stageDone", { stage: currentStage })}
+            </Text>
+            <View className="flex-row items-center">
+              <TouchableOpacity
+                className="bg-white py-3 px-5 rounded-xl border-2 border-indigo-200 mr-3"
+                onPress={returnToLevelSelection}
+                accessibilityRole="button"
+                accessibilityLabel="Return to counting level selection"
+              >
+                <Text variant="bold" className="text-indigo-600">
+                  {t("learning.chooseLevel")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="bg-indigo-500 py-3 px-6 rounded-xl shadow-md"
+                onPress={continueToNextLevel}
+                accessibilityRole="button"
+                accessibilityLabel={`Start counting level ${completedLevelNumber + 1}`}
+              >
+                <Text variant="bold" className="text-white">
+                  {t("common.next")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+
       {/* Stage completion overlay */}
       {stageCompleted && (
         <View
@@ -1585,7 +1787,7 @@ const LugandaCountingGame: React.FC = () => {
             paddingTop: Math.max(insets.top, 16),
           }}
         >
-          <View className="bg-white rounded-2xl p-6 w-3/5 max-w-md items-center shadow-xl">
+          <View className="bg-white rounded-2xl p-5 w-4/5 max-w-lg items-center shadow-xl">
             <View className="absolute -top-10 bg-indigo-500 w-20 h-20 rounded-full items-center justify-center border-4 border-white">
               <Ionicons name="trophy" size={38} color="#ffffff" />
             </View>
@@ -1602,16 +1804,6 @@ const LugandaCountingGame: React.FC = () => {
             </Text>
 
             <View className="bg-blue-50 w-full rounded-xl p-4 mb-5">
-              <View className="flex-row justify-between items-center mb-3">
-                <View className="flex-row items-center">
-                  <Ionicons name="star" size={20} color="#f59e0b" />
-                  <Text className="ml-2 text-slate-700">{t("common.score")}</Text>
-                </View>
-                <Text variant="bold" className="text-amber-500 text-lg">
-                  {score + 10}
-                </Text>
-              </View>
-
               <View className="flex-row justify-between items-center">
                 <View className="flex-row items-center">
                   <Ionicons name="checkmark-circle" size={20} color="#10b981" />
@@ -1623,11 +1815,32 @@ const LugandaCountingGame: React.FC = () => {
               </View>
             </View>
 
-            <TouchableOpacity className="bg-indigo-500 py-4 px-6 rounded-xl shadow-md" onPress={continueStage}>
-              <Text variant="bold" className="text-white text-lg text-center">
-                {currentStage < countingStages.length ? t("games.nextStage") : t("common.playAgain")}
-              </Text>
-            </TouchableOpacity>
+            <View className="flex-row items-center">
+              <TouchableOpacity
+                className="bg-white py-3 px-5 rounded-xl border-2 border-indigo-200 mr-3"
+                onPress={returnToLevelSelection}
+                accessibilityRole="button"
+                accessibilityLabel="Return to counting level selection"
+              >
+                <Text variant="bold" className="text-indigo-600">
+                  {t("learning.chooseLevel")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="bg-indigo-500 py-4 px-6 rounded-xl shadow-md"
+                onPress={continueAfterStage}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  nextCountingStage
+                    ? `Open ${nextCountingStage.title}`
+                    : "Return to counting stages"
+                }
+              >
+                <Text variant="bold" className="text-white text-lg text-center">
+                  {nextCountingStage ? t("games.nextStage") : t("learning.chooseStage")}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       )}
@@ -1639,7 +1852,6 @@ const LugandaCountingGame: React.FC = () => {
         steps={[
           { id: "objects", targetId: "counting-objects", icon: "eye-outline", placement: "right", title: t("games.count"), description: t("games.countOnce") },
           { id: "answers", targetId: "counting-answers", icon: "calculator-outline", placement: "left", title: t("games.pickNumber"), description: t("games.pickNumberHint") },
-          { id: "score", targetId: "counting-score", icon: "star-outline", placement: "bottom", title: t("games.yourStars"), description: t("games.starsHint") },
         ]}
       />
       </View>

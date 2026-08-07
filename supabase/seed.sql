@@ -27,7 +27,7 @@ INSERT INTO public.content_items (
 VALUES (
   'lg', 'child_menu', 'games',
   'Initial Luganda Games',
-  $content${"cards":[{"id":"learning","order":1,"title":"Yiga era Zannya","description":"Practise all 21 Stage 1-2 concepts in 16 short levels.","image":"african-focus.png","targetPage":"child/games/learninggame"},{"id":"words","order":2,"title":"Ebigambo","description":"Build 14 single Luganda words, one letter at a time.","image":"learning-beginner.jpg","targetPage":"child/games/wordgame"},{"id":"cards","order":3,"title":"Okugatta Kaadi","description":"Find matching pairs drawn from all 21 tracked concepts.","image":"cards-matching.png","targetPage":"child/games/cardgame"},{"id":"puzzles","order":4,"title":"Ebifaananyi","description":"Complete 10 Stage 1-2 picture puzzles.","image":"african-logic.png","targetPage":"child/games/puzzlegame"},{"id":"numbers","order":5,"title":"Okubala 1-5","description":"Count from 1 to 5 in three small steps.","image":"numbers.png","targetPage":"child/games/lugandacountinggame"}]}$content$::jsonb,
+  $content${"cards":[{"id":"learning","order":1,"title":"Yiga era Zannya","description":"Practice words and phrases","image":"african-focus.png","targetPage":"child/games/learninggame"},{"id":"words","order":2,"title":"Ebigambo","description":"Build Luganda words","image":"learning-beginner.jpg","targetPage":"child/games/wordgame"},{"id":"cards","order":3,"title":"Okugatta Kaadi","description":"Match cultural pairs","image":"cards-matching.png","targetPage":"child/games/cardgame"},{"id":"puzzles","order":4,"title":"Ebifaananyi","description":"Solve picture puzzles","image":"african-logic.png","targetPage":"child/games/puzzlegame"},{"id":"numbers","order":5,"title":"Okubala 1-5","description":"Count pictures in steps","image":"numbers.png","targetPage":"child/games/lugandacountinggame"}]}$content$::jsonb,
   10, true, 'published',
   true, 4, TIMESTAMPTZ '2026-07-23 18:00:00+00'
 )
@@ -49,7 +49,7 @@ INSERT INTO public.content_items (
 VALUES (
   'lg', 'child_menu', 'stories',
   'Initial Luganda Stories',
-  $content${"cards":[{"id":"morning-greeting","order":1,"title":"Ennamusa y'oku makya","description":"Amina and Kato greet each other.","image":"culture.jpg","targetPage":"child/stories/morning-greeting"},{"id":"kato-and-the-ball","order":2,"title":"Kato n'omupiira","description":"Kato plays with a ball and talks about feelings.","image":"child.png","targetPage":"child/stories/kato-and-the-ball"}]}$content$::jsonb,
+  $content${"cards":[{"id":"morning-greeting","order":1,"title":"Ennamusa y'oku makya","description":"Practice a morning greeting","image":"culture.jpg","targetPage":"child/stories/morning-greeting"},{"id":"kato-and-the-ball","order":2,"title":"Kato n'omupiira","description":"Explore words and feelings","image":"child.png","targetPage":"child/stories/kato-and-the-ball"}]}$content$::jsonb,
   11, true, 'published',
   true, 4, TIMESTAMPTZ '2026-07-23 18:00:00+00'
 )
@@ -71,7 +71,7 @@ INSERT INTO public.content_items (
 VALUES (
   'lg', 'child_menu', 'coloring',
   'Initial Luganda Coloring',
-  $content${"cards":[{"id":"greeting","order":1,"title":"Oli otya?","description":"Color the bundled greeting picture.","image":"learning/lg/coloring/greeting.png","targetPage":"child/games/coloring/greeting"},{"id":"me","order":2,"title":"Nze","description":"Color the bundled child picture.","image":"learning/lg/coloring/omwana.png","targetPage":"child/games/coloring/child"}]}$content$::jsonb,
+  $content${"cards":[{"id":"greeting","order":1,"title":"Oli otya?","description":"Color a greeting scene","image":"learning/lg/coloring/greeting.png","targetPage":"child/games/coloring/greeting"},{"id":"me","order":2,"title":"Nze","description":"Color a child portrait","image":"learning/lg/coloring/omwana.png","targetPage":"child/games/coloring/child"}]}$content$::jsonb,
   12, true, 'published',
   true, 4, TIMESTAMPTZ '2026-07-23 18:00:00+00'
 )

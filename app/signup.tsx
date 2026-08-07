@@ -233,9 +233,6 @@ export default function SignUp() {
               <Text variant="bold" className="text-[32px] leading-10 text-neutral-900 pt-2 text-center">
                 Grow together
               </Text>
-              <Text className="text-base text-center text-neutral-600 mt-2 leading-6">
-                One parent account keeps every child’s journey safe and in one place.
-              </Text>
             </Animated.View>
           </View>
 
@@ -388,10 +385,6 @@ export default function SignUp() {
               </Text>
             </TouchableOpacity>
 
-            <View className="flex-row items-center justify-center mt-5 pt-5 border-t border-neutral-100">
-              <FontAwesome name="shield" size={14} color={brandColors.neutral[500]} />
-              <Text className="text-xs text-neutral-500 ml-2">Your child never needs an email address</Text>
-            </View>
             <View className="flex-row items-start mt-3 bg-accent-50 rounded-xl px-3 py-2.5">
               <FontAwesome name="wifi" size={13} color={brandColors.gold[700]} style={{ marginTop: 2 }} />
               <Text className="text-xs leading-4 text-neutral-600 ml-2 flex-1">

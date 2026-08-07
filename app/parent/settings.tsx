@@ -14,10 +14,12 @@ import {
 import { Text } from "@/components/StyledText";
 import { SettingsRow } from "@/components/settings/SettingsRow";
 import { SettingsScaffold } from "@/components/settings/SettingsScaffold";
+import { SettingsSignOutSection } from "@/components/settings/SettingsSignOutSection";
 import { brandColors } from "@/constants/Brand";
 import { useParentProfile } from "@/context/ParentProfileContext";
 import { SETTINGS_SECTIONS } from "@/lib/settingsOptions";
 import { getAppRuntimeMetadata } from "@/lib/appMetadata";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   PARENT_SCREEN_TOUR_POSITIONING,
   PARENT_SETTINGS_TOUR_STEPS,
@@ -84,7 +86,6 @@ export default function SettingsScreen() {
             <Text variant="bold" className="text-xl text-gray-800 mt-3">
               Baby Steps
             </Text>
-            <Text className="text-gray-500 mt-1">Family settings</Text>
           </View>
 
           {SETTINGS_SECTIONS.map((section, sectionIndex) => {
@@ -112,7 +113,6 @@ export default function SettingsScreen() {
                       <SettingsRow
                         key={entry.title}
                         title={entry.title}
-                        description={entry.description}
                         icon={entry.icon as any}
                         iconColor={entry.iconColor}
                         onPress={() => router.push(entry.route as any)}
@@ -130,6 +130,10 @@ export default function SettingsScreen() {
               Baby Steps v{appMetadata.version}
             </Text>
           </View>
+
+          <SafeAreaView edges={["bottom"]} className="pb-6">
+            <SettingsSignOutSection />
+          </SafeAreaView>
         </SettingsScaffold>
         <GameTour
           finishLabel="Done"

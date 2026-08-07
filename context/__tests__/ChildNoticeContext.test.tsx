@@ -125,6 +125,7 @@ describe("ChildNoticeProvider", () => {
 
     expect(renderedText()).toContain("Achievement unlocked");
     expect(renderedText()).toContain("First badge");
+    expect(renderedText()).not.toContain("+10");
     expect(
       tree?.root.findByProps({ testID: "achievement-unlocked-notice" }).props
         .accessibilityLabel,

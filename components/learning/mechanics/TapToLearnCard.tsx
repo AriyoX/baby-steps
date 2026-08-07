@@ -30,7 +30,7 @@ export function TapToLearnCard({
   onComplete,
 }: TapToLearnCardProps) {
   const { t } = useChildUiLanguage();
-  const { createAppSound, replayAppSound, unloadAppSound } = useAudio();
+  const { createLearningVoice, replayAppSound, unloadAppSound } = useAudio();
   const { width, height } = useWindowDimensions();
   const [audioLoadFailed, setAudioLoadFailed] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
@@ -115,7 +115,7 @@ export function TapToLearnCard({
     let loadedSound: Audio.Sound | null = null;
 
     const loadCurrentSound = async () => {
-      const primarySound = await createAppSound(currentAudioResolution.source);
+      const primarySound = await createLearningVoice(currentAudioResolution.source);
 
       if (!isMounted) {
         await unloadAppSound(primarySound);
@@ -130,7 +130,7 @@ export function TapToLearnCard({
       }
 
       if (!currentAudioResolution.isPlaceholder) {
-        const fallbackSound = await createAppSound(LEARNING_PLACEHOLDER_SOUND);
+        const fallbackSound = await createLearningVoice(LEARNING_PLACEHOLDER_SOUND);
 
         if (!isMounted) {
           await unloadAppSound(fallbackSound);
@@ -165,7 +165,7 @@ export function TapToLearnCard({
       }
     };
   }, [
-    createAppSound,
+    createLearningVoice,
     currentAudioResolution.isPlaceholder,
     currentAudioResolution.source,
     item.id,

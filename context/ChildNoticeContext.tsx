@@ -237,9 +237,6 @@ export function ChildNoticeHost({ notice, onDismiss }: ChildNoticeHostProps) {
         <View style={styles.copy}>
           <Text variant="bold" style={styles.kicker}>
             {t("achievements.unlocked")}
-            {achievement.points > 0
-              ? `  |  +${achievement.points} ${t("achievements.points")}`
-              : ""}
           </Text>
           <Text variant="bold" style={styles.title}>
             {translatedAchievement.name}

@@ -1,6 +1,6 @@
 /* eslint-disable import/first */
 
-import React from "react";
+import React, { act } from "react";
 import {
   fireEvent,
   renderRouter,
@@ -50,6 +50,8 @@ const mockStreakSnapshot: ChildStreakSnapshot = {
 const mockGetSession = jest.fn(async () => ({
   data: { session: { user: { id: "parent-1" } } },
 }));
+const mockGetAccountDeletionState = jest.fn(async () => ({ phase: "active" }));
+const mockHideSplashAsync = jest.fn(async () => undefined);
 let mockFontsLoaded = true;
 let mockNotificationOpenHandler: ((url: string) => void) | null = null;
 const mockDefinedAchievements: unknown[] = [];
@@ -73,7 +75,7 @@ const mockQuery = () => {
 jest.mock("@/global.css", () => ({}));
 
 jest.mock("expo-splash-screen", () => ({
-  hideAsync: jest.fn(async () => undefined),
+  hideAsync: () => mockHideSplashAsync(),
   preventAutoHideAsync: jest.fn(async () => undefined),
 }));
 
@@ -127,6 +129,7 @@ jest.mock("@/components/games/achievements/useAchievements", () => ({
 
 jest.mock("@/context/AudioContext", () => ({
   AudioProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useAudio: () => ({ setBackgroundMusicSuppressed: jest.fn() }),
 }));
 
 jest.mock("@/lib/accountManagement", () => ({
@@ -134,7 +137,7 @@ jest.mock("@/lib/accountManagement", () => ({
   fetchActiveChildProfile: jest.fn(async (childId: string) =>
     childId === mockChild.id ? mockChild : null,
   ),
-  getAccountDeletionState: jest.fn(async () => ({ phase: "none" })),
+  getAccountDeletionState: () => mockGetAccountDeletionState(),
   isAccountDeletionBlockingNormalAccess: () => false,
 }));
 jest.mock("@/lib/onboarding", () => ({ hasCompletedOnboarding: jest.fn(async () => true) }));
@@ -236,6 +239,7 @@ describe("streak navigation runtime relationship", () => {
     mockGetSession.mockResolvedValue({
       data: { session: { user: { id: "parent-1" } } },
     });
+    mockGetAccountDeletionState.mockResolvedValue({ phase: "active" });
   });
 
   it("guards direct child and parent routes and gates parent routes while child mode is active", () => {
@@ -310,6 +314,23 @@ describe("streak navigation runtime relationship", () => {
     await waitFor(() => expect(screen.getByText("2-days learning streak")).toBeTruthy());
     expect(screen.getByTestId("active-streak-stats")).toBeTruthy();
     expect(screen.queryByTestId("child-streak-enabled-switch")).toBeNull();
+  });
+
+  it("routes startup without waiting for the remote account-state refresh", async () => {
+    let finishAccountRefresh!: (value: { phase: string }) => void;
+    mockGetAccountDeletionState.mockReturnValue(
+      new Promise((resolve) => {
+        finishAccountRefresh = resolve;
+      }),
+    );
+
+    const router = renderRouter(context, { initialUrl: "/" });
+
+    await waitFor(() => expect(router.getPathname()).toBe("/parent"));
+
+    await act(async () => {
+      finishAccountRefresh({ phase: "active" });
+    });
   });
 
 });

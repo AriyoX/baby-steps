@@ -101,8 +101,8 @@ describe("startup onboarding", () => {
     expect(rendered).toContain("Little steps, big adventures");
     expect(rendered).toContain("Learn through stories and play");
     expect(rendered).toContain("Their journey stays with you");
-    expect(rendered).toContain("WELCOME TO BABY STEPS");
-    expect(rendered).toContain("Stories, words and play — all together!");
+    expect(rendered).not.toContain("WELCOME TO BABY STEPS");
+    expect(rendered).not.toContain("Stories, words and play — all together!");
     expect(rendered).toContain("Skip");
     expect(rendered).toContain("Continue");
     expect(rendered).not.toContain("\u00A0");

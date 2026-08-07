@@ -474,13 +474,6 @@ export function ChildStreakSection({
               </TouchableOpacity>
             )}
           </Fragment>
-        ) : !preferences.streakEnabled ? (
-          <Text
-            key="streak-disabled-summary"
-            className="mt-4 border-t border-neutral-100 pt-4 text-xs leading-5 text-neutral-500"
-          >
-            Streak tracking is off for this child. You can turn it back on in child profile settings.
-          </Text>
         ) : null}
       </View>
     </View>

@@ -18,6 +18,7 @@ import {
   resolveLearningAudioSource,
 } from "@/lib/audioAssets";
 import { MechanicScreenFrame } from "./MechanicScreenFrame";
+import { LearningChoiceCard } from "./LearningChoiceCard";
 import { childHaptics } from "@/lib/childHaptics";
 
 type ListenAndChooseCardProps = {
@@ -47,13 +48,12 @@ export function ListenAndChooseCard({
   onComplete,
 }: ListenAndChooseCardProps) {
   const { t } = useChildUiLanguage();
-  const { createAppSound, replayAppSound, unloadAppSound } = useAudio();
+  const { createLearningVoice, replayAppSound, unloadAppSound } = useAudio();
   const { width, height } = useWindowDimensions();
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [answerState, setAnswerState] = useState<AnswerState>("idle");
   const [audioLoadFailed, setAudioLoadFailed] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
-  const [attempts, setAttempts] = useState(0);
   const learningSoundRef = useRef<Audio.Sound | null>(null);
   const attemptsRef = useRef(0);
   const completionCalledRef = useRef(false);
@@ -129,13 +129,12 @@ export function ListenAndChooseCard({
     setAnswerState("idle");
     setAudioLoadFailed(false);
     setIsCompleting(false);
-    setAttempts(0);
 
     let isMounted = true;
     let loadedSound: Audio.Sound | null = null;
 
     const loadCurrentSound = async () => {
-      const primarySound = await createAppSound(currentAudioResolution.source);
+      const primarySound = await createLearningVoice(currentAudioResolution.source);
 
       if (!isMounted) {
         await unloadAppSound(primarySound);
@@ -150,7 +149,7 @@ export function ListenAndChooseCard({
       }
 
       if (!currentAudioResolution.isPlaceholder) {
-        const fallbackSound = await createAppSound(LEARNING_PLACEHOLDER_SOUND);
+        const fallbackSound = await createLearningVoice(LEARNING_PLACEHOLDER_SOUND);
 
         if (!isMounted) {
           await unloadAppSound(fallbackSound);
@@ -185,7 +184,7 @@ export function ListenAndChooseCard({
       }
     };
   }, [
-    createAppSound,
+    createLearningVoice,
     currentAudioResolution.isPlaceholder,
     currentAudioResolution.source,
     item.id,
@@ -220,7 +219,6 @@ export function ListenAndChooseCard({
     }
 
     attemptsRef.current += 1;
-    setAttempts(attemptsRef.current);
     setSelectedOptionId(optionId);
 
     if (optionId === item.correctOptionId) {
@@ -384,40 +382,24 @@ export function ListenAndChooseCard({
               const optionSubtitle = getOptionSubtitle(option);
 
               return (
-                <TouchableOpacity
+                <LearningChoiceCard
                   key={option.id}
-                  className="rounded-2xl border-2 px-3 flex-row items-center"
-                  style={{
-                    marginBottom: optionGap,
-                    paddingVertical: isShortScreen ? 7 : 9,
-                    backgroundColor: correctSelection
-                      ? "#DCFCE7"
-                      : wrongSelection
-                        ? brandColors.orange[50]
-                        : selected
-                          ? brandColors.gold[50]
-                          : brandColors.neutral[50],
-                    borderColor: correctSelection
-                      ? brandColors.success
-                      : wrongSelection
-                        ? brandColors.shanaOrange
-                        : selected
-                          ? brandColors.equatorialGold
-                          : brandColors.neutral[200],
-                    opacity: canAnswer ? 1 : 0.64,
-                  }}
-                  onPress={() => selectOption(option.id)}
+                  accessibilityLabel={`Choose ${optionTitle}`}
                   disabled={
                     !canAnswer || answerState === "correct" || isCompleting
                   }
-                  activeOpacity={0.76}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Choose ${optionTitle}`}
-                  accessibilityState={{
-                    disabled:
-                      !canAnswer || answerState === "correct" || isCompleting,
-                    selected,
-                  }}
+                  isShortScreen={isShortScreen}
+                  onPress={() => selectOption(option.id)}
+                  state={
+                    correctSelection
+                      ? "correct"
+                      : wrongSelection
+                        ? "incorrect"
+                        : selected
+                          ? "selected"
+                          : "default"
+                  }
+                  style={{ marginBottom: optionGap }}
                 >
                   {hasOptionImage(option) ? (
                     <CachedImage
@@ -489,7 +471,7 @@ export function ListenAndChooseCard({
                       </Text>
                     ) : null}
                   </View>
-                </TouchableOpacity>
+                </LearningChoiceCard>
               );
             })}
 
@@ -523,9 +505,7 @@ export function ListenAndChooseCard({
                     ? "Yes, that's it!"
                     : answerState === "incorrect"
                       ? "Try again. Listen one more time."
-                      : attempts > 0
-                        ? "Choose again"
-                        : "Pick the word you hear"}
+                      : ""}
               </Text>
             </View>
           </View>

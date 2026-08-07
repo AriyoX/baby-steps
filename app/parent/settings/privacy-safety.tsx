@@ -65,21 +65,18 @@ export default function PrivacySafetyScreen() {
       <View className="mt-5 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <SettingsRow
           title="Privacy Policy"
-          description="Read how Baby Steps handles family information."
           icon="shield-checkmark-outline"
           iconColor="#0891B2"
           onPress={() => setActiveLegalDocument("privacy")}
         />
         <SettingsRow
           title="Terms of Service"
-          description="Review the terms for using Baby Steps."
           icon="document-text-outline"
           iconColor="#2563EB"
           onPress={() => setActiveLegalDocument("terms")}
         />
         <SettingsRow
           title="Delete Account"
-          description="Schedule account deletion from the Account settings screen."
           icon="trash-outline"
           iconColor="#DC2626"
           destructive
@@ -87,14 +84,12 @@ export default function PrivacySafetyScreen() {
         />
         <SettingsRow
           title="Data Deletion Information"
-          description="Read what happens after you request deletion."
           icon="document-text-outline"
           iconColor="#2563EB"
           onPress={() => router.push("/parent/settings/help-support" as any)}
         />
         <SettingsRow
           title="Contact Support"
-          description={BABY_STEPS_SUPPORT_EMAIL}
           icon="mail-outline"
           iconColor="#4F46E5"
           onPress={() => {

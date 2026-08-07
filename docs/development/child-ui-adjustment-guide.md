@@ -115,7 +115,9 @@ Useful breakpoints should be based on layout needs rather than device names. In 
 ### Cards and copy
 
 - Prefer `maxWidth` plus available-width calculation over fixed percentage widths.
-- Let descriptions wrap instead of relying on a single line.
+- Prefer one concise, self-explanatory heading or label.
+- Remove subtitles, helper text, card summaries, and descriptive copy by default.
+- Add supporting copy only when it prevents a concrete misunderstanding or error, and never use it to restate the heading.
 - Use `flexShrink: 1` and `minWidth: 0` inside horizontal rows.
 - Keep result values tied to real state: score, matches, moves, correct answers, levels, or pages.
 

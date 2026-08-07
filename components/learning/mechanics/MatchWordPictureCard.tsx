@@ -12,6 +12,7 @@ import type {
   MatchWordPictureOption,
 } from "@/content/learningHubTypes";
 import { MechanicScreenFrame } from "./MechanicScreenFrame";
+import { LearningChoiceCard } from "./LearningChoiceCard";
 import { childHaptics } from "@/lib/childHaptics";
 
 type MatchWordPictureCardProps = {
@@ -39,7 +40,6 @@ export function MatchWordPictureCard({
   const { width, height } = useWindowDimensions();
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [answerState, setAnswerState] = useState<AnswerState>("idle");
-  const [attempts, setAttempts] = useState(0);
   const [isCompleting, setIsCompleting] = useState(false);
   const attemptsRef = useRef(0);
   const completionCalledRef = useRef(false);
@@ -66,7 +66,6 @@ export function MatchWordPictureCard({
     completionCalledRef.current = false;
     setSelectedOptionId(null);
     setAnswerState("idle");
-    setAttempts(0);
     setIsCompleting(false);
   }, [item.id]);
 
@@ -76,7 +75,6 @@ export function MatchWordPictureCard({
     }
 
     attemptsRef.current += 1;
-    setAttempts(attemptsRef.current);
     setSelectedOptionId(optionId);
 
     if (optionId === item.correctOptionId) {
@@ -217,15 +215,6 @@ export function MatchWordPictureCard({
               ) : null}
             </View>
 
-            <Text
-              className="text-neutral-500 text-center mt-2"
-              style={{ fontSize: isShortScreen ? 12 : 13 }}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.85}
-            >
-              Tap the picture that matches
-            </Text>
           </View>
 
           <View
@@ -243,43 +232,29 @@ export function MatchWordPictureCard({
                 const optionTitle = getOptionTitle(option);
 
                 return (
-                  <TouchableOpacity
+                  <LearningChoiceCard
                     key={option.id}
-                    className="rounded-2xl border-2 items-center"
-                    style={{
-                      width: optionWidth,
-                      minHeight: isShortScreen ? 92 : 112,
-                      marginBottom: optionGap,
-                      paddingHorizontal: 8,
-                      paddingVertical: isShortScreen ? 8 : 10,
-                      backgroundColor: correctSelection
-                        ? "#DCFCE7"
-                        : wrongSelection
-                          ? brandColors.orange[50]
-                          : selected
-                            ? brandColors.gold[50]
-                            : brandColors.neutral[50],
-                      borderColor: correctSelection
-                        ? brandColors.success
-                        : wrongSelection
-                          ? brandColors.shanaOrange
-                          : selected
-                            ? brandColors.equatorialGold
-                            : brandColors.neutral[200],
-                      opacity: canAnswer ? 1 : 0.64,
-                    }}
-                    onPress={() => selectOption(option.id)}
+                    accessibilityLabel={`Choose ${optionTitle}`}
                     disabled={
                       !canAnswer || answerState === "correct" || isCompleting
                     }
-                    activeOpacity={0.76}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Choose ${optionTitle}`}
-                    accessibilityState={{
-                      disabled:
-                        !canAnswer || answerState === "correct" || isCompleting,
-                      selected,
+                    isShortScreen={isShortScreen}
+                    onPress={() => selectOption(option.id)}
+                    state={
+                      correctSelection
+                        ? "correct"
+                        : wrongSelection
+                          ? "incorrect"
+                          : selected
+                            ? "selected"
+                            : "default"
+                    }
+                    style={{
+                      width: optionWidth,
+                      marginBottom: optionGap,
+                      flexDirection: "column",
                     }}
+                    variant="picture"
                   >
                     {hasOptionImage(option) ? (
                       <CachedImage
@@ -353,7 +328,7 @@ export function MatchWordPictureCard({
                     >
                       {optionTitle}
                     </Text>
-                  </TouchableOpacity>
+                  </LearningChoiceCard>
                 );
               })}
             </View>
@@ -388,9 +363,7 @@ export function MatchWordPictureCard({
                     ? "Yes, that matches!"
                     : answerState === "incorrect"
                       ? "Nice try. Tap another picture."
-                      : attempts > 0
-                        ? "Choose again"
-                        : "Tap the matching picture"}
+                      : ""}
               </Text>
             </View>
           </View>

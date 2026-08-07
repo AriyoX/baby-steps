@@ -17,11 +17,12 @@ export type ChildCompletionAction = {
   icon?: keyof typeof Ionicons.glyphMap;
   variant?: "primary" | "secondary" | "quiet";
   disabled?: boolean;
+  busy?: boolean;
 };
 
 type ChildCompletionCardProps = {
   title: string;
-  message: string;
+  message?: string;
   metrics?: ChildCompletionMetric[];
   actions: ChildCompletionAction[];
   icon?: keyof typeof Ionicons.glyphMap;
@@ -77,7 +78,7 @@ export function ChildCompletionCard({
 
   return (
     <View
-      accessibilityLabel={`${title}. ${message}`}
+      accessibilityLabel={message ? `${title}. ${message}` : title}
       className="bg-white rounded-3xl border-4 border-primary-100 shadow-xl overflow-hidden"
       style={{ maxHeight: "94%", width: cardWidth }}
       testID={testID}
@@ -112,12 +113,14 @@ export function ChildCompletionCard({
         >
           {title}
         </Text>
-        <Text
-          className="text-neutral-600 text-center mt-2"
-          style={{ fontSize: isCompact ? 14 : 16, lineHeight: isCompact ? 19 : 22 }}
-        >
-          {message}
-        </Text>
+        {message ? (
+          <Text
+            className="text-neutral-600 text-center mt-2"
+            style={{ fontSize: isCompact ? 14 : 16, lineHeight: isCompact ? 19 : 22 }}
+          >
+            {message}
+          </Text>
+        ) : null}
 
         {metrics.length > 0 ? (
           <View
@@ -172,7 +175,10 @@ export function ChildCompletionCard({
                 key={action.label}
                 accessibilityLabel={action.accessibilityLabel ?? action.label}
                 accessibilityRole="button"
-                accessibilityState={{ disabled: Boolean(action.disabled) }}
+                accessibilityState={{
+                  busy: Boolean(action.busy),
+                  disabled: Boolean(action.disabled),
+                }}
                 activeOpacity={0.76}
                 disabled={action.disabled}
                 onPress={() => {

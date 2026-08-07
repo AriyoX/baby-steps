@@ -54,6 +54,7 @@ const countingProgress = (
   completedStages,
   currentStage: 1,
   lastPlayedLevel: { 1: 1 },
+  completedLevelsByStage: {},
   playHistory: [],
   totalScore: 0,
   unlockedStages: [1],
@@ -296,14 +297,34 @@ jest.mock("../utils/progressManagerCountingGame", () => ({
     completedStages: [],
     currentStage: 1,
     lastPlayedLevel: { 1: 1 },
+    completedLevelsByStage: {},
     playHistory: [],
     totalScore: 0,
     unlockedStages: [1],
   },
+  getCompletedCountingLevels: (progress: ReturnType<typeof countingProgress>, stageId: number) =>
+    (progress.completedLevelsByStage as Record<number, number[]>)[stageId] ?? [],
+  getHighestUnlockedCountingLevel: (
+    progress: ReturnType<typeof countingProgress>,
+    stageId: number,
+    levelCount: number,
+  ) => progress.completedStages.includes(stageId)
+    ? levelCount
+    : (progress.lastPlayedLevel as Record<number, number>)[stageId] ?? 1,
+  isCountingLevelUnlocked: jest.fn().mockReturnValue(true),
   isStageUnlocked: jest.fn().mockReturnValue(true),
   loadGameProgress: (...args: unknown[]) => mockLoadCountingProgress(...args),
   saveGameProgress: (...args: unknown[]) => mockSaveCountingProgress(...args),
   updateLastPlayedLevel: jest.fn((progress: Record<string, unknown>) => progress),
+  updateProgressForLevelCompletion: jest.fn(
+    (progress: ReturnType<typeof countingProgress>, stageId: number, level: number) => ({
+      ...progress,
+      completedLevelsByStage: {
+        ...progress.completedLevelsByStage,
+        [stageId]: [level],
+      },
+    }),
+  ),
   updateProgressForStageCompletion: jest.fn(
     (progress: Record<string, unknown>, stageId: number, score: number) => ({
       ...progress,
@@ -427,7 +448,7 @@ describe("game hydration request scopes", () => {
         typeof candidate.props.accessibilityLabel === "string" &&
         candidate.props.accessibilityLabel.startsWith("Runyankole Stage One."),
     );
-    expect(stageButton?.props.accessibilityLabel).toContain("Lvl 1");
+    expect(stageButton?.props.accessibilityLabel).toContain("Current");
 
     await act(async () => {
       luganda.resolve(countingProgress("child-a", [1]));
@@ -440,10 +461,18 @@ describe("game hydration request scopes", () => {
         typeof candidate.props.accessibilityLabel === "string" &&
         candidate.props.accessibilityLabel.startsWith("Runyankole Stage One."),
     );
-    expect(currentStageButton?.props.accessibilityLabel).toContain("Lvl 1");
+    expect(currentStageButton?.props.accessibilityLabel).toContain("Current");
     expect(currentStageButton?.props.accessibilityLabel).not.toContain("Done");
-    expect(mockLoadCountingProgress).toHaveBeenCalledWith("child-a", "lg", [1]);
-    expect(mockLoadCountingProgress).toHaveBeenCalledWith("child-a", "nyn", [1]);
+    expect(mockLoadCountingProgress).toHaveBeenCalledWith(
+      "child-a",
+      "lg",
+      [expect.objectContaining({ id: 1, levels: 1 })],
+    );
+    expect(mockLoadCountingProgress).toHaveBeenCalledWith(
+      "child-a",
+      "nyn",
+      [expect.objectContaining({ id: 1, levels: 1 })],
+    );
 
     act(() => tree.unmount());
   });
@@ -671,11 +700,16 @@ describe("game hydration request scopes", () => {
       stage!.props.onPress();
       await flush();
     });
+    const level = tree.root.findByProps({ testID: "counting-level-1" });
+    await act(async () => {
+      level!.props.onPress();
+      await flush();
+    });
 
     expect(JSON.stringify(tree.toJSON())).toContain(
       "This counting question is not ready",
     );
-    expect(JSON.stringify(tree.toJSON())).toContain("Choose another stage");
+    expect(JSON.stringify(tree.toJSON())).toContain("Choose another level");
 
     act(() => tree.unmount());
   });
@@ -754,7 +788,16 @@ describe("synchronous game completion locks", () => {
         candidate.props.accessibilityLabel.startsWith("Luganda Stage One."),
     );
     expect(stage).toBeDefined();
-    act(() => stage!.props.onPress());
+    await act(async () => {
+      stage!.props.onPress();
+      await flush();
+    });
+    const level = tree.root.findByProps({ testID: "counting-level-1" });
+    expect(level).toBeDefined();
+    await act(async () => {
+      level!.props.onPress();
+      await flush();
+    });
     mockSaveCountingProgress.mockClear();
     mockSaveCountingProgress.mockReturnValue(localSave.promise);
 

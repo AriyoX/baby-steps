@@ -1,16 +1,16 @@
 import React from "react";
 import renderer, { act } from "react-test-renderer";
-import { TouchableOpacity } from "react-native";
+import { StyleSheet, TouchableOpacity } from "react-native";
 import type { ListenAndChooseItem } from "@/content/learningHubTypes";
 import { ListenAndChooseCard } from "../ListenAndChooseCard";
 
-const mockCreateAppSound = jest.fn();
+const mockCreateLearningVoice = jest.fn();
 const mockReplayAppSound = jest.fn();
 const mockUnloadAppSound = jest.fn();
 const mockResolveLearningAudioSource = jest.fn();
 const mockSound = { id: "listen-sound" };
 const mockAudioContextValue = {
-  createAppSound: mockCreateAppSound,
+  createLearningVoice: mockCreateLearningVoice,
   replayAppSound: mockReplayAppSound,
   unloadAppSound: mockUnloadAppSound,
 };
@@ -157,7 +157,7 @@ const renderCard = async (
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockCreateAppSound.mockResolvedValue(mockSound);
+  mockCreateLearningVoice.mockResolvedValue(mockSound);
   mockReplayAppSound.mockResolvedValue(true);
   mockUnloadAppSound.mockResolvedValue(undefined);
   mockResolveLearningAudioSource.mockReturnValue({
@@ -179,6 +179,19 @@ describe("ListenAndChooseCard", () => {
       "placeholder_learning_cue",
       "luganda.first_words.greetings.webale",
     );
+  });
+
+  it("uses equal, large shared answer cards", async () => {
+    const tree = await renderCard();
+    const answerCards = tree.root
+      .findAllByType(TouchableOpacity)
+      .filter((card) => card.props.testID === "learning-choice-card");
+    const flattenedStyles = answerCards.map((card) => StyleSheet.flatten(card.props.style));
+
+    expect(answerCards).toHaveLength(3);
+    expect(flattenedStyles.every((style) => style.width === "100%")).toBe(true);
+    expect(flattenedStyles.every((style) => style.minHeight >= 68)).toBe(true);
+    expect(new Set(flattenedStyles.map((style) => style.minHeight)).size).toBe(1);
   });
 
   it("replays audio safely when the listen button is pressed", async () => {
@@ -208,7 +221,7 @@ describe("ListenAndChooseCard", () => {
   });
 
   it("still renders choices and can complete when audio cannot be loaded", async () => {
-    mockCreateAppSound.mockResolvedValue(null);
+    mockCreateLearningVoice.mockResolvedValue(null);
     const onComplete = jest.fn();
     const tree = await renderCard(onComplete);
 

@@ -5,7 +5,6 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import {
   View,
   TouchableOpacity,
-  Image,
   ImageBackground,
   Animated,
   ScrollView,
@@ -50,12 +49,12 @@ import { playWordAudio, loadGameSounds } from "./utils/audioManager"
 import { audioManager } from "@/lib/audioManager"
 import {
   GameHeader,
-  GameStatChip,
   GameTour,
   GameTourProvider,
   TourTarget,
   useGameTour,
 } from "./GameTour"
+import { GameLevelSelector } from "./GameLevelSelector"
 
 import {
   applyLegacyLearningAccessLocks,
@@ -137,7 +136,6 @@ const LugandaLearningGame: React.FC = () => {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions()
   const isLandscape = windowWidth > windowHeight
   const compactLandscape = windowHeight < 430
-  const levelCardWidth = isLandscape && windowWidth >= 720 ? "31.5%" : "48%"
   const landscapeWidth = Math.max(windowWidth, windowHeight)
   const landscapeHeight = Math.min(windowWidth, windowHeight)
   const stageCardGap = 8
@@ -870,10 +868,6 @@ const LugandaLearningGame: React.FC = () => {
           })
 
           const awardedAchievements = [...newlyAwarded.values()]
-          const achievementPoints = awardedAchievements.reduce(
-            (sum, achievement) => sum + achievement.points,
-            0,
-          )
           const owner = progressOwnerRef.current
           if (
             !isMountedRef.current ||
@@ -885,22 +879,6 @@ const LugandaLearningGame: React.FC = () => {
           }
 
           awardedAchievements.forEach((achievement) => enqueueAchievementUnlocked(achievement))
-          if (achievementPoints <= 0) return
-
-          const scoreWithAchievementPoints = completedTotalScore + achievementPoints
-          setTotalScore(scoreWithAchievementPoints)
-          const savedAchievementProgress = await saveProgress(
-            scoreWithAchievementPoints,
-            newCompletedLevelsState,
-            currentLocalStagesState,
-            updatedUserStatsState,
-            completionChildId,
-            completionLanguageCode,
-            { contentRevision: contentProgressRevisionRef.current },
-          )
-          if (!savedAchievementProgress) {
-            throw new Error("Legacy Learning achievement points were not saved locally.")
-          }
         }
         const outcomes = await Promise.allSettled([
           trackActivity(nextStageUnlocked, completedLevelScore),
@@ -935,6 +913,17 @@ const LugandaLearningGame: React.FC = () => {
 
   // STAGE SELECTION SCREEN
   const renderStageSelectScreen = () => {
+    const totalLevelCount = stages.reduce(
+      (total, stage) => total + stage.levels.length,
+      0,
+    )
+    const completedLevelCount = stages.reduce(
+      (total, stage) =>
+        total +
+        stage.levels.filter((level) => completedLevels.includes(level.id)).length,
+      0,
+    )
+
     return (
       <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
         <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: GAME_SCREEN_OVERLAY }}>
@@ -955,19 +944,16 @@ const LugandaLearningGame: React.FC = () => {
                 <Text variant="bold" className="text-white text-3xl text-center" numberOfLines={1}>
                   {gameTitle}
                 </Text>
-                <Text className="text-white/85 text-sm text-center" numberOfLines={2}>
-                  Pick a stage. Learn the words. Play the quiz.
-                </Text>
               </View>
 
-              <View className="flex-row items-center bg-white rounded-full px-4 py-2 border-2 border-accent-500">
-                <Image
-                  source={require("../../assets/images/coin.png")}
-                  style={{ width: 20, height: 20, marginRight: 6 }}
-                  resizeMode="contain"
-                />
-                <Text variant="bold" className="text-amber-500 text-base" numberOfLines={1}>
-                  {totalScore}
+              <View
+                accessible
+                accessibilityLabel={`${completedLevelCount} of ${totalLevelCount} levels completed`}
+                className="flex-row items-center bg-white rounded-full px-4 py-2 border-2 border-accent-500"
+              >
+                <Ionicons name="checkmark-circle" size={19} color={brandColors.success} />
+                <Text variant="bold" className="text-emerald-600 text-base ml-1.5" numberOfLines={1}>
+                  {completedLevelCount}/{totalLevelCount}
                 </Text>
               </View>
             </View>
@@ -977,9 +963,6 @@ const LugandaLearningGame: React.FC = () => {
                 <View className="flex-1 pr-4">
                   <Text variant="bold" className="text-white text-lg" numberOfLines={1}>
                     Choose a stage
-                  </Text>
-                  <Text className="text-white/85 text-sm" numberOfLines={2}>
-                    Swipe and tap a stage to start.
                   </Text>
                 </View>
                 <View className="flex-row items-center">
@@ -1021,7 +1004,7 @@ const LugandaLearningGame: React.FC = () => {
                 renderItem={({ item: stage }) => {
                   const completedLevelCount = stage.levels.filter((level) => completedLevels.includes(level.id)).length
                   const isCompleted = completedLevelCount === stage.levels.length
-                  const statusLabel = stage.isLocked ? `${stage.requiredScore} pts` : isCompleted ? t("common.done") : t("common.start")
+                  const statusLabel = stage.isLocked ? t("common.locked") : isCompleted ? t("common.done") : t("common.start")
                   const statusIcon: keyof typeof Ionicons.glyphMap = stage.isLocked
                     ? "lock-closed"
                     : isCompleted
@@ -1082,9 +1065,6 @@ const LugandaLearningGame: React.FC = () => {
                           >
                             {stage.title}
                           </Text>
-                          <Text className="text-xs text-neutral-600 leading-4" numberOfLines={2}>
-                            {stage.description}
-                          </Text>
                         </View>
 
                         <View className="flex-row items-center justify-between mt-2">
@@ -1141,19 +1121,16 @@ const LugandaLearningGame: React.FC = () => {
                 <Text variant="bold" className="text-white text-3xl text-center" numberOfLines={1}>
                   {selectedStage.title}
                 </Text>
-                <Text className="text-white/85 text-sm text-center" numberOfLines={2}>
-                  Pick a small group of words.
-                </Text>
               </View>
 
-              <View className="flex-row items-center bg-white rounded-full px-4 py-2 border-2 border-accent-500">
-                <Image
-                  source={require("../../assets/images/coin.png")}
-                  style={{ width: 20, height: 20, marginRight: 6 }}
-                  resizeMode="contain"
-                />
-                <Text variant="bold" className="text-amber-500 text-base" numberOfLines={1}>
-                  {totalScore}
+              <View
+                accessible
+                accessibilityLabel={`${completedInStage} of ${selectedStage.levels.length} levels completed`}
+                className="flex-row items-center bg-white rounded-full px-4 py-2 border-2 border-accent-500"
+              >
+                <Ionicons name="checkmark-circle" size={19} color={brandColors.success} />
+                <Text variant="bold" className="text-emerald-600 text-base ml-1.5" numberOfLines={1}>
+                  {completedInStage}/{selectedStage.levels.length}
                 </Text>
               </View>
             </View>
@@ -1189,9 +1166,6 @@ const LugandaLearningGame: React.FC = () => {
                     />
                   </View>
 
-                  <Text className="text-white/85 text-sm mt-2" numberOfLines={2}>
-                    {selectedStage.description}
-                  </Text>
                 </View>
               </View>
             </View>
@@ -1223,83 +1197,49 @@ const LugandaLearningGame: React.FC = () => {
                   </Text>
                 </View>
 
-                <View className="flex-row flex-wrap justify-between">
-                  {selectedStage.levels.map((level) => {
+                <GameLevelSelector
+                  availableWidth={Math.max(0, landscapeWidth - 48)}
+                  choices={selectedStage.levels.map((level) => {
                     const isCompleted = completedLevels.includes(level.id)
-                    const statusLabel = level.isLocked ? t("common.locked") : isCompleted ? t("learning.review") : t("common.start")
-                    const statusIcon: keyof typeof Ionicons.glyphMap = level.isLocked
-                      ? "lock-closed"
-                      : isCompleted
-                        ? "checkmark-circle"
-                        : "play-circle"
-                    const statusColor = level.isLocked
-                      ? brandColors.neutral[600]
-                      : isCompleted
-                        ? brandColors.success
-                        : brandColors.victoriaBlue
+                    const isCurrent =
+                      !isCompleted &&
+                      !level.isLocked &&
+                      selectedStage.levels.find(
+                        (candidate) =>
+                          !candidate.isLocked &&
+                          !completedLevels.includes(candidate.id),
+                      )?.id === level.id
 
-                    return (
-                      <TouchableOpacity
-                        key={level.id}
-                        style={{
-                          width: levelCardWidth,
-                          minHeight: compactLandscape ? 112 : 132,
-                          marginBottom: 12,
-                          borderColor: level.isLocked
-                            ? brandColors.neutral[200]
-                            : isCompleted
-                              ? brandColors.success
-                              : brandColors.equatorialGold,
-                          opacity: level.isLocked ? 0.76 : 1,
-                        }}
-                        className="bg-white rounded-2xl shadow-sm overflow-hidden border-2"
-                        onPress={() => selectLevel(level)}
-                        disabled={level.isLocked}
-                        activeOpacity={level.isLocked ? 1 : 0.74}
-                        accessibilityRole="button"
-                        accessibilityLabel={`${level.title}. ${statusLabel}. ${level.words.length} words.`}
-                        accessibilityState={{ disabled: level.isLocked }}
-                      >
-                        <View className={`${compactLandscape ? "p-3" : "p-4"} flex-1 justify-between`}>
-                          <View className="flex-row items-start justify-between">
-                            <View
-                              className="w-12 h-12 rounded-full justify-center items-center mr-3"
-                              style={{ backgroundColor: level.isLocked ? brandColors.neutral[100] : brandColors.blue[50] }}
-                            >
-                              <Text variant="bold" className="text-primary-700 text-lg" numberOfLines={1}>
-                                {level.order}
-                              </Text>
-                            </View>
-                            <View className="rounded-full px-3 py-1.5 flex-row items-center" style={{ backgroundColor: level.isLocked ? brandColors.neutral[100] : brandColors.blue[50] }}>
-                              <Ionicons name={statusIcon} size={14} color={statusColor} />
-                              <Text variant="bold" className="text-[11px] ml-1" style={{ color: statusColor }} numberOfLines={1}>
-                                {statusLabel}
-                              </Text>
-                            </View>
-                          </View>
-
-                          <View className="mt-3">
-                            <Text
-                              variant="bold"
-                              className="text-primary-700 text-lg leading-5"
-                              numberOfLines={2}
-                              adjustsFontSizeToFit
-                              minimumFontScale={0.84}
-                            >
-                              {level.title}
-                            </Text>
-                            <View className="flex-row items-center mt-2">
-                              <Ionicons name="albums-outline" size={15} color={brandColors.neutral[600]} />
-                              <Text className="text-neutral-600 text-xs ml-1" numberOfLines={1}>
-                                {level.words.length} {level.words.length === 1 ? "word" : "words"}
-                              </Text>
-                            </View>
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                    )
+                    return {
+                      id: level.id,
+                      meta: `${level.words.length} ${level.words.length === 1 ? "word" : "words"}`,
+                      order: level.order,
+                      status: level.isLocked
+                        ? "locked" as const
+                        : isCompleted
+                          ? "review" as const
+                          : isCurrent
+                            ? "current" as const
+                            : "available" as const,
+                      title: level.title,
+                    }
                   })}
-                </View>
+                  compact={compactLandscape}
+                  containerTestID="learning-game-level-selector"
+                  onSelect={(levelId) => {
+                    const level = selectedStage.levels.find(
+                      (candidate) => candidate.id === levelId,
+                    )
+                    if (level) selectLevel(level)
+                  }}
+                  statusLabels={{
+                    available: t("common.start"),
+                    current: t("learning.current"),
+                    locked: t("common.locked"),
+                    review: t("learning.review"),
+                  }}
+                  testIDPrefix="learning-game-level"
+                />
               </Animated.View>
             </ScrollView>
           </View>
@@ -1585,14 +1525,6 @@ const LugandaLearningGame: React.FC = () => {
           }}
           backAccessibilityLabel="Back to word cards"
           onHelp={learningTour.open}
-          trailing={
-            <GameStatChip
-              icon="star"
-              label={`${levelScore}`}
-              tint="#D99D19"
-              accessibilityLabel={`${levelScore} points`}
-            />
-          }
         />
 
         {/* Progress bar */}
@@ -1884,28 +1816,12 @@ const LugandaLearningGame: React.FC = () => {
             </Text>
 
             <View className="bg-white/20 w-full rounded-2xl p-5 mb-2">
-              <View className="flex-row justify-between mb-2">
+              <View className="flex-row justify-between">
                 <Text variant="bold" className="text-white">
                   Words:
                 </Text>
                 <Text variant="bold" className="text-white">
                   {currentWords.length}
-                </Text>
-              </View>
-              <View className="flex-row justify-between mb-2">
-                <Text variant="bold" className="text-white ">
-                  Stars:
-                </Text>
-                <Text variant="bold" className="text-white">
-                  {levelScore}
-                </Text>
-              </View>
-              <View className="flex-row justify-between">
-                <Text variant="bold" className="text-white">
-                  All stars:
-                </Text>
-                <Text variant="bold" className="text-white">
-                  {totalScore}
                 </Text>
               </View>
             </View>
@@ -1918,6 +1834,8 @@ const LugandaLearningGame: React.FC = () => {
                   // Reset timer for next activity
                   gameStartTime.current = Date.now()
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Choose a learning game level"
               >
                 <Text variant="bold" className="text-indigo-600">
                   Pick a level
@@ -1931,9 +1849,11 @@ const LugandaLearningGame: React.FC = () => {
                   // Reset timer for next activity
                   gameStartTime.current = Date.now()
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Choose a learning game stage"
               >
                 <Text variant="bold" className="text-white">
-                  {t("navigation.home")}
+                  {t("learning.chooseStage")}
                 </Text>
               </TouchableOpacity>
             </View>

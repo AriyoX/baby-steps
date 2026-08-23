@@ -1,109 +1,170 @@
 import { Tabs } from "expo-router"
-import { Image, View } from "react-native"
-import { TranslatedText } from "@/components/translated-text"
+import { StyleSheet, View } from "react-native"
+import { Ionicons } from "@expo/vector-icons"
+import { Text } from "@/components/StyledText"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
-import { LanguageProvider } from "@/context/language-context"
+import { brandColors } from "@/constants/Brand"
+import { CHILD_TAB_ITEMS, type ChildTabId } from "@/constants/ChildNavigation"
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext"
+import type { ChildUiTranslationKey } from "@/lib/childUiTranslations"
+import { childHaptics } from "@/lib/childHaptics"
+
+const TAB_BAR_HEIGHT = 58
+const TAB_BAR_EDGE_GAP = 10
+const TAB_BAR_BOTTOM_GAP = 6
+const TAB_ICON_SIZE = 22
 
 type NavItem = {
-  id: string
-  icon: any
-  label: string
+  href: (typeof CHILD_TAB_ITEMS)[number]["href"]
+  id: ChildTabId
+  labelKey: ChildUiTranslationKey
+  iconName: keyof typeof Ionicons.glyphMap
+  activeIconName: keyof typeof Ionicons.glyphMap
 }
 
-// Your navigation items
-const navigationItems: NavItem[] = [
-  {
-    id: "index",
-    icon: require("@/assets/icons/game.png"),
-    label: "Games",
-  },
-  {
-    id: "coloring",
-    icon: require("@/assets/icons/coloring.png"),
-    label: "Coloring",
-  },
-  {
-    id: "Stories",
-    icon: require("@/assets/icons/logic.png"),
-    label: "Stories",
-  },
-  {
-    id: "museum",
-    icon: require("@/assets/icons/museum.png"),
-    label: "Museum",
-  },
-]
+const TAB_ICONS: Record<
+  ChildTabId,
+  Pick<NavItem, "iconName" | "activeIconName">
+> = {
+  learning: { iconName: "school-outline", activeIconName: "school" },
+  index: { iconName: "game-controller-outline", activeIconName: "game-controller" },
+  Stories: { iconName: "book-outline", activeIconName: "book" },
+  coloring: { iconName: "color-palette-outline", activeIconName: "color-palette" },
+}
+
+const navigationItems: NavItem[] = CHILD_TAB_ITEMS.map((item) => ({
+  ...item,
+  ...TAB_ICONS[item.id],
+}))
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets()
+  const { t } = useChildUiLanguage()
+  const horizontalInset = Math.max(
+    TAB_BAR_EDGE_GAP,
+    insets.left,
+    insets.right,
+  )
+  const bottomInset = Math.max(TAB_BAR_BOTTOM_GAP, insets.bottom)
+
   return (
-    <LanguageProvider>
-      <Tabs
-        screenOptions={{
-          headerShown: false,
-          tabBarStyle: {
-            backgroundColor: "rgba(123, 90, 240, 0.95)",
-            borderTopWidth: 0,
-            paddingVertical: 8,
-            paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
-            // Shadow for iOS
-            shadowColor: "#000",
-            shadowOffset: {
-              width: 0,
-              height: -2,
-            },
-            shadowOpacity: 0.1,
-            shadowRadius: 3,
-            // Elevation for Android
-            elevation: 8,
-            position: "absolute",
-            bottom: 0,
+    <Tabs
+      initialRouteName="learning"
+      detachInactiveScreens={false}
+      screenOptions={{
+        headerShown: false,
+        animation: "none",
+        freezeOnBlur: false,
+        lazy: false,
+        tabBarStyle: {
+          backgroundColor: "rgba(255, 255, 255, 0.97)",
+          borderWidth: 1.5,
+          borderColor: brandColors.gold[200],
+          borderRadius: 21,
+          height: TAB_BAR_HEIGHT,
+          paddingHorizontal: 8,
+          paddingVertical: 4,
+          shadowColor: brandColors.charcoalBlack,
+          shadowOffset: {
+            width: 0,
+            height: 5,
           },
-          tabBarItemStyle: {
-            height: 50,
-            paddingHorizontal: 0,
-          },
-          // Active color is gold to match African theme
-          tabBarActiveTintColor: "#FFD700",
-          tabBarInactiveTintColor: "#fff",
-          tabBarShowLabel: true,
-        }}
-      >
-        {navigationItems.map((item) => (
-          <Tabs.Screen
-            key={item.id}
-            name={item.id}
-            options={{
-              tabBarLabel: ({ focused, color }) => (
-                <TranslatedText
-                  variant={focused ? "bold" : "regular"}
-                  className={`${focused ? "text-[#FFD700]" : "text-white"}`}
-                  style={{ textAlign: "center", marginBottom: 4 }}
+          shadowOpacity: 0.18,
+          shadowRadius: 10,
+          elevation: 8,
+          position: "absolute",
+          left: horizontalInset,
+          right: horizontalInset,
+          bottom: bottomInset,
+        },
+        tabBarItemStyle: styles.tabBarItem,
+        tabBarIconStyle: styles.tabBarIcon,
+        tabBarActiveTintColor: brandColors.victoriaBlue,
+        tabBarInactiveTintColor: brandColors.neutral[500],
+        tabBarLabelPosition: "below-icon",
+        tabBarShowLabel: true,
+        tabBarHideOnKeyboard: true,
+      }}
+    >
+      {navigationItems.map((item) => (
+        <Tabs.Screen
+          key={item.id}
+          name={item.id}
+          listeners={{
+            tabPress: () => childHaptics.selection(),
+          }}
+          options={{
+            href: item.href,
+            title: t(item.labelKey),
+            tabBarAccessibilityLabel: t(item.labelKey),
+            tabBarIcon: ({ color, focused }) => {
+              return (
+                <View
+                  style={[
+                    styles.iconPill,
+                    focused && styles.iconPillFocused,
+                  ]}
                 >
-                  {item.label}
-                </TranslatedText>
-              ),
-              tabBarIcon: ({ color, size, focused }) => (
-                <View className="items-center justify-center">
-                  <View className="relative">
-                    {focused && <View className="bg-[#FFD700]" style={{ width: size + 10 }} />}
-                    <Image
-                      source={item.icon}
-                      style={{
-                        width: size,
-                        height: size,
-                        tintColor: color,
-                        resizeMode: "contain",
-                        transform: [{ scale: focused ? 1.1 : 0.9 }],
-                      }}
-                    />
-                  </View>
+                  <Ionicons
+                    name={focused ? item.activeIconName : item.iconName}
+                    size={focused ? TAB_ICON_SIZE : TAB_ICON_SIZE - 1}
+                    color={color}
+                  />
                 </View>
-              ),
-            }}
-          />
-        ))}
-      </Tabs>
-    </LanguageProvider>
+              )
+            },
+            tabBarLabel: ({ color, focused }) => (
+              <Text
+                variant={focused ? "bold" : "medium"}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.78}
+                style={[styles.tabBarLabel, { color }]}
+              >
+                {t(item.labelKey)}
+              </Text>
+            ),
+          }}
+        />
+      ))}
+      {/* Museum is intentionally archived and hidden while the Learning hub replaces it in child tabs. */}
+      <Tabs.Screen
+        name="museum"
+        options={{
+          href: null,
+        }}
+      />
+    </Tabs>
   )
 }
+
+const styles = StyleSheet.create({
+  tabBarIcon: {
+    marginTop: 0,
+  },
+  tabBarItem: {
+    alignItems: "center",
+    height: TAB_BAR_HEIGHT - 8,
+    justifyContent: "center",
+    paddingVertical: 2,
+  },
+  tabBarLabel: {
+    fontSize: 10,
+    lineHeight: 12,
+    maxWidth: "100%",
+    paddingHorizontal: 2,
+    textAlign: "center",
+  },
+  iconPill: {
+    alignItems: "center",
+    borderRadius: 13,
+    height: 27,
+    justifyContent: "center",
+    width: 38,
+  },
+  iconPillFocused: {
+    backgroundColor: brandColors.gold[100],
+    borderColor: brandColors.gold[200],
+    borderWidth: 1,
+  },
+})

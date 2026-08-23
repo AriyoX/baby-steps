@@ -1,47 +1,59 @@
-import React, { useEffect, useState } from "react";
+"use client"
+
+import React, { useEffect, useState } from "react"
 import {
   View,
-  Text,
   TouchableOpacity,
   ScrollView,
   Image,
-  SafeAreaView,
   BackHandler,
-} from "react-native";
-import { Audio, AVPlaybackSource } from "expo-av";
-import { MaterialIcons } from "@expo/vector-icons";
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+  Animated,
+} from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
+import type { Audio, AVPlaybackSource } from "expo-av"
+import { Ionicons, MaterialIcons } from "@expo/vector-icons"
+import { useRouter } from "expo-router"
+import { StatusBar } from "expo-status-bar"
+import { TranslatedText } from "@/components/translated-text"
+import { LinearGradient } from "expo-linear-gradient"
+import { audioManager } from "@/lib/audioManager"
+import { childHaptics } from "@/lib/childHaptics"
 
 export default function ArtifactsScreen() {
   const [selectedArtifact, setSelectedArtifact] = useState<{
-    id: number;
-    name: string;
-    image: any;
-    description: string;
-    audio: AVPlaybackSource;
-  } | null>(null);
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const router = useRouter();
-  useEffect(() => {
-    const backHandler = BackHandler.addEventListener(
-      "hardwareBackPress",
-      () => {
-        if (selectedArtifact) {
-          // Close modal if open
-          setSelectedArtifact(null);
-          if (sound) {
-            sound.stopAsync();
-          }
-          return true;
-        }
-        router.back();
-        return true;
-      }
-    );
+    id: number
+    name: string
+    image: any
+    description: string
+    audio: AVPlaybackSource
+  } | null>(null)
+  const [sound, setSound] = useState<Audio.Sound | null>(null)
+  const router = useRouter()
+  const fadeAnim = useState<Animated.Value>(new Animated.Value(0))[0]
 
-    return () => backHandler.remove();
-  }, [router, selectedArtifact, sound]);
+  useEffect(() => {
+    // Fade in animation when screen loads
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start()
+
+    const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (selectedArtifact) {
+        // Close modal if open
+        setSelectedArtifact(null)
+        if (sound) {
+          void audioManager.unloadAppSound(sound)
+        }
+        return true
+      }
+      router.back()
+      return true
+    })
+
+    return () => backHandler.remove()
+  }, [fadeAnim, router, selectedArtifact, sound])
 
   const artifacts = [
     {
@@ -72,8 +84,7 @@ export default function ArtifactsScreen() {
       id: 4,
       name: "Drinking Vessels",
       image: require("@/assets/images/vessels.png"),
-      description:
-        "Beautifully crafted cups and containers for traditional drinks made from gourds, clay, or wood.",
+      description: "Beautifully crafted cups and containers for traditional drinks made from gourds, clay, or wood.",
       audio: require("@/assets/sounds/vessels.mp3"),
     },
     {
@@ -82,137 +93,147 @@ export default function ArtifactsScreen() {
       image: require("@/assets/images/regalia.jpg"),
       description:
         "Special items used by the Kabaka including crowns, staffs, and emblems that represent royal authority.",
-      audio: require("@/assets/sounds/touch-1.mp3"),
+      audio: require("@/assets/sounds/regalia.mp3"),
     },
-  ];
+  ]
 
   async function playSound(audioFile: AVPlaybackSource) {
+    childHaptics.selection()
     // Stop any currently playing sound
     if (sound) {
-      await sound.unloadAsync();
+      await audioManager.unloadAppSound(sound)
     }
 
-    const { sound: newSound } = await Audio.Sound.createAsync(audioFile);
-    setSound(newSound);
-    await newSound.playAsync();
+    const newSound = await audioManager.playAppSound(audioFile)
+    setSound(newSound)
   }
 
   React.useEffect(() => {
     return sound
       ? () => {
-          sound.unloadAsync();
+          void audioManager.unloadAppSound(sound)
         }
-      : undefined;
-  }, [sound]);
+      : undefined
+  }, [sound])
 
   const handleArtifactPress = (artifact: {
-    id: number;
-    name: string;
-    image: any;
-    description: string;
-    audio: AVPlaybackSource;
+    id: number
+    name: string
+    image: any
+    description: string
+    audio: AVPlaybackSource
   }) => {
-    setSelectedArtifact(artifact);
-  };
+    childHaptics.selection()
+    setSelectedArtifact(artifact)
+  }
 
   const closeModal = () => {
-    setSelectedArtifact(null);
+    childHaptics.tap()
+    setSelectedArtifact(null)
     if (sound) {
-      sound.stopAsync();
+      void audioManager.unloadAppSound(sound)
+      setSound(null)
     }
-  };
+  }
 
   return (
-    <SafeAreaView className="flex-1 bg-amber-50">
-      <TouchableOpacity
-        style={{
-          position: "absolute",
-          top: 10,
-          left: 10,
-          zIndex: 10,
-          backgroundColor: "rgba(255, 255, 255, 0.8)",
-          padding: 8,
-          borderRadius: 20,
-        }}
-        onPress={() => router.back()}
-      >
-        <Ionicons name="arrow-back" size={24} color="#7b5af0" />
-      </TouchableOpacity>
-      <View className="py-4 px-6 bg-amber-800">
-        <Text className="text-2xl font-bold text-white text-center">
+    <SafeAreaView className="flex-1 bg-slate-50">
+      <StatusBar style="dark" />
+
+      {/* Header with back button and title */}
+      <View className="flex-row justify-between items-center px-4 pt-6 pb-2">
+        <TouchableOpacity
+          className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
+          onPress={() => {
+            childHaptics.tap()
+            router.back()
+          }}
+        >
+          <Ionicons name="arrow-back" size={20} color="#7b5af0" />
+        </TouchableOpacity>
+
+        <TranslatedText variant="bold" className="text-xl text-indigo-800">
           Buganda Artifacts
-        </Text>
-        <Text className="text-white text-center">
-          Discover treasures from the Buganda Kingdom
-        </Text>
+        </TranslatedText>
+
+        <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView className="flex-1 p-4">
-        <Text className="text-lg mb-4 text-amber-900">
-          Tap on any artifact to learn more about its history and importance in
-          Buganda culture!
-        </Text>
+      <LinearGradient colors={["#6366f1", "#7b5af0"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} className="py-4 px-6">
+        <TranslatedText className="text-white text-center">Discover treasures from the Buganda Kingdom</TranslatedText>
+      </LinearGradient>
 
-        <View className="flex-row flex-wrap justify-center">
-          {artifacts.map((artifact) => (
-            <TouchableOpacity
-              key={artifact.id}
-              className="w-40 h-40 m-2 bg-white rounded-lg shadow-md overflow-hidden"
-              onPress={() => handleArtifactPress(artifact)}
-            >
-              <Image
-                source={artifact.image}
-                className="w-full h-28"
-                resizeMode="cover"
-              />
-              <View className="p-2 bg-amber-100">
-                <Text className="font-bold text-amber-900">
-                  {artifact.name}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+      <ScrollView className="flex-1 p-4">
+        <Animated.View style={{ opacity: fadeAnim }}>
+          <TranslatedText className="text-base mb-4 text-slate-700">
+            Tap on any artifact to learn more about its history and importance in Buganda culture!
+          </TranslatedText>
+
+          <View className="flex-row flex-wrap justify-center">
+            {artifacts.map((artifact) => (
+              <TouchableOpacity
+                key={artifact.id}
+                className="w-40 h-48 mx-2 bg-white rounded-xl shadow-sm border-slate-200 overflow-hidden"
+                onPress={() => handleArtifactPress(artifact)}
+                activeOpacity={0.7}
+              >
+                <Image source={artifact.image} className="w-full h-28" resizeMode="cover" />
+                <View className="p-2 bg-white flex-1 justify-center">
+                  <TranslatedText variant="bold" className="text-slate-800 text-center">
+                    {artifact.name}
+                  </TranslatedText>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Animated.View>
       </ScrollView>
 
       {/* Detailed artifact modal */}
       {selectedArtifact && (
-        <View className="absolute inset-0 bg-black bg-opacity-70 justify-center items-center p-4">
-          <View className="bg-white w-full max-w-md rounded-xl overflow-hidden">
-            <Image
-              source={selectedArtifact.image}
-              className="w-full h-64"
-              resizeMode="contain"
-            />
+        <View className="absolute inset-0 bg-black/50 justify-center items-center p-4">
+          <ScrollView className="relative bg-white w-4/5 max-w-md rounded-3xl overflow-hidden shadow-xl border-4 border-primary-200">
+            {/* Main image display */}
+            <View className="w-full pt-12 pb-4 bg-indigo-50">
+              <Image source={selectedArtifact.image} className="w-full h-48" resizeMode="contain" />
+            </View>
 
-            <View className="p-4">
-              <View className="flex-row justify-between items-center mb-2">
-                <Text className="text-xl font-bold text-amber-900">
-                  {selectedArtifact.name}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => playSound(selectedArtifact.audio)}
-                >
-                  <MaterialIcons name="volume-up" size={28} color="#78350f" />
-                </TouchableOpacity>
+            <View className="p-6">
+              <TranslatedText variant="bold" className="text-2xl text-primary-700 mb-4 text-center">
+                {selectedArtifact.name}
+              </TranslatedText>
+
+              {/* Description in a styled container */}
+              <View className="bg-primary-50 w-full rounded-xl p-4 mb-5">
+                <TranslatedText className="text-lg text-primary-700 text-center leading-relaxed">
+                  {selectedArtifact.description}
+                </TranslatedText>
               </View>
 
-              <Text className="text-base mb-4">
-                {selectedArtifact.description}
-              </Text>
-
-              <View className="flex-row justify-center">
+              <View className="flex-row justify-center items-center space-x-4">
+                {/* Sound button */}
                 <TouchableOpacity
-                  className="bg-amber-600 py-2 px-6 rounded-full"
-                  onPress={closeModal}
+                  className="bg-yellow-100 p-3 mr-3 rounded-full shadow-md border-2 border-yellow-200"
+                  onPress={() => playSound(selectedArtifact.audio)}
                 >
-                  <Text className="text-white font-bold">Close </Text>
+                  <MaterialIcons name="volume-up" size={28} color="#7b5af0" />
+                </TouchableOpacity>
+
+                {/* Close button */}
+                <TouchableOpacity
+                  className="bg-primary-500 py-3 px-7 rounded-full shadow-md border-2 border-primary-400"
+                  onPress={closeModal}
+                  activeOpacity={0.8}
+                >
+                  <TranslatedText variant="bold" className="text-white text-lg">
+                    Close
+                  </TranslatedText>
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
+          </ScrollView>
         </View>
       )}
     </SafeAreaView>
-  );
+  )
 }

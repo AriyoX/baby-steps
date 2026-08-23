@@ -8,6 +8,9 @@ import { FontAwesome5 } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
 import { supabase } from "../lib/supabase"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { BrandMark } from "@/components/brand/BrandMark"
+import { brandColors } from "@/constants/Brand"
+import { fetchActiveChildProfiles } from "@/lib/accountManagement"
 
 // Define the child profile type
 type ChildProfile = {
@@ -17,12 +20,14 @@ type ChildProfile = {
   gender: string
   age: string
   reason: string
+  selected_language_code?: string
   created_at: string
 }
 
 export default function ChildListScreen() {
   const [profiles, setProfiles] = useState<ChildProfile[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const router = useRouter()
 
   // Animation values
@@ -39,7 +44,7 @@ export default function ChildListScreen() {
     }).start()
 
     // Floating animation for decorative elements
-    Animated.loop(
+    const floatingAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(bounceValue, {
           toValue: 1,
@@ -52,40 +57,40 @@ export default function ChildListScreen() {
           useNativeDriver: true,
         }),
       ]),
-    ).start()
+    )
+    floatingAnimation.start()
 
     // Fetch child profiles
     fetchProfiles()
-  }, [])
+
+    return () => {
+      floatingAnimation.stop()
+      bounceValue.stopAnimation()
+      scaleValue.stopAnimation()
+    }
+  }, [bounceValue, scaleValue])
 
   const fetchProfiles = async () => {
     try {
       setLoading(true)
+      setLoadError(false)
 
       // Get the current user session
       const { data: sessionData } = await supabase.auth.getSession()
 
       if (!sessionData.session) {
-        console.log("No active session found")
         setLoading(false)
         return
       }
 
       const userId = sessionData.session.user.id
 
-      // Fetch child profiles from the 'children' table
-      const { data, error } = await supabase.from("children").select("*").eq("parent_id", userId)
-
-      if (error) {
-        console.error("Error fetching profiles:", error.message)
-        throw error
-      }
-
-      console.log("Fetched profiles:", data)
-      setProfiles(data || [])
+      const data = await fetchActiveChildProfiles(userId)
+      setProfiles(data as ChildProfile[])
       setLoading(false)
     } catch (error) {
       console.error("Error in fetchProfiles:", error)
+      setLoadError(true)
       setLoading(false)
     }
   }
@@ -103,15 +108,15 @@ export default function ChildListScreen() {
   const navigateToProfile = (childId: string) => {
     // Navigate to profile and pass the child ID
     router.push({
-      pathname: "/parent/child-detail/1" as any,
-      params: { childId },
+      pathname: "/parent/child-detail/[id]" as any,
+      params: { id: childId },
     })
   }
 
   // Render a single child profile card
   const renderProfileCard = ({ item }: { item: ChildProfile }) => (
     <Animated.View
-      className="mb-4 rounded-2xl bg-white shadow-md overflow-hidden"
+      className="mb-4 rounded-3xl bg-white shadow-sm overflow-hidden border border-primary-100"
       style={{ transform: [{ scale: scaleValue }] }}
     >
       <TouchableOpacity
@@ -119,15 +124,9 @@ export default function ChildListScreen() {
         onPress={() => navigateToProfile(item.id)}
         activeOpacity={0.8}
       >
-        {/* Avatar with gender-based emoji */}
-        <View className="relative w-[70px] h-[70px] rounded-full bg-primary-50 justify-center items-center mr-4">
-          <Text className="text-[36px]">{item.gender === "male" ? "👦" : item.gender === "female" ? "👧" : "👶"}</Text>
-          {/* Level badge - using a placeholder level for now */}
-          <View className="absolute -bottom-1 -right-1 bg-primary-500 rounded-xl w-6 h-6 justify-center items-center border-2 border-white">
-            <Text variant="bold" className="text-[10px] text-white">
-              Lv1
-            </Text>
-          </View>
+        {/* Profile avatar */}
+        <View className="relative w-[70px] h-[70px] rounded-2xl bg-primary-50 justify-center items-center mr-4">
+          <FontAwesome5 name="child" size={34} color={brandColors.victoriaBlue} />
         </View>
 
         {/* Profile details */}
@@ -137,16 +136,11 @@ export default function ChildListScreen() {
           </Text>
           <Text className="text-sm text-neutral-500 mb-2">{item.age}</Text>
 
-          {/* Last activity indicator - using created_at for now */}
-          <View className="flex-row items-center">
-            <FontAwesome5 name="clock" size={12} color="#6366f1" />
-            <Text className="text-xs text-neutral-500 ml-1">{new Date(item.created_at).toLocaleDateString()}</Text>
-          </View>
         </View>
 
         {/* Arrow indicator */}
-        <View className="p-2">
-          <FontAwesome5 name="chevron-right" size={18} color="#ccc" />
+        <View className="w-9 h-9 rounded-full bg-neutral-50 items-center justify-center">
+          <FontAwesome5 name="chevron-right" size={15} color={brandColors.neutral[400]} />
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -159,32 +153,58 @@ export default function ChildListScreen() {
 
       <SafeAreaView className="flex-1 bg-primary-50" edges={["top"]}>
         {/* Header with back button */}
-        <View className="px-5 py-4 bg-white border-b border-gray-200">
+        <View className="px-5 py-4 bg-white border-b border-neutral-100">
           <View className="flex-row items-center mb-2">
             <TouchableOpacity
-              onPress={() => router.push("/")}
+              onPress={() => router.replace("/parent")}
               className="w-10 h-10 rounded-full bg-primary-100 items-center justify-center mr-3"
             >
-              <FontAwesome5 name="arrow-left" size={16} color="#3e4685" />
+              <FontAwesome5 name="arrow-left" size={16} color={brandColors.victoriaBlue} />
             </TouchableOpacity>
-            <TranslatedText variant="bold" className="text-2xl text-primary-800">
-              Child Profiles
+            <TranslatedText variant="bold" className="text-2xl text-neutral-900">
+              Your little learners
             </TranslatedText>
           </View>
-          <TranslatedText className="text-sm text-neutral-400 mt-1 ml-1">Personalized learning journeys</TranslatedText>
         </View>
 
         {/* Main content */}
         {loading ? (
           <View className="flex-1 justify-center items-center">
-            <FontAwesome5 name="child" size={150} color="#6366f1" />
+            <BrandMark kind="mascot" width={96} height={128} />
             <TranslatedText variant="medium" className="mt-5 text-base text-neutral-500">
               Loading profiles...
             </TranslatedText>
           </View>
         ) : (
           <>
-            {profiles.length > 0 ? (
+            {loadError && profiles.length === 0 ? (
+              <View className="flex-1 items-center justify-center px-6">
+                <View className="w-full rounded-3xl border border-amber-200 bg-white p-6 items-center">
+                  <View className="w-16 h-16 rounded-2xl bg-amber-50 items-center justify-center">
+                    <FontAwesome5
+                      name="cloud"
+                      size={28}
+                      color={brandColors.gold[700]}
+                    />
+                  </View>
+                  <Text variant="bold" className="mt-4 text-xl text-neutral-900 text-center">
+                    Profiles could not refresh
+                  </Text>
+                  <Text className="mt-2 text-sm leading-5 text-neutral-600 text-center">
+                    Your saved profiles have not been removed. Try again when the
+                    connection improves.
+                  </Text>
+                  <TouchableOpacity
+                    className="mt-5 rounded-2xl bg-primary-500 px-6 py-3"
+                    onPress={() => void fetchProfiles()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Retry loading child profiles"
+                  >
+                    <Text variant="bold" className="text-white">Try again</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : profiles.length > 0 ? (
               <>
                 <FlatList
                   data={profiles}
@@ -233,15 +253,12 @@ export default function ChildListScreen() {
 
                 {/* Empty state content */}
                 <View className="w-full items-center bg-white p-6 rounded-3xl shadow-md">
-                  <Text variant="bold" className="text-[80px] mb-4">
+                  <BrandMark kind="mascot" width={92} height={122} containerStyle={{ marginBottom: 16 }} />
+                  <Text variant="bold" className="hidden">
                     👶
                   </Text>
-                  <TranslatedText variant="bold" className="text-2xl text-neutral-800 mb-3 text-center">
-                    No Child Profiles Yet
-                  </TranslatedText>
-                  <TranslatedText className="text-base text-neutral-500 text-center mb-6 leading-6">
-                    You haven't added any child profiles yet. Create a profile to start your child's personalized
-                    learning journey!
+                  <TranslatedText variant="display" className="text-3xl text-primary-700 mb-3 text-center">
+                    Let’s meet your learner
                   </TranslatedText>
 
                   <TouchableOpacity

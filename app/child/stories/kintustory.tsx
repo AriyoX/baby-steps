@@ -1,18 +1,7 @@
-import React from 'react';
-import { View } from 'react-native';
-import Kintu from '@/components/stories/KintuStory';
-import { Stack } from 'expo-router';
+import React from "react";
+import { Redirect } from "expo-router";
 
+// Deprecated: Luganda story menus now use app/child/stories/[storyId].tsx with content_items rows.
 export default function KintuStory() {
-  return (
-    <View style={{ flex: 1 }}>
-      <Stack.Screen 
-        options={{ 
-          headerShown: false,
-          animation: 'slide_from_right'
-        }} 
-      />
-      <Kintu/>
-    </View>
-  );
+  return <Redirect href="/child/stories/kintu" />;
 }

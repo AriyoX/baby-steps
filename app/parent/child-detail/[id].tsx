@@ -1,15 +1,36 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { View, ScrollView, TouchableOpacity } from "react-native"
+import { useCallback, useState, useEffect, useMemo, useRef } from "react"
+import { Alert, View, ScrollView, TouchableOpacity } from "react-native"
 import { Text } from "@/components/StyledText"
 import { TranslatedText } from "@/components/translated-text"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons"
-import { supabase } from "@/lib/supabase"
 import { useChild } from "@/context/ChildContext"
+import { getLearningLanguage } from "@/content/languages"
+import { AchievementCard } from "@/components/games/achievements/AchievementCard"
+import { CHILD_HOME_ROUTE } from "@/constants/ChildNavigation"
+import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network"
+import { ChildStreakSection } from "@/components/parent/ChildStreakSection"
+import {
+  GameTour,
+  GameTourProvider,
+  TourTarget,
+  useGameTour,
+} from "@/components/games/GameTour"
+import { fetchActiveChildProfile } from "@/lib/accountManagement"
+import {
+  PARENT_CHILD_PROFILE_TOUR_STEPS,
+  PARENT_SCREEN_TOUR_POSITIONING,
+} from "@/lib/parentScreenTours"
+import { hasParentPin } from "@/lib/parentAccess"
+import { supabase } from "@/lib/supabase"
+
+// Achievement imports
+import { useAchievements } from "@/components/games/achievements/useAchievements" // Ensure this path is correct
+import { AchievementDefinition, ChildAchievement } from "@/components/games/achievements/achievementTypes" // Ensure this path is correct
 
 // Define TypeScript interface for our child data
 interface ChildData {
@@ -17,144 +38,357 @@ interface ChildData {
   name: string
   gender: string
   age: string
+  selected_language_code?: string
   avatar?: string
+}
+
+// Interface for achievements prepared for display
+interface DisplayableAchievement extends AchievementDefinition { // This carries definition fields like name, description, icon_name, points
+  earned_instance_id: string; // Unique ID from child_achievements table for the key prop
+  earned_at_timestamp: string;
 }
 
 export default function ChildDetailScreen() {
   const router = useRouter()
-  const params = useLocalSearchParams<{ childId: string }>()
-  const childId = params.childId
-  const { setActiveChild } = useChild()
+  const params = useLocalSearchParams<{ id?: string; childId?: string }>()
+  const childId = params.id ?? params.childId ?? ""
+  const { activateChildMode } = useChild()
 
   const [childData, setChildData] = useState<ChildData | null>(null)
   const [loading, setLoading] = useState(true)
+  const profileScrollRef = useRef<ScrollView>(null)
+  const profileTourOffsetsRef = useRef<Record<string, number>>({})
+  const profileTour = useGameTour(
+    "parent-child-profile",
+    childId,
+    !loading && Boolean(childData && childId),
+  )
+  const prepareProfileTourTarget = useCallback((stepId: string) => {
+    profileScrollRef.current?.scrollTo({
+      animated: false,
+      y: Math.max(0, (profileTourOffsetsRef.current[stepId] ?? 0) - 12),
+    })
+  }, [])
+  const profileTourSteps = useMemo(
+    () =>
+      PARENT_CHILD_PROFILE_TOUR_STEPS.map((step) => ({
+        ...step,
+        prepareTarget: () => prepareProfileTourTarget(step.id),
+      })),
+    [prepareProfileTourTarget],
+  )
 
-  useEffect(() => {
-    if (childId) {
-      fetchChildData()
-    }
-  }, [childId])
+  const { 
+    definedAchievements, 
+    earnedChildAchievements, // This is an array of ChildAchievement objects
+    isLoadingAchievements,
+    // refreshAchievements // Not actively used but good to have
+  } = useAchievements(
+    childId,
+    undefined,
+    childData?.selected_language_code,
+  );
 
-  const fetchChildData = async () => {
+  const [childsEarnedFullAchievements, setChildsEarnedFullAchievements] = useState<DisplayableAchievement[]>([]);
+
+  // Add state to track whether to show all achievements or just recent ones
+  const [showAllAchievements, setShowAllAchievements] = useState(false);
+  
+  const fetchChildData = useCallback(async () => {
     try {
       setLoading(true)
-
-      // Fetch child data from the 'children' table
-      const { data, error } = await supabase.from("children").select("id, name, gender, age").eq("id", childId).single()
-
-      if (error) {
-        console.error("Error fetching child data:", error.message)
-        throw error
+      if (!(await requireInternet("Loading this child profile"))) {
+        setChildData(null)
+        return
       }
-
-      // Add avatar based on gender
-      const childWithAvatar = {
+      const data = await fetchActiveChildProfile(childId)
+      if (!data) {
+        setChildData(null)
+        return
+      }
+      setChildData({
         ...data,
         avatar: data.gender === "male" ? "👦" : data.gender === "female" ? "👧" : "👶",
-      }
-
-      setChildData(childWithAvatar)
-      setLoading(false)
+      });
     } catch (error) {
-      console.error("Error in fetchChildData:", error)
-      setLoading(false)
+      console.error("Error fetching child data:", error);
+      setChildData(null);
+      if (await showNetworkErrorIfNeeded(error, "Loading this child profile")) return
+      Alert.alert("Could not load child profile", "Please try again.")
+    } finally {
+      setLoading(false);
     }
-  }
+  }, [childId]);
 
-  const handleLaunchChildMode = () => {
+  useEffect(() => {
+    void fetchChildData()
+  }, [fetchChildData])
+
+  const selectedLanguage = getLearningLanguage(childData?.selected_language_code);
+
+  useEffect(() => {
+    if (!isLoadingAchievements && definedAchievements.length > 0 && earnedChildAchievements.length >= 0 && childId) {
+      const achievementDefinitionsMap = new Map(definedAchievements.map(achDef => [achDef.id, achDef]));
+      
+      // earnedChildAchievements is an array of `ChildAchievement` interfaces.
+      // Each `ChildAchievement` has its own unique `id`.
+      const fullEarnedDetails = earnedChildAchievements
+        .map((earnedInstance: ChildAchievement) => { // earnedInstance is a ChildAchievement
+          const definition = achievementDefinitionsMap.get(earnedInstance.achievement_id); // Use achievement_id to link to definition
+          if (definition) {
+            return { 
+              ...definition, // Spread properties of AchievementDefinition (name, desc, icon, points, etc.)
+                              // Note: definition.id is the achievement_definition_id
+              earned_instance_id: earnedInstance.id, // This is the unique ID from child_achievements table
+              earned_at_timestamp: earnedInstance.earned_at,
+            };
+          }
+          return undefined;
+        })
+        .filter(Boolean) as DisplayableAchievement[];
+
+      setChildsEarnedFullAchievements(
+        fullEarnedDetails.sort((a, b) => new Date(b.earned_at_timestamp).getTime() - new Date(a.earned_at_timestamp).getTime())
+      );
+    } else if (!isLoadingAchievements) {
+        setChildsEarnedFullAchievements([]);
+    }
+  }, [childId, definedAchievements, earnedChildAchievements, isLoadingAchievements]);
+
+
+  const handleLaunchChildMode = async () => {
     if (childData) {
-      setActiveChild(childData)
-      router.push({
-        pathname: "/child" as any,
-        params: { active: childId },
-      })
+      if (!(await requireInternet("Launching child mode"))) return
+      const { data } = await supabase.auth.getSession()
+      const accountId = data.session?.user.id
+      if (!accountId || !(await hasParentPin(accountId))) {
+        Alert.alert(
+          "Set a parent PIN first",
+          "A parent PIN is required before starting child mode.",
+          [
+            { text: "Not now", style: "cancel" },
+            {
+              text: "Set PIN",
+              onPress: () => router.push("/parent/settings/parent-pin" as any),
+            },
+          ],
+        )
+        return
+      }
+      try {
+        await activateChildMode(childData)
+        router.push({
+          pathname: CHILD_HOME_ROUTE as any,
+          params: { active: childId },
+        })
+      } catch {
+        Alert.alert(
+          "Could not start child mode",
+          "Baby Steps could not get child mode ready. Please try again.",
+        )
+      }
     }
   }
 
+  const handleOpenChildSettings = () => {
+    router.push({
+      pathname: "/parent/settings/child-profile-detail" as any,
+      params: { childId },
+    })
+  }
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch (e) {
+      console.warn("Error formatting date:", e);
+      return "Unknown Date";
+    }
+  };
+
+  // Function to toggle showing all achievements
+  const toggleShowAllAchievements = () => {
+    setShowAllAchievements(prev => !prev);
+  };
+  
   return (
+    <GameTourProvider>
     <>
       <StatusBar style="dark" />
-      <SafeAreaView className="flex-1 bg-white" edges={["top", "left", "right"]}>
-        {/* Header with back button */}
-        <View className="flex-row items-center px-4 py-3 border-b border-gray-100">
-          <TouchableOpacity onPress={() => router.back()} className="mr-3">
+      <SafeAreaView className="flex-1 bg-slate-50" edges={["top", "left", "right"]}>
+        {/* Header */}
+        <View className="flex-row items-center px-4 py-3 border-b border-gray-100 bg-white">
+          <TouchableOpacity onPress={() => router.back()} className="mr-3 p-1">
             <Ionicons name="arrow-back" size={24} color="#374151" />
           </TouchableOpacity>
-          <TranslatedText variant="bold" className="text-xl text-gray-800">
+          <TranslatedText variant="bold" className="flex-1 text-xl text-gray-800">
             Child Profile
           </TranslatedText>
+          <TouchableOpacity
+            accessibilityLabel="Show the Child Profile guide"
+            accessibilityRole="button"
+            className="h-10 w-10 items-center justify-center rounded-full bg-primary-50"
+            onPress={profileTour.open}
+          >
+            <Ionicons name="help-circle-outline" size={23} color="#0274BB" />
+          </TouchableOpacity>
         </View>
 
-        <ScrollView className="flex-1">
+        <ScrollView ref={profileScrollRef} className="flex-1">
           {loading ? (
-            <View className="flex-1 items-center justify-center p-4">
-              <TranslatedText>Loading child profile...</TranslatedText>
+            <View className="flex-1 items-center justify-center p-6">
+              <TranslatedText className="text-gray-600">Loading child profile...</TranslatedText>
             </View>
           ) : childData ? (
             <>
-              {/* Child profile header */}
-              <View className="p-4 border-b border-gray-100">
+              {/* Child profile header ... same ... */}
+              <TourTarget id="parent-child-profile-summary">
+              <View
+                className="p-4 border-b border-gray-200 bg-white"
+                onLayout={({ nativeEvent }) => {
+                  profileTourOffsetsRef.current.profile = nativeEvent.layout.y
+                }}
+              >
                 <View className="flex-row items-center">
                   <View className="relative mr-4">
                     <View className="w-[80px] h-[80px] rounded-full bg-purple-100 items-center justify-center">
                       <Text className="text-4xl">{childData.avatar}</Text>
                     </View>
-                    <View className="absolute -bottom-2 -right-2 bg-[#7b5af0] rounded-full w-7 h-7 items-center justify-center shadow-sm px-3">
-                      <Text variant="bold" className="text-xs text-white">
-                        1
-                      </Text>
-                    </View>
                   </View>
-
                   <View className="flex-1">
-                    <View className="flex-row items-center">
-                      <Text variant="bold" className="text-2xl text-gray-800 mr-2">
-                        {childData.name}
-                      </Text>
-                    </View>
+                    <Text variant="bold" className="text-2xl text-gray-800 mr-2">
+                      {childData.name}
+                    </Text>
                     <Text className="text-gray-500 text-sm">{childData.age} years old</Text>
-                    <TranslatedText className="text-gray-500 text-sm">Gender: {childData.gender}</TranslatedText>
-
-                    <View className="mt-2 flex-row">
+                    <TranslatedText className="text-gray-500 text-sm capitalize">Gender: {childData.gender}</TranslatedText>
+                    <Text className="text-gray-500 text-sm">
+                      Language: {selectedLanguage ? selectedLanguage.name : childData.selected_language_code || "Not set"}
+                    </Text>
+                    <View className="mt-3 flex-row flex-wrap">
                       <TouchableOpacity
-                        className="bg-[#7b5af0] py-1 px-3 rounded-full mr-2"
-                        onPress={handleLaunchChildMode}
+                        className="bg-[#7b5af0] py-2 px-4 rounded-lg shadow"
+                        onPress={() => void handleLaunchChildMode()}
                       >
-                        <TranslatedText className="text-white text-sm">Launch Child Mode</TranslatedText>
+                        <TranslatedText variant="medium" className="text-white text-sm">Launch Child Mode</TranslatedText>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        accessibilityLabel={`Open settings for ${childData.name}`}
+                        accessibilityRole="button"
+                        className="bg-white border border-[#7b5af0] py-2 px-4 rounded-lg ml-2 flex-row items-center"
+                        onPress={handleOpenChildSettings}
+                      >
+                        <Ionicons name="settings-outline" size={16} color="#6d49e8" />
+                        <TranslatedText variant="medium" className="text-[#6d49e8] text-sm ml-1.5">
+                          Settings
+                        </TranslatedText>
                       </TouchableOpacity>
                     </View>
                   </View>
                 </View>
               </View>
+              </TourTarget>
 
-              {/* Child Information */}
-              <View className="p-4">
-                {/* Child ID (for debugging) */}
-                <View className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-6">
-                  <TranslatedText variant="bold" className="text-gray-800 text-lg mb-3">
-                    Child ID
-                  </TranslatedText>
-                  <Text className="text-gray-500">{childId}</Text>
-                </View>
-
-                {/* Placeholder for future content */}
-                <View className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-6">
-                  <TranslatedText variant="bold" className="text-gray-800 text-lg mb-3">
-                    Coming Soon
-                  </TranslatedText>
-                  <TranslatedText className="text-gray-500">
-                    Additional child information and progress tracking will be available here in future updates.
-                  </TranslatedText>
-                </View>
+              <TourTarget id="parent-child-profile-streak">
+              <View
+                className="px-4"
+                onLayout={({ nativeEvent }) => {
+                  profileTourOffsetsRef.current.streak = nativeEvent.layout.y
+                }}
+              >
+                <ChildStreakSection childId={childId} mode="summary" />
               </View>
+              </TourTarget>
+
+              {/* Achievements Section */}
+              <TourTarget id="parent-child-profile-achievements">
+              <View
+                className="p-4 mt-2"
+                onLayout={({ nativeEvent }) => {
+                  profileTourOffsetsRef.current.achievements = nativeEvent.layout.y
+                }}
+              >
+                <View className="flex-row justify-between items-center mb-3">
+                    <TranslatedText variant="bold" className="text-gray-800 text-lg">
+                    Achievements
+                    </TranslatedText>
+                </View>
+                
+                {isLoadingAchievements ? (
+                  <View className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 items-center">
+                    <TranslatedText className="text-gray-500">Loading achievements...</TranslatedText>
+                  </View>
+                ) : childsEarnedFullAchievements.length > 0 ? (
+                  <View>
+                    {/* Show either 5 or all achievements based on state */}
+                    {(showAllAchievements ? childsEarnedFullAchievements : childsEarnedFullAchievements.slice(0, 5)).map((achievement, index, displayedArray) => (
+                      <View
+                        key={achievement.earned_instance_id}
+                        className={index < displayedArray.length - 1 ? "mb-3" : ""}
+                      >
+                        <AchievementCard
+                          achievement={achievement}
+                          unlocked
+                          earnedAtLabel={formatDate(achievement.earned_at_timestamp)}
+                        />
+                      </View>
+                    ))}
+                    
+                    {/* Show More/Less button - only show if there are more than 5 achievements */}
+                    {childsEarnedFullAchievements.length > 5 && (
+                      <TouchableOpacity 
+                        onPress={toggleShowAllAchievements}
+                        className="mt-3 py-3 bg-white rounded-xl border border-gray-200 items-center"
+                      >
+                        <View className="flex-row items-center">
+                          <TranslatedText className="text-sm text-purple-700 font-medium mr-1">
+                            {showAllAchievements ? "Show Less" : `Show All (${childsEarnedFullAchievements.length})`}
+                          </TranslatedText>
+                          <Ionicons 
+                            name={showAllAchievements ? "chevron-up" : "chevron-down"} 
+                            size={16} 
+                            color="#7b5af0" 
+                          />
+                        </View>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ) : (
+                  <View className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 items-center">
+                    <Ionicons name="sad-outline" size={32} color="#9ca3af" className="mb-2"/>
+                    <TranslatedText className="text-gray-500 text-center">
+                      {`${childData?.name || "This child"} hasn't unlocked any achievements yet.`}
+                    </TranslatedText>
+                    <TranslatedText className="text-gray-400 text-xs text-center mt-1">
+                      Complete Learning Hub lessons and games to earn badges.
+                    </TranslatedText>
+                  </View>
+                )}
+              </View>
+              </TourTarget>
+
             </>
           ) : (
-            <View className="flex-1 items-center justify-center p-4">
-              <TranslatedText>Child not found</TranslatedText>
+            <View className="flex-1 items-center justify-center p-6">
+              <TranslatedText className="text-gray-600">Child not found or an error occurred.</TranslatedText>
             </View>
           )}
         </ScrollView>
       </SafeAreaView>
+      <GameTour
+        finishLabel="Done"
+        onComplete={profileTour.complete}
+        onDismiss={profileTour.dismiss}
+        onUnavailable={profileTour.close}
+        positioning={PARENT_SCREEN_TOUR_POSITIONING}
+        steps={profileTourSteps}
+        visible={profileTour.visible}
+      />
     </>
+    </GameTourProvider>
   )
 }

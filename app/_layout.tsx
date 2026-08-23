@@ -1,174 +1,304 @@
 "use client";
 
-import { Stack } from "expo-router";
-import { useState, useEffect, useRef } from "react";
+import { SplashScreen, Stack, usePathname, useRouter } from "expo-router";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../lib/supabase";
-import { AppState, type AppStateStatus } from "react-native"; // Add AppState
+import { AppState, View } from "react-native";
 import type { Session } from "@supabase/supabase-js";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter, usePathname } from "expo-router";
 import { useFonts } from "expo-font";
-import { SplashScreen } from "expo-router";
-import { Audio } from "expo-av";
+import * as Linking from "expo-linking";
+import * as ScreenOrientation from "expo-screen-orientation";
+import {
+  getAccountDeletionState,
+  isAccountDeletionBlockingNormalAccess,
+  type AccountDeletionState,
+} from "@/lib/accountManagement";
+import { AnimatedSplashTransition } from "@/components/brand/AnimatedSplashTransition";
+import { rememberAuthRedirectUrl } from "@/lib/authRedirectEvents";
+import { hasCompletedOnboarding } from "@/lib/onboarding";
 import "@/global.css";
-import { ChildProvider } from '@/context/ChildContext';
+import { ChildProvider, useChild } from "@/context/ChildContext";
+import { AudioProvider } from "@/context/AudioContext";
+import { FocusedActivityAudio } from "@/components/audio/FocusedActivityAudio";
+import {
+  NetworkStatusNotice,
+  shouldShowPersistentNetworkBanner,
+} from "@/components/common/NetworkStatusNotice";
+import {
+  configureNotificationPresentation,
+  deactivateAccountLearningReminders,
+  observeNotificationOpens,
+  syncRecurringRemindersIfEnabled,
+} from "@/lib/notifications";
+import { cancelScheduledStreakSync, clearStreakMemory } from "@/lib/streakRepository";
+import { clearParentSecuritySession } from "@/lib/parentAccess";
+import { ParentProfileProvider } from "@/context/ParentProfileContext";
+import { waitForStartupTask } from "@/lib/startup";
+import {
+  ADULT_SYSTEM_UI_OPTIONS,
+  CHILD_FULLSCREEN_OPTIONS,
+} from "@/constants/SystemUi";
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
+
+const ADULT_ROUTE_ORIENTATION = "portrait_up" as const;
+const CHILD_ROUTE_ORIENTATION = "landscape_left" as const;
+const ADULT_ORIENTATION_LOCK = ScreenOrientation.OrientationLock.PORTRAIT_UP;
+const CHILD_ORIENTATION_LOCK = ScreenOrientation.OrientationLock.LANDSCAPE_LEFT;
+type RouteOrientationMode = "adult" | "child";
+
+const getRouteOrientationMode = (routePathname: string): RouteOrientationMode =>
+  routePathname.startsWith("/child") ? "child" : "adult";
+
+export const requiresAuthenticatedSession = (routePathname: string): boolean =>
+  routePathname === "/notification-permission" ||
+  routePathname === "/child-list" ||
+  routePathname.startsWith("/child/") ||
+  routePathname === "/child" ||
+  routePathname.startsWith("/parent/") ||
+  routePathname === "/parent";
+
+const PARENT_GATE_EXEMPT_ROUTES = new Set([
+  "/login",
+  "/signup",
+  "/check-email",
+  "/forgot-password",
+  "/auth/callback",
+  "/reset-password",
+  "/account-reactivation",
+]);
+
+export const requiresParentGateForActiveChild = (
+  routePathname: string,
+  activeChildId?: string | null,
+  requiresParentUnlock = false,
+  isEnteringChildMode = false,
+): boolean => {
+  if (!activeChildId && !requiresParentUnlock) return false;
+  if (activeChildId && isEnteringChildMode && !requiresParentUnlock) return false;
+  if (PARENT_GATE_EXEMPT_ROUTES.has(routePathname)) return false;
+  return !(
+    routePathname === "/child" ||
+    routePathname.startsWith("/child/")
+  );
+};
+
+function SessionSecurityBoundary({ accountId }: { accountId: string | null }) {
+  const previousAccountId = useRef<string | null | undefined>(undefined);
+  const {
+    activeChild,
+    completeChildModeEntry,
+    isEnteringChildMode,
+    isRestoringActiveChild,
+    requiresParentUnlock,
+  } = useChild();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    const previous = previousAccountId.current;
+    previousAccountId.current = accountId;
+
+    if (previous !== undefined && previous !== accountId) {
+      clearParentSecuritySession();
+    }
+  }, [accountId]);
+
+  useEffect(() => {
+    if (
+      isEnteringChildMode &&
+      (pathname === "/child" || pathname.startsWith("/child/"))
+    ) {
+      // Subsequent navigation away from child mode must use the parent gate.
+      completeChildModeEntry();
+    }
+  }, [completeChildModeEntry, isEnteringChildMode, pathname]);
+
+  useEffect(() => {
+    if (
+      accountId &&
+      !isRestoringActiveChild &&
+      requiresParentGateForActiveChild(
+        pathname,
+        activeChild?.id,
+        requiresParentUnlock,
+        isEnteringChildMode,
+      )
+    ) {
+      router.replace("/child/parent-gate");
+    }
+  }, [
+    accountId,
+    activeChild?.id,
+    isEnteringChildMode,
+    isRestoringActiveChild,
+    pathname,
+    requiresParentUnlock,
+    router,
+  ]);
+
+  return null;
+}
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const soundRef = useRef<Audio.Sound | null>(null);
-  const isMusicInitialized = useRef(false);
-  const appState = useRef(AppState.currentState); // Track app state
+  const [resumeDelayedSession, setResumeDelayedSession] = useState(false);
+  const [showSplashTransition, setShowSplashTransition] = useState(true);
+  const [accountDeletionState, setAccountDeletionState] =
+    useState<AccountDeletionState | null>(null);
+  const pathnameRef = useRef("/");
+  const blockedRouteRefreshPathRef = useRef<string | null>(null);
+  const accountStateRequestRef = useRef(0);
+  const lastRequestedOrientationMode = useRef<RouteOrientationMode | null>(null);
+  const previousReminderAccountRef = useRef<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
 
-  // Use the useFonts hook instead of loadAsync
   const [fontsLoaded] = useFonts({
-    "Atma-Bold": require("../assets/fonts/Atma-Bold.ttf"),
-    "Atma-Light": require("../assets/fonts/Atma-Light.ttf"),
-    "Atma-Medium": require("../assets/fonts/Atma-Medium.ttf"),
-    "Atma-Regular": require("../assets/fonts/Atma-Regular.ttf"),
-    "Atma-SemiBold": require("../assets/fonts/Atma-SemiBold.ttf"),
-  });
+  "SuperChips": require("../assets/fonts/SuperChips.ttf"),
+  "Quicksand-Light": require("../assets/fonts/Quicksand-Light.ttf"),
+  "Quicksand-Regular": require("../assets/fonts/Quicksand-Regular.ttf"),
+  "Quicksand-Medium": require("../assets/fonts/Quicksand-Medium.ttf"),
+  "Quicksand-SemiBold": require("../assets/fonts/Quicksand-SemiBold.ttf"),
+  "Quicksand-Bold": require("../assets/fonts/Quicksand-Bold.ttf"),
+});
 
   // Add a function to check onboarding status
   const checkOnboardingStatus = async () => {
     try {
-      const value = await AsyncStorage.getItem("@onboarding_completed");
-      setShowOnboarding(value !== "true");
+      setShowOnboarding(!(await hasCompletedOnboarding()));
     } catch (error) {
       console.error("Failed to get onboarding status", error);
       setShowOnboarding(true);
     }
   };
 
-  // Audio setup for playing background music
-  const playBackgroundMusic = async () => {
-    // Only initialize music if it hasn't been initialized yet
-    if (isMusicInitialized.current) return;
-
-    try {
-      // Configure audio mode first
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false, // Changed to false to stop in background
-        shouldDuckAndroid: true, // Lower volume when notifications occur
-      });
-
-      const { sound } = await Audio.Sound.createAsync(
-        require("../assets/audio/background-music.mp3"),
-        {
-          shouldPlay: true,
-          isLooping: true,
-          volume: 0.2, // Set volume during creation
-        }
-      );
-
-      // Store the sound in the ref
-      soundRef.current = sound;
-      isMusicInitialized.current = true;
-
-      // Add status update listener to handle interruptions
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (
-          status.isLoaded &&
-          !status.isPlaying &&
-          isMusicInitialized.current &&
-          appState.current === "active" // Only auto-restart if app is active
-        ) {
-          // If music stops unexpectedly but should be playing, restart it
-          sound.playAsync();
-        }
-      });
-
-      console.log("Background music started successfully");
-    } catch (error) {
-      console.error("Error playing background music:", error);
-    }
-  };
-
-  // Handle app state changes
-  const handleAppStateChange = async (nextAppState: AppStateStatus) => {
-    if (
-      appState.current.match(/inactive|background/) &&
-      nextAppState === "active"
-    ) {
-      // App has come to the foreground
-      console.log("App has come to the foreground!");
-      // Resume audio if it was initialized before
-      if (isMusicInitialized.current && soundRef.current) {
-        try {
-          await soundRef.current.playAsync();
-          console.log("Background music resumed");
-        } catch (error) {
-          console.error("Error resuming background music:", error);
-        }
-      }
-    } else if (
-      appState.current === "active" &&
-      nextAppState.match(/inactive|background/)
-    ) {
-      // App has gone to the background
-      console.log("App has gone to the background!");
-      // Pause audio
-      if (soundRef.current) {
-        try {
-          await soundRef.current.pauseAsync();
-          console.log("Background music paused");
-        } catch (error) {
-          console.error("Error pausing background music:", error);
-        }
-      }
-    }
-
-    // Update the AppState
-    appState.current = nextAppState;
-  };
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
 
   useEffect(() => {
-    const initApp = async () => {
-      await checkOnboardingStatus();
+    configureNotificationPresentation();
 
-      // Check Supabase session
-      const { data } = await supabase.auth.getSession();
-      setSession(data.session);
+    return observeNotificationOpens((url) => {
+      router.push(url as any);
+    });
+  }, [router]);
+
+  useEffect(() => {
+    const accountId = session?.user.id ?? null;
+    const previousAccountId = previousReminderAccountRef.current;
+    previousReminderAccountRef.current = accountId;
+
+    if (previousAccountId && previousAccountId !== accountId) {
+      cancelScheduledStreakSync();
+      clearStreakMemory(previousAccountId);
+      void deactivateAccountLearningReminders(previousAccountId).catch((error) => {
+        console.warn("Could not deactivate the previous account's learning reminder:", error);
+      });
+    }
+    if (accountId) {
+      void syncRecurringRemindersIfEnabled(accountId).catch((error) => {
+        console.warn("Could not sync learning reminders:", error);
+      });
+    }
+  }, [session?.user.id]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void Linking.getInitialURL().then((url) => {
+      if (isMounted) rememberAuthRedirectUrl(url);
+    });
+
+    const subscription = Linking.addEventListener("url", ({ url }) => {
+      rememberAuthRedirectUrl(url);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.remove();
+    };
+  }, []);
+
+  const loadAccountDeletionState = useCallback(async (currentSession: Session | null) => {
+    const requestId = accountStateRequestRef.current + 1;
+    accountStateRequestRef.current = requestId;
+
+    if (!currentSession) {
+      setAccountDeletionState(null);
+      return;
+    }
+
+    try {
+      const state = await getAccountDeletionState(currentSession.user.id);
+      if (accountStateRequestRef.current === requestId) {
+        setAccountDeletionState(state);
+      }
+    } catch (error) {
+      console.error("Could not load account deletion state:", error);
+      if (accountStateRequestRef.current === requestId) {
+        setAccountDeletionState(null);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const initApp = async () => {
+      // Both reads are local in the normal case, so run them together. A token
+      // refresh may still wait on a poor connection, so it gets a short launch
+      // deadline and can finish in the background.
+      const sessionRequest = supabase.auth.getSession();
+      const [, sessionResult] = await Promise.all([
+        checkOnboardingStatus(),
+        waitForStartupTask(sessionRequest),
+      ]);
+      if (!isMounted) return;
+
+      if (sessionResult.status === "resolved") {
+        setSession(sessionResult.value.data.session);
+        setIsLoading(false);
+        void loadAccountDeletionState(sessionResult.value.data.session);
+        return;
+      }
 
       setIsLoading(false);
+      if (sessionResult.status === "rejected") {
+        console.error("Could not restore the app session:", sessionResult.error);
+        return;
+      }
+
+      void sessionRequest.then(
+        ({ data }) => {
+          if (!isMounted) return;
+          setSession(data.session);
+          setResumeDelayedSession(Boolean(data.session));
+          void loadAccountDeletionState(data.session);
+        },
+        (error) => {
+          console.error("Could not finish restoring the delayed app session:", error);
+        },
+      );
     };
 
-    initApp();
+    void initApp();
 
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (!session) setResumeDelayedSession(false);
+      void loadAccountDeletionState(session);
     });
 
-    // Set up AppState event listener
-    const subscription = AppState.addEventListener(
-      "change",
-      handleAppStateChange
-    );
-
-    // Cleanup subscription
     return () => {
+      isMounted = false;
       data.subscription.unsubscribe();
-      subscription.remove(); // Remove AppState listener
     };
-  }, []);
-
-  // Cleanup sound when component unmounts
-  useEffect(() => {
-    return () => {
-      if (soundRef.current) {
-        soundRef.current.unloadAsync();
-        soundRef.current = null;
-        isMusicInitialized.current = false;
-      }
-    };
-  }, []);
+  }, [loadAccountDeletionState]);
 
   useEffect(() => {
     if (fontsLoaded && !isLoading) {
@@ -176,49 +306,166 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, isLoading]);
 
-  // Start playing the background music when the component is ready
-  useEffect(() => {
-    if (!isLoading && fontsLoaded && !isMusicInitialized.current) {
-      playBackgroundMusic(); // Start background music only once
-    }
-  }, [isLoading, fontsLoaded]);
-
   // Handle routing based on authentication and onboarding state
   useEffect(() => {
     if (isLoading || !fontsLoaded) return;
 
+    const isAccountReactivationRoute = pathname === "/account-reactivation";
+    const accountAccessBlocked = isAccountDeletionBlockingNormalAccess(accountDeletionState);
+
+    if (!session && isAccountReactivationRoute) {
+      router.replace("/login");
+      return;
+    }
+
+    if (!session && requiresAuthenticatedSession(pathname)) {
+      router.replace("/login");
+      return;
+    }
+
+    if (session && accountAccessBlocked && !isAccountReactivationRoute) {
+      if (blockedRouteRefreshPathRef.current !== pathname) {
+        blockedRouteRefreshPathRef.current = pathname;
+        void loadAccountDeletionState(session);
+        return;
+      }
+
+      router.replace("/account-reactivation" as any);
+      return;
+    }
+
+    blockedRouteRefreshPathRef.current = null;
+
+    if (session && !accountAccessBlocked && isAccountReactivationRoute) {
+      router.replace("/parent");
+      return;
+    }
+
+    if (session && resumeDelayedSession && pathname === "/login") {
+      router.replace(accountAccessBlocked ? ("/account-reactivation" as any) : "/parent");
+      return;
+    }
+
     // Only redirect if we're on the root ("/") to avoid redirect loops
     if (pathname === "/") {
-      if (showOnboarding) {
-        router.replace("/");
-      } else if (session) {
-        router.replace("/parent");
-      } else {
+      if (session) {
+        router.replace(accountAccessBlocked ? ("/account-reactivation" as any) : "/parent");
+      } else if (showOnboarding === false) {
         router.replace("/login");
       }
     }
-  }, [isLoading, fontsLoaded, showOnboarding, session, pathname]);
+  }, [
+    accountDeletionState,
+    fontsLoaded,
+    isLoading,
+    loadAccountDeletionState,
+    pathname,
+    resumeDelayedSession,
+    router,
+    session,
+    showOnboarding,
+  ]);
 
-  // Return null until everything is ready
-  if (!fontsLoaded || isLoading) {
-    return null; // This keeps the splash screen visible
-  }
+  const applyRouteOrientation = useCallback(async (routePathname: string, force = false) => {
+    const orientationMode = getRouteOrientationMode(routePathname);
+
+    if (!force && lastRequestedOrientationMode.current === orientationMode) {
+      return;
+    }
+
+    const targetLock = orientationMode === "child" ? CHILD_ORIENTATION_LOCK : ADULT_ORIENTATION_LOCK;
+    const targetLabel = orientationMode === "child" ? CHILD_ROUTE_ORIENTATION : ADULT_ROUTE_ORIENTATION;
+
+    try {
+      const currentLock = await ScreenOrientation.getOrientationLockAsync();
+      if (force || currentLock !== targetLock) {
+        await ScreenOrientation.lockAsync(targetLock);
+      }
+      lastRequestedOrientationMode.current = orientationMode;
+
+    } catch (error) {
+      console.error(`Failed to lock ${routePathname} to ${targetLabel}:`, error);
+    }
+  }, []);
+
+  const handleSplashTransitionDone = useCallback(() => {
+    setShowSplashTransition(false);
+  }, []);
+
+  useEffect(() => {
+    if (isLoading || !fontsLoaded) return;
+
+    void applyRouteOrientation(pathname);
+  }, [applyRouteOrientation, fontsLoaded, isLoading, pathname]);
+
+  useEffect(() => {
+    if (isLoading || !fontsLoaded) return;
+
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState !== "active") {
+        clearParentSecuritySession();
+      }
+      if (nextAppState === "active") {
+        void applyRouteOrientation(pathnameRef.current, true);
+        if (session?.user.id) {
+          void syncRecurringRemindersIfEnabled(session.user.id).catch((error) => {
+            console.warn("Could not refresh learning reminders on app resume:", error);
+          });
+        }
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [applyRouteOrientation, fontsLoaded, isLoading, session?.user.id]);
 
   return (
-    <ChildProvider>
-      <Stack
-        screenOptions={{
-          headerTitleStyle: { fontFamily: "Atma-Medium" }, // Use Atma for headers
-          headerShown: false, // Set headerShown false globally
-        }}
-      >
-        <Stack.Screen name="index" options={{ gestureEnabled: false }} />
-        <Stack.Screen name="login" />
-        <Stack.Screen name="signup" />
-        <Stack.Screen name="forgot-password" />
-        <Stack.Screen name="child-list" />
-        <Stack.Screen name="parent" />
-      </Stack>
-    </ChildProvider>
+    <AudioProvider>
+      <FocusedActivityAudio />
+      <ParentProfileProvider accountId={session?.user.id ?? null}>
+        <ChildProvider accountId={session?.user.id ?? null}>
+          <SessionSecurityBoundary accountId={session?.user.id ?? null} />
+          <View style={{ flex: 1 }}>
+            <Stack
+              key={fontsLoaded ? "fonts-ready" : "fonts-loading"}
+              screenOptions={{
+                ...ADULT_SYSTEM_UI_OPTIONS,
+                animation: "fade_from_bottom",
+                headerTitleStyle: { fontFamily: "Quicksand-Medium" },
+                headerShown: false,
+              }}
+            >
+              <Stack.Screen name="index" options={{ gestureEnabled: false, orientation: ADULT_ROUTE_ORIENTATION }} />
+              <Stack.Screen name="login" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+              <Stack.Screen name="signup" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+              <Stack.Screen name="notification-permission" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+              <Stack.Screen name="check-email" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+              <Stack.Screen name="forgot-password" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+              <Stack.Screen name="auth/callback" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+              <Stack.Screen name="reset-password" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+              <Stack.Screen name="account-reactivation" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+              <Stack.Screen name="child-list" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
+              <Stack.Screen name="parent" options={{ orientation: ADULT_ROUTE_ORIENTATION, animation: "none" }} />
+              <Stack.Screen
+                name="child"
+                options={{
+                  ...CHILD_FULLSCREEN_OPTIONS,
+                  animation: "none",
+                  orientation: CHILD_ROUTE_ORIENTATION,
+                }}
+              />
+            </Stack>
+          {fontsLoaded && !isLoading && showSplashTransition ? (
+            <AnimatedSplashTransition onDone={handleSplashTransitionDone} />
+          ) : null}
+          <NetworkStatusNotice
+            ready={fontsLoaded && !isLoading && !showSplashTransition}
+            showPersistentBanner={shouldShowPersistentNetworkBanner(pathname)}
+          />
+          </View>
+        </ChildProvider>
+      </ParentProfileProvider>
+    </AudioProvider>
   );
 }

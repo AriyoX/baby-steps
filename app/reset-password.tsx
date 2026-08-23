@@ -1,24 +1,46 @@
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  StyleSheet,
-  View,
-  TextInput,
+  Alert,
   Animated,
-  TouchableOpacity,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
-  TouchableWithoutFeedback,
-  Keyboard,
-  Alert,
-  StatusBar,
   ScrollView,
+  StatusBar,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
-import { Text } from "@/components/StyledText";
 import { FontAwesome } from "@expo/vector-icons";
-import { supabase } from "../lib/supabase";
-import { useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
 import * as Linking from "expo-linking";
+import { useRouter } from "expo-router";
+import { BrandMark } from "@/components/brand/BrandMark";
+import { Text } from "@/components/StyledText";
+import { brandColors } from "@/constants/Brand";
+import {
+  keyboardAwareScrollContentStyle,
+  readableTextInputStyle,
+} from "@/constants/formStyles";
+import {
+  clearLatestAuthRedirectUrl,
+  getLatestAuthRedirectUrl,
+  subscribeAuthRedirectUrls,
+} from "@/lib/authRedirectEvents";
+import {
+  getFriendlyAuthRedirectErrorMessage,
+  handleSupabaseAuthRedirectUrl,
+  hasAuthRedirectPayload,
+  isPasswordResetRedirectUrl,
+} from "@/lib/authRedirects";
+import {
+  getPasswordUpdateErrorMessage,
+  validateResetPasswordForm,
+} from "@/lib/authMessages";
+import { supabase } from "../lib/supabase";
+import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network";
+
+type RecoveryLinkStatus = "checking" | "ready" | "error";
 
 export default function ResetPassword() {
   const router = useRouter();
@@ -26,17 +48,21 @@ export default function ResetPassword() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [passwordSent, setPasswordSent] = useState(false);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [linkStatus, setLinkStatus] = useState<RecoveryLinkStatus>("checking");
+  const [linkErrorMessage, setLinkErrorMessage] = useState(
+    getFriendlyAuthRedirectErrorMessage("recovery"),
+  );
 
-  // Animation values
   const bounceValue = useRef(new Animated.Value(0)).current;
   const floatValue = useRef(new Animated.Value(0)).current;
   const scaleValue = useRef(new Animated.Value(0)).current;
   const spinValue = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView | null>(null);
+  const processedRecoveryUrlRef = useRef<string | null>(null);
 
-  // Set up animations
   useEffect(() => {
-    // Entrance animation
     Animated.spring(scaleValue, {
       toValue: 1,
       tension: 20,
@@ -44,40 +70,37 @@ export default function ResetPassword() {
       useNativeDriver: true,
     }).start();
 
-    // Floating animation
-    Animated.loop(
+    const floatAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(floatValue, {
           toValue: 1,
-          duration: 2000,
+          duration: 2200,
           useNativeDriver: true,
         }),
         Animated.timing(floatValue, {
           toValue: 0,
-          duration: 2000,
+          duration: 2200,
           useNativeDriver: true,
         }),
       ])
-    ).start();
+    );
 
-    // Bounce animation for decorative elements
-    Animated.loop(
+    const dotAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(bounceValue, {
           toValue: 1,
-          duration: 800,
+          duration: 1000,
           useNativeDriver: true,
         }),
         Animated.timing(bounceValue, {
           toValue: 0,
-          duration: 800,
+          duration: 1000,
           useNativeDriver: true,
         }),
       ])
-    ).start();
+    );
 
-    // Spin animation for the key icon
-    Animated.loop(
+    const spinAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(spinValue, {
           toValue: 1,
@@ -90,13 +113,138 @@ export default function ResetPassword() {
           useNativeDriver: true,
         }),
       ])
-    ).start();
-  }, []);
+    );
 
-  // Animation transformations
+    floatAnimation.start();
+    dotAnimation.start();
+    spinAnimation.start();
+
+    return () => {
+      floatAnimation.stop();
+      dotAnimation.stop();
+      spinAnimation.stop();
+    };
+  }, [bounceValue, floatValue, scaleValue, spinValue]);
+
+  const ensureRecoverySession = useCallback(
+    async (candidateUrl?: string | null) => {
+      const recoveryUrl =
+        candidateUrl && isPasswordResetRedirectUrl(candidateUrl) ? candidateUrl : null;
+
+      if (recoveryUrl && hasAuthRedirectPayload(recoveryUrl)) {
+        if (processedRecoveryUrlRef.current === recoveryUrl) return;
+
+        processedRecoveryUrlRef.current = recoveryUrl;
+        setLinkStatus("checking");
+
+        try {
+          await handleSupabaseAuthRedirectUrl(recoveryUrl);
+          clearLatestAuthRedirectUrl(recoveryUrl);
+          setLinkStatus("ready");
+        } catch {
+          clearLatestAuthRedirectUrl(recoveryUrl);
+          setLinkErrorMessage(getFriendlyAuthRedirectErrorMessage("recovery"));
+          setLinkStatus("error");
+        }
+
+        return;
+      }
+
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !data.session) {
+        setLinkErrorMessage(getFriendlyAuthRedirectErrorMessage("recovery"));
+        setLinkStatus("error");
+        return;
+      }
+
+      setLinkStatus("ready");
+    },
+    [],
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const validateInitialLink = async () => {
+      const storedUrl = getLatestAuthRedirectUrl();
+      if (storedUrl && isPasswordResetRedirectUrl(storedUrl)) {
+        await ensureRecoverySession(storedUrl);
+        return;
+      }
+
+      const initialUrl = await Linking.getInitialURL();
+      if (!isMounted) return;
+
+      if (initialUrl && isPasswordResetRedirectUrl(initialUrl)) {
+        await ensureRecoverySession(initialUrl);
+      } else {
+        await ensureRecoverySession();
+      }
+    };
+
+    void validateInitialLink();
+
+    const unsubscribe = subscribeAuthRedirectUrls((url) => {
+      if (isPasswordResetRedirectUrl(url)) {
+        void ensureRecoverySession(url);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [ensureRecoverySession]);
+
+  const handleResetPassword = async () => {
+    if (linkStatus !== "ready") return;
+
+    const validationMessage = validateResetPasswordForm(password, confirmPassword);
+    if (validationMessage) {
+      Alert.alert("Let's check that", validationMessage);
+      return;
+    }
+
+    if (!(await requireInternet("Updating your password"))) return;
+
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.updateUser({
+        password,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
+      if (signOutError) {
+        console.warn("Could not clear password recovery session.");
+      }
+
+      setPassword("");
+      setConfirmPassword("");
+      setPasswordSent(true);
+    } catch (error) {
+      if (await showNetworkErrorIfNeeded(error, "Updating your password")) return;
+      Alert.alert(
+        "Could not reset password",
+        getPasswordUpdateErrorMessage(error),
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const scrollToInput = (y: number) => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y, animated: true });
+    }, 80);
+  };
+
   const translateY = floatValue.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, -15],
+    outputRange: [0, -12],
   });
 
   const bounceDot1 = bounceValue.interpolate({
@@ -114,268 +262,213 @@ export default function ResetPassword() {
     outputRange: ["0deg", "360deg"],
   });
 
-  // Handle deep link when the app is opened from the reset password email
-  useEffect(() => {
-    const handleDeepLink = (url: string) => {
-      if (!url) return;
-
-      // Parse the URL
-      const { queryParams } = Linking.parse(url);
-
-      if (queryParams && queryParams.access_token) {
-        if (typeof queryParams.access_token === 'string') {
-          setAccessToken(queryParams.access_token);
-        }
-        console.log(
-          "Received access token from deep link:",
-          queryParams.access_token
-        );
-
-        // You might want to verify the token here
-        // This depends on your specific authentication flow
-      }
-    };
-
-    const getInitialURL = async () => {
-      const initialUrl = await Linking.getInitialURL();
-      if (initialUrl) {
-        handleDeepLink(initialUrl);
-      }
-    };
-    
-    getInitialURL();
-    const linkingListener = Linking.addEventListener("url", (event) => {
-      handleDeepLink(event.url);
-    });
-
-   return () => {
-     linkingListener.remove();
-   };
-  }, []);
-  
-  const handleResetPassword = async () => {
-    if (!password || !confirmPassword) {
-      Alert.alert("Error", "Please fill in all fields");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
-      return;
-    }
-
-    if (password.length < 6) {
-      Alert.alert("Error", "Password must be at least 6 characters");
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      // Update the user's password
-      const { error } = await supabase.auth.updateUser({
-        password: password,
-      });
-
-      if (error) {
-        throw error;
-      } else {
-        setPasswordSent(true);
-      }
-      
-    } catch (error: any) {
-      Alert.alert(
-        "Error",
-        error.message || "An error occurred while resetting your password"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const checkUserSession = async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) {
-      // No active session, redirect to login
-      Alert.alert(
-        "Error",
-        "Your reset link has expired. Please request a new one."
-      );
-      router.replace("/forgot-password");
-    }
-  };
-
-  
-
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      className="flex-1 bg-orange-100"
+      behavior={Platform.OS === "ios" ? "padding" : "padding"}
+      className="flex-1 bg-secondary-50"
     >
-      <StatusBar
-        translucent
-        backgroundColor="transparent"
-        barStyle="dark-content"
-      />
+      <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
+          ref={scrollViewRef}
+          contentContainerStyle={keyboardAwareScrollContentStyle}
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {/* Decorative elements */}
           <View className="absolute top-20 left-8">
             <Animated.View
-              className="w-12 h-12 rounded-full bg-orange-200 opacity-50"
+              className="w-12 h-12 rounded-full bg-secondary-200 opacity-50"
               style={{ transform: [{ translateY: bounceDot1 }] }}
             />
           </View>
           <View className="absolute top-20 right-12">
             <Animated.View
-              className="w-8 h-8 rounded-full bg-orange-300 opacity-60"
+              className="w-8 h-8 rounded-full bg-secondary-300 opacity-60"
               style={{ transform: [{ translateY: bounceDot2 }] }}
             />
           </View>
-          {/* Header */}
+
           <View className="items-center mt-14 mb-4">
-            <Animated.View
-              style={{
-                transform: [{ translateY }, { scale: scaleValue }],
-              }}
-            >
-              <Text
-                variant="bold"
-                className="text-3xl  text-orange-500 ps-3 pt-3"
-              >
+            <BrandMark kind="wordmark" width={174} height={42} containerStyle={{ marginBottom: 12 }} />
+            <Animated.View style={{ transform: [{ translateY }, { scale: scaleValue }] }}>
+              <Text variant="bold" className="text-3xl text-secondary-700 pt-3 text-center">
                 Reset Password
-              </Text>
-              <Text className="text-lg text-center text-neutral-600 mt-3 px-8">
-                Enter your new password
               </Text>
             </Animated.View>
           </View>
 
-          {/* Animated icon */}
           <View className="items-center my-8">
             <Animated.View
-              className="w-32 h-32 bg-white rounded-full items-center justify-center shadow-lg border-4 border-accent-200"
-              style={{
-                transform: [{ translateY }, { scale: scaleValue }],
-              }}
+              className="w-32 h-32 bg-white rounded-full items-center justify-center shadow-lg border-4 border-secondary-200"
+              style={{ transform: [{ translateY }, { scale: scaleValue }] }}
             >
               {!passwordSent ? (
                 <Animated.View style={{ transform: [{ rotate: spin }] }}>
-                  <FontAwesome name="lock" size={60} color="#b559e6" />
+                  <FontAwesome name="lock" size={60} color={brandColors.shanaOrange} />
                 </Animated.View>
               ) : (
-                <Text className="text-[60px]">✉️</Text>
+                <FontAwesome name="check-circle" size={64} color={brandColors.success} />
               )}
             </Animated.View>
           </View>
 
-          {/* {Form} */}
           <Animated.View
-            className="mx-6 bg-white p-6 rounded-3xl shadow-md border-2 border-orange-100"
-            style={{
-              transform: [{ scale: scaleValue }],
-              opacity: scaleValue,
-            }}
+            className="mx-6 bg-white p-6 rounded-3xl shadow-md border-2 border-secondary-100"
+            style={{ transform: [{ scale: scaleValue }], opacity: scaleValue }}
           >
-            {!passwordSent ? (
+            {linkStatus === "checking" ? (
+              <View className="items-center py-4">
+                <View className="bg-secondary-100 p-4 rounded-2xl mb-4 w-full">
+                  <Text className="text-secondary-700 text-center text-base">
+                    Checking your link...
+                  </Text>
+                </View>
+              </View>
+            ) : linkStatus === "error" ? (
+              <View className="items-center py-4">
+                <View className="bg-secondary-100 p-4 rounded-2xl mb-4 w-full">
+                  <Text className="text-secondary-700 text-center text-base">
+                    {linkErrorMessage}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  className="bg-secondary-500 py-4 rounded-xl items-center shadow-md w-full mb-3"
+                  onPress={() => router.replace("/forgot-password")}
+                  activeOpacity={0.84}
+                >
+                  <Text variant="bold" className="text-white text-xl">
+                    Request a new link
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className="bg-primary-500 py-4 rounded-xl items-center shadow-md w-full"
+                  onPress={() => router.replace("/login")}
+                  activeOpacity={0.84}
+                >
+                  <Text variant="bold" className="text-white text-xl">
+                    Back to Login
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : !passwordSent ? (
               <>
                 <View className="mb-5">
-                  <Text className="text-orange-700  mb-3 text-lg">
-                    New Password
-                  </Text>
-                  <View className="flex-row items-center bg-orange-50 rounded-2xl px-5 py-4 border-2 border-orange-100">
-                    <View className="bg-orange-200 w-10 h-10 rounded-full flex items-center justify-center">
-                      <FontAwesome name="lock" size={20} color="#b559e6" />
+                  <Text className="text-secondary-700 mb-3 text-lg">New Password</Text>
+                  <View className="flex-row items-center bg-secondary-50 rounded-2xl px-5 py-4 border-2 border-secondary-100">
+                    <View className="bg-secondary-200 w-10 h-10 rounded-full items-center justify-center">
+                      <FontAwesome name="lock" size={20} color={brandColors.shanaOrange} />
                     </View>
                     <TextInput
-                      className="flex-1 ml-4 text-base text-neutral-800"
+                      className="flex-1 ml-4 text-lg text-neutral-800"
                       placeholder="Enter new password"
                       value={password}
                       onChangeText={setPassword}
                       autoCapitalize="none"
-                      secureTextEntry
-                      placeholderTextColor="#a0aec0"
-                      style={{
-                        textDecorationLine: "none",
-                        fontFamily: "Atma-Regular",
-                      }}
+                      autoComplete="new-password"
+                      autoCorrect={false}
+                      onFocus={() => scrollToInput(220)}
+                      secureTextEntry={!showPassword}
+                      placeholderTextColor={brandColors.neutral[400]}
+                      returnKeyType="next"
+                      style={readableTextInputStyle}
+                      textContentType="newPassword"
                     />
+                    <TouchableOpacity
+                      onPress={() => setShowPassword(!showPassword)}
+                      className="px-2"
+                      accessibilityRole="button"
+                      accessibilityLabel={showPassword ? "Hide new password" : "Show new password"}
+                    >
+                      <FontAwesome
+                        name={showPassword ? "eye-slash" : "eye"}
+                        size={20}
+                        color={brandColors.shanaOrange}
+                      />
+                    </TouchableOpacity>
                   </View>
                 </View>
 
                 <View className="mb-5">
-                  <Text className="text-orange-700  mb-3 text-lg">
-                    Confirm New Password
-                  </Text>
-                  <View className="flex-row items-center bg-orange-50 rounded-2xl px-5 py-4 border-2 border-orange-100">
-                    <View className="bg-orange-200 w-10 h-10 rounded-full flex items-center justify-center">
-                      <FontAwesome name="lock" size={20} color="#b559e6" />
+                  <Text className="text-secondary-700 mb-3 text-lg">Confirm New Password</Text>
+                  <View className="flex-row items-center bg-secondary-50 rounded-2xl px-5 py-4 border-2 border-secondary-100">
+                    <View className="bg-secondary-200 w-10 h-10 rounded-full items-center justify-center">
+                      <FontAwesome name="lock" size={20} color={brandColors.shanaOrange} />
                     </View>
                     <TextInput
-                      className="flex-1 ml-4 text-base text-neutral-800"
+                      className="flex-1 ml-4 text-lg text-neutral-800"
                       placeholder="Confirm new password"
                       value={confirmPassword}
                       onChangeText={setConfirmPassword}
-                      secureTextEntry
+                      secureTextEntry={!showConfirmPassword}
                       autoCapitalize="none"
-                      placeholderTextColor="#a0aec0"
-                      style={{
-                        textDecorationLine: "none",
-                        fontFamily: "Atma-Regular",
-                      }}
+                      autoComplete="new-password"
+                      autoCorrect={false}
+                      onFocus={() => scrollToInput(300)}
+                      placeholderTextColor={brandColors.neutral[400]}
+                      returnKeyType="done"
+                      style={readableTextInputStyle}
+                      textContentType="newPassword"
                     />
+                    <TouchableOpacity
+                      onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="px-2"
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        showConfirmPassword
+                          ? "Hide password confirmation"
+                          : "Show password confirmation"
+                      }
+                    >
+                      <FontAwesome
+                        name={showConfirmPassword ? "eye-slash" : "eye"}
+                        size={20}
+                        color={brandColors.shanaOrange}
+                      />
+                    </TouchableOpacity>
                   </View>
                 </View>
+
                 <TouchableOpacity
-                  className={`bg-orange-500 py-4 rounded-xl items-center shadow-md ${
-                    loading ? "opacity-70" : ""
-                  }`}
+                  className={`bg-secondary-500 py-4 rounded-xl items-center shadow-md ${loading ? "opacity-70" : ""}`}
                   onPress={handleResetPassword}
                   disabled={loading}
-                  activeOpacity={0.8}
+                  activeOpacity={0.84}
                 >
-                  <Text variant="bold" className="text-white  text-xl">
+                  <Text variant="bold" className="text-white text-xl">
                     {loading ? "Updating..." : "Reset Password"}
                   </Text>
                 </TouchableOpacity>
               </>
             ) : (
-              /* Success Message */
               <View className="items-center py-4">
                 <View className="bg-success-100 p-4 rounded-2xl mb-4 w-full">
                   <Text className="text-success-700 text-center text-base">
-                    Your new password has been set.
+                    Your password has been updated. Please sign in.
                   </Text>
                 </View>
                 <TouchableOpacity
-                  className="bg-orange-500 py-4 rounded-xl items-center shadow-md w-full"
+                  className="bg-primary-500 py-4 rounded-xl items-center shadow-md w-full"
                   onPress={() => router.replace("/login")}
+                  activeOpacity={0.84}
                 >
-                  <Text variant="bold" className="text-white  text-xl">
+                  <Text variant="bold" className="text-white text-xl">
                     Back to Login
                   </Text>
                 </TouchableOpacity>
               </View>
             )}
-            {/* Back to Login */}
-            {!passwordSent && (
+
+            {linkStatus === "ready" && !passwordSent && (
               <View className="mt-8 items-center">
-                <TouchableOpacity
-                  className="flex-row items-center"
-                  onPress={() => router.replace("/login")}
-                >
+                <TouchableOpacity className="flex-row items-center" onPress={() => router.replace("/login")}>
                   <FontAwesome
                     name="arrow-left"
                     size={16}
-                    color="#3399ff"
+                    color={brandColors.victoriaBlue}
                     style={{ marginRight: 6 }}
                   />
-                  <Text variant="bold" className="text-primary-600  text-base">
+                  <Text variant="bold" className="text-primary-600 text-base">
                     Back to Login
                   </Text>
                 </TouchableOpacity>

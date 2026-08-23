@@ -1,64 +1,149 @@
 "use client"
 
-import { Stack, useFocusEffect } from "expo-router"
-import { useCallback } from "react"
-import { useSafeAreaInsets } from "react-native-safe-area-context"
+import { Stack, useFocusEffect, usePathname, useRouter } from "expo-router"
+import { StatusBar } from "expo-status-bar"
+import { useCallback, useEffect, useRef } from "react"
+import { AppState } from "react-native"
 import * as ScreenOrientation from "expo-screen-orientation"
 import { useChild } from "@/context/ChildContext"
-import { useRouter } from "expo-router"
-import { LanguageProvider } from "@/context/language-context"
+import { ChildNoticeProvider } from "@/context/ChildNoticeContext"
+import { ChildUiLanguageProvider } from "@/context/ChildUiLanguageProvider"
+import { StreakProvider } from "@/context/StreakContext"
+import { StreakCelebrationHost } from "@/components/child/StreakCelebrationHost"
+import { CHILD_FULLSCREEN_OPTIONS } from "@/constants/SystemUi"
+
+const CHILD_ROUTE_ORIENTATION = "landscape_left" as const
+const CHILD_ORIENTATION_LOCK = ScreenOrientation.OrientationLock.LANDSCAPE_LEFT
 
 export default function TabLayout() {
-  const insets = useSafeAreaInsets()
-  const { activeChild } = useChild()
+  const { activeChild, isRestoringActiveChild, requiresParentUnlock } = useChild()
   const router = useRouter()
+  const pathname = usePathname()
+  const hasRequestedLandscape = useRef(false)
+  const isParentGateRoute = pathname === "/child/parent-gate"
+
+  const ensureChildLandscape = useCallback(async (forceLock = false) => {
+    if (!forceLock && hasRequestedLandscape.current) {
+      return
+    }
+
+    try {
+      const currentLock = await ScreenOrientation.getOrientationLockAsync()
+      if (forceLock || currentLock !== CHILD_ORIENTATION_LOCK) {
+        await ScreenOrientation.lockAsync(CHILD_ORIENTATION_LOCK)
+      }
+      hasRequestedLandscape.current = true
+    } catch (error) {
+      console.error("Failed to lock child layout to landscape:", error)
+    }
+  }, [])
+
+  useEffect(() => {
+    void ensureChildLandscape()
+  }, [ensureChildLandscape])
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
+        void ensureChildLandscape(true)
+      }
+    })
+
+    return () => {
+      subscription.remove()
+    }
+  }, [ensureChildLandscape])
 
   // This will run both on initial mount AND when screen comes into focus
   useFocusEffect(
     useCallback(() => {
+      void ensureChildLandscape()
+
       // Redirect to parent dashboard if no active child
-      if (!activeChild) {
+      if (
+        !isRestoringActiveChild &&
+        !activeChild &&
+        !(requiresParentUnlock && isParentGateRoute)
+      ) {
         router.replace("/parent")
         return
       }
 
-      console.log("Child tabs screen focused - locking to landscape")
-      const lockToLandscape = async () => {
-        try {
-          await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE_LEFT)
-        } catch (error) {
-          console.error("Failed to lock orientation:", error)
-        }
-      }
-
-      lockToLandscape()
-
-      // Cleanup function when screen loses focus
-      return () => {
-        console.log("Child screen unfocused")
-        const resetOrientation = async () => {
-          await ScreenOrientation.unlockAsync()
-        }
-
-        resetOrientation()
-      }
-    }, [activeChild]),
+    }, [
+      activeChild,
+      ensureChildLandscape,
+      isParentGateRoute,
+      isRestoringActiveChild,
+      requiresParentUnlock,
+      router,
+    ]),
   )
 
-  if (!activeChild) {
+  if (isRestoringActiveChild) {
     return null
   }
 
-  return (
-    <LanguageProvider>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen
-          name="parent-gate"
-          options={{
+  if (!activeChild) {
+    if (!requiresParentUnlock || !isParentGateRoute) return null
+
+    return (
+      <>
+        <StatusBar hidden />
+        <Stack
+          screenOptions={{
+            ...CHILD_FULLSCREEN_OPTIONS,
             headerShown: false,
+            orientation: CHILD_ROUTE_ORIENTATION,
           }}
-        />
-      </Stack>
-    </LanguageProvider>
+        >
+          <Stack.Screen
+            name="parent-gate"
+            options={{
+              headerShown: false,
+              orientation: CHILD_ROUTE_ORIENTATION,
+            }}
+          />
+        </Stack>
+      </>
+    )
+  }
+
+  return (
+    <ChildUiLanguageProvider key={activeChild.id}>
+      <StreakProvider key={activeChild.id}>
+        <ChildNoticeProvider key={activeChild.id} childId={activeChild.id}>
+          <StatusBar hidden />
+          <Stack
+            screenOptions={{
+              ...CHILD_FULLSCREEN_OPTIONS,
+              headerShown: false,
+              orientation: CHILD_ROUTE_ORIENTATION,
+            }}
+          >
+            <Stack.Screen
+              name="(tabs)"
+              options={{
+                animation: "none",
+                orientation: CHILD_ROUTE_ORIENTATION,
+              }}
+            />
+            <Stack.Screen
+              name="games"
+              options={{
+                orientation: CHILD_ROUTE_ORIENTATION,
+              }}
+            />
+            <Stack.Screen
+              name="parent-gate"
+              options={{
+                headerShown: false,
+                orientation: CHILD_ROUTE_ORIENTATION,
+              }}
+            />
+          </Stack>
+          <StreakCelebrationHost />
+        </ChildNoticeProvider>
+      </StreakProvider>
+    </ChildUiLanguageProvider>
   )
 }

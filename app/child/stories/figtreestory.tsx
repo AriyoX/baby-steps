@@ -1,18 +1,7 @@
-import React from 'react';
-import { View } from 'react-native';
-import FigTree from '@/components/stories/FigTreeStory';
-import { Stack } from 'expo-router';
+import React from "react";
+import { Redirect } from "expo-router";
 
+// Deprecated: Luganda story menus now use app/child/stories/[storyId].tsx with content_items rows.
 export default function FigTreeStory() {
-  return (
-    <View style={{ flex: 1 }}>
-      <Stack.Screen 
-        options={{ 
-          headerShown: false,
-          animation: 'slide_from_right'
-        }} 
-      />
-      <FigTree/>
-    </View>
-  );
+  return <Redirect href="/child/stories/fig-tree" />;
 }

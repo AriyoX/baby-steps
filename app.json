@@ -3,8 +3,8 @@
     "name": "Baby Steps",
     "slug": "baby-steps",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "orientation": "default",
+    "icon": "./assets/logo/Profile-pic.png",
     "scheme": "babysteps",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -14,25 +14,46 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      }
+        "foregroundImage": "./assets/logo/Profile-pic.png",
+        "backgroundColor": "#F8F6F1"
+      },
+      "blockedPermissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
+      ],
+      "package": "com.babystepslearn.app"
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/logo/Profile-pic.png"
     },
     "plugins": [
       "expo-router",
-      "expo-font",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/SuperChips.ttf",
+            "./assets/fonts/Quicksand-Light.ttf",
+            "./assets/fonts/Quicksand-Regular.ttf",
+            "./assets/fonts/Quicksand-Medium.ttf",
+            "./assets/fonts/Quicksand-SemiBold.ttf",
+            "./assets/fonts/Quicksand-Bold.ttf"
+          ]
+        }
+      ],
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/logo/Profile-pic.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#F8C23E"
         }
       ],
       [
@@ -41,28 +62,27 @@
           "initialOrientation": "DEFAULT"
         }
       ],
-      "expo-asset"
+      [
+        "expo-notifications",
+        {
+          "color": "#0274BB",
+          "defaultChannel": "learning-reminders"
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": false,
+          "savePhotosPermission": "Baby Steps adds a coloring picture to Photos only after you tap Save.",
+          "granularPermissions": []
+        }
+      ],
+      "expo-asset",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true
     },
-    "fonts": [
-      {
-        "asset": "./assets/fonts/Atma-Bold.ttf"
-      },
-      {
-        "asset": "./assets/fonts/Atma-Light.ttf"
-      },
-      {
-        "asset": "./assets/fonts/Atma-Medium.ttf"
-      },
-      {
-        "asset": "./assets/fonts/Atma-Regular.ttf"
-      },
-      {
-        "asset": "./assets/fonts/Atma-SemiBold.ttf"
-      }
-    ],
     "extra": {
       "router": {
         "origin": false

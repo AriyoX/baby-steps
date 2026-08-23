@@ -2,22 +2,100 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   TouchableOpacity,
-  Image,
-  Dimensions,
   Animated,
   Modal,
+  type ModalProps,
   ScrollView,
+  useWindowDimensions,
 } from "react-native";
-import { Audio } from "expo-av";
+import type { Audio } from "expo-av";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
-import * as ScreenOrientation from "expo-screen-orientation";
 import { Ionicons } from "@expo/vector-icons";
-import { gameLevels } from "./utils/wordgamewords"; // Import game levels
 import { Text } from "@/components/StyledText";
+import { ChildLoadingState } from "@/components/child/ChildLoadingState";
+import { ComingSoonState } from "@/components/child/ComingSoonState";
+import { CachedImage } from "@/components/common/CachedImage";
+import { useChild } from "@/context/ChildContext"; // Import useChild context
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext";
+import { brandColors } from "@/constants/Brand";
+import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages";
+import {
+  loadContentBundle,
+  resolveImageSource,
+  type WordGameLevel,
+} from "@/content/contentRepository";
+import { preloadContentBundleImages } from "@/content/imagePreloader";
+import { saveActivity } from "@/lib/utils"; // Import saveActivity function
+import { syncProgressNow } from "@/lib/progressRepository";
+import {
+  completeLocallyFirst,
+  runCompletionOnce,
+  type LocalFirstCompletionResult,
+  type LocalPersistenceStatus,
+} from "@/lib/completionReliability";
+import { recordQualifiedStreakActivity } from "@/lib/streakRepository";
+import { childHaptics } from "@/lib/childHaptics";
+import {
+  WordGameProgress,
+  DEFAULT_PROGRESS,
+  loadGameProgress,
+  saveGameProgress,
+  updateProgressForLevelCompletion,
+  isLevelUnlocked,
+} from "./utils/progressManagerWordGame";
+import { useAchievements } from "./achievements/useAchievements";
+import type { AchievementDefinition } from "./achievements/achievementTypes";
+import { audioManager } from "@/lib/audioManager";
+import { useChildNotice } from "@/context/ChildNoticeContext";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { getWordGameSizing } from "./responsiveSizing";
+import {
+  GameHeader,
+  GameStatChip,
+  GameTour,
+  GameTourProvider,
+  TourTarget,
+  useGameTour,
+} from "./GameTour";
 
-// Get screen dimensions
-const { width, height } = Dimensions.get("window");
+const WORD_GAME_MODAL_ORIENTATIONS: ModalProps["supportedOrientations"] = [
+  "landscape-left",
+  "landscape-right",
+];
+
+const WORD_GAME_MODAL_SYSTEM_PROPS = {
+  navigationBarTranslucent: true,
+  statusBarTranslucent: true,
+} as const;
+
+interface WordCompletionOrderOptions {
+  persistProgress: (progress: WordGameProgress) => Promise<void>;
+  revealCompletion: (progress: WordGameProgress) => void;
+  runBestEffortNetworkWork: (
+    progress: WordGameProgress,
+    persistence: LocalPersistenceStatus,
+  ) => Promise<void>;
+  onLocalError?: (error: unknown) => void;
+  onNetworkError?: (error: unknown) => void;
+}
+
+const completeWordProgressLocallyFirst = (
+  completedProgress: WordGameProgress,
+  options: WordCompletionOrderOptions,
+): Promise<LocalFirstCompletionResult<WordGameProgress>> =>
+  completeLocallyFirst({
+    persistLocal: async () => {
+      await options.persistProgress(completedProgress);
+      return completedProgress;
+    },
+    fallbackValue: completedProgress,
+    revealCompletion: (progress) => options.revealCompletion(progress),
+    runBestEffortNetworkWork: (progress, persistence) =>
+      options.runBestEffortNetworkWork(progress, persistence),
+    onLocalError: options.onLocalError,
+    onNetworkError: options.onNetworkError,
+  });
 
 // Define types for the component's state and props
 type LetterPosition = {
@@ -33,15 +111,43 @@ type LetterPosition = {
   destHeight: number;
 };
 
-type GameLevel = {
-  word: string;
-  question: string;
-  firstLetter: string;
+const getImageSource = (imageName: string | undefined) => {
+  return resolveImageSource(imageName, "coin.png") as any;
 };
 
 const WordGame: React.FC = () => {
+  // Add child context
+  const { activeChild } = useChild();
+  const { t } = useChildUiLanguage();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const wordGameSizing = getWordGameSizing(windowWidth, windowHeight);
+  const isCompactLandscape = windowHeight < 400;
+  const sideVisualSize = Math.min(
+    isCompactLandscape ? 110 : 136,
+    Math.max(98, windowWidth * 0.155),
+  );
+  const hintButtonSize = isCompactLandscape ? 56 : 62;
+  const previewImageSize = Math.max(
+    176,
+    Math.min(windowHeight * 0.6, windowWidth * 0.48, 360),
+  );
+  const languageCode =
+    activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE;
+  const wordTour = useGameTour("word", activeChild?.id);
+  const { checkAndGrantNewAchievements } =
+    useAchievements(activeChild?.id, "word_game"); // Game key
+  const { enqueueAchievementUnlocked } = useChildNotice();
+
+  const [hintUsedCurrentLevel, setHintUsedCurrentLevel] =
+    useState<boolean>(false); // For no-hint achievement
+  const [consecutiveWins, setConsecutiveWins] = useState<number>(0);
+
+  // Add state to track level start time
+  const levelStartTime = useRef<number>(Date.now());
+
   // State variables
   const [currentLevelIndex, setCurrentLevelIndex] = useState<number>(0);
+  const [gameLevels, setGameLevels] = useState<WordGameLevel[]>([]);
   const [currentWord, setCurrentWord] = useState<string>("");
   const [displayWord, setDisplayWord] = useState<string>("");
   const [currentQuestion, setCurrentQuestion] = useState<string>("");
@@ -51,10 +157,65 @@ const WordGame: React.FC = () => {
   const [wrongSound, setWrongSound] = useState<Audio.Sound | undefined>();
   const [successSound, setSuccessSound] = useState<Audio.Sound | undefined>();
   const [animatingLetter, setAnimatingLetter] = useState<LetterPosition | null>(
-    null
+    null,
   );
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
   const [isGameCompleted, setIsGameCompleted] = useState<boolean>(false);
+  const [showLevelIntroModal, setShowLevelIntroModal] =
+    useState<boolean>(false);
+  const [showHintModal, setShowHintModal] = useState<boolean>(false);
+  const [showImagePreview, setShowImagePreview] = useState<boolean>(false);
+  const [showSubHint, setShowSubHint] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [contentRetrySequence, setContentRetrySequence] = useState(0);
+  const [progress, setProgress] = useState<WordGameProgress>(DEFAULT_PROGRESS);
+  const progressRef = useRef<WordGameProgress>(DEFAULT_PROGRESS);
+  const progressRevisionRef = useRef(0);
+  const contentProgressRevisionRef = useRef<string | undefined>(undefined);
+  const progressOwnerRef = useRef({
+    childId: activeChild?.id,
+    languageCode,
+  });
+  const isMountedRef = useRef(false);
+  const hydrationGenerationRef = useRef(0);
+  const completionLockRef = useRef<Promise<void> | null>(null);
+  const [showLevelSelect, setShowLevelSelect] = useState<boolean>(false);
+  const [fadeAnim] = useState(new Animated.Value(1));
+  const levelIntroTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const bounceResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  progressOwnerRef.current = {
+    childId: activeChild?.id,
+    languageCode,
+  };
+
+  const updateProgressState = (nextProgress: WordGameProgress): number => {
+    progressRef.current = nextProgress;
+    progressRevisionRef.current += 1;
+    setProgress(nextProgress);
+    return progressRevisionRef.current;
+  };
+
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    return () => {
+      isMountedRef.current = false;
+      hydrationGenerationRef.current += 1;
+      if (levelIntroTimeoutRef.current) {
+        clearTimeout(levelIntroTimeoutRef.current);
+        levelIntroTimeoutRef.current = null;
+      }
+      if (bounceResetTimeoutRef.current) {
+        clearTimeout(bounceResetTimeoutRef.current);
+        bounceResetTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   // Animation values
   const letterScale = useState(new Animated.Value(1))[0];
@@ -62,7 +223,7 @@ const WordGame: React.FC = () => {
 
   // For letter flying animation
   const flyingLetterPosition = useRef(
-    new Animated.ValueXY({ x: 0, y: 0 })
+    new Animated.ValueXY({ x: 0, y: 0 }),
   ).current;
   const flyingLetterOpacity = useRef(new Animated.Value(0)).current;
   const flyingLetterScale = useRef(new Animated.Value(1)).current;
@@ -88,7 +249,7 @@ const WordGame: React.FC = () => {
 
     // Filter out letters that are already in uniqueLetters
     const availableLetters = alphabetLetters.filter(
-      (letter) => !uniqueLetters.includes(letter)
+      (letter) => !uniqueLetters.includes(letter),
     );
 
     // Randomly select remaining letters
@@ -104,14 +265,30 @@ const WordGame: React.FC = () => {
     return allLetters.sort(() => Math.random() - 0.5);
   };
 
-  // Load current level
-  const loadLevel = (levelIndex: number) => {
-    if (levelIndex >= gameLevels.length) {
-      setIsGameCompleted(true);
+  // Modified loadLevel to track level start time
+  const loadLevel = (
+    levelIndex: number,
+    levels: WordGameLevel[] = gameLevels,
+  ) => {
+    if (levels.length === 0) {
       return;
     }
 
-    const level = gameLevels[levelIndex];
+    if (levelIndex >= levels.length) {
+      setCurrentLevelIndex(levels.length - 1);
+      setIsGameCompleted(true);
+      void trackGameCompletion().catch((error) => {
+        console.warn("Could not track Word Game completion:", error);
+      });
+      return;
+    }
+
+    const safeLevelIndex = Math.max(0, levelIndex);
+
+    // Reset the level start time when loading a new level
+    levelStartTime.current = Date.now();
+
+    const level = levels[safeLevelIndex];
     const word = level.word;
     const firstLetter = level.firstLetter || word[0];
 
@@ -125,86 +302,505 @@ const WordGame: React.FC = () => {
     setDisplayWord(initialDisplay);
     setCurrentQuestion(level.question);
     setLetters(generateLetterChoices(word));
-    setSelectedLetters([firstLetter]); // First letter is already selected
+    setSelectedLetters([]);
+    setCurrentLevelIndex(safeLevelIndex);
 
     // Reset refs
     letterRefs.current = {};
     wordSlotRefs.current = {};
+
+    // The shared first-play guide now introduces the mechanic. Levels begin
+    // immediately so returning players are not stopped by a repetitive dialog.
   };
 
-  // Updated useEffect to lock screen orientation and load the first level
-  useEffect(() => {
-    // Lock to landscape orientation
-    async function setLandscapeOrientation() {
-      await ScreenOrientation.lockAsync(
-        ScreenOrientation.OrientationLock.LANDSCAPE
-      );
+  // Function to handle level selection from the level select modal
+  const selectLevel = (levelIndex: number) => {
+    if (isLevelUnlocked(progress, levelIndex, gameLevels[levelIndex]?.id)) {
+      // Update the current level in progress
+      if (activeChild) {
+        const updatedProgress = {
+          ...progress,
+          currentLevel: levelIndex,
+          currentLevelId: gameLevels[levelIndex]?.id,
+        };
+        updateProgressState(updatedProgress);
+        void saveGameProgress(updatedProgress, activeChild.id, languageCode, {
+          levels: gameLevels,
+          contentRevision: contentProgressRevisionRef.current,
+        }).catch((error) => {
+          console.warn("Could not save Word Game level selection:", error);
+        });
+      }
+
+      setCurrentLevelIndex(levelIndex);
+      setShowLevelSelect(false);
+      loadLevel(levelIndex);
     }
+  };
+
+  // Function to track level completion
+  const trackLevelCompletion = async () => {
+    if (!activeChild) return;
+
+    const duration = Date.now() - levelStartTime.current; // Duration in milliseconds
+
+    const saved = await saveActivity({
+      child_id: activeChild.id,
+      activity_type: "words", // Using 'words' activity type
+      activity_name: `Word Game Level ${currentLevelIndex + 1}`,
+      score: "100%", // They completed the word successfully
+      duration: duration,
+      completed_at: new Date().toISOString(),
+      details: `Completed word: "${currentWord}" - ${currentQuestion}`,
+      level: currentLevelIndex + 1,
+      language_code: languageCode,
+    });
+    if (!saved) {
+      throw new Error("Could not save Word Game level activity.");
+    }
+  };
+
+  // Function to track game completion
+  const trackGameCompletion = async () => {
+    if (!activeChild) return;
+
+    const saved = await saveActivity({
+      child_id: activeChild.id,
+      activity_type: "words",
+      activity_name: "Word Game Completed",
+      score: `${currentLevelIndex + 1}/${gameLevels.length}`,
+      completed_at: new Date().toISOString(),
+      details: `Completed all ${gameLevels.length} words in the Word Game`,
+      language_code: languageCode,
+    });
+    if (!saved) {
+      throw new Error("Could not save Word Game completion activity.");
+    }
+  };
+
+  // Persist the completed level before any Supabase-backed activity or achievement work.
+  const performNextLevelCompletion = async (): Promise<void> => {
+    const completionChildId = activeChild?.id;
+    const completionLanguageCode = languageCode;
+    const completionSessionStartedAt = levelStartTime.current;
+    const streakCompletedAt = new Date().toISOString();
+    const nextLevelIdx = currentLevelIndex + 1;
+    const isLastLevel = nextLevelIdx >= gameLevels.length;
+    const nextCurrentLevel = Math.min(
+      nextLevelIdx,
+      Math.max(0, gameLevels.length - 1),
+    );
+    const currentConsecutiveWins = consecutiveWins + 1;
+    const progressAtCompletion = progressRef.current;
+    const progressAfterLevel = updateProgressForLevelCompletion(
+      {
+        ...progressAtCompletion,
+        unlockedLevels: [...progressAtCompletion.unlockedLevels],
+        completedLevels: [...progressAtCompletion.completedLevels],
+        playHistory: [...progressAtCompletion.playHistory],
+      },
+      currentLevelIndex,
+      currentWord,
+      gameLevels,
+      completionChildId,
+    );
+    const completedProgress: WordGameProgress = {
+      ...progressAfterLevel,
+      currentLevel: nextCurrentLevel,
+      currentLevelId: gameLevels[nextCurrentLevel]?.id,
+    };
+
+    const revealCompletion = (savedProgress: WordGameProgress): number => {
+      const owner = progressOwnerRef.current;
+      if (
+        !isMountedRef.current ||
+        owner.childId !== completionChildId ||
+        owner.languageCode !== completionLanguageCode
+      ) {
+        return 0;
+      }
+
+      const revision = updateProgressState(savedProgress);
+      setConsecutiveWins(currentConsecutiveWins);
+      setShowSuccessModal(false);
+      setSelectedLetters([]);
+      setHintUsedCurrentLevel(false);
+
+      if (isLastLevel) {
+        setIsGameCompleted(true);
+      } else {
+        setCurrentLevelIndex(nextLevelIdx);
+        loadLevel(nextLevelIdx);
+      }
+
+      return revision;
+    };
+
+    if (!completionChildId) {
+      revealCompletion(completedProgress);
+      return;
+    }
+
+    let completionRevision = 0;
+    const achievementEvents: Parameters<
+      typeof checkAndGrantNewAchievements
+    >[0][] = [
+      {
+        type: "word_game_level_just_completed",
+        gameKey: "word_game",
+        levelIndex: currentLevelIndex,
+        wordGameProgress: completedProgress,
+        hintUsedThisLevel: hintUsedCurrentLevel,
+      },
+      {
+        type: "word_game_stats_updated",
+        gameKey: "word_game",
+        wordGameProgress: completedProgress,
+      },
+    ];
+
+    if (currentConsecutiveWins >= 3) {
+      achievementEvents.push({
+        type: "word_game_level_just_completed",
+        gameKey: "word_game",
+        levelIndex: currentLevelIndex,
+        consecutiveLevelsCompleted: currentConsecutiveWins,
+        wordGameProgress: completedProgress,
+      });
+    }
+
+    if (isLastLevel) {
+      achievementEvents.push({
+        type: "game_completed",
+        gameKey: "word_game",
+        wordGameProgress: completedProgress,
+        allLevelsInGameCount: gameLevels.length,
+      });
+    }
+
+    await completeWordProgressLocallyFirst(completedProgress, {
+      persistProgress: (nextProgress) =>
+        saveGameProgress(
+          nextProgress,
+          completionChildId,
+          completionLanguageCode,
+          {
+            levels: gameLevels,
+            contentRevision: contentProgressRevisionRef.current,
+          },
+        ),
+      revealCompletion: (savedProgress) => {
+        completionRevision = revealCompletion(savedProgress);
+      },
+      runBestEffortNetworkWork: async (savedProgress, persistence) => {
+        const achievementWork = async () => {
+          const outcomes = await Promise.allSettled(
+            achievementEvents.map((event) =>
+              checkAndGrantNewAchievements(event),
+            ),
+          );
+          const newlyAwarded = new Map<string, AchievementDefinition>();
+
+          outcomes.forEach((outcome) => {
+            if (outcome.status === "rejected") {
+              console.warn(
+                "Could not evaluate a Word Game achievement:",
+                outcome.reason,
+              );
+              return;
+            }
+
+            outcome.value.forEach((achievement) => {
+              if (!newlyAwarded.has(achievement.id)) {
+                newlyAwarded.set(achievement.id, achievement);
+              }
+            });
+          });
+
+          const awardedAchievements = [...newlyAwarded.values()];
+          const owner = progressOwnerRef.current;
+          if (
+            !isMountedRef.current ||
+            owner.childId !== completionChildId ||
+            owner.languageCode !== completionLanguageCode ||
+            progressRevisionRef.current !== completionRevision ||
+            progressRef.current !== savedProgress
+          ) {
+            return;
+          }
+
+          awardedAchievements.forEach((achievement) =>
+            enqueueAchievementUnlocked(achievement),
+          );
+        };
+        const networkTasks: Promise<unknown>[] = [
+          trackLevelCompletion(),
+          achievementWork(),
+          syncProgressNow(completionChildId),
+        ];
+        if (isLastLevel) {
+          networkTasks.push(trackGameCompletion());
+        }
+        if (persistence.persisted) {
+          networkTasks.push(recordQualifiedStreakActivity({
+            childId: completionChildId,
+            sourceType: "game",
+            sourceId: `word-game:${gameLevels[currentLevelIndex]?.id ?? currentLevelIndex}`,
+            completionId: `word-game:${gameLevels[currentLevelIndex]?.id ?? currentLevelIndex}:${completionSessionStartedAt}`,
+            completedAt: streakCompletedAt,
+          }));
+        }
+
+        const outcomes = await Promise.allSettled(networkTasks);
+        outcomes.forEach((outcome) => {
+          if (outcome.status === "rejected") {
+            console.warn(
+              "Could not finish Word Game best-effort network work:",
+              outcome.reason,
+            );
+          }
+        });
+      },
+      onLocalError: (error) => {
+        console.warn(
+          "Word Game completion was not durably saved locally:",
+          error,
+        );
+      },
+      onNetworkError: (error) => {
+        console.warn(
+          "Could not finish Word Game best-effort network work:",
+          error,
+        );
+      },
+    });
+  };
+
+  const goToNextLevel = (): Promise<void> =>
+    runCompletionOnce(completionLockRef, performNextLevelCompletion);
+
+  // Load game sounds on mount.
+  useEffect(() => {
+    const loadedSounds: Audio.Sound[] = [];
 
     // Load sounds
     async function loadSounds() {
-      const correctSoundObject = new Audio.Sound();
-      const wrongSoundObject = new Audio.Sound();
-      const successSoundObject = new Audio.Sound();
-
       try {
         // Add error handling for each sound file
         try {
-          await correctSoundObject.loadAsync(
-            require("@/assets/sounds/correct.mp3")
+          const correctSoundObject = await audioManager.createAppSound(
+            require("@/assets/sounds/correct.mp3"),
           );
-          setCorrectSound(correctSoundObject);
-        } catch (error) {
-          console.log("Could not load correct sound:", error);
+          if (correctSoundObject) {
+            loadedSounds.push(correctSoundObject);
+            if (isMountedRef.current) {
+              setCorrectSound(correctSoundObject);
+            } else {
+              void audioManager
+                .unloadAppSound(correctSoundObject)
+                .catch((error) => {
+                  console.warn("Could not unload late Word Game sound:", error);
+                });
+            }
+          }
+        } catch {
         }
 
         try {
-          await wrongSoundObject.loadAsync(
-            require("@/assets/sounds/wrong.mp3")
+          const wrongSoundObject = await audioManager.createAppSound(
+            require("@/assets/sounds/wrong.mp3"),
           );
-          setWrongSound(wrongSoundObject);
-        } catch (error) {
-          console.log("Could not load wrong sound:", error);
+          if (wrongSoundObject) {
+            loadedSounds.push(wrongSoundObject);
+            if (isMountedRef.current) {
+              setWrongSound(wrongSoundObject);
+            } else {
+              void audioManager
+                .unloadAppSound(wrongSoundObject)
+                .catch((error) => {
+                  console.warn("Could not unload late Word Game sound:", error);
+                });
+            }
+          }
+        } catch {
         }
 
         try {
-          await successSoundObject.loadAsync(
-            require("@/assets/sounds/correct.mp3")
+          const successSoundObject = await audioManager.createAppSound(
+            require("@/assets/sounds/correct.mp3"),
           );
-          setSuccessSound(successSoundObject);
-        } catch (error) {
-          console.log("Could not load success sound:", error);
+          if (successSoundObject) {
+            loadedSounds.push(successSoundObject);
+            if (isMountedRef.current) {
+              setSuccessSound(successSoundObject);
+            } else {
+              void audioManager
+                .unloadAppSound(successSoundObject)
+                .catch((error) => {
+                  console.warn("Could not unload late Word Game sound:", error);
+                });
+            }
+          }
+        } catch {
         }
       } catch (error) {
         console.error("Error in sound loading process", error);
       }
     }
 
-    setLandscapeOrientation();
-    loadSounds();
-    loadLevel(0);
+    // Initialize level start time
+    levelStartTime.current = Date.now();
+
+    void loadSounds().catch((error) => {
+      console.warn("Could not finish loading Word Game sounds:", error);
+    });
 
     return () => {
-      if (correctSound) correctSound.unloadAsync();
-      if (wrongSound) wrongSound.unloadAsync();
-      if (successSound) successSound.unloadAsync();
+      if (levelIntroTimeoutRef.current) {
+        clearTimeout(levelIntroTimeoutRef.current);
+      }
+      loadedSounds.forEach((loadedSound) => {
+        void audioManager.unloadAppSound(loadedSound).catch((error) => {
+          console.warn("Could not unload Word Game sound:", error);
+        });
+      });
     };
   }, []);
 
-  // Move to next level
-  const goToNextLevel = () => {
-    const nextLevelIndex = currentLevelIndex + 1;
-    setCurrentLevelIndex(nextLevelIndex);
-    setShowSuccessModal(false);
-    setSelectedLetters([]);
-    loadLevel(nextLevelIndex);
-  };
+  // This useEffect will load the saved progress when the component mounts
+  useEffect(() => {
+    const requestGeneration = ++hydrationGenerationRef.current;
+    const requestedChildId = activeChild?.id;
+    const requestedLanguageCode = languageCode;
+    completionLockRef.current = null;
+    const isCurrentRequest = (): boolean => {
+      const owner = progressOwnerRef.current;
+      return (
+        isMountedRef.current &&
+        hydrationGenerationRef.current === requestGeneration &&
+        owner.childId === requestedChildId &&
+        owner.languageCode === requestedLanguageCode
+      );
+    };
 
-  // Animation logic
+    const loadSavedProgress = async () => {
+      try {
+        // Reset all game-related state when child changes
+        setIsLoading(true);
+        setShowSuccessModal(false);
+        setIsGameCompleted(false);
+        setShowLevelIntroModal(false);
+        setShowHintModal(false);
+        setShowImagePreview(false);
+        setShowSubHint(false);
+        setSelectedLetters([]);
+
+        const contentResult = await loadContentBundle(requestedLanguageCode, {
+          forceRefresh: true,
+        });
+        const levels = contentResult.bundle?.wordGame.levels ?? [];
+        const contentProgressRevision =
+          contentResult.bundle?.progressRevisions?.word_game;
+        if (contentResult.bundle) {
+          void preloadContentBundleImages(contentResult.bundle).catch(
+            (error) => {
+              console.warn("Could not preload Word Game images:", error);
+            },
+          );
+        }
+
+        if (!isCurrentRequest()) return;
+
+        contentProgressRevisionRef.current = contentProgressRevision;
+
+        setGameLevels(levels);
+
+        if (levels.length === 0) {
+          return;
+        }
+
+        let levelToLoad = 0;
+
+        if (requestedChildId) {
+          try {
+            const savedProgress = contentProgressRevision
+              ? await loadGameProgress(
+                  requestedChildId,
+                  requestedLanguageCode,
+                  levels,
+                  contentProgressRevision,
+                )
+              : await loadGameProgress(
+                  requestedChildId,
+                  requestedLanguageCode,
+                  levels,
+                );
+            if (!isCurrentRequest()) return;
+
+            updateProgressState(savedProgress);
+            levelToLoad = savedProgress.currentLevel;
+          } catch (error) {
+            console.error("Error loading progress:", error);
+            if (!isCurrentRequest()) return;
+            updateProgressState({
+              ...DEFAULT_PROGRESS,
+              childId: requestedChildId,
+            });
+          }
+        } else {
+          updateProgressState(DEFAULT_PROGRESS);
+        }
+
+        const safeLevelToLoad = Math.min(
+          Math.max(levelToLoad, 0),
+          levels.length - 1,
+        );
+        if (!isCurrentRequest()) return;
+
+        loadLevel(safeLevelToLoad, levels);
+
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }).start();
+      } catch (error) {
+        console.error("Error loading word game:", error);
+        if (isCurrentRequest()) {
+          setGameLevels([]);
+        }
+      } finally {
+        if (isCurrentRequest()) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadSavedProgress().catch((error) => {
+      console.warn("Could not finish Word Game hydration:", error);
+    });
+
+    return () => {
+      if (hydrationGenerationRef.current === requestGeneration) {
+        hydrationGenerationRef.current += 1;
+      }
+      completionLockRef.current = null;
+      if (levelIntroTimeoutRef.current) {
+        clearTimeout(levelIntroTimeoutRef.current);
+        levelIntroTimeoutRef.current = null;
+      }
+    };
+    // loadLevel receives the requested, language-scoped levels explicitly.
+    // Depending on its render-local identity would repeat hydration after the
+    // state updates it performs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeChild?.id, contentRetrySequence, fadeAnim, languageCode]);
+
+  // Move to next level
   const animateLetterToWord = (
     letter: string,
     letterIndex: number,
-    destinationIndex: number
+    destinationIndex: number,
   ) => {
     const letterRef = letterRefs.current[letterIndex];
     const wordRef = wordSlotRefs.current[destinationIndex];
@@ -257,23 +853,24 @@ const WordGame: React.FC = () => {
                 }),
               ]),
             ]).start(() => {
+              if (!isMountedRef.current) return;
               flyingLetterOpacity.setValue(0);
               setAnimatingLetter(null);
 
-              updateDisplayWord(letter);
+              updateDisplayWord(letter, destinationIndex);
             });
           },
-          () => console.error("Failed to measure word slot")
+          () => console.error("Failed to measure word slot"),
         );
       },
-      () => console.error("Failed to measure letter")
+      () => console.error("Failed to measure letter"),
     );
   };
 
-  const updateDisplayWord = (letter: string) => {
+  const updateDisplayWord = (letter: string, letterPosition: number) => {
     let newDisplay = "";
     for (let i = 0; i < currentWord.length; i++) {
-      if (currentWord[i] === letter || displayWord[i] !== "_") {
+      if (i === letterPosition || displayWord[i] !== "_") {
         newDisplay += currentWord[i];
       } else {
         newDisplay += "_";
@@ -284,9 +881,14 @@ const WordGame: React.FC = () => {
 
     // Check if word is complete
     if (!newDisplay.includes("_")) {
+      completionLockRef.current = null;
+      childHaptics.success();
+
       // Play success sound
       if (successSound) {
-        successSound.replayAsync();
+        void audioManager.replayAppSound(successSound).catch((error) => {
+          console.warn("Could not replay Word Game success sound:", error);
+        });
       }
 
       // Animate word bounce
@@ -296,8 +898,14 @@ const WordGame: React.FC = () => {
         tension: 40,
         useNativeDriver: true,
       }).start(() => {
+        if (!isMountedRef.current) return;
         setShowSuccessModal(true);
-        setTimeout(() => {
+        if (bounceResetTimeoutRef.current) {
+          clearTimeout(bounceResetTimeoutRef.current);
+        }
+        bounceResetTimeoutRef.current = setTimeout(() => {
+          bounceResetTimeoutRef.current = null;
+          if (!isMountedRef.current) return;
           bounceValue.setValue(0);
         }, 1000);
       });
@@ -318,103 +926,158 @@ const WordGame: React.FC = () => {
       }),
     ]).start();
 
-    if (currentWord.includes(letter) && !selectedLetters.includes(letter)) {
-      if (correctSound) {
-        correctSound.replayAsync();
-      }
-
-      const newSelectedLetters = [...selectedLetters, letter];
-      setSelectedLetters(newSelectedLetters);
-
-      const positions = [];
+    if (currentWord.includes(letter)) {
+      // Count remaining occurrences of this letter that still need to be filled
+      let remainingOccurrences = 0;
       for (let i = 0; i < currentWord.length; i++) {
         if (currentWord[i] === letter && displayWord[i] === "_") {
-          positions.push(i);
+          remainingOccurrences++;
         }
       }
 
-      if (positions.length > 0) {
-        animateLetterToWord(letter, letterIndex, positions[0]);
+      if (remainingOccurrences > 0) {
+        childHaptics.selection();
+        if (correctSound) {
+          void audioManager.replayAppSound(correctSound).catch((error) => {
+            console.warn("Could not replay Word Game correct sound:", error);
+          });
+        }
+
+        // Only add to selectedLetters if all occurrences are now filled
+        if (remainingOccurrences === 1) {
+          const newSelectedLetters = [...selectedLetters, letter];
+          setSelectedLetters(newSelectedLetters);
+        }
+
+        const positions = [];
+        for (let i = 0; i < currentWord.length; i++) {
+          if (currentWord[i] === letter && displayWord[i] === "_") {
+            positions.push(i);
+            break; // Just get the first unfilled position
+          }
+        }
+
+        if (positions.length > 0) {
+          animateLetterToWord(letter, letterIndex, positions[0]);
+        }
+      } else {
+        childHaptics.error();
+        if (wrongSound) {
+          void audioManager.replayAppSound(wrongSound).catch((error) => {
+            console.warn("Could not replay Word Game wrong sound:", error);
+          });
+        }
       }
     } else {
+      childHaptics.error();
       if (wrongSound) {
-        wrongSound.replayAsync();
+        void audioManager.replayAppSound(wrongSound).catch((error) => {
+          console.warn("Could not replay Word Game wrong sound:", error);
+        });
       }
     }
   };
 
   // Modified layout for landscape orientation with NativeWind styling
+  if (isLoading) {
+    return (
+      <ChildLoadingState
+        title={t("games.gettingWordsReady")}
+        message={t("games.loadingGame")}
+        icon="chatbubble-ellipses-outline"
+      />
+    );
+  }
+
+  if (gameLevels.length === 0) {
+    return (
+      <ComingSoonState
+        title={t("games.wordComingSoon")}
+        onRetry={() => setContentRetrySequence((current) => current + 1)}
+      />
+    );
+  }
+
+  const currentLevel = gameLevels[currentLevelIndex] ?? gameLevels[0];
+  const hasOpenModal =
+    showSuccessModal ||
+    isGameCompleted ||
+    showLevelIntroModal ||
+    showHintModal ||
+    showImagePreview ||
+    showLevelSelect ||
+    wordTour.visible;
+
   return (
-    <View ref={containerRef} className="flex-1 bg-primary-50">
-      <StatusBar style="dark" translucent backgroundColor="transparent" />
-
-      {/* Background decorative elements */}
-      <View className="absolute top-5 left-5">
-        <View className="w-12 h-12 rounded-full bg-primary-200 opacity-50" />
-      </View>
-      <View className="absolute bottom-10 right-10">
-        <View className="w-16 h-16 rounded-full bg-secondary-200 opacity-30" />
-      </View>
-
-      {/* Top navigation bar with all elements aligned horizontally */}
-      <View className="flex-row justify-between items-center px-4 pt-8">
-        {/* Back button */}
-        <TouchableOpacity
-          className="w-12 h-12 rounded-full bg-white items-center justify-center shadow-md border-2 border-primary-200"
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={22} color="#7b5af0" />
-        </TouchableOpacity>
-
-        {/* Question text in the middle */}
-        <View className="flex-1 mx-3 bg-white/95 px-5 py-3 rounded-2xl shadow-md border-2 border-secondary-100">
-          <Text
-            variant="medium"
-            className="text-lg text-primary-700 text-center"
-            numberOfLines={2}
+    <GameTourProvider>
+      <SafeAreaView
+        ref={containerRef}
+        className="flex-1 bg-blue-50"
+        edges={["top", "bottom", "left", "right"]}
+      >
+      <StatusBar style={hasOpenModal ? "light" : "dark"} />
+      <GameHeader
+        title={currentQuestion}
+        subtitle={t("games.wordHint")}
+        onBack={() => router.back()}
+        backAccessibilityLabel="Back to Games"
+        onHelp={wordTour.open}
+        trailing={
+          <>
+          <TourTarget id="word-level-picker">
+          <TouchableOpacity
+            className="w-12 h-12 rounded-2xl bg-white items-center justify-center border border-blue-100 ml-2"
+            onPress={() => setShowLevelSelect(true)}
+            activeOpacity={0.76}
+            accessibilityRole="button"
+            accessibilityLabel="Choose word game level"
           >
-            {currentQuestion}
-          </Text>
-        </View>
-
-        {/* Level indicator */}
-        <View className="flex-row items-center bg-white px-4 py-2 rounded-full shadow-md border-2 border-primary-200">
-          <Text variant="bold" className="text-primary-700">
-            {currentLevelIndex + 1}/{gameLevels.length}
-          </Text>
-        </View>
-      </View>
-
-      {/* Coin display - moved to separate row */}
-      <View className="items-end px-4 py-2">
-        <View className="bg-white p-1 rounded-full shadow-md border-2 border-accent-100">
-          <Image
-            source={require("@/assets/images/wildlife.jpg")}
-            className="w-10 h-10 rounded-full"
-            resizeMode="cover"
-          />
-        </View>
-      </View>
+            <Ionicons name="list" size={23} color="#0274BB" />
+          </TouchableOpacity>
+          </TourTarget>
+            <GameStatChip
+              icon="flag-outline"
+              label={`${Math.min(currentLevelIndex + 1, gameLevels.length)}/${gameLevels.length}`}
+              accessibilityLabel={`Level ${Math.min(currentLevelIndex + 1, gameLevels.length)} of ${gameLevels.length}`}
+            />
+          </>
+        }
+      />
 
       {/* Main content area */}
-      <View className="flex-1 flex-row justify-between items-center px-5">
+      <View className="flex-1 flex-row justify-between items-center px-4 pb-3 pt-1">
         {/* Left character */}
-        <View className="w-[15%] items-center justify-center">
-          <View className="w-24 h-24 bg-white rounded-full items-center justify-center shadow-lg border-4 border-secondary-200">
-            <Image
-              source={require("@/assets/images/textile.jpg")}
-              className="w-20 h-20 rounded-full"
+        <View className="w-[16%] items-center justify-center">
+          <TourTarget id="word-clue">
+          <TouchableOpacity
+            className="bg-white rounded-3xl items-center justify-center shadow-lg border-4 border-secondary-200 overflow-hidden"
+            style={{ width: sideVisualSize, height: sideVisualSize }}
+            onPress={() => setShowImagePreview(true)}
+            activeOpacity={0.82}
+            accessibilityRole="button"
+            accessibilityLabel={`Enlarge ${currentLevel.question} picture`}
+            accessibilityHint="Opens a larger view of the picture"
+          >
+            <CachedImage
+              source={getImageSource(currentLevel.image)}
+              fallbackSource={resolveImageSource("coin.png")}
+              className="w-full h-full"
               resizeMode="cover"
+              accessibilityLabel={`${currentLevel.question} picture`}
             />
-          </View>
+            <View className="absolute right-1.5 bottom-1.5 w-8 h-8 rounded-full bg-primary-700/90 items-center justify-center border border-white/80">
+              <Ionicons name="expand" size={17} color="white" />
+            </View>
+          </TouchableOpacity>
+          </TourTarget>
         </View>
 
         {/* Center game area */}
         <View className="w-[70%] items-center justify-center">
           {/* Word to guess */}
+          <TourTarget id="word-answer-area">
           <Animated.View
-            className="flex-row items-center justify-center py-4 px-6 bg-white/80 rounded-3xl shadow-md mb-5 border-2 border-primary-100"
+            className="flex-row flex-wrap items-center justify-center py-2 px-3 bg-white rounded-3xl shadow-md mb-3 border-2 border-primary-100 max-w-full"
             style={{
               transform: [
                 {
@@ -429,51 +1092,113 @@ const WordGame: React.FC = () => {
             {displayWord.split("").map((char, index) => (
               <View
                 key={index}
-                ref={(ref) => (wordSlotRefs.current[index] = ref)}
-                className="w-14 h-14 justify-center items-center mx-1.5 relative"
+                ref={(ref) => {
+                  wordSlotRefs.current[index] = ref;
+                }}
+                className="justify-center items-center relative"
+                style={{
+                  height: wordGameSizing.answerSlotHeight,
+                  margin: wordGameSizing.answerSlotMargin,
+                  width: wordGameSizing.answerSlotWidth,
+                }}
               >
-                <Text variant="bold" className="text-4xl text-primary-700 pt-3">
+                <Text
+                  variant="bold"
+                  className="text-primary-700"
+                  style={{
+                    fontSize: wordGameSizing.answerLetterFontSize,
+                    lineHeight: wordGameSizing.answerLetterLineHeight,
+                  }}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.75}
+                >
                   {char !== "_" ? char : ""}
                 </Text>
                 {char === "_" && (
-                  <View className="absolute bottom-0 w-12 h-1.5 bg-primary-500 rounded-full" />
+                  <View
+                    className="absolute bottom-0 h-1.5 bg-primary-500 rounded-full"
+                    style={{ width: wordGameSizing.answerSlotWidth * 0.82 }}
+                  />
                 )}
               </View>
             ))}
           </Animated.View>
+          </TourTarget>
 
           {/* Letter choices */}
-          <View className="flex-row flex-wrap justify-center w-full pb-6">
-            {letters.map((letter, index) => (
-              <TouchableOpacity
-                key={index}
-                ref={(ref) => (letterRefs.current[index] = ref)}
-                className={`w-16 h-16 rounded-full m-2 justify-center items-center shadow-lg border-2 ${
-                  selectedLetters.includes(letter)
-                    ? "bg-gray-300 border-gray-400 opacity-70"
-                    : "bg-secondary-500 border-secondary-300"
-                }`}
-                onPress={() => handleLetterPress(letter, index)}
-                disabled={selectedLetters.includes(letter)}
-                activeOpacity={0.8}
-              >
-                <Text variant="bold" className="text-white text-2xl">
-                  {letter}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          <TourTarget id="word-letter-options">
+          <View className="flex-row flex-wrap justify-center w-full pb-2">
+            {letters.map((letter, index) => {
+              // Check if this letter still has any unfilled positions in the word
+              const hasUnfilledPositions = currentWord
+                .split("")
+                .some((char, i) => char === letter && displayWord[i] === "_");
+
+              // A letter is disabled only if it doesn't appear in the word OR has no unfilled positions left
+              const isDisabled =
+                !currentWord.includes(letter) || !hasUnfilledPositions;
+
+              // A letter is greyed out if it's disabled
+              const isGreyedOut = isDisabled && currentWord.includes(letter);
+
+              return (
+                <TouchableOpacity
+                  key={index}
+                  ref={(ref) => {
+                    letterRefs.current[index] = ref;
+                  }}
+                  className={`rounded-full justify-center items-center shadow-lg border-2 ${
+                    isGreyedOut
+                      ? "bg-gray-300 border-gray-400 opacity-70"
+                      : "bg-secondary-500 border-secondary-300"
+                  }`}
+                  style={{
+                    height: wordGameSizing.choiceButtonSize,
+                    margin: wordGameSizing.choiceButtonMargin,
+                    width: wordGameSizing.choiceButtonSize,
+                  }}
+                  onPress={() => handleLetterPress(letter, index)}
+                  disabled={isDisabled}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Letter ${letter}`}
+                  accessibilityState={{ disabled: isDisabled }}
+                >
+                  <Text
+                    variant="bold"
+                    className="text-white"
+                    style={{
+                      fontSize: wordGameSizing.choiceLetterFontSize,
+                      lineHeight: wordGameSizing.choiceLetterLineHeight,
+                    }}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.75}
+                  >
+                    {letter}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
+          </TourTarget>
         </View>
 
         {/* Right hint button */}
-        <View className="w-[15%] items-center justify-center">
-          <TouchableOpacity className="w-20 h-20 bg-white rounded-full justify-center items-center shadow-lg border-4 border-accent-200">
-            <Image
-              source={require("@/assets/images/river.jpg")}
-              className="w-16 h-16 rounded-full"
-              resizeMode="cover"
-            />
+        <View className="w-[14%] items-center justify-center">
+          <TourTarget id="word-hint">
+          <TouchableOpacity
+            className="bg-amber-50 rounded-2xl justify-center items-center shadow-md border-2 border-amber-200"
+            style={{ width: hintButtonSize, height: hintButtonSize }}
+            onPress={() => setShowHintModal(true)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Show hint"
+          >
+            <Ionicons name="bulb" size={Math.round(hintButtonSize * 0.45)} color="#D99D19" />
           </TouchableOpacity>
+          </TourTarget>
         </View>
       </View>
 
@@ -499,33 +1224,45 @@ const WordGame: React.FC = () => {
             },
           ]}
         >
-          <Text variant="bold" className="text-3xl text-primary-600 shadow">
+          <Text
+            variant="bold"
+            className="text-primary-600 shadow"
+            style={{
+              fontSize: wordGameSizing.choiceLetterFontSize,
+              lineHeight: wordGameSizing.choiceLetterLineHeight,
+            }}
+          >
             {animatingLetter.letter}
           </Text>
         </Animated.View>
       )}
 
       {/* Success Modal */}
-      <Modal transparent={true} visible={showSuccessModal} animationType="fade">
-        <View className="flex-1 justify-center items-center bg-black/50">
-          <View className="bg-white rounded-3xl p-6 pt-8 w-4/5 items-center shadow-xl border-4 border-primary-100">
-            {/* Decorative elements */}
+      <Modal
+        {...WORD_GAME_MODAL_SYSTEM_PROPS}
+        transparent={true}
+        visible={showSuccessModal}
+        animationType="fade"
+        presentationStyle="overFullScreen"
+        supportedOrientations={WORD_GAME_MODAL_ORIENTATIONS}
+      >
+        <View className="flex-1 justify-center items-center px-5" style={{ backgroundColor: "#020617B3" }}>
+          <View className="bg-white rounded-3xl p-6 pt-8 w-4/5 max-w-xl items-center shadow-xl border-4 border-primary-100">
             <View className="absolute -top-6 left-1/2 -ml-12 w-24 h-24 bg-primary-100 rounded-full items-center justify-center border-4 border-white shadow-lg">
-              <Text className="text-5xl">🎉</Text>
-            </View>
-            <View className="absolute top-3 left-6">
-              <View className="w-8 h-8 rounded-full bg-accent-200 opacity-60" />
-            </View>
-            <View className="absolute bottom-4 right-8">
-              <View className="w-6 h-6 rounded-full bg-primary-200 opacity-50" />
+              <Ionicons
+                name="sparkles"
+                size={42}
+                color={brandColors.equatorialGold}
+              />
             </View>
 
             {/* Title with styling matching app */}
             <Text
               variant="bold"
               className="text-3xl text-primary-600 mb-3 mt-2"
+              numberOfLines={1}
             >
-              Good Job!
+              Great job!
             </Text>
 
             {/* Word display with highlight */}
@@ -533,16 +1270,21 @@ const WordGame: React.FC = () => {
               <Text
                 variant="medium"
                 className="text-lg text-primary-700 text-center mb-2"
+                numberOfLines={2}
               >
-                You correctly guessed the word:
+                You made the word:
               </Text>
-              <View className="flex-row justify-center items-center">
+              <View className="flex-row flex-wrap justify-center items-center">
                 {currentWord.split("").map((letter, index) => (
                   <View
                     key={index}
-                    className="w-12 h-12 mx-1 justify-center items-center bg-white rounded-lg shadow-sm border border-primary-200"
+                    className="w-10 h-10 m-1 justify-center items-center bg-white rounded-lg shadow-sm border border-primary-200"
                   >
-                    <Text variant="bold" className="text-2xl text-primary-700">
+                    <Text
+                      variant="bold"
+                      className="text-xl text-primary-700"
+                      numberOfLines={1}
+                    >
                       {letter}
                     </Text>
                   </View>
@@ -550,58 +1292,89 @@ const WordGame: React.FC = () => {
               </View>
             </View>
 
-            {/* Button with improved styling */}
-            <TouchableOpacity
-              className="bg-primary-500 py-4 px-8 rounded-full shadow-lg border-2 border-primary-400 active:scale-95"
-              onPress={goToNextLevel}
-              activeOpacity={0.7}
-            >
-              <Text variant="bold" className="text-white text-xl">
-                {isGameCompleted ? "Play Again" : "Next Level"}
-              </Text>
-            </TouchableOpacity>
+            {/* Add navigation controls */}
+            <View className="flex-row justify-between w-full mt-4 mb-2">
+              {/* Previous level button - only show if there's a previous level and it's unlocked */}
+              {currentLevelIndex > 0 ? (
+                <TouchableOpacity
+                  className="bg-secondary-500 py-3 px-5 rounded-full shadow-lg border-2 border-secondary-400 min-w-[112px] items-center"
+                  onPress={() => {
+                    setShowSuccessModal(false);
+                    setCurrentLevelIndex(currentLevelIndex - 1);
+                    loadLevel(currentLevelIndex - 1);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    variant="bold"
+                    className="text-white text-sm"
+                    numberOfLines={1}
+                  >
+                    Previous
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={{ width: 100 }} />
+              )}
+
+              {/* Next level or play again button */}
+              <TouchableOpacity
+                className="bg-primary-500 py-3 px-5 rounded-full shadow-lg border-2 border-primary-400 active:scale-95 min-w-[124px] items-center"
+                onPress={() => {
+                  void goToNextLevel().catch((error) => {
+                    console.warn(
+                      "Could not finish Word Game level completion:",
+                      error,
+                    );
+                  });
+                }}
+                activeOpacity={0.7}
+              >
+                <Text
+                  variant="bold"
+                  className="text-white text-sm"
+                  numberOfLines={1}
+                >
+                  {isGameCompleted ? "Play Again" : "Next Level"}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
 
       {/* Game Completed Modal */}
-      <Modal transparent={true} visible={isGameCompleted} animationType="fade">
+      <Modal
+        {...WORD_GAME_MODAL_SYSTEM_PROPS}
+        transparent={true}
+        visible={isGameCompleted}
+        animationType="fade"
+        presentationStyle="overFullScreen"
+        supportedOrientations={WORD_GAME_MODAL_ORIENTATIONS}
+      >
         <ScrollView
           contentContainerStyle={{ flexGrow: 1 }}
-          className="flex-1 bg-black/50"
+          className="flex-1"
+          style={{ backgroundColor: "#020617B3" }}
         >
           <View className="flex-1 justify-center items-center px-4 py-10">
-            <View className="bg-white rounded-3xl p-6 w-[70%] items-center shadow-xl border-4 border-primary-100">
+            <View className="bg-white rounded-3xl p-6 w-[70%] max-w-xl items-center shadow-xl border-4 border-primary-100">
               {/* Trophy decoration on top - repositioned to be more visible */}
               <View className="absolute -top-6 left-1/2 -ml-10 w-20 h-20 bg-accent-100 rounded-full items-center justify-center border-4 border-white shadow-lg">
-                <Text className="text-4xl">🏆</Text>
-              </View>
-
-              {/* Decorative elements - positions adjusted */}
-              <View className="absolute top-4 left-6">
-                <View className="w-8 h-8 rounded-full bg-primary-200 opacity-60" />
-              </View>
-              <View className="absolute bottom-4 right-6">
-                <View className="w-6 h-6 rounded-full bg-secondary-200 opacity-50" />
-              </View>
-
-              {/* Confetti-like elements - made smaller and repositioned */}
-              <View className="absolute top-12 left-10">
-                <Text className="text-xl">✨</Text>
-              </View>
-              <View className="absolute bottom-6 left-6">
-                <Text className="text-xl">🎊</Text>
-              </View>
-              <View className="absolute top-8 right-10">
-                <Text className="text-xl">🎉</Text>
+                <Ionicons
+                  name="trophy"
+                  size={36}
+                  color={brandColors.equatorialGold}
+                />
               </View>
 
               {/* Title with styling matching app */}
               <Text
                 variant="bold"
                 className="text-2xl text-primary-600 mb-3 mt-8"
+                numberOfLines={1}
               >
-                Congratulations!
+                You did it!
               </Text>
 
               {/* Completion message - made more compact */}
@@ -609,8 +1382,9 @@ const WordGame: React.FC = () => {
                 <Text
                   variant="medium"
                   className="text-lg text-primary-700 text-center"
+                  numberOfLines={2}
                 >
-                  You have completed all levels!
+                  You finished every word!
                 </Text>
 
                 {/* Badge or achievement indicator */}
@@ -635,6 +1409,8 @@ const WordGame: React.FC = () => {
                 onPress={() => {
                   setIsGameCompleted(false);
                   setCurrentLevelIndex(0);
+                  // Reset level start time
+                  levelStartTime.current = Date.now();
                   loadLevel(0);
                 }}
                 activeOpacity={0.7}
@@ -647,7 +1423,340 @@ const WordGame: React.FC = () => {
           </View>
         </ScrollView>
       </Modal>
-    </View>
+
+      {/* Level Intro Modal */}
+      <Modal
+        {...WORD_GAME_MODAL_SYSTEM_PROPS}
+        transparent={true}
+        visible={showLevelIntroModal}
+        animationType="fade"
+        presentationStyle="overFullScreen"
+        supportedOrientations={WORD_GAME_MODAL_ORIENTATIONS}
+      >
+        <View className="flex-1 justify-center items-center px-4" style={{ backgroundColor: "#020617B3" }}>
+          <View className="bg-white rounded-2xl p-4 w-[80%] max-w-md items-center shadow-xl border-4 border-primary-100">
+            {/* Close button - repositioned to be more visible */}
+            <TouchableOpacity
+              className="absolute -top-3 -right-3 w-10 h-10 bg-white rounded-full items-center justify-center shadow-lg border-2 border-primary-300 z-10"
+              onPress={() => setShowLevelIntroModal(false)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="close" size={20} color="#7b5af0" />
+            </TouchableOpacity>
+
+            {/* Level title - reduced margin */}
+            <Text
+              variant="bold"
+              className="text-xl text-primary-600 mb-1"
+              numberOfLines={1}
+            >
+              Level {currentLevelIndex + 1}
+            </Text>
+
+            {/* Image - slightly smaller */}
+            <View className="w-1/2 aspect-square bg-white rounded-xl items-center justify-center shadow-lg border-2 border-secondary-200 mb-2 overflow-hidden">
+              <CachedImage
+                source={getImageSource(currentLevel.image)}
+                fallbackSource={resolveImageSource("coin.png")}
+                className="w-full h-full"
+                resizeMode="cover"
+                accessibilityLabel={`${currentLevel.question} picture`}
+              />
+            </View>
+
+            {/* Word hint - more compact */}
+            <View className="bg-primary-50/80 w-full rounded-xl px-2 py-1.5 mb-2 border-2 border-primary-100">
+              <Text
+                variant="medium"
+                className="text-xs text-primary-700 text-center"
+              >
+                Make this word:
+              </Text>
+              <Text
+                variant="bold"
+                className="text-base text-primary-800 text-center"
+                numberOfLines={2}
+                adjustsFontSizeToFit
+                minimumFontScale={0.82}
+              >
+                {currentQuestion}
+              </Text>
+            </View>
+
+            {/* Button to start the level - more compact */}
+            <TouchableOpacity
+              className="bg-primary-500 py-1.5 px-6 rounded-full shadow-lg border-2 border-primary-400 active:scale-95"
+              onPress={() => setShowLevelIntroModal(false)}
+              activeOpacity={0.7}
+            >
+              <Text variant="bold" className="text-white text-sm">
+                Start
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Hint Modal */}
+      <Modal
+        {...WORD_GAME_MODAL_SYSTEM_PROPS}
+        transparent={true}
+        visible={showHintModal}
+        animationType="fade"
+        presentationStyle="overFullScreen"
+        supportedOrientations={WORD_GAME_MODAL_ORIENTATIONS}
+      >
+        <View className="flex-1 justify-center items-center px-4" style={{ backgroundColor: "#020617B3" }}>
+          <View className="bg-white rounded-2xl p-4 w-[80%] max-w-md items-center shadow-xl border-4 border-primary-100">
+            {/* Close button */}
+            <TouchableOpacity
+              className="absolute -top-3 -right-3 w-10 h-10 bg-white rounded-full items-center justify-center shadow-lg border-2 border-primary-300 z-10"
+              onPress={() => {
+                setShowHintModal(false);
+                setShowSubHint(false); // Reset sub-hint visibility when closing modal
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="close" size={20} color="#7b5af0" />
+            </TouchableOpacity>
+
+            {/* Title */}
+            <View className="flex-row items-center mb-3">
+              <Ionicons
+                name="bulb-outline"
+                size={22}
+                color="#7b5af0"
+                style={{ marginRight: 6 }}
+              />
+              <Text variant="bold" className="text-2xl text-primary-600">
+                Hint
+              </Text>
+            </View>
+
+            {/* Main Hint */}
+            <View className="bg-primary-50/80 w-full rounded-xl px-3 py-2.5 mb-3 border-2 border-primary-100">
+              <Text
+                variant="medium"
+                className="text-lg text-primary-700 text-center"
+                numberOfLines={4}
+              >
+                {currentLevel.hint}
+              </Text>
+            </View>
+
+            {/* Show Sub-Hint Button - only show if sub-hint is hidden */}
+            {!showSubHint && (
+              <TouchableOpacity
+                className="bg-secondary-500 py-2 px-5 rounded-full shadow-md border-2 border-secondary-400 mb-4"
+                onPress={() => setShowSubHint(true)}
+                activeOpacity={0.7}
+              >
+                <Text variant="bold" className="text-white text-base">
+                  More help
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Sub Hint - only show if requested */}
+            {showSubHint && (
+              <View className="bg-secondary-50/80 w-full rounded-xl px-3 py-2.5 mb-4 border-2 border-secondary-100">
+                <Text
+                  variant="bold"
+                  className="text-base text-secondary-700 text-center mb-1"
+                >
+                  One more clue:
+                </Text>
+                <Text
+                  variant="medium"
+                  className="text-base text-secondary-700 text-center"
+                  numberOfLines={4}
+                >
+                  {currentLevel.subHint}
+                </Text>
+              </View>
+            )}
+
+            {/* Got it button */}
+            <TouchableOpacity
+              className="bg-primary-500 py-2 px-7 rounded-full shadow-lg border-2 border-primary-400 active:scale-95"
+              onPress={() => {
+                setShowHintModal(false);
+                setShowSubHint(false); // Reset sub-hint visibility
+              }}
+              activeOpacity={0.7}
+            >
+              <Text variant="bold" className="text-white text-base">
+                {"Let's play"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Enlarged prompt image */}
+      <Modal
+        {...WORD_GAME_MODAL_SYSTEM_PROPS}
+        transparent={true}
+        visible={showImagePreview}
+        animationType="fade"
+        presentationStyle="overFullScreen"
+        supportedOrientations={WORD_GAME_MODAL_ORIENTATIONS}
+        onRequestClose={() => setShowImagePreview(false)}
+      >
+        <View className="flex-1 justify-center items-center px-5" style={{ backgroundColor: "#020617B3" }}>
+          <TouchableOpacity
+            className="absolute inset-0"
+            onPress={() => setShowImagePreview(false)}
+            activeOpacity={1}
+            accessibilityRole="button"
+            accessibilityLabel="Close enlarged picture"
+          />
+          <View className="bg-white rounded-3xl p-3 items-center shadow-2xl border-4 border-secondary-200">
+            <TouchableOpacity
+              className="absolute -top-3 -right-3 w-11 h-11 bg-white rounded-full items-center justify-center shadow-lg border-2 border-primary-300 z-10"
+              onPress={() => setShowImagePreview(false)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Close enlarged picture"
+            >
+              <Ionicons name="close" size={22} color="#7b5af0" />
+            </TouchableOpacity>
+            <View
+              className="rounded-2xl overflow-hidden bg-secondary-50"
+              style={{ width: previewImageSize, height: previewImageSize }}
+            >
+              <CachedImage
+                source={getImageSource(currentLevel.image)}
+                fallbackSource={resolveImageSource("coin.png")}
+                className="w-full h-full"
+                resizeMode="contain"
+                accessibilityLabel={`Large ${currentLevel.question} picture`}
+              />
+            </View>
+            <Text
+              variant="bold"
+              className="text-primary-700 text-lg text-center mt-2 px-3"
+              numberOfLines={2}
+            >
+              {currentQuestion}
+            </Text>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Level Select Modal */}
+      <Modal
+        {...WORD_GAME_MODAL_SYSTEM_PROPS}
+        transparent={true}
+        visible={showLevelSelect}
+        animationType="fade"
+        presentationStyle="overFullScreen"
+        supportedOrientations={WORD_GAME_MODAL_ORIENTATIONS}
+      >
+        <View className="flex-1 justify-center items-center px-4" style={{ backgroundColor: "#020617B3" }}>
+          <View className="bg-white rounded-2xl p-4 max-h-[80%] w-[80%] items-center shadow-xl border-4 border-primary-100">
+            {/* Close button */}
+            <TouchableOpacity
+              className="absolute -top-3 -right-3 w-10 h-10 bg-white rounded-full items-center justify-center shadow-lg border-2 border-primary-300 z-10"
+              onPress={() => setShowLevelSelect(false)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="close" size={20} color="#7b5af0" />
+            </TouchableOpacity>
+
+            <Text variant="bold" className="text-2xl text-primary-600 mb-2">
+              Pick a level
+            </Text>
+
+            <ScrollView className="w-full max-h-[260px]">
+              <View className="flex-row flex-wrap justify-center">
+                {gameLevels.map((level, index) => {
+                  // Use isLevelUnlocked which now considers current level too
+                  const isUnlocked = isLevelUnlocked(progress, index, level.id);
+                  const isCompleted = progress.completedLevels.includes(index);
+                  const isCurrent = index === currentLevelIndex;
+
+                  return (
+                    <TouchableOpacity
+                      key={index}
+                      className={`w-16 h-16 m-1 rounded-xl justify-center items-center shadow-md border-2
+                        ${
+                          isCurrent
+                            ? "bg-primary-600 border-primary-300"
+                            : isCompleted
+                              ? "bg-green-500 border-green-300"
+                              : isUnlocked
+                                ? "bg-secondary-500 border-secondary-300"
+                                : "bg-gray-300 border-gray-400 opacity-60"
+                        }`}
+                      onPress={() => selectLevel(index)}
+                      disabled={!isUnlocked}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Level ${index + 1}${isCompleted ? ", completed" : ""}${!isUnlocked ? ", locked" : ""}`}
+                      accessibilityState={{
+                        disabled: !isUnlocked,
+                        selected: isCurrent,
+                      }}
+                    >
+                      <Text
+                        variant="bold"
+                        className="text-white text-lg"
+                        numberOfLines={1}
+                      >
+                        {index + 1}
+                      </Text>
+                      {!isUnlocked && (
+                        <View className="absolute inset-0 items-center justify-center">
+                          <Ionicons
+                            name="lock-closed"
+                            size={20}
+                            color="rgba(255,255,255,0.7)"
+                          />
+                        </View>
+                      )}
+                      {isCompleted && (
+                        <View className="absolute -top-1 -right-1">
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={14}
+                            color="#ffffff"
+                          />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity
+              className="bg-primary-500 py-2 px-6 rounded-full shadow-lg border-2 border-primary-400 mt-3"
+              onPress={() => setShowLevelSelect(false)}
+              activeOpacity={0.7}
+            >
+              <Text variant="bold" className="text-white text-sm">
+                Close
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      <GameTour
+        visible={wordTour.visible}
+        onDismiss={wordTour.dismiss}
+        onUnavailable={wordTour.close}
+        onComplete={wordTour.complete}
+        steps={[
+          { id: "clue", targetId: "word-clue", icon: "image-outline", placement: "right", title: "Look at the picture", description: "It helps you find the word." },
+          { id: "answer", targetId: "word-answer-area", icon: "text-outline", placement: "bottom", title: "Your word", description: "Your letters go here." },
+          { id: "letters", targetId: "word-letter-options", icon: "finger-print-outline", placement: "top", title: "Pick letters", description: "Tap the letters in order." },
+          { id: "hint", targetId: "word-hint", icon: "bulb-outline", placement: "left", title: "Need help?", description: "Tap the bulb for a clue." },
+          { id: "level-picker", targetId: "word-level-picker", icon: "list-outline", placement: "bottom", title: "Choose a level", description: "Tap here to pick an unlocked level." },
+        ]}
+      />
+      </SafeAreaView>
+    </GameTourProvider>
   );
 };
 

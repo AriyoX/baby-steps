@@ -7,12 +7,13 @@ import {
   StyleSheet,
   PanResponder,
   Animated,
-  Dimensions,
+  useWindowDimensions,
   Text,
   TouchableOpacity,
   type ViewStyle,
   Easing,
 } from "react-native"
+import { childHaptics } from "@/lib/childHaptics"
 
 interface Ball {
   position: Animated.ValueXY
@@ -38,9 +39,8 @@ export default function BallTrail() {
   const touchPosition = useRef({ x: 0, y: 0 })
   const velocity = useRef({ x: 0, y: 0 })
   const lastTouch = useRef({ x: 0, y: 0, time: 0 })
-  const { width, height } = Dimensions.get("window")
-  const [ballCount, setBallCount] = useState(40) // Increased ball count
-  const [isExploding, setIsExploding] = useState(false)
+  const { width, height } = useWindowDimensions()
+  const ballCount = 40
 
   // Initialize with touch in the center
   useEffect(() => {
@@ -145,7 +145,7 @@ export default function BallTrail() {
     return () => {
       cancelAnimationFrame(animationId)
     }
-  }, [ballCount])
+  }, [ballCount, height, width])
 
   // Set up pan responder to track touch with improved responsiveness
   const panResponder = useRef(
@@ -180,8 +180,7 @@ export default function BallTrail() {
 
   // Create explosion effect
   const triggerExplosion = () => {
-    setIsExploding(true)
-
+    childHaptics.success()
     // Animate balls outward
     balls.forEach((ball, index) => {
       const angle = (index / balls.length) * Math.PI * 2
@@ -207,11 +206,6 @@ export default function BallTrail() {
         }),
       ]).start()
     })
-
-    // Reset explosion state after animation
-    setTimeout(() => {
-      setIsExploding(false)
-    }, 1300)
   }
 
   return (
@@ -241,14 +235,19 @@ export default function BallTrail() {
       ))}
 
       {/* Exit button */}
-      <TouchableOpacity style={styles.exitButton} onPress={() => router.back()}>
+      <TouchableOpacity
+        style={styles.exitButton}
+        onPress={() => {
+          childHaptics.tap()
+          router.back()
+        }}
+      >
         <Text style={styles.exitButtonText}>✕</Text>
       </TouchableOpacity>
 
       {/* Instructions */}
       <View style={styles.instructions}>
-        <Text style={styles.instructionsText}>Drag your finger to create a trail</Text>
-        <Text style={styles.instructionsText}>Release to see an explosion!</Text>
+        <Text style={styles.instructionsText}>Drag to make a trail</Text>
       </View>
     </View>
   )
@@ -272,8 +271,8 @@ const styles = StyleSheet.create({
   },
   exitButton: {
     position: "absolute",
-    top: 15,
-    left: 25,
+    top: 24,
+    left: 24,
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -294,11 +293,12 @@ const styles = StyleSheet.create({
   },
   instructions: {
     position: "absolute",
-    bottom: 40,
+    bottom: 28,
     left: 0,
     right: 0,
     alignItems: "center",
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
   },
   instructionsText: {
     color: "rgba(255, 255, 255, 0.7)",

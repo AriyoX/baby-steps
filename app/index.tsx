@@ -1,365 +1,542 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  View,
-  Dimensions,
+  AccessibilityInfo,
   Animated,
-  TouchableOpacity,
+  Easing,
   FlatList,
+  ScrollView,
   StatusBar,
+  StyleSheet,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BrandMark } from "@/components/brand/BrandMark";
+import { AppButton } from "@/components/common/AppButton";
+import {
+  OnboardingArtwork,
+  type OnboardingArtworkVariant,
+} from "@/components/onboarding/OnboardingArtwork";
 import { Text } from "@/components/StyledText";
+import { brandColors, brandShadows } from "@/constants/Brand";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { setOnboardingCompleted } from "@/lib/onboarding";
 
-const { width, height } = Dimensions.get("window");
+type OnboardingSlide = {
+  artwork: OnboardingArtworkVariant;
+  backgroundColor: string;
+  id: string;
+  title: string;
+};
 
-// Child-friendly content with consistent color data
-const onboardingData = [
+export const ONBOARDING_SLIDES: readonly OnboardingSlide[] = [
   {
-    id: "1",
-    title: "Hello, Friend!",
-    description: "Let's explore Uganda together! 🇺🇬",
-    image: "👶",
-    shapeColor: "bg-primary-300",
-    textColor: "text-primary-700",
-    color: "rgb(219, 242, 255)", // Light blue corresponding to primary-100
+    id: "little-steps",
+    title: "Little steps, big adventures",
+    artwork: "play",
+    backgroundColor: brandColors.blue[100],
   },
   {
-    id: "2",
-    title: "Magical Stories!",
-    description: "Listen to fun stories from Uganda!",
-    image: "📚",
-    shapeColor: "bg-secondary-300",
-    textColor: "text-secondary-700",
-    color: "rgb(255, 247, 237)", // Light orange corresponding to secondary-100
+    id: "stories-and-play",
+    title: "Learn through stories and play",
+    artwork: "discover",
+    backgroundColor: brandColors.orange[100],
   },
   {
-    id: "3",
-    title: "Fun Games!",
-    description: "Play and learn Luganda words!",
-    image: "🎮",
-    shapeColor: "bg-accent-300",
-    textColor: "text-accent-700",
-    color: "rgb(250, 240, 255)", // Light purple corresponding to accent-100
+    id: "family-space",
+    title: "Their journey stays with you",
+    artwork: "family",
+    backgroundColor: brandColors.gold[100],
   },
-];
+] as const;
+
+const MIN_HORIZONTAL_GUTTER = 20;
+const ARTWORK_BASE_HEIGHT = 260;
+const ARTWORK_BASE_WIDTH = 340;
 
 export default function OnboardingScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [completionError, setCompletionError] = useState<string | null>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
-  const flatListRef = useRef<FlatList>(null);
-
-  // Animation values for playful effects
-  const bounceValue = useRef(new Animated.Value(0)).current;
-  const rotateValue = useRef(new Animated.Value(0)).current;
-  const scaleValue = useRef(new Animated.Value(1)).current;
-
+  const floatValue = useRef(new Animated.Value(0)).current;
+  const flatListRef = useRef<FlatList<OnboardingSlide>>(null);
+  const currentIndexRef = useRef(0);
+  const previousWidthRef = useRef(0);
+  const completionInFlightRef = useRef(false);
+  const reduceMotion = useReducedMotion();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { height, width } = useWindowDimensions();
 
-  // Set up animations
+  const isVeryCompact = height < 620;
+  const isCompact = height < 700 || width < 350;
+  const isTablet = width >= 600 && height >= 700;
+  const footerEstimate =
+    (isVeryCompact ? 104 : isCompact ? 108 : 118) + Math.max(insets.bottom, 12);
+  const carouselHeightEstimate = Math.max(0, height - footerEstimate);
+  const artworkHeight = Math.min(
+    isTablet ? 520 : 390,
+    Math.max(
+      isVeryCompact ? 220 : isCompact ? 250 : 305,
+      carouselHeightEstimate * (isTablet ? 0.52 : 0.5),
+    ),
+  );
+  const availableArtworkWidth = Math.max(240, width - MIN_HORIZONTAL_GUTTER * 2);
+  const compactHeightScale = isVeryCompact ? 0.68 : height < 700 ? 0.78 : 1;
+  const artworkScale =
+    Math.min(isTablet ? 1.16 : 0.96, availableArtworkWidth / ARTWORK_BASE_WIDTH) *
+    compactHeightScale;
+  const scaledArtworkHeight = ARTWORK_BASE_HEIGHT * artworkScale;
+  const scaledArtworkWidth = ARTWORK_BASE_WIDTH * artworkScale;
+  const contentWidth = Math.min(width - MIN_HORIZONTAL_GUTTER * 2, isTablet ? 520 : 430);
+  const horizontalInset = Math.max(MIN_HORIZONTAL_GUTTER, insets.left, insets.right);
+
   useEffect(() => {
-    // Bounce animation for the image
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(bounceValue, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(bounceValue, {
-          toValue: 0,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+    if (previousWidthRef.current === width) return;
 
-    // Slow rotation for the image
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(rotateValue, {
-          toValue: 1,
-          duration: 3000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(rotateValue, {
-          toValue: 0,
-          duration: 3000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+    previousWidthRef.current = width;
+    const offset = currentIndexRef.current * width;
+    scrollX.setValue(offset);
+    flatListRef.current?.scrollToOffset({ animated: false, offset });
+  }, [scrollX, width]);
 
-    // Subtle pulse animation
-    Animated.loop(
+  useEffect(() => {
+    if (reduceMotion) {
+      floatValue.setValue(0);
+      return;
+    }
+
+    const animation = Animated.loop(
       Animated.sequence([
-        Animated.timing(scaleValue, {
-          toValue: 1.1,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleValue, {
+        Animated.timing(floatValue, {
           toValue: 1,
-          duration: 1500,
+          duration: 1700,
+          easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
-      ])
-    ).start();
+        Animated.timing(floatValue, {
+          toValue: 0,
+          duration: 1700,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    animation.start();
+    return () => animation.stop();
+  }, [floatValue, reduceMotion]);
+
+  const updateCurrentIndex = useCallback((nextIndex: number, announce = true) => {
+    const clampedIndex = Math.max(0, Math.min(ONBOARDING_SLIDES.length - 1, nextIndex));
+    if (currentIndexRef.current === clampedIndex) return;
+
+    currentIndexRef.current = clampedIndex;
+    setCurrentIndex(clampedIndex);
+    setCompletionError(null);
+
+    if (announce) {
+      AccessibilityInfo.announceForAccessibility(
+        `Onboarding screen ${clampedIndex + 1} of ${ONBOARDING_SLIDES.length}`,
+      );
+    }
   }, []);
 
-  const handleOnboardingComplete = async () => {
+  const handleMomentumScrollEnd = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      updateCurrentIndex(Math.round(event.nativeEvent.contentOffset.x / width));
+    },
+    [updateCurrentIndex, width],
+  );
+
+  const goToNextSlide = useCallback(() => {
+    const nextIndex = Math.min(currentIndexRef.current + 1, ONBOARDING_SLIDES.length - 1);
+    updateCurrentIndex(nextIndex);
+    flatListRef.current?.scrollToOffset({ animated: true, offset: nextIndex * width });
+  }, [updateCurrentIndex, width]);
+
+  const handleOnboardingComplete = useCallback(async () => {
+    if (completionInFlightRef.current) return;
+
+    completionInFlightRef.current = true;
+    setIsCompleting(true);
+    setCompletionError(null);
+
     try {
-      await AsyncStorage.setItem("@onboarding_completed", "true");
+      await setOnboardingCompleted();
       router.replace("/login");
     } catch (error) {
       console.error("Failed to save onboarding status", error);
+      setCompletionError("We couldn't continue just now. Please try again.");
+    } finally {
+      completionInFlightRef.current = false;
+      setIsCompleting(false);
     }
-  };
+  }, [router]);
 
-  // Render fun shapes in background with animated opacity based on scroll position
-  const renderBackgroundShapes = () => {
-    return onboardingData.map((item, index) => {
-      // Calculate opacity based on scroll position to fade shapes in/out
-      const inputRange = [
-        (index - 0.5) * width, // Start fading in
-        index * width, // Full opacity
-        (index + 0.5) * width, // Start fading out
-      ];
-
-      const opacity = scrollX.interpolate({
-        inputRange,
-        outputRange: [0, 1, 0],
-        extrapolate: "clamp",
-      });
-
-      return (
-        <Animated.View
-          key={`shapes-${index}`}
-          style={{
-            opacity,
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-          }}
-        >
-          <View
-            className={`absolute top-5 left-5 w-16 h-16 rounded-full ${item.shapeColor} opacity-20`}
-          />
-          <View
-            className={`absolute bottom-20 right-10 w-14 h-14 rounded-full ${item.shapeColor} opacity-30`}
-          />
-          <View
-            className={`absolute top-40 right-8 w-10 h-10 rounded-full ${item.shapeColor} opacity-25`}
-          />
-          <View
-            className={`absolute bottom-60 left-12 w-12 h-12 rounded-lg rotate-45 ${item.shapeColor} opacity-20`}
-          />
-        </Animated.View>
-      );
-    });
-  };
-
-  // Create a smoothly interpolated background color
-  const backgroundColor = scrollX.interpolate({
-    inputRange: onboardingData.map((_, i) => i * width),
-    outputRange: onboardingData.map((item) => item.color),
-    extrapolate: "clamp",
+  const floatTranslateY = floatValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -7],
   });
 
-  const renderItem = ({ item }: { item: (typeof onboardingData)[0] }) => {
-    // Animation transformations
-    const translateY = bounceValue.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, -15], // More noticeable bounce for kids
-    });
-
-    const rotate = rotateValue.interpolate({
-      inputRange: [0, 1],
-      outputRange: ["-5deg", "5deg"],
-    });
-
-    return (
+  const renderItem = useCallback(
+    ({ item, index }: { item: OnboardingSlide; index: number }) => (
       <View
-        style={{ width }}
-        className="h-full items-center justify-center" // Removed bg-color class
+        accessibilityElementsHidden={index !== currentIndex}
+        importantForAccessibility={index === currentIndex ? "auto" : "no-hide-descendants"}
+        style={[styles.slide, { backgroundColor: item.backgroundColor, width }]}
       >
-        {/* Animated emoji in a fun container */}
-        <Animated.View
-          className="w-40 h-40 rounded-full items-center justify-center shadow-xl mb-10 bg-white border-4 border-white"
-          style={{
-            transform: [{ translateY }, { rotate }, { scale: scaleValue }],
-          }}
+        <View
+          style={[
+            styles.artworkArea,
+            {
+              height: artworkHeight,
+              paddingTop: Math.max(insets.top + 52, 66),
+            },
+          ]}
         >
-          <Text className="text-[80px]">{item.image}</Text>
-        </Animated.View>
+          <Animated.View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            testID="onboarding-artwork-frame"
+            style={{
+              height: scaledArtworkHeight,
+              transform: [{ translateY: floatTranslateY }],
+              width: scaledArtworkWidth,
+            }}
+          >
+            <View
+              style={{
+                left: (scaledArtworkWidth - ARTWORK_BASE_WIDTH) / 2,
+                position: "absolute",
+                top: (scaledArtworkHeight - ARTWORK_BASE_HEIGHT) / 2,
+                transform: [{ scale: artworkScale }],
+              }}
+            >
+              <OnboardingArtwork variant={item.artwork} />
+            </View>
+          </Animated.View>
+        </View>
 
-        {/* Title with playful styling */}
-        <Text variant="bold" className={`text-3xl pt-3  mb-4 ${item.textColor}`}>
-          {item.title}
-        </Text>
-
-        {/* Simple description for kids */}
-        <Text className="text-xl text-center text-neutral-700 px-12 leading-7">
-          {item.description}
-        </Text>
+        <View style={[styles.copySheet, isVeryCompact && styles.veryCompactCopySheet]}>
+          <ScrollView
+            bounces={false}
+            contentContainerStyle={styles.copyContent}
+            nestedScrollEnabled
+            showsVerticalScrollIndicator={false}
+            style={[styles.copyScroller, { maxWidth: contentWidth }]}
+          >
+            <Text
+              variant="display"
+              style={[
+                styles.title,
+                isCompact && styles.compactTitle,
+                isVeryCompact && styles.veryCompactTitle,
+                isTablet && styles.tabletTitle,
+              ]}
+            >
+              {item.title}
+            </Text>
+          </ScrollView>
+        </View>
       </View>
-    );
-  };
+    ),
+    [
+      artworkHeight,
+      artworkScale,
+      contentWidth,
+      currentIndex,
+      floatTranslateY,
+      insets.top,
+      isCompact,
+      isTablet,
+      isVeryCompact,
+      scaledArtworkHeight,
+      scaledArtworkWidth,
+      width,
+    ],
+  );
 
-  // Child-friendly button with emoji
-  const renderNextButton = () => {
-    if (currentIndex === onboardingData.length - 1) {
-      return (
-        <TouchableOpacity
-          className="w-64 h-16 bg-success-500 rounded-full flex-row items-center justify-center shadow-lg"
-          onPress={handleOnboardingComplete}
-        >
-          <Text variant="bold" className="text-white text-xl mr-2">Let's Play!</Text>
-          <Text className="text-2xl">🎮</Text>
-        </TouchableOpacity>
-      );
-    }
-
-    return (
-      <TouchableOpacity
-        className="w-64 h-16 bg-primary-500 rounded-full flex-row items-center justify-center shadow-lg"
-        onPress={() => {
-          if (currentIndex < onboardingData.length - 1) {
-            flatListRef.current?.scrollToIndex({
-              index: currentIndex + 1,
-              animated: true,
-            });
-          }
-        }}
-      >
-        <Text variant="bold" className="text-white text-xl  mr-2">Next</Text>
-        <Text className="text-2xl">👉</Text>
-      </TouchableOpacity>
-    );
-  };
+  const isLastSlide = currentIndex === ONBOARDING_SLIDES.length - 1;
 
   return (
-    <Animated.View className="flex-1" style={{ backgroundColor }}>
-      {/* Set StatusBar to transparent to allow background color to show through */}
-      <StatusBar
-        translucent
-        backgroundColor="transparent"
-        barStyle="dark-content"
-      />
+    <View style={styles.root}>
+      <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
 
-      {/* Fun background shapes with smooth transitions */}
-      {renderBackgroundShapes()}
-
-      {/* App title at the top - with more padding to account for status bar */}
-      <SafeAreaView className="w-full items-center pb-4">
-        <Text variant="bold" className="text-2xl text-primary-600  mt-4">
-          Baby Steps
-        </Text>
-        <Text className="text-base text-neutral-600">Learn & Play!</Text>
-      </SafeAreaView>
-
-      {/* Skip button - repositioned for better visibility */}
-      <TouchableOpacity
-        className="absolute top-16 right-6 bg-white/80 py-2 px-5 rounded-full z-10 shadow-sm"
-        onPress={handleOnboardingComplete}
-      >
-        <Text className="text-primary-600">Skip</Text>
-      </TouchableOpacity>
-
-      {/* Slides */}
-      <FlatList
+      <Animated.FlatList
         ref={flatListRef}
-        data={onboardingData}
+        data={ONBOARDING_SLIDES as readonly OnboardingSlide[]}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         horizontal
         pagingEnabled
+        snapToInterval={width}
+        decelerationRate="fast"
+        disableIntervalMomentum
+        bounces={false}
+        removeClippedSubviews={false}
         showsHorizontalScrollIndicator={false}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-          { useNativeDriver: false }
-        )}
-        onViewableItemsChanged={({ viewableItems }) => {
-          if (viewableItems.length > 0) {
-            setCurrentIndex(viewableItems[0].index || 0);
-          }
-        }}
-        viewabilityConfig={{ viewAreaCoveragePercentThreshold: 50 }}
-        className="flex-1"
+        scrollEventThrottle={16}
+        getItemLayout={(_, index) => ({ index, length: width, offset: width * index })}
+        onMomentumScrollEnd={handleMomentumScrollEnd}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
+          useNativeDriver: false,
+        })}
+        style={styles.carousel}
+        contentContainerStyle={styles.carouselContent}
+        extraData={currentIndex}
+        accessibilityLabel="Baby Steps introduction"
+        testID="onboarding-carousel"
       />
 
-      {/* Improved pagination dots with consistent shapes */}
-      <View className="flex-row justify-center items-center my-6">
-        {onboardingData.map((_, index) => {
-          const inputRange = [
-            (index - 1) * width,
-            index * width,
-            (index + 1) * width,
-          ];
-
-          // Instead of scaling in X/Y separately which distorts the shape,
-          // use a uniform scale that maintains the circular shape
-          const scale = scrollX.interpolate({
-            inputRange,
-            outputRange: [0.8, 1.6, 0.8], // Scale factor for dots
-            extrapolate: "clamp",
-          });
-
-          const opacity = scrollX.interpolate({
-            inputRange,
-            outputRange: [0.5, 1, 0.5],
-            extrapolate: "clamp",
-          });
-
-          // Different colors for each dot
-          const dotColor =
-            index === 0
-              ? "bg-primary-500"
-              : index === 1
-              ? "bg-secondary-500"
-              : "bg-accent-500";
-
-          // Add border to make dots more visually distinct
-          const borderColor =
-            index === 0
-              ? "border-primary-200"
-              : index === 1
-              ? "border-secondary-200"
-              : "border-accent-200";
-
-          // Active dot styling
-          const isActive = index === currentIndex;
-
-          return (
-            <Animated.View
-              key={index}
-              className={`mx-3 rounded-full ${dotColor} border-2 ${borderColor} ${
-                isActive ? "shadow" : ""
-              }`}
-              style={{
-                width: isActive ? 20 : 12,
-                height: isActive ? 20 : 12,
-                opacity,
-                transform: [{ scale }],
-                // Additional shadow styling for active dot
-                ...(isActive && {
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 3,
-                  elevation: 3,
-                }),
-              }}
-            />
-          );
-        })}
+      <View
+        pointerEvents="box-none"
+        style={[
+          styles.header,
+          {
+            height: insets.top + 60,
+            paddingLeft: horizontalInset,
+            paddingRight: horizontalInset,
+            paddingTop: insets.top,
+          },
+        ]}
+      >
+        <BrandMark kind="wordmark" width={142} height={35} />
+        <TouchableOpacity
+          accessibilityLabel="Skip introduction and continue to sign in"
+          accessibilityRole="button"
+          activeOpacity={0.72}
+          disabled={isCompleting}
+          onPress={() => void handleOnboardingComplete()}
+          style={styles.skipButton}
+          testID="onboarding-skip"
+        >
+            <Text
+              numberOfLines={1}
+              variant="semibold"
+              style={styles.skipText}
+            >
+              Skip
+            </Text>
+          <Ionicons name="arrow-forward" color={brandColors.blue[700]} size={17} />
+        </TouchableOpacity>
       </View>
 
-      {/* Navigation button at bottom */}
-      <View className="items-center mb-12 mt-2">{renderNextButton()}</View>
-    </Animated.View>
+      <View
+        style={[
+          styles.footer,
+          {
+            paddingBottom: Math.max(insets.bottom, 12),
+            paddingLeft: horizontalInset,
+            paddingRight: horizontalInset,
+          },
+        ]}
+      >
+        <View style={[styles.footerContent, { maxWidth: contentWidth }]}>
+          <View
+            accessible
+            accessibilityLabel={`Page ${currentIndex + 1} of ${ONBOARDING_SLIDES.length}`}
+            style={styles.pagination}
+          >
+            {ONBOARDING_SLIDES.map((slide, index) => {
+              const inputRange = [(index - 1) * width, index * width, (index + 1) * width];
+              const dotWidth = scrollX.interpolate({
+                inputRange,
+                outputRange: [8, 24, 8],
+                extrapolate: "clamp",
+              });
+              const dotOpacity = scrollX.interpolate({
+                inputRange,
+                outputRange: [0.3, 1, 0.3],
+                extrapolate: "clamp",
+              });
+
+              return (
+                <Animated.View
+                  key={`onboarding-dot-${slide.id}`}
+                  accessible={false}
+                  importantForAccessibility="no"
+                  style={[styles.paginationDot, { opacity: dotOpacity, width: dotWidth }]}
+                />
+              );
+            })}
+          </View>
+
+          <AppButton
+            accessibilityLabel={isLastSlide ? "Get started with Baby Steps" : "Continue to the next introduction screen"}
+            className="rounded-2xl"
+            fullWidth
+            icon={isLastSlide ? "sparkles-outline" : "arrow-forward"}
+            label={isLastSlide ? "Get started" : "Continue"}
+            loading={isCompleting}
+            loadingLabel="Opening Baby Steps..."
+            onPress={isLastSlide ? () => void handleOnboardingComplete() : goToNextSlide}
+            style={styles.primaryAction}
+            testID="onboarding-primary-action"
+          />
+
+          <View style={styles.errorSlot}>
+            {completionError ? (
+              <Text
+                accessibilityLiveRegion="polite"
+                style={styles.completionError}
+                testID="onboarding-completion-error"
+              >
+                {completionError}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+      </View>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  artworkArea: {
+    alignItems: "center",
+    justifyContent: "flex-end",
+    overflow: "hidden",
+    width: "100%",
+  },
+  carousel: {
+    flex: 1,
+  },
+  carouselContent: {
+    flexGrow: 1,
+  },
+  compactTitle: {
+    fontSize: 29,
+    lineHeight: 38,
+  },
+  completionError: {
+    color: brandColors.danger,
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: "center",
+  },
+  copyContent: {
+    alignItems: "center",
+    paddingHorizontal: 20,
+    width: "100%",
+  },
+  copyScroller: {
+    flex: 1,
+    width: "100%",
+  },
+  copySheet: {
+    alignItems: "center",
+    backgroundColor: brandColors.babyStepsWhite,
+    borderTopLeftRadius: 36,
+    borderTopRightRadius: 36,
+    flex: 1,
+    marginTop: -16,
+    paddingBottom: 12,
+    paddingTop: 27,
+    width: "100%",
+  },
+  errorSlot: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 5,
+    minHeight: 18,
+    width: "100%",
+  },
+  footer: {
+    alignItems: "center",
+    backgroundColor: brandColors.babyStepsWhite,
+    paddingTop: 10,
+    width: "100%",
+  },
+  footerContent: {
+    alignItems: "center",
+    width: "100%",
+  },
+  header: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    left: 0,
+    position: "absolute",
+    right: 0,
+    top: 0,
+    zIndex: 10,
+  },
+  pagination: {
+    alignItems: "center",
+    flexDirection: "row",
+    height: 12,
+    justifyContent: "center",
+    marginBottom: 13,
+  },
+  paginationDot: {
+    backgroundColor: brandColors.victoriaBlue,
+    borderRadius: 4,
+    height: 8,
+    marginHorizontal: 4,
+  },
+  primaryAction: {
+    ...brandShadows.soft,
+    minHeight: 58,
+  },
+  root: {
+    backgroundColor: brandColors.babyStepsWhite,
+    flex: 1,
+  },
+  skipButton: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.68)",
+    borderColor: "rgba(255,255,255,0.8)",
+    borderRadius: 22,
+    borderWidth: 1,
+    flexDirection: "row",
+    flexShrink: 0,
+    justifyContent: "center",
+    minHeight: 46,
+    minWidth: 92,
+    paddingHorizontal: 15,
+  },
+  skipText: {
+    color: brandColors.blue[700],
+    fontSize: 14,
+    lineHeight: 20,
+    marginRight: 4,
+    minWidth: 34,
+    paddingHorizontal: 2,
+    paddingVertical: 1,
+    textAlign: "center",
+  },
+  slide: {
+    flex: 1,
+  },
+  tabletTitle: {
+    fontSize: 38,
+    lineHeight: 50,
+  },
+  title: {
+    alignSelf: "center",
+    color: brandColors.neutral[900],
+    fontSize: 33,
+    lineHeight: 45,
+    marginBottom: 12,
+    maxWidth: 500,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    textAlign: "center",
+    width: "100%",
+  },
+  veryCompactCopySheet: {
+    paddingTop: 20,
+  },
+  veryCompactTitle: {
+    fontSize: 26,
+    lineHeight: 35,
+    marginBottom: 9,
+  },
+});

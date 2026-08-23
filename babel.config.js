@@ -1,10 +1,12 @@
 module.exports = function (api) {
-  api.cache(true);
+  api.cache.using(() => process.env.NODE_ENV);
+  const isProduction = process.env.NODE_ENV === "production";
+
   return {
     presets: [
       ["babel-preset-expo", { jsxImportSource: "nativewind" }],
       "nativewind/babel",
     ],
-    plugins: ["react-native-reanimated/plugin"],
+    plugins: isProduction ? ["transform-remove-console"] : [],
   };
 };

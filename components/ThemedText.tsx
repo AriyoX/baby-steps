@@ -1,5 +1,6 @@
 import { Text, type TextProps, StyleSheet } from 'react-native';
 
+import { brandColors, brandFonts } from '@/constants/Brand';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
 export type ThemedTextProps = TextProps & {
@@ -20,7 +21,7 @@ export function ThemedText({
   return (
     <Text
       style={[
-        { color },
+        { color, fontFamily: brandFonts.body },
         type === 'default' ? styles.default : undefined,
         type === 'title' ? styles.title : undefined,
         type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
@@ -41,20 +42,20 @@ const styles = StyleSheet.create({
   defaultSemiBold: {
     fontSize: 16,
     lineHeight: 24,
-    fontWeight: '600',
+    fontFamily: brandFonts.semibold,
   },
   title: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontFamily: brandFonts.heading,
     lineHeight: 32,
   },
   subtitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontFamily: brandFonts.heading,
   },
   link: {
     lineHeight: 30,
     fontSize: 16,
-    color: '#0a7ea4',
+    color: brandColors.victoriaBlue,
   },
 });

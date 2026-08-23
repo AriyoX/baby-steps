@@ -1,82 +1,259 @@
-import React, { useState, useEffect, useCallback } from "react";
+"use client"
+
+import type React from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import {
   View,
   TouchableOpacity,
-  Image,
+  ImageBackground,
   Animated,
-  SafeAreaView,
-  Dimensions,
   ScrollView,
   FlatList,
-  ActivityIndicator,
-  ImageBackground,
-} from "react-native";
-import { Audio } from "expo-av";
-import { LinearGradient } from "expo-linear-gradient";
-import { StatusBar } from "expo-status-bar";
-import { useRouter } from "expo-router";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Text } from "@/components/StyledText";
-
-// Import our data structure
+  useWindowDimensions,
+} from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
+import type { Audio } from "expo-av"
+import { LinearGradient } from "expo-linear-gradient"
+import { StatusBar } from "expo-status-bar"
+import { useRouter } from "expo-router"
+import { Ionicons } from "@expo/vector-icons"
+import { Text } from "@/components/StyledText"
+import { ChildLoadingState } from "@/components/child/ChildLoadingState"
+import { ComingSoonState } from "@/components/child/ComingSoonState"
+import { CachedImage } from "@/components/common/CachedImage"
+import { useChild } from "@/context/ChildContext"
+import { useChildUiLanguage } from "@/context/ChildUiLanguageContext"
+import { useChildNotice } from "@/context/ChildNoticeContext"
+import { brandColors } from "@/constants/Brand"
+import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages"
 import {
-  LUGANDA_STAGES,
-  Stage,
-  Level,
-  WordItem,
-  getWordsForLevel,
-  unlockNextLevel,
-  unlockNextStage,
-  isStageCompleted,
-} from "./utils/lugandawords";
+  loadContentBundle,
+  resolveImageSource,
+  type LearningGameLevel,
+  type LearningGameStage,
+  type LearningGameWord,
+} from "@/content/contentRepository"
+import { preloadContentBundleImages } from "@/content/imagePreloader"
+import { saveActivity } from "@/lib/utils"
+import { syncProgressNow } from "@/lib/progressRepository"
+import {
+  completeLocallyFirst,
+  type LocalFirstCompletionResult,
+  type LocalPersistenceStatus,
+} from "@/lib/completionReliability"
+import { recordQualifiedStreakActivity } from "@/lib/streakRepository"
+import { childHaptics } from "@/lib/childHaptics"
+import { useAchievements } from "./achievements/useAchievements"
+import type { AchievementDefinition } from "./achievements/achievementTypes"
+import { playWordAudio, loadGameSounds } from "./utils/audioManager"
+import { audioManager } from "@/lib/audioManager"
+import {
+  GameHeader,
+  GameTour,
+  GameTourProvider,
+  TourTarget,
+  useGameTour,
+} from "./GameTour"
+import { GameLevelSelector } from "./GameLevelSelector"
 
-// Game state types
-type GameState =
-  | "menu"
-  | "stageSelect"
-  | "levelSelect"
-  | "learning"
-  | "playing"
-  | "levelComplete";
+import {
+  applyLegacyLearningAccessLocks,
+  loadGameProgress as loadProgress,
+  saveGameProgress as saveProgress,
+  type UserStats,
+  DEFAULT_USER_STATS,
+} from "./utils/progressManagerLugandaLearning" // Adjust the import path as necessary
+
+type GameState = "menu" | "stageSelect" | "levelSelect" | "learning" | "playing" | "levelComplete"
+
+interface LearningGameCompletionOrderOptions {
+  persistProgress: (totalScore: number) => Promise<unknown>
+  revealCompletion: (totalScore: number) => void
+  runBestEffortNetworkWork: (
+    totalScore: number,
+    persistence: LocalPersistenceStatus,
+  ) => Promise<void>
+  onLocalError?: (error: unknown) => void
+  onNetworkError?: (error: unknown) => void
+}
+
+const completeLearningGameProgressLocallyFirst = (
+  completedTotalScore: number,
+  options: LearningGameCompletionOrderOptions,
+): Promise<LocalFirstCompletionResult<number>> =>
+  completeLocallyFirst({
+    persistLocal: async () => {
+      const persisted = await options.persistProgress(completedTotalScore)
+      if (persisted === false) {
+        throw new Error("Legacy Learning Game progress was not saved locally.")
+      }
+      return completedTotalScore
+    },
+    fallbackValue: completedTotalScore,
+    revealCompletion: (totalScore) => options.revealCompletion(totalScore),
+    runBestEffortNetworkWork: (totalScore, persistence) =>
+      options.runBestEffortNetworkWork(totalScore, persistence),
+    onLocalError: options.onLocalError,
+    onNetworkError: options.onNetworkError,
+  })
+
+const GAME_SCREEN_OVERLAY = "rgba(2, 116, 187, 0.88)"
+
+const getWordsForLevel = (
+  stages: LearningGameStage[],
+  stageId: number,
+  levelId: number,
+): LearningGameWord[] => {
+  const stage = stages.find((item) => item.id === stageId)
+  const level = stage?.levels.find((item) => item.id === levelId)
+  return level?.words ?? []
+}
+
+const isStageCompleted = (
+  stageId: number,
+  completedLevels: number[],
+  stages: LearningGameStage[],
+): boolean => {
+  const stage = stages.find((item) => item.id === stageId)
+  return stage ? stage.levels.every((level) => completedLevels.includes(level.id)) : false
+}
 
 const LugandaLearningGame: React.FC = () => {
-  const router = useRouter();
+  const router = useRouter()
+  const { activeChild } = useChild()
+  const { t } = useChildUiLanguage()
+  const languageCode = activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE
+  const learningTour = useGameTour("learning-quiz", activeChild?.id)
+  const achievementGameKey = languageCode === "lg" ? "luganda_learning_game" : "learning_game"
+  const {
+    checkAndGrantNewAchievements,
+  } = useAchievements(activeChild?.id, achievementGameKey) // Pass childId and gameKey
+  const { enqueueAchievementUnlocked } = useChildNotice()
+
+  const gameStartTime = useRef(Date.now())
 
   // Get dimensions for responsive layout
-  const { width, height } = Dimensions.get("window");
-  const isLandscape = width > height;
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions()
+  const isLandscape = windowWidth > windowHeight
+  const compactLandscape = windowHeight < 430
+  const landscapeWidth = Math.max(windowWidth, windowHeight)
+  const landscapeHeight = Math.min(windowWidth, windowHeight)
+  const stageCardGap = 8
+  const stageCardWidth = Math.min(270, Math.max(230, landscapeWidth * 0.32))
+  const stageCardHeight = Math.max(190, Math.min(232, landscapeHeight * 0.56))
+  const stageCardImageHeight = Math.round(stageCardHeight * 0.54)
+  const stageCardBodyHeight = stageCardHeight - stageCardImageHeight
+  const stageListEndPadding = Math.max(16, landscapeWidth - stageCardWidth - 32)
+  const learningImageHeight = Math.min(260, Math.max(180, landscapeHeight * 0.5))
 
   // Game state management
-  const [gameState, setGameState] = useState<GameState>("stageSelect");
-  const [stages, setStages] = useState<Stage[]>(LUGANDA_STAGES);
-  const [selectedStage, setSelectedStage] = useState<Stage | null>(null);
-  const [selectedLevel, setSelectedLevel] = useState<Level | null>(null);
-  const [currentLearningIndex, setCurrentLearningIndex] = useState<number>(0);
-  const [currentWords, setCurrentWords] = useState<WordItem[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [gameState, setGameState] = useState<GameState>("stageSelect")
+  const [gameTitle, setGameTitle] = useState<string>("Learning")
+  const [stages, setStages] = useState<LearningGameStage[]>([])
+  const [selectedStage, setSelectedStage] = useState<LearningGameStage | null>(null)
+  const [selectedLevel, setSelectedLevel] = useState<LearningGameLevel | null>(null)
+  const [currentLearningIndex, setCurrentLearningIndex] = useState<number>(0)
+  const [currentWords, setCurrentWords] = useState<LearningGameWord[]>([])
+  const [isLoading, setIsLoading] = useState<boolean>(true)
+  const [contentRetrySequence, setContentRetrySequence] = useState(0)
 
   // Game progress state
-  const [totalScore, setTotalScore] = useState<number>(0);
-  const [completedLevels, setCompletedLevels] = useState<number[]>([]);
+  const [totalScore, setTotalScore] = useState<number>(0)
+  const [completedLevels, setCompletedLevels] = useState<number[]>([])
+  const userStatsRef = useRef<UserStats>({ ...DEFAULT_USER_STATS })
+  const completionRevisionRef = useRef(0)
+  const contentProgressRevisionRef = useRef<string | undefined>(undefined)
+  const progressOwnerRef = useRef({
+    childId: activeChild?.id,
+    languageCode,
+  })
+  const isMountedRef = useRef(false)
+  const hydrationGenerationRef = useRef(0)
+  const answerLockRef = useRef(false)
+  const completionLockRef = useRef(false)
+  const answerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const optionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Playing state
-  const [currentWordIndex, setCurrentWordIndex] = useState<number>(0);
-  const [currentWord, setCurrentWord] = useState<WordItem | null>(null);
-  const [options, setOptions] = useState<string[]>([]);
-  const [levelScore, setLevelScore] = useState<number>(0);
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
-  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
-  const [sound, setSound] = useState<Audio.Sound | undefined>();
-  const [correctSound, setCorrectSound] = useState<Audio.Sound | undefined>();
-  const [wrongSound, setWrongSound] = useState<Audio.Sound | undefined>();
+  const [currentWordIndex, setCurrentWordIndex] = useState<number>(0)
+  const [currentWord, setCurrentWord] = useState<LearningGameWord | null>(null)
+  const [options, setOptions] = useState<string[]>([])
+  const [levelScore, setLevelScore] = useState<number>(0)
+  const [selectedOption, setSelectedOption] = useState<string | null>(null)
+  const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
+  const [sound, setSound] = useState<Audio.Sound | undefined>()
+  const [correctSound, setCorrectSound] = useState<Audio.Sound | undefined>()
+  const [wrongSound, setWrongSound] = useState<Audio.Sound | undefined>()
+  const soundRef = useRef<Audio.Sound | undefined>(undefined)
+  const correctSoundRef = useRef<Audio.Sound | undefined>(undefined)
+  const wrongSoundRef = useRef<Audio.Sound | undefined>(undefined)
 
   // Animations
-  const progressWidth = useState<Animated.Value>(new Animated.Value(0))[0];
-  const shakeAnimation = useState<Animated.Value>(new Animated.Value(0))[0];
-  const fadeAnim = useState<Animated.Value>(new Animated.Value(0))[0];
-  const confettiAnim = useState<Animated.Value>(new Animated.Value(0))[0];
-  const [shakingOption, setShakingOption] = useState<string | null>(null);
+  const progressWidth = useState<Animated.Value>(new Animated.Value(0))[0]
+  const shakeAnimation = useState<Animated.Value>(new Animated.Value(0))[0]
+  const fadeAnim = useState<Animated.Value>(new Animated.Value(0))[0]
+  const confettiAnim = useState<Animated.Value>(new Animated.Value(0))[0]
+  const [shakingOption, setShakingOption] = useState<string | null>(null)
+
+  progressOwnerRef.current = {
+    childId: activeChild?.id,
+    languageCode,
+  }
+
+  const updateUserStatsState = (nextUserStats: UserStats): void => {
+    userStatsRef.current = nextUserStats
+  }
+
+  const unloadSound = useCallback((loadedSound?: Audio.Sound): void => {
+    if (!loadedSound) return
+
+    void audioManager.unloadAppSound(loadedSound).catch((error) => {
+      console.warn("Could not unload learning-game sound:", error)
+    })
+  }, [])
+
+  const loadSounds = useCallback(async (
+    isCurrentRequest: () => boolean = () => isMountedRef.current,
+  ): Promise<void> => {
+    try {
+      const { correctSound: newCorrectSound, wrongSound: newWrongSound } = await loadGameSounds()
+      if (isCurrentRequest()) {
+        correctSoundRef.current = newCorrectSound
+        wrongSoundRef.current = newWrongSound
+        setCorrectSound(newCorrectSound)
+        setWrongSound(newWrongSound)
+      } else {
+        unloadSound(newCorrectSound)
+        unloadSound(newWrongSound)
+      }
+    } catch (error) {
+      console.error("Error loading sounds", error)
+    }
+  }, [unloadSound])
+
+  const clearGameTimers = useCallback((): void => {
+    if (answerTimeoutRef.current) {
+      clearTimeout(answerTimeoutRef.current)
+      answerTimeoutRef.current = null
+    }
+    if (optionTimeoutRef.current) {
+      clearTimeout(optionTimeoutRef.current)
+      optionTimeoutRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    isMountedRef.current = true
+
+    return () => {
+      isMountedRef.current = false
+      hydrationGenerationRef.current += 1
+      clearGameTimers()
+      unloadSound(soundRef.current)
+      unloadSound(correctSoundRef.current)
+      unloadSound(wrongSoundRef.current)
+    }
+  }, [clearGameTimers, unloadSound])
 
   // Update animation when state changes
   useEffect(() => {
@@ -84,44 +261,146 @@ const LugandaLearningGame: React.FC = () => {
       toValue: 1,
       duration: 600,
       useNativeDriver: true,
-    }).start();
+    }).start()
 
     return () => {
-      fadeAnim.setValue(0);
-    };
-  }, [gameState, currentLearningIndex, currentWordIndex]);
+      fadeAnim.setValue(0)
+    }
+  }, [currentLearningIndex, currentWordIndex, fadeAnim, gameState])
 
   // Load game progress on mount
   useEffect(() => {
-    const init = async () => {
-      await loadGameProgress();
-      await loadSounds();
-      setIsLoading(false);
-    };
+    const requestGeneration = ++hydrationGenerationRef.current
+    const requestedChildId = activeChild?.id
+    const requestedLanguageCode = languageCode
+    const isCurrentRequest = (): boolean => {
+      const owner = progressOwnerRef.current
+      return (
+        isMountedRef.current &&
+        hydrationGenerationRef.current === requestGeneration &&
+        owner.childId === requestedChildId &&
+        owner.languageCode === requestedLanguageCode
+      )
+    }
 
-    init();
+    const init = async () => {
+      setIsLoading(true)
+      completionRevisionRef.current += 1
+
+      try {
+        const contentResult = await loadContentBundle(requestedLanguageCode, {
+          forceRefresh: true,
+        })
+        const contentStages = contentResult.bundle?.learningGame.stages ?? []
+        const contentProgressRevision =
+          contentResult.bundle?.progressRevisions?.learning_game
+        if (contentResult.bundle) {
+          void preloadContentBundleImages(contentResult.bundle).catch((error) => {
+            console.warn("Could not preload legacy Learning images:", error)
+          })
+        }
+        // Audio is an enhancement, not a prerequisite for showing the game.
+        // Playback already tolerates sounds that are still loading.
+        void loadSounds(isCurrentRequest)
+
+        if (!isCurrentRequest()) return
+
+        contentProgressRevisionRef.current = contentProgressRevision
+
+        setGameTitle(contentResult.bundle?.learningGame.title ?? "Learning")
+        setSelectedStage(null)
+        setSelectedLevel(null)
+        setCurrentWords([])
+
+        if (requestedChildId && contentStages.length > 0) {
+          const progress = contentProgressRevision
+            ? await loadProgress(
+                requestedChildId,
+                requestedLanguageCode,
+                contentStages,
+                contentProgressRevision,
+              )
+            : await loadProgress(
+                requestedChildId,
+                requestedLanguageCode,
+                contentStages,
+              )
+
+          if (!isCurrentRequest()) return
+
+          setTotalScore(progress.totalScore)
+          setCompletedLevels(progress.completedLevels)
+          setStages(progress.stages.length > 0 ? progress.stages : contentStages)
+          updateUserStatsState(progress.userStats)
+        } else {
+          setTotalScore(0)
+          setCompletedLevels([])
+          setStages(contentStages)
+          updateUserStatsState({ ...DEFAULT_USER_STATS })
+        }
+      } catch (error) {
+        console.error("Error loading learning game content:", error)
+        if (isCurrentRequest()) {
+          setStages([])
+          updateUserStatsState({ ...DEFAULT_USER_STATS })
+        }
+      } finally {
+        if (isCurrentRequest()) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void init().catch((error) => {
+      console.warn("Could not finish legacy Learning hydration:", error)
+    })
 
     return () => {
-      if (sound) sound.unloadAsync();
-      if (correctSound) correctSound.unloadAsync();
-      if (wrongSound) wrongSound.unloadAsync();
-    };
-  }, []);
+      if (hydrationGenerationRef.current === requestGeneration) {
+        hydrationGenerationRef.current += 1
+      }
+      clearGameTimers()
+      answerLockRef.current = false
+      completionLockRef.current = false
+    }
+  }, [activeChild?.id, languageCode, clearGameTimers, contentRetrySequence, loadSounds])
 
   // Setup when selecting a level
   useEffect(() => {
-    if (selectedLevel) {
-      const words = getWordsForLevel(selectedStage?.id || 0, selectedLevel.id);
-      setCurrentWords(words);
+    if (!selectedLevel || !selectedStage) {
+      return
+    }
 
-      if (gameState === "playing") {
-        setCurrentWordIndex(0);
-        setLevelScore(0);
-        setCurrentWord(words[0]);
-        generateOptions(words[0], words);
+    const words =
+      selectedLevel.words.length > 0
+        ? selectedLevel.words
+        : getWordsForLevel(stages, selectedStage.id, selectedLevel.id)
+
+    setCurrentWords(words)
+
+    if (gameState === "learning") {
+      setCurrentLearningIndex((index) => Math.min(index, Math.max(words.length - 1, 0)))
+    }
+
+    if (gameState === "playing") {
+      setCurrentWordIndex(0)
+      setLevelScore(0)
+      setSelectedOption(null)
+      setIsCorrect(null)
+
+      if (words.length > 0) {
+        setCurrentWord(words[0])
+        generateOptions(words[0], words)
+      } else {
+        setCurrentWord(null)
+        setOptions([])
       }
     }
-  }, [selectedLevel, gameState]);
+    // generateOptions uses the stage collection already listed here. Depending
+    // on its render-local identity would regenerate randomized options after
+    // each state update performed by this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLevel, gameState, selectedStage, stages])
 
   // Update progress bar
   useEffect(() => {
@@ -130,9 +409,9 @@ const LugandaLearningGame: React.FC = () => {
         toValue: (currentWordIndex / currentWords.length) * 100,
         duration: 500,
         useNativeDriver: false,
-      }).start();
+      }).start()
     }
-  }, [currentWordIndex, gameState, currentWords]);
+  }, [currentWordIndex, currentWords, gameState, progressWidth])
 
   // Handle shaking animation for wrong answers
   useEffect(() => {
@@ -159,163 +438,142 @@ const LugandaLearningGame: React.FC = () => {
           useNativeDriver: true,
         }),
       ]).start(() => {
-        setShakingOption(null);
-      });
+        if (isMountedRef.current) {
+          setShakingOption(null)
+        }
+      })
     }
-  }, [shakingOption]);
+  }, [shakeAnimation, shakingOption])
 
-  // Load game progress from AsyncStorage
-  const loadGameProgress = async () => {
+  const playWordSound = async (word: LearningGameWord = currentWord!): Promise<void> => {
     try {
-      const scoreData = await AsyncStorage.getItem("luganda_total_score");
-      const completedLevelsData = await AsyncStorage.getItem(
-        "luganda_completed_levels"
-      );
-      const stagesData = await AsyncStorage.getItem("luganda_stages");
-
-      if (scoreData) {
-        setTotalScore(parseInt(scoreData));
-      }
-
-      if (completedLevelsData) {
-        setCompletedLevels(JSON.parse(completedLevelsData));
-      }
-
-      if (stagesData) {
-        setStages(JSON.parse(stagesData));
+      const newSound = await playWordAudio(word, sound)
+      if (isMountedRef.current) {
+        soundRef.current = newSound
+        setSound(newSound)
+      } else {
+        unloadSound(newSound)
       }
     } catch (error) {
-      console.error("Error loading game progress", error);
+      console.error("Error playing sound", error)
     }
-  };
-
-  // Save game progress to AsyncStorage
-  const saveGameProgress = async () => {
-    try {
-      await AsyncStorage.setItem("luganda_total_score", totalScore.toString());
-      await AsyncStorage.setItem(
-        "luganda_completed_levels",
-        JSON.stringify(completedLevels)
-      );
-      await AsyncStorage.setItem("luganda_stages", JSON.stringify(stages));
-    } catch (error) {
-      console.error("Error saving game progress", error);
-    }
-  };
-
-  const loadSounds = async (): Promise<void> => {
-    try {
-      const correctSoundObject = new Audio.Sound();
-      await correctSoundObject.loadAsync(
-        require("../../assets/sounds/correct.mp3")
-      );
-      setCorrectSound(correctSoundObject);
-
-      const wrongSoundObject = new Audio.Sound();
-      await wrongSoundObject.loadAsync(
-        require("../../assets/sounds/wrong.mp3")
-      );
-      setWrongSound(wrongSoundObject);
-    } catch (error) {
-      console.error("Error loading sounds", error);
-    }
-  };
-
-  const playWordSound = async (
-    word: WordItem = currentWord!
-  ): Promise<void> => {
-    try {
-      if (sound) {
-        await sound.unloadAsync();
-      }
-
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        require("../../assets/sounds/wrong.mp3") // Replace with actual sound file
-      );
-      setSound(newSound);
-      await newSound.playAsync();
-    } catch (error) {
-      console.error("Error playing sound", error);
-    }
-  };
+  }
 
   // Stage selection
-  const selectStage = (stage: Stage) => {
+  const selectStage = (stage: LearningGameStage) => {
     if (!stage.isLocked) {
-      setSelectedStage(stage);
-      setGameState("levelSelect");
+      childHaptics.tap()
+      setSelectedStage(stage)
+      setGameState("levelSelect")
+      // Reset timer when selecting a stage
+      gameStartTime.current = Date.now()
     }
-  };
+  }
 
   // Level selection
-  const selectLevel = (level: Level) => {
+  const selectLevel = (level: LearningGameLevel) => {
     if (!level.isLocked) {
-      setSelectedLevel(level);
-      setGameState("learning");
-      setCurrentLearningIndex(0);
+      childHaptics.tap()
+      clearGameTimers()
+      answerLockRef.current = false
+      completionLockRef.current = false
+      completionRevisionRef.current += 1
+      const words = selectedStage
+        ? getWordsForLevel(stages, selectedStage.id, level.id)
+        : level.words
+
+      fadeAnim.setValue(0)
+      progressWidth.setValue(0)
+      setSelectedLevel(level)
+      setCurrentWords(words)
+      setCurrentWord(null)
+      setOptions([])
+      setCurrentWordIndex(0)
+      setLevelScore(0)
+      setSelectedOption(null)
+      setIsCorrect(null)
+      setGameState("learning")
+      setCurrentLearningIndex(0)
+      // Reset timer when selecting a level
+      gameStartTime.current = Date.now()
     }
-  };
+  }
 
   // Learning navigation
   const nextLearningWord = (): void => {
     if (currentLearningIndex < currentWords.length - 1) {
-      fadeAnim.setValue(0);
-      setCurrentLearningIndex(currentLearningIndex + 1);
+      childHaptics.selection()
+      fadeAnim.setValue(0)
+      setCurrentLearningIndex(currentLearningIndex + 1)
     }
-  };
+  }
 
   const previousLearningWord = (): void => {
     if (currentLearningIndex > 0) {
-      fadeAnim.setValue(0);
-      setCurrentLearningIndex(currentLearningIndex - 1);
+      childHaptics.selection()
+      fadeAnim.setValue(0)
+      fadeAnim.setValue(0)
+      setCurrentLearningIndex(currentLearningIndex - 1)
     }
-  };
+  }
 
   const startGame = (): void => {
-    setGameState("playing");
-    setCurrentWordIndex(0);
-    setLevelScore(0);
-    setSelectedOption(null);
-    setIsCorrect(null);
+    childHaptics.tap()
+    clearGameTimers()
+    answerLockRef.current = false
+    completionLockRef.current = false
+    setGameState("playing")
+    setCurrentWordIndex(0)
+    setLevelScore(0)
+    setSelectedOption(null)
+    setIsCorrect(null)
     if (currentWords.length > 0) {
-      setCurrentWord(currentWords[0]);
-      generateOptions(currentWords[0], currentWords);
+      setCurrentWord(currentWords[0])
+      generateOptions(currentWords[0], currentWords)
     }
-  };
+  }
 
   // Generate options for the game
-  const generateOptions = (word: WordItem, wordList: WordItem[]): void => {
-    const correctAnswer = word.english;
-    let optionsArray: string[] = [correctAnswer];
+  const generateOptions = (word: LearningGameWord, wordList: LearningGameWord[]): void => {
+    const correctAnswer = word.english
+    const allGameWords = stages.flatMap((stage) =>
+      stage.levels.flatMap((level) => level.words),
+    )
+    const distractors = [...new Set(
+      [...wordList, ...allGameWords]
+        .map((candidate) => candidate.english)
+        .filter((answer) => answer && answer !== correctAnswer),
+    )]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 3)
+    const optionsArray = [correctAnswer, ...distractors].sort(
+      () => Math.random() - 0.5,
+    )
 
-    // Add 3 random incorrect options
-    while (optionsArray.length < 4) {
-      const randomIndex = Math.floor(Math.random() * wordList.length);
-      const randomOption = wordList[randomIndex].english;
-
-      if (!optionsArray.includes(randomOption)) {
-        optionsArray.push(randomOption);
-      }
-    }
-
-    // Shuffle options
-    optionsArray = optionsArray.sort(() => Math.random() - 0.5);
-    setOptions(optionsArray);
-  };
+    // Small replacement content sets can contain fewer than four unique
+    // answers. Building from a finite pool avoids the old unbounded loop that
+    // froze the game as soon as a two-word level started.
+    setOptions(optionsArray)
+  }
 
   const handleOptionSelect = (option: string): void => {
-    if (!currentWord || selectedOption) return;
+    if (!currentWord || selectedOption || answerLockRef.current) return
+    answerLockRef.current = true
 
-    setSelectedOption(option);
+    setSelectedOption(option)
 
     if (option === currentWord.english) {
+      childHaptics.success()
       // Correct answer
-      setIsCorrect(true);
-      setLevelScore(levelScore + 10);
+      const scoreAfterAnswer = levelScore + 10
+      setIsCorrect(true)
+      setLevelScore(scoreAfterAnswer)
 
       // Play sound and animate
       if (correctSound) {
-        correctSound.replayAsync();
+        void audioManager.replayAppSound(correctSound).catch((error) => {
+          console.warn("Could not replay correct sound:", error)
+        })
       }
 
       // Animate confetti on correct answer
@@ -324,525 +582,725 @@ const LugandaLearningGame: React.FC = () => {
         duration: 800,
         useNativeDriver: true,
       }).start(() => {
-        confettiAnim.setValue(0);
-      });
+        confettiAnim.setValue(0)
+      })
 
       // Move to next word after a delay
-      setTimeout(() => {
-        nextWord();
-      }, 1500);
+      if (answerTimeoutRef.current) {
+        clearTimeout(answerTimeoutRef.current)
+      }
+      const answerChildId = activeChild?.id
+      const answerLanguageCode = languageCode
+      answerTimeoutRef.current = setTimeout(() => {
+        answerTimeoutRef.current = null
+        const owner = progressOwnerRef.current
+        if (
+          !isMountedRef.current ||
+          owner.childId !== answerChildId ||
+          owner.languageCode !== answerLanguageCode
+        ) {
+          return
+        }
+        nextWord(scoreAfterAnswer)
+      }, 1500)
     } else {
+      childHaptics.error()
       // Wrong answer
-      setIsCorrect(false);
-      setShakingOption(option);
+      setIsCorrect(false)
+      setShakingOption(option)
 
       if (wrongSound) {
-        wrongSound.replayAsync();
+        void audioManager.replayAppSound(wrongSound).catch((error) => {
+          console.warn("Could not replay wrong sound:", error)
+        })
       }
 
       // Allow trying again after a delay
-      setTimeout(() => {
-        setSelectedOption(null);
-        setIsCorrect(null);
-      }, 1500);
+      if (answerTimeoutRef.current) {
+        clearTimeout(answerTimeoutRef.current)
+      }
+      answerTimeoutRef.current = setTimeout(() => {
+        answerTimeoutRef.current = null
+        if (!isMountedRef.current) return
+        setSelectedOption(null)
+        setIsCorrect(null)
+        answerLockRef.current = false
+      }, 1500)
     }
-  };
+  }
 
-  const nextWord = useCallback((): void => {
-    const nextIndex = currentWordIndex + 1;
-    fadeAnim.setValue(0);
+  const nextWord = (completedLevelScore: number): void => {
+    const nextIndex = currentWordIndex + 1
+    fadeAnim.setValue(0)
 
     if (nextIndex < currentWords.length) {
-      setCurrentWordIndex(nextIndex);
-      setCurrentWord(currentWords[nextIndex]);
-      setSelectedOption(null);
-      setIsCorrect(null);
+      setCurrentWordIndex(nextIndex)
+      setCurrentWord(currentWords[nextIndex])
+      setSelectedOption(null)
+      setIsCorrect(null)
+      answerLockRef.current = false
 
-      setTimeout(() => {
-        generateOptions(currentWords[nextIndex], currentWords);
-      }, 300);
+      if (optionTimeoutRef.current) {
+        clearTimeout(optionTimeoutRef.current)
+      }
+      optionTimeoutRef.current = setTimeout(() => {
+        optionTimeoutRef.current = null
+        if (!isMountedRef.current) return
+        generateOptions(currentWords[nextIndex], currentWords)
+      }, 300)
     } else {
       // Level completed
-      completeLevelAndUpdateProgress();
+      void completeLevelAndUpdateProgress(completedLevelScore).catch((error) => {
+        completionLockRef.current = false
+        answerLockRef.current = false
+        console.warn("Could not finish legacy Learning Game completion:", error)
+      })
     }
-  }, [currentWordIndex, currentWords]);
+  }
 
-  const completeLevelAndUpdateProgress = () => {
-    const newTotalScore = totalScore + levelScore;
-    setTotalScore(newTotalScore);
+  const trackActivity = async (isStageComplete = false, activityScore = levelScore) => {
+    if (!activeChild) return
 
-    // Add this level to completed levels if not already there
-    if (!completedLevels.includes(selectedLevel?.id || 0)) {
-      const newCompletedLevels = [...completedLevels, selectedLevel?.id || 0];
-      setCompletedLevels(newCompletedLevels);
+    const duration = Math.round((Date.now() - gameStartTime.current) / 1000) // duration in seconds
 
-      // Check if all levels in stage are completed
-      if (
-        selectedStage &&
-        isStageCompleted(selectedStage.id, newCompletedLevels)
-      ) {
-        // Unlock next stage if available and total score meets requirement
-        const nextStage = stages.find((s) => s.id === selectedStage.id + 1);
-        if (nextStage && newTotalScore >= nextStage.requiredScore) {
-          const updatedStages = unlockNextStage(selectedStage.id, stages);
-          setStages(updatedStages);
+    const saved = await saveActivity({
+      child_id: activeChild.id,
+      activity_type: "language",
+      activity_name: isStageComplete
+        ? `Completed ${selectedStage?.title} Stage`
+        : `Mastered ${selectedLevel?.title} Words`,
+      score: activityScore.toString(),
+      duration,
+      completed_at: new Date().toISOString(),
+      details: `${
+        isStageComplete
+          ? `Completed all levels in ${selectedStage?.title} stage`
+          : `Learned ${currentWords.length} words in ${selectedLevel?.title}`
+      }`,
+      stage: selectedStage?.id,
+      level: selectedLevel?.id,
+      language_code: languageCode,
+    })
+    if (!saved) {
+      throw new Error("Could not save legacy Learning Game activity.")
+    }
+
+  }
+
+  const completeLevelAndUpdateProgress = async (completedLevelScore: number) => {
+    if (completionLockRef.current) return
+    completionLockRef.current = true
+
+    if (!activeChild || !selectedLevel || !selectedStage) {
+      console.error("Missing activeChild, selectedLevel, or selectedStage in completeLevelAndUpdateProgress")
+      completionLockRef.current = false
+      answerLockRef.current = false
+      return
+    }
+
+    const completionChildId = activeChild.id
+    const completionLanguageCode = languageCode
+    const completionSessionStartedAt = gameStartTime.current
+    const newTotalScoreState = totalScore + completedLevelScore
+    const newCompletedLevelsState = [...completedLevels]
+    if (!newCompletedLevelsState.includes(selectedLevel.id)) {
+      newCompletedLevelsState.push(selectedLevel.id)
+    }
+
+    const previousStageIndex = stages.findIndex(
+      (stage) => stage.id === selectedStage.id,
+    )
+    const previouslyLockedNextStage =
+      previousStageIndex >= 0
+        ? stages[previousStageIndex + 1]?.isLocked
+        : undefined
+    const wasCurrentStageCompleted = isStageCompleted(
+      selectedStage.id,
+      completedLevels,
+      stages,
+    )
+    const currentLocalStagesState = applyLegacyLearningAccessLocks(
+      stages,
+      newCompletedLevelsState,
+      newTotalScoreState,
+    )
+
+    // The centralized access calculation unlocks exactly one next level and
+    // opens the following stage only after this stage is complete.
+    const isCurrentStageNowCompleted = isStageCompleted(selectedStage.id, newCompletedLevelsState, currentLocalStagesState)
+    const wasStageNewlyCompleted =
+      !wasCurrentStageCompleted && isCurrentStageNowCompleted
+    const currentStageIndex = currentLocalStagesState.findIndex(
+      (stage) => stage.id === selectedStage.id,
+    )
+    const nextStage =
+      currentStageIndex >= 0
+        ? currentLocalStagesState[currentStageIndex + 1]
+        : undefined
+    const nextStageUnlocked = Boolean(
+      previouslyLockedNextStage && nextStage && !nextStage.isLocked,
+    )
+
+    const existingUserStats = userStatsRef.current
+    const lastPlayedDate = new Date(existingUserStats.lastPlayed || 0)
+    const today = new Date()
+
+    const isNewDay =
+      today.getFullYear() !== lastPlayedDate.getFullYear() ||
+      today.getMonth() !== lastPlayedDate.getMonth() ||
+      today.getDate() !== lastPlayedDate.getDate()
+
+    let newStreakDays = existingUserStats.streakDays
+    if (isNewDay) {
+      newStreakDays = existingUserStats.streakDays + 1
+    } else if (existingUserStats.streakDays === 0) {
+      // First play ever, or first play today after a reset
+      newStreakDays = 1
+    }
+
+    const updatedUserStatsState: UserStats = {
+      totalWords: (existingUserStats.totalWords || 0) + currentWords.length,
+      correctAnswers: (existingUserStats.correctAnswers || 0) + completedLevelScore / 10,
+      wrongAnswers: (existingUserStats.wrongAnswers || 0) + (currentWords.length - completedLevelScore / 10),
+      lastPlayed: today.toISOString(),
+      streakDays: newStreakDays,
+    }
+
+    const eventsForAchievements: Parameters<typeof checkAndGrantNewAchievements>[0][] = []
+
+    // Event for level completion
+    eventsForAchievements.push({
+      type: "level_completed" as const, // Use 'as const' for literal types
+      gameKey: achievementGameKey,
+      levelId: selectedLevel.id,
+      stageId: selectedStage.id, // Good to have context
+      // newTotalScore: newTotalScoreState, // Can be sent if achievements depend on it at this exact moment
+      // currentUserStats: updatedUserStatsState, // Can be sent
+    })
+
+    // Event for perfect quiz (if applicable)
+    const maxPossibleScoreForLevel = currentWords.length * 10
+    if (completedLevelScore === maxPossibleScoreForLevel) {
+      eventsForAchievements.push({
+        type: "level_perfect_clear" as const,
+        gameKey: achievementGameKey,
+        levelId: selectedLevel.id,
+        currentLevelScore: completedLevelScore,
+        currentLevelMaxScore: maxPossibleScoreForLevel,
+      })
+    }
+
+    // Event for stage completion (if it happened)
+    if (wasStageNewlyCompleted) {
+      eventsForAchievements.push({
+        type: "stage_completed" as const,
+        gameKey: achievementGameKey,
+        stageId: selectedStage.id,
+        // newTotalScore: newTotalScoreState,
+        // currentUserStats: updatedUserStatsState,
+      })
+    }
+
+    // Event for score update and stats update (always send, achievements will check thresholds)
+    eventsForAchievements.push({
+      type: "score_updated" as const, // Could also be 'stats_updated' or both
+      gameKey: achievementGameKey,
+      newTotalScore: newTotalScoreState, // Pass the score *before* achievement points
+      currentUserStats: updatedUserStatsState, // Pass the latest stats
+    })
+    // Also an explicit stats_updated if you have achievements that only look at stats
+    eventsForAchievements.push({
+      type: "stats_updated" as const,
+      gameKey: achievementGameKey,
+      currentUserStats: updatedUserStatsState,
+    })
+
+    let completionRevision = 0
+    await completeLearningGameProgressLocallyFirst(newTotalScoreState, {
+      persistProgress: (completedTotalScore) =>
+        saveProgress(
+          completedTotalScore,
+          newCompletedLevelsState,
+          currentLocalStagesState,
+          updatedUserStatsState,
+          completionChildId,
+          completionLanguageCode,
+          { contentRevision: contentProgressRevisionRef.current },
+        ),
+      revealCompletion: (completedTotalScore) => {
+        const owner = progressOwnerRef.current
+        if (
+          !isMountedRef.current ||
+          owner.childId !== completionChildId ||
+          owner.languageCode !== completionLanguageCode
+        ) {
+          return
         }
-      } else if (selectedStage && selectedLevel) {
-        // Unlock next level in current stage
-        const updatedStages = unlockNextLevel(
-          selectedStage.id,
-          selectedLevel.id,
-          stages
-        );
-        setStages(updatedStages);
-      }
-    }
 
-    // Save progress
-    saveGameProgress();
+        completionRevisionRef.current += 1
+        completionRevision = completionRevisionRef.current
+        setTotalScore(completedTotalScore)
+        setCompletedLevels(newCompletedLevelsState)
+        setStages(currentLocalStagesState)
+        updateUserStatsState(updatedUserStatsState)
+        childHaptics.success()
+        setGameState("levelComplete")
+        gameStartTime.current = Date.now()
+      },
+      runBestEffortNetworkWork: async (completedTotalScore, persistence) => {
+        const achievementWork = async () => {
+          const outcomes = await Promise.allSettled(
+            eventsForAchievements.map((event) => checkAndGrantNewAchievements(event)),
+          )
+          const newlyAwarded = new Map<string, AchievementDefinition>()
 
-    // Show completion screen
-    setGameState("levelComplete");
-  };
+          outcomes.forEach((outcome) => {
+            if (outcome.status === "rejected") {
+              console.warn("Could not evaluate a legacy Learning Game achievement:", outcome.reason)
+              return
+            }
+
+            outcome.value.forEach((achievement) => {
+              if (!newlyAwarded.has(achievement.id)) {
+                newlyAwarded.set(achievement.id, achievement)
+              }
+            })
+          })
+
+          const awardedAchievements = [...newlyAwarded.values()]
+          const owner = progressOwnerRef.current
+          if (
+            !isMountedRef.current ||
+            owner.childId !== completionChildId ||
+            owner.languageCode !== completionLanguageCode ||
+            completionRevisionRef.current !== completionRevision
+          ) {
+            return
+          }
+
+          awardedAchievements.forEach((achievement) => enqueueAchievementUnlocked(achievement))
+        }
+        const outcomes = await Promise.allSettled([
+          trackActivity(nextStageUnlocked, completedLevelScore),
+          achievementWork(),
+          syncProgressNow(completionChildId),
+          persistence.persisted
+            ? recordQualifiedStreakActivity({
+                childId: completionChildId,
+                sourceType: "game",
+                sourceId: `learning-game:${selectedStage.id}:${selectedLevel.id}`,
+                completionId: `learning-game:${selectedStage.id}:${selectedLevel.id}:${completionSessionStartedAt}`,
+                completedAt: today.toISOString(),
+              })
+            : Promise.resolve(),
+        ])
+
+        outcomes.forEach((outcome) => {
+          if (outcome.status === "rejected") {
+            console.warn("Could not finish legacy Learning Game best-effort network work:", outcome.reason)
+          }
+        })
+      },
+      onLocalError: (error) => {
+        console.warn("Legacy Learning completion was not durably saved locally:", error)
+      },
+      onNetworkError: (error) => {
+        console.warn("Could not finish legacy Learning Game best-effort network work:", error)
+      },
+    })
+
+  }
 
   // STAGE SELECTION SCREEN
   const renderStageSelectScreen = () => {
+    const totalLevelCount = stages.reduce(
+      (total, stage) => total + stage.levels.length,
+      0,
+    )
+    const completedLevelCount = stages.reduce(
+      (total, stage) =>
+        total +
+        stage.levels.filter((level) => completedLevels.includes(level.id)).length,
+      0,
+    )
+
     return (
-      <SafeAreaView className="flex-1 bg-slate-50">
-        <StatusBar style="dark" />
+      <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
+        <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: GAME_SCREEN_OVERLAY }}>
+          <StatusBar style="light" translucent backgroundColor="transparent" />
 
-        {/* Header with back button and score */}
-        <View className="flex-row justify-between items-center px-4 pt-6 pb-2">
-          <TouchableOpacity
-            className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={20} color="#7b5af0" />
-          </TouchableOpacity>
-
-          <Text variant="bold" className="text-xl text-indigo-800">
-            Luganda Learning
-          </Text>
-
-          <View className="flex-row items-center bg-white px-3 py-1.5 rounded-full shadow-sm border border-amber-200">
-            <Image
-              source={require("../../assets/images/coin.png")}
-              style={{ width: 20, height: 20, marginRight: 4 }}
-              resizeMode="contain"
-            />
-            <Text variant="bold" className="text-amber-500">
-              {totalScore}
-            </Text>
-          </View>
-        </View>
-
-        <Animated.View className="flex-1 pt-2" style={{ opacity: fadeAnim }}>
-          {/* Stage Navigation Header */}
-          <View className="flex-row justify-between items-center px-4 mb-2">
-            <Text variant="bold" className="text-lg text-indigo-800">
-              Select a Stage
-            </Text>
-            <View className="flex-row items-center">
-              <Text className="text-xs text-slate-500 mr-2">
-                Swipe to explore
-              </Text>
-              <Ionicons name="arrow-forward" size={14} color="#6366f1" />
-            </View>
-          </View>
-
-          {/* Stage Cards with Snap Scrolling */}
-          <FlatList
-            data={stages}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            snapToInterval={width * 0.55 + 8}
-            snapToAlignment="start"
-            decelerationRate="fast"
-            contentContainerStyle={{
-              paddingVertical: 12,
-              paddingLeft: 6,
-              paddingRight: width * 0.45,
-            }}
-            renderItem={({ item: stage }) => (
+          <View className="flex-1 px-6 pt-6 pb-5">
+            <View className="flex-row items-center justify-between mb-4">
               <TouchableOpacity
-                key={stage.id}
-                style={{
-                  width: width * 0.4,
-                  marginRight: 8,
-                  height: height * 0.5,
-                  maxHeight: 450,
-                }}
-                className={`rounded-2xl overflow-hidden shadow-md mx-2 ${
-                  stage.isLocked ? "opacity-70" : ""
-                }`}
-                onPress={() => selectStage(stage)}
-                disabled={stage.isLocked}
-                activeOpacity={0.9}
+                className="w-12 h-12 rounded-full bg-white justify-center items-center border-2 border-accent-500"
+                onPress={() => router.back()}
+                accessibilityRole="button"
+                accessibilityLabel="Back to Games"
               >
-                <LinearGradient
-                  colors={[stage.color, `${stage.color}DD`]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  className="p-4 flex-1"
-                >
-                  {/* Top section */}
-                  <View>
-                    {/* Stage Header */}
-                    <View className="flex-row items-center mb-2">
-                      <View className="w-8 h-8 rounded-full bg-white bg-opacity-40 justify-center items-center mr-2">
-                        <Text variant="bold" style={{ color: stage.color }}>
-                          {stage.id}
-                        </Text>
-                      </View>
-
-                      {/* Image alongside title */}
-                      <View className="ml-auto bg-white p-2 rounded-full shadow-sm">
-                        <Image
-                          source={stage.image}
-                          style={{ width: 24, height: 24 }}
-                          resizeMode="contain"
-                        />
-                      </View>
-                    </View>
-
-                    {/* Stage title */}
-                    <Text
-                      variant="bold"
-                      className="text-lg  text-white mb-1.5 tracking-wide"
-                    >
-                      {stage.title}
-                    </Text>
-
-                    {/* Description */}
-                    <Text
-                      className="text-white text-opacity-95 mb-3 text-sm"
-                      style={{ lineHeight: 18 }}
-                      numberOfLines={2}
-                    >
-                      {stage.description}
-                    </Text>
-                  </View>
-
-                  {/* Info badges and action button in one horizontal line */}
-                  <View className="flex-row items-center justify-between mt-3">
-                    {/* Left side - Info badges */}
-                    <View className="flex-row flex-wrap">
-                      {/* Level count badge */}
-                      <View className="flex-row items-center bg-white bg-opacity-60 px-3 py-1.5 rounded-full mr-2">
-                        <Ionicons
-                          name="school-outline"
-                          size={14}
-                          color={stage.color}
-                        />
-                        <Text
-                          variant="bold"
-                          className="text-sm ml-1"
-                          style={{ color: stage.color }}
-                        >
-                          {stage.levels.length}
-                        </Text>
-                      </View>
-
-                      {/* Completed levels badge */}
-                      <View className="flex-row items-center bg-white bg-opacity-60 px-3 py-1.5 rounded-full mr-2">
-                        <Ionicons
-                          name="checkmark-circle-outline"
-                          size={14}
-                          color={stage.color}
-                        />
-                        <Text
-                          variant="bold"
-                          className="ml-1"
-                          style={{ color: stage.color }}
-                        >
-                          {
-                            stage.levels.filter((level) =>
-                              completedLevels.includes(level.id)
-                            ).length
-                          }
-                          /{stage.levels.length}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Right side - Action button */}
-                    <View className="ml-auto">
-                      {!stage.isLocked ? (
-                        <TouchableOpacity
-                          className="bg-white px-3 py-1.5 rounded-full items-center shadow-sm"
-                          onPress={() => selectStage(stage)}
-                        >
-                          <Text variant="bold" style={{ color: stage.color }}>
-                            Start
-                          </Text>
-                        </TouchableOpacity>
-                      ) : (
-                        <View className="flex-row items-center justify-center bg-black bg-opacity-25 px-3 py-1.5 rounded-full border border-white border-opacity-30">
-                          <Ionicons
-                            name="lock-closed"
-                            size={14}
-                            color="white"
-                          />
-                          <Text variant="bold" className="text-white ml-1">
-                            {stage.requiredScore}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                </LinearGradient>
+                <Ionicons name="arrow-back" size={22} color={brandColors.victoriaBlue} />
               </TouchableOpacity>
-            )}
-            ListFooterComponent={() => (
-              <View style={{ width: 20 }} /> // Small spacer at the end
-            )}
-          />
-        </Animated.View>
-      </SafeAreaView>
-    );
-  };
 
-  // LEVEL SELECTION SCREEN
-  const renderLevelSelectScreen = () => {
-    if (!selectedStage) return null;
+              <View className="flex-1 px-4">
+                <Text variant="bold" className="text-white text-3xl text-center" numberOfLines={1}>
+                  {gameTitle}
+                </Text>
+              </View>
 
-    return (
-      <SafeAreaView className="flex-1 bg-slate-50 pt-3">
-        <StatusBar style="dark" />
+              <View
+                accessible
+                accessibilityLabel={`${completedLevelCount} of ${totalLevelCount} levels completed`}
+                className="flex-row items-center bg-white rounded-full px-4 py-2 border-2 border-accent-500"
+              >
+                <Ionicons name="checkmark-circle" size={19} color={brandColors.success} />
+                <Text variant="bold" className="text-emerald-600 text-base ml-1.5" numberOfLines={1}>
+                  {completedLevelCount}/{totalLevelCount}
+                </Text>
+              </View>
+            </View>
 
-        {/* Fixed Header with back button and stage info */}
-        <View className="flex-row justify-between items-center px-4 pt-4 pb-2">
-          <TouchableOpacity
-            className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
-            onPress={() => setGameState("stageSelect")}
-          >
-            <Ionicons name="arrow-back" size={20} color="#7b5af0" />
-          </TouchableOpacity>
-
-          <Text variant="bold" className="text-xl text-indigo-800">
-            {selectedStage.title}
-          </Text>
-
-          <View className="flex-row items-center bg-white px-3 py-1.5 rounded-full shadow-sm border border-amber-200">
-            <Image
-              source={require("../../assets/images/coin.png")}
-              style={{ width: 20, height: 20, marginRight: 4 }}
-              resizeMode="contain"
-            />
-            <Text variant="bold" className="text-amber-500">
-              {totalScore}
-            </Text>
-          </View>
-        </View>
-
-        {/* Scrollable Content Area */}
-        <ScrollView
-          className="flex-1"
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 20 }}
-        >
-          <Animated.View className="px-4 pt-2" style={{ opacity: fadeAnim }}>
-            {/* More Compact Stage Banner */}
-            <View
-              className="p-3 rounded mb-3 shadow-sm py-8"
-              style={{backgroundColor:selectedStage.color}}
-            >
-              <View className="flex-row items-center">
-                {/* Image and Title in one row */}
-                <View className="bg-white p-2 rounded-full mr-3">
-                  <Image
-                    source={selectedStage.image}
-                    style={{ width: 24, height: 24 }}
-                    resizeMode="contain"
-                  />
+            <View className="bg-white/15 rounded-2xl px-4 py-3 mb-4">
+              <View className="flex-row items-center justify-between">
+                <View className="flex-1 pr-4">
+                  <Text variant="bold" className="text-white text-lg" numberOfLines={1}>
+                    Choose a stage
+                  </Text>
                 </View>
-
-                <View className="flex-1">
-                  <View className="flex-row items-baseline">
-                    <Text className="text-white text-opacity-90 text-xs mr-2">
-                      Stage {selectedStage.id}
-                    </Text>
-                    <Text variant="bold" className="text-white text-lg">
-                      {selectedStage.title}
-                    </Text>
-                  </View>
-
-                  {/* Progress info in the same row */}
-                  <View className="flex-row items-center mt-1">
-                    <Text className="text-white text-opacity-90 text-xs mr-2">
-                      {
-                        selectedStage.levels.filter((level) =>
-                          completedLevels.includes(level.id)
-                        ).length
-                      }{" "}
-                      / {selectedStage.levels.length}
-                    </Text>
-
-                    {/* Progress bar takes remaining space */}
-                    <View className="flex-1 h-1.5 bg-white bg-opacity-30 rounded-full overflow-hidden mr-2">
-                      <View
-                        className="h-full bg-white"
-                        style={{
-                          width: `${
-                            (selectedStage.levels.filter((level) =>
-                              completedLevels.includes(level.id)
-                            ).length /
-                              selectedStage.levels.length) *
-                            100
-                          }%`,
-                        }}
-                      />
-                    </View>
-
-                    <Text className="text-white text-opacity-90 text-xs">
-                      {selectedStage.levels.filter((level) =>
-                        completedLevels.includes(level.id)
-                      ).length === selectedStage.levels.length
-                        ? "Completed"
-                        : "In Progress"}
-                    </Text>
-                  </View>
+                <View className="flex-row items-center">
+                  <Ionicons name="sparkles-outline" size={22} color="#ffffff" />
+                  <Text variant="bold" className="text-white text-sm ml-2" numberOfLines={1}>
+                    {stages.length} stages
+                  </Text>
                 </View>
               </View>
             </View>
 
-            {/* Level selection grid */}
-            <View className="flex-row justify-between items-center mb-3">
-              <Text variant="bold" className="text-lg text-slate-800">
-                Select a Level
-              </Text>
-              <Text className="text-xs text-slate-500">
-                {selectedStage.levels.length} levels
-              </Text>
+            <Animated.View
+              className="flex-1"
+              style={{
+                opacity: fadeAnim,
+                transform: [
+                  {
+                    translateY: fadeAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [18, 0],
+                    }),
+                  },
+                ],
+              }}
+            >
+              <FlatList
+                data={stages}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                snapToInterval={stageCardWidth + stageCardGap}
+                snapToAlignment="start"
+                decelerationRate="fast"
+                contentContainerStyle={{
+                  alignItems: "center",
+                  paddingTop: 6,
+                  paddingBottom: 10,
+                  paddingRight: stageListEndPadding,
+                }}
+                renderItem={({ item: stage }) => {
+                  const completedLevelCount = stage.levels.filter((level) => completedLevels.includes(level.id)).length
+                  const isCompleted = completedLevelCount === stage.levels.length
+                  const statusLabel = stage.isLocked ? t("common.locked") : isCompleted ? t("common.done") : t("common.start")
+                  const statusIcon: keyof typeof Ionicons.glyphMap = stage.isLocked
+                    ? "lock-closed"
+                    : isCompleted
+                      ? "checkmark-circle"
+                      : "play-circle"
+                  const statusColor = stage.isLocked
+                    ? brandColors.neutral[600]
+                    : isCompleted
+                      ? brandColors.success
+                      : brandColors.victoriaBlue
+
+                  return (
+                    <TouchableOpacity
+                      key={stage.id}
+                      style={{
+                        width: stageCardWidth,
+                        marginRight: stageCardGap,
+                        height: stageCardHeight,
+                        borderColor: stage.isLocked ? brandColors.neutral[200] : brandColors.equatorialGold,
+                        opacity: stage.isLocked ? 0.74 : 1,
+                      }}
+                      className="bg-white rounded-2xl overflow-hidden shadow-md border-2"
+                      onPress={() => selectStage(stage)}
+                      disabled={stage.isLocked}
+                      activeOpacity={stage.isLocked ? 1 : 0.75}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${stage.title}. ${stage.description}. ${statusLabel}.`}
+                      accessibilityState={{ disabled: stage.isLocked }}
+                    >
+                      <View>
+                        <CachedImage
+                          source={stage.image as any}
+                          fallbackSource={resolveImageSource("learning-beginner.jpg")}
+                          className="w-full"
+                          style={{ height: stageCardImageHeight }}
+                          resizeMode="cover"
+                          accessibilityLabel={`${stage.title} picture`}
+                        />
+                        {stage.isLocked ? <View className="absolute top-0 bottom-0 left-0 right-0 bg-black/20" /> : null}
+                        <View className="absolute top-2 left-2 bg-white/95 px-2.5 py-1 rounded-full">
+                          <Text variant="bold" className="text-[11px] text-primary-700" numberOfLines={1}>
+                            Stage {stage.id}
+                          </Text>
+                        </View>
+                        <View className="absolute top-2 right-2 bg-white/95 w-9 h-9 rounded-full items-center justify-center">
+                          <Ionicons name={statusIcon} size={20} color={statusColor} />
+                        </View>
+                      </View>
+
+                      <View className="bg-white px-3.5 py-3 justify-between" style={{ height: stageCardBodyHeight }}>
+                        <View>
+                          <Text
+                            variant="bold"
+                            className="text-lg text-primary-700 leading-5 mb-1"
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.86}
+                          >
+                            {stage.title}
+                          </Text>
+                        </View>
+
+                        <View className="flex-row items-center justify-between mt-2">
+                          <View className="flex-row items-center flex-1 pr-2">
+                            <Ionicons name="school-outline" size={14} color={brandColors.victoriaBlue} />
+                            <Text variant="medium" className="text-[11px] text-primary-700 ml-1" numberOfLines={1}>
+                              {completedLevelCount}/{stage.levels.length} levels
+                            </Text>
+                          </View>
+                          <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: stage.isLocked ? brandColors.neutral[100] : brandColors.blue[50] }}>
+                            <Text variant="bold" className="text-[11px]" style={{ color: statusColor }} numberOfLines={1}>
+                              {statusLabel}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  )
+                }}
+                ListFooterComponent={() => (
+                  <View style={{ width: 1 }} />
+                )}
+              />
+            </Animated.View>
+          </View>
+        </SafeAreaView>
+      </ImageBackground>
+    )
+  }
+
+  // LEVEL SELECTION SCREEN
+  const renderLevelSelectScreen = () => {
+    if (!selectedStage) return null
+    const completedInStage = selectedStage.levels.filter((level) => completedLevels.includes(level.id)).length
+    const progressPercent = (completedInStage / selectedStage.levels.length) * 100
+
+    return (
+      <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
+        <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: GAME_SCREEN_OVERLAY }}>
+          <StatusBar style="light" translucent backgroundColor="transparent" />
+
+          <View className="flex-1 px-6 pt-6 pb-5">
+            <View className="flex-row items-center justify-between mb-4">
+              <TouchableOpacity
+                className="w-12 h-12 rounded-full bg-white justify-center items-center border-2 border-accent-500"
+                onPress={() => setGameState("stageSelect")}
+                accessibilityRole="button"
+                accessibilityLabel="Back to stages"
+              >
+                <Ionicons name="arrow-back" size={22} color={brandColors.victoriaBlue} />
+              </TouchableOpacity>
+
+              <View className="flex-1 px-4">
+                <Text variant="bold" className="text-white text-3xl text-center" numberOfLines={1}>
+                  {selectedStage.title}
+                </Text>
+              </View>
+
+              <View
+                accessible
+                accessibilityLabel={`${completedInStage} of ${selectedStage.levels.length} levels completed`}
+                className="flex-row items-center bg-white rounded-full px-4 py-2 border-2 border-accent-500"
+              >
+                <Ionicons name="checkmark-circle" size={19} color={brandColors.success} />
+                <Text variant="bold" className="text-emerald-600 text-base ml-1.5" numberOfLines={1}>
+                  {completedInStage}/{selectedStage.levels.length}
+                </Text>
+              </View>
             </View>
 
-            {/* More efficient level grid */}
-            <View className="flex-row flex-wrap justify-between">
-              {selectedStage.levels.map((level) => (
-                <TouchableOpacity
-                  key={level.id}
-                  style={{ width: "48%", marginBottom: 10 }}
-                  className={`rounded shadow-sm overflow-hidden border
-                  ${
-                    level.isLocked
-                      ? "bg-slate-100 border-slate-200"
-                      : completedLevels.includes(level.id)
-                      ? "bg-white border-emerald-300"
-                      : "bg-white border-indigo-200"
-                  }
-                `}
-                  onPress={() => selectLevel(level)}
-                  disabled={level.isLocked}
-                  activeOpacity={level.isLocked ? 1 : 0.7}
-                >
-                  <View className="px-2 py-3 items-center">
-                    {level.isLocked ? (
-                      <View className="items-center">
-                        <View className="w-10 h-10 rounded-full bg-slate-200 justify-center items-center mb-2">
-                          <Ionicons
-                            name="lock-closed"
-                            size={18}
-                            color="#94a3b8"
-                          />
-                        </View>
-                        <Text
-                          variant="bold"
-                          className="text-sm text-slate-400 text-center"
-                        >
-                          {level.title}
-                        </Text>
-                        <Text className="text-xs text-slate-400 mt-0.5">
-                          Locked
-                        </Text>
-                      </View>
-                    ) : completedLevels.includes(level.id) ? (
-                      <View className="items-center">
-                        <View className="w-10 h-10 rounded-full bg-emerald-100 justify-center items-center mb-2">
-                          <Ionicons
-                            name="checkmark-circle"
-                            size={20}
-                            color="#10b981"
-                          />
-                        </View>
-                        <Text
-                          variant="bold"
-                          className="text-sm text-slate-700 text-center"
-                        >
-                          {level.title}
-                        </Text>
-                        <Text className="text-xs text-emerald-600 mt-0.5">
-                          Completed
-                        </Text>
-                      </View>
-                    ) : (
-                      <View className="items-center">
-                        <View className="w-10 h-10 rounded-full bg-indigo-100 justify-center items-center mb-2">
-                          <Ionicons
-                            name="play-circle"
-                            size={20}
-                            color="#7b5af0"
-                          />
-                        </View>
-                        <Text
-                          variant="bold"
-                          className="text-sm text-slate-700 text-center"
-                        >
-                          {level.title}
-                        </Text>
-                        <Text className="text-xs text-slate-500 mt-0.5">
-                          {level.words.length} Words
-                        </Text>
-                      </View>
-                    )}
+            <View className="bg-white/15 rounded-2xl px-4 py-3 mb-4">
+              <View className="flex-row items-center">
+                <View className="bg-white rounded-full w-14 h-14 items-center justify-center mr-4 border-2 border-accent-500">
+                  <CachedImage
+                    source={selectedStage.image as any}
+                    fallbackSource={resolveImageSource("learning-beginner.jpg")}
+                    style={{ width: 34, height: 34 }}
+                    resizeMode="contain"
+                    accessibilityLabel={`${selectedStage.title} picture`}
+                  />
+                </View>
+
+                <View className="flex-1">
+                  <View className="flex-row items-center justify-between">
+                    <Text variant="bold" className="text-white text-lg" numberOfLines={1}>
+                      Stage {selectedStage.id}
+                    </Text>
+                    <Text className="text-white/90 text-xs" numberOfLines={1}>
+                      {completedInStage}/{selectedStage.levels.length} complete
+                    </Text>
                   </View>
-                </TouchableOpacity>
-              ))}
+
+                  <View className="h-2 bg-white/30 rounded-full overflow-hidden mt-2">
+                    <View
+                      className="h-full bg-white"
+                      style={{
+                        width: `${progressPercent}%`,
+                      }}
+                    />
+                  </View>
+
+                </View>
+              </View>
             </View>
-          </Animated.View>
-        </ScrollView>
-      </SafeAreaView>
-    );
-  };
+
+            <ScrollView
+              className="flex-1"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 10 }}
+            >
+              <Animated.View
+                style={{
+                  opacity: fadeAnim,
+                  transform: [
+                    {
+                      translateY: fadeAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [18, 0],
+                      }),
+                    },
+                  ],
+                }}
+              >
+                <View className="flex-row justify-between items-center mb-3">
+                  <Text variant="bold" className="text-white text-lg" numberOfLines={1}>
+                    Pick a level
+                  </Text>
+                  <Text className="text-white/85 text-xs" numberOfLines={1}>
+                    {selectedStage.levels.length} levels
+                  </Text>
+                </View>
+
+                <GameLevelSelector
+                  availableWidth={Math.max(0, landscapeWidth - 48)}
+                  choices={selectedStage.levels.map((level) => {
+                    const isCompleted = completedLevels.includes(level.id)
+                    const isCurrent =
+                      !isCompleted &&
+                      !level.isLocked &&
+                      selectedStage.levels.find(
+                        (candidate) =>
+                          !candidate.isLocked &&
+                          !completedLevels.includes(candidate.id),
+                      )?.id === level.id
+
+                    return {
+                      id: level.id,
+                      meta: `${level.words.length} ${level.words.length === 1 ? "word" : "words"}`,
+                      order: level.order,
+                      status: level.isLocked
+                        ? "locked" as const
+                        : isCompleted
+                          ? "review" as const
+                          : isCurrent
+                            ? "current" as const
+                            : "available" as const,
+                      title: level.title,
+                    }
+                  })}
+                  compact={compactLandscape}
+                  containerTestID="learning-game-level-selector"
+                  onSelect={(levelId) => {
+                    const level = selectedStage.levels.find(
+                      (candidate) => candidate.id === levelId,
+                    )
+                    if (level) selectLevel(level)
+                  }}
+                  statusLabels={{
+                    available: t("common.start"),
+                    current: t("learning.current"),
+                    locked: t("common.locked"),
+                    review: t("learning.review"),
+                  }}
+                  testIDPrefix="learning-game-level"
+                />
+              </Animated.View>
+            </ScrollView>
+          </View>
+        </SafeAreaView>
+      </ImageBackground>
+    )
+  }
 
   // LEARNING SCREEN
   const renderLearningScreen = () => {
-    if (!selectedLevel || currentWords.length === 0) return null;
+    if (!selectedLevel) return null
 
-    const currentLearnWord = currentWords[currentLearningIndex];
-    const layout = isLandscape ? "landscape" : "portrait";
+    if (currentWords.length === 0) {
+      return (
+        <ComingSoonState
+          title="This level is not ready"
+          message="There are no learning cards in this level yet. Choose another level while it is being prepared."
+          showBackButton={false}
+          onRetry={() => setGameState("levelSelect")}
+          actionLabel="Choose another level"
+          actionAccessibilityLabel="Return to the level list"
+        />
+      )
+    }
+
+    const safeLearningIndex = Math.min(currentLearningIndex, currentWords.length - 1)
+    const currentLearnWord = currentWords[safeLearningIndex]
+    const layout = isLandscape ? "landscape" : "portrait"
+
+    if (!currentLearnWord) return null
+
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 pt-6">
+      <SafeAreaView className="flex-1 bg-blue-50 pt-6">
         <StatusBar style="dark" />
 
         {/* Header */}
-        <View className="flex-row justify-between items-center px-4">
+        <View className="flex-row justify-between items-center px-4 pb-2">
           <TouchableOpacity
             className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
             onPress={() => setGameState("levelSelect")}
+            accessibilityRole="button"
+            accessibilityLabel="Back to levels"
           >
             <Ionicons name="arrow-back" size={20} color="#7b5af0" />
           </TouchableOpacity>
 
           <View className="flex-row items-center">
             <Text variant="bold" className="text-indigo-800 text-sm">
-              {currentLearningIndex + 1}/{currentWords.length}
+              {safeLearningIndex + 1}/{currentWords.length}
             </Text>
             <View className="w-16 h-1.5 bg-slate-200 rounded-full ml-2 overflow-hidden">
               <View
                 className="h-full bg-indigo-500"
                 style={{
-                  width: `${
-                    ((currentLearningIndex + 1) / currentWords.length) * 100
-                  }%`,
+                  width: `${((safeLearningIndex + 1) / currentWords.length) * 100}%`,
                 }}
               />
             </View>
           </View>
 
-          <TouchableOpacity
-            className="bg-indigo-500 py-1.5 px-3 rounded-full"
-            onPress={startGame}
-          >
+          <TouchableOpacity className="bg-indigo-500 py-2 px-4 rounded-full" onPress={startGame}>
             <Text variant="bold" className="text-white  text-sm">
               Play Game
             </Text>
@@ -852,22 +1310,24 @@ const LugandaLearningGame: React.FC = () => {
         {layout === "landscape" ? (
           // Landscape layout
           <View className="flex-1 flex-row">
-            <View className="w-1/2 p-4 justify-center items-center">
+            <View className="w-1/2 p-3 justify-center items-center">
               <Animated.View
-                className="bg-white p-5 rounded-2xl shadow-sm w-full justify-center items-center"
-                style={{ opacity: fadeAnim }}
+                className="bg-white p-4 rounded-2xl shadow-sm w-full justify-center items-center border border-blue-100"
+                style={{ opacity: fadeAnim, minHeight: learningImageHeight + 40 }}
               >
-                <Image
-                  source={currentLearnWord.image}
-                  style={{ width: "100%", height: "80%" }}
+                <CachedImage
+                  source={(currentLearnWord.image || resolveImageSource("learning-beginner.jpg")) as any}
+                  fallbackSource={resolveImageSource("learning-beginner.jpg")}
+                  style={{ width: "100%", height: learningImageHeight }}
                   resizeMode="contain"
+                  accessibilityLabel={`${currentLearnWord.english} picture`}
                 />
               </Animated.View>
             </View>
 
-            <View className="w-1/2 p-4">
+            <View className="w-1/2 p-3 justify-center">
               <Animated.View
-                className="bg-white px-5 pt-3 rounded-2xl shadow-sm mb-4"
+                className="bg-white p-4 rounded-2xl shadow-sm mb-3 border border-blue-100"
                 style={{
                   opacity: fadeAnim,
                   transform: [
@@ -880,71 +1340,67 @@ const LugandaLearningGame: React.FC = () => {
                   ],
                 }}
               >
-                <View className="flex-row justify-between items-center">
-                  <Text className="text-sm text-indigo-500">
+                <View className="flex-row justify-between items-center mb-3">
+                  <Text className="text-sm text-indigo-500 flex-1 pr-3" numberOfLines={1}>
                     {selectedStage?.title} - {selectedLevel.title}
                   </Text>
                   <TouchableOpacity
-                    className="bg-indigo-100 p-2 rounded-full"
-                    onPress={() => playWordSound(currentLearnWord)}
+                    className="bg-indigo-100 w-10 h-10 rounded-full items-center justify-center"
+                    onPress={() => {
+                      void playWordSound(currentLearnWord).catch((error) => {
+                        console.warn("Could not play legacy Learning word sound:", error)
+                      })
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Hear ${currentLearnWord.targetText}`}
                   >
                     <Ionicons name="volume-high" size={18} color="#6366f1" />
                   </TouchableOpacity>
                 </View>
 
-                <Text variant="bold" className="text-3xl text-indigo-700 pt-3">
-                  {currentLearnWord.luganda}
+                <Text
+                  variant="bold"
+                  className="text-3xl text-indigo-700"
+                  numberOfLines={2}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.78}
+                >
+                  {currentLearnWord.targetText}
                 </Text>
-                <Text className="text-xl text-slate-700 mb-4">
+                <Text className="text-xl text-slate-700 mb-4" numberOfLines={2}>
                   {currentLearnWord.english}
                 </Text>
 
-                <View className="bg-slate-50 p-4 rounded-lg mb-2">
-                  <Text className="text-base text-slate-800 italic mb-2">
-                    "{currentLearnWord.example}"
+                <View className="bg-slate-50 p-3 rounded-xl">
+                  <Text className="text-base text-slate-800 italic mb-2" numberOfLines={3}>
+                    {`"${currentLearnWord.example ?? ""}"`}
                   </Text>
-                  <Text className="text-sm text-slate-500">
+                  <Text className="text-sm text-slate-500" numberOfLines={3}>
                     {currentLearnWord.exampleTranslation}
                   </Text>
                 </View>
               </Animated.View>
 
-              <View className="flex-row justify-between p">
+              <View className="flex-row justify-between px-1">
                 <TouchableOpacity
-                  className={`py-3 px-5 rounded-xl ${
-                    currentLearningIndex === 0
-                      ? "bg-slate-200"
-                      : "bg-indigo-500"
-                  }`}
+                  className={`min-w-[116px] py-3 px-5 rounded-xl items-center ${currentLearningIndex === 0 ? "bg-slate-200" : "bg-indigo-500"}`}
                   onPress={previousLearningWord}
                   disabled={currentLearningIndex === 0}
+                  activeOpacity={currentLearningIndex === 0 ? 1 : 0.78}
                 >
-                  <Text
-                    className={` ${
-                      currentLearningIndex === 0
-                        ? "text-slate-400"
-                        : "text-white"
-                    }`}
-                    variant="bold"
-                  >
+                  <Text className={` ${currentLearningIndex === 0 ? "text-slate-400" : "text-white"}`} variant="bold">
                     Previous
                   </Text>
                 </TouchableOpacity>
 
                 {currentLearningIndex < currentWords.length - 1 ? (
-                  <TouchableOpacity
-                    className="bg-indigo-500 py-3 px-5 rounded-xl"
-                    onPress={nextLearningWord}
-                  >
+                  <TouchableOpacity className="bg-indigo-500 min-w-[116px] py-3 px-5 rounded-xl items-center" onPress={nextLearningWord}>
                     <Text variant="bold" className="text-white">
                       Next
                     </Text>
                   </TouchableOpacity>
                 ) : (
-                  <TouchableOpacity
-                    className="bg-emerald-500 py-3 px-5 rounded-xl"
-                    onPress={startGame}
-                  >
+                  <TouchableOpacity className="bg-emerald-500 min-w-[124px] py-3 px-5 rounded-xl items-center" onPress={startGame}>
                     <Text variant="bold" className="text-white">
                       Start Quiz
                     </Text>
@@ -962,22 +1418,30 @@ const LugandaLearningGame: React.FC = () => {
           >
             <Animated.View style={{ opacity: fadeAnim }}>
               <View className="mx-4 my-2">
-                <View className="bg-white p-4 rounded-2xl shadow-sm items-center mb-5">
-                  <Image
-                    source={currentLearnWord.image}
-                    style={{ width: width * 0.7, height: width * 0.5 }}
+                <View className="bg-white p-4 rounded-2xl shadow-sm items-center mb-5 border border-blue-100">
+                  <CachedImage
+                    source={(currentLearnWord.image || resolveImageSource("learning-beginner.jpg")) as any}
+                    fallbackSource={resolveImageSource("learning-beginner.jpg")}
+                    style={{ width: windowWidth * 0.7, height: windowWidth * 0.5 }}
                     resizeMode="contain"
+                    accessibilityLabel={`${currentLearnWord.english} picture`}
                   />
                 </View>
 
-                <View className="bg-white p-5 rounded-2xl shadow-sm mb-8">
+                <View className="bg-white p-5 rounded-2xl shadow-sm mb-6 border border-blue-100">
                   <View className="flex-row justify-between items-center mb-5">
-                    <Text className="text-sm text-indigo-500">
+                    <Text className="text-sm text-indigo-500 flex-1 pr-3" numberOfLines={1}>
                       {selectedStage?.title} - {selectedLevel.title}
                     </Text>
                     <TouchableOpacity
-                      className="bg-indigo-100 p-2 rounded-full"
-                      onPress={() => playWordSound(currentLearnWord)}
+                      className="bg-indigo-100 w-10 h-10 rounded-full items-center justify-center"
+                      onPress={() => {
+                        void playWordSound(currentLearnWord).catch((error) => {
+                          console.warn("Could not play legacy Learning word sound:", error)
+                        })
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Hear ${currentLearnWord.targetText}`}
                     >
                       <Ionicons name="volume-high" size={18} color="#6366f1" />
                     </TouchableOpacity>
@@ -986,18 +1450,21 @@ const LugandaLearningGame: React.FC = () => {
                   <Text
                     variant="bold"
                     className="text-3xl text-indigo-700 mb-1"
+                    numberOfLines={2}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.78}
                   >
-                    {currentLearnWord.luganda}
+                    {currentLearnWord.targetText}
                   </Text>
-                  <Text className="text-xl text-slate-700 mb-4">
+                  <Text className="text-xl text-slate-700 mb-4" numberOfLines={2}>
                     {currentLearnWord.english}
                   </Text>
 
-                  <View className="bg-slate-50 p-4 rounded-lg">
-                    <Text className="text-base text-slate-800 italic mb-2">
-                      "{currentLearnWord.example}"
+                  <View className="bg-slate-50 p-4 rounded-xl">
+                    <Text className="text-base text-slate-800 italic mb-2" numberOfLines={3}>
+                      {`"${currentLearnWord.example ?? ""}"`}
                     </Text>
-                    <Text className="text-sm text-slate-500">
+                    <Text className="text-sm text-slate-500" numberOfLines={3}>
                       {currentLearnWord.exampleTranslation}
                     </Text>
                   </View>
@@ -1005,40 +1472,24 @@ const LugandaLearningGame: React.FC = () => {
 
                 <View className="flex-row justify-between px-2">
                   <TouchableOpacity
-                    className={`py-3 px-6 rounded-xl ${
-                      currentLearningIndex === 0
-                        ? "bg-slate-200"
-                        : "bg-indigo-500"
-                    }`}
+                    className={`min-w-[116px] py-3 px-6 rounded-xl items-center ${currentLearningIndex === 0 ? "bg-slate-200" : "bg-indigo-500"}`}
                     onPress={previousLearningWord}
                     disabled={currentLearningIndex === 0}
+                    activeOpacity={currentLearningIndex === 0 ? 1 : 0.78}
                   >
-                    <Text
-                      className={` ${
-                        currentLearningIndex === 0
-                          ? "text-slate-400"
-                          : "text-white"
-                      }`}
-                      variant="bold"
-                    >
+                    <Text className={` ${currentLearningIndex === 0 ? "text-slate-400" : "text-white"}`} variant="bold">
                       Previous
                     </Text>
                   </TouchableOpacity>
 
                   {currentLearningIndex < currentWords.length - 1 ? (
-                    <TouchableOpacity
-                      className="bg-indigo-500 py-3 px-6 rounded-xl"
-                      onPress={nextLearningWord}
-                    >
+                    <TouchableOpacity className="bg-indigo-500 min-w-[116px] py-3 px-6 rounded-xl items-center" onPress={nextLearningWord}>
                       <Text variant="bold" className="text-white">
                         Next
                       </Text>
                     </TouchableOpacity>
                   ) : (
-                    <TouchableOpacity
-                      className="bg-emerald-500 py-3 px-6 rounded-xl"
-                      onPress={startGame}
-                    >
+                    <TouchableOpacity className="bg-emerald-500 min-w-[124px] py-3 px-6 rounded-xl items-center" onPress={startGame}>
                       <Text variant="bold" className="text-white">
                         Start Quiz
                       </Text>
@@ -1050,46 +1501,36 @@ const LugandaLearningGame: React.FC = () => {
           </ScrollView>
         )}
       </SafeAreaView>
-    );
-  };
+    )
+  }
 
   // GAME SCREEN
   const renderGameScreen = () => {
-    if (!currentWord) return null;
-    const layout = isLandscape ? "landscape" : "portrait";
+    if (!currentWord) return null
+    const layout = isLandscape ? "landscape" : "portrait"
 
     return (
-      <SafeAreaView className="flex-1 bg-slate-50">
+      <GameTourProvider>
+        <SafeAreaView className="flex-1 bg-blue-50">
         <StatusBar style="dark" />
 
-        {/* Header */}
-        <View className="flex-row justify-between items-center px-4 pt-6 pb-2">
-          <TouchableOpacity
-            className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
-            onPress={() => setGameState("learning")}
-          >
-            <Ionicons name="arrow-back" size={20} color="#7b5af0" />
-          </TouchableOpacity>
-
-          <Text variant="bold" className="text-indigo-800">
-            {selectedLevel?.title} Quiz
-          </Text>
-
-          <View className="flex-row items-center bg-white px-3 py-1.5 rounded-full shadow-sm border border-amber-200">
-            <Image
-              source={require("../../assets/images/coin.png")}
-              style={{ width: 20, height: 20, marginRight: 4 }}
-              resizeMode="contain"
-            />
-            <Text variant="bold" className=" text-amber-500">
-              {levelScore}
-            </Text>
-          </View>
-        </View>
+        <GameHeader
+          title={`${selectedLevel?.title} Quiz`}
+          subtitle={`Pick the English meaning • ${currentWordIndex + 1} of ${currentWords.length}`}
+          onBack={() => {
+            clearGameTimers()
+            answerLockRef.current = false
+            completionLockRef.current = false
+            setGameState("learning")
+          }}
+          backAccessibilityLabel="Back to word cards"
+          onHelp={learningTour.open}
+        />
 
         {/* Progress bar */}
-        <View className="px-4 mb-4">
-          <View className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
+        <TourTarget id="learning-quiz-progress">
+        <View className="px-4 pb-1">
+          <View className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
             <Animated.View
               className="h-full bg-indigo-500"
               style={{
@@ -1100,86 +1541,85 @@ const LugandaLearningGame: React.FC = () => {
               }}
             />
           </View>
-          <View className="flex-row justify-between mt-1">
-            <Text className="text-xs text-slate-500">
-              Question {currentWordIndex + 1} of {currentWords.length}
-            </Text>
-            <Text className="text-xs text-slate-500">
-              {Math.round((currentWordIndex / currentWords.length) * 100)}%
-              Complete
-            </Text>
-          </View>
         </View>
+        </TourTarget>
 
         <Animated.View className="flex-1" style={{ opacity: fadeAnim }}>
           {layout === "landscape" ? (
             // Landscape layout
-            <View className="flex-1 flex-row px-3">
-              <View className="w-1/2 p-2 justify-center">
-                <View className="bg-white p-6 rounded-2xl shadow-sm">
-                  <Text className="text-lg text-slate-600 mb-6 text-center">
-                    What is the English translation of:
+            <View className="flex-1 flex-row px-4 pb-3">
+              <View className="w-[44%] pr-2 justify-center">
+                <TourTarget id="learning-quiz-prompt">
+                <View className="bg-white p-4 rounded-3xl shadow-sm border border-blue-100 min-h-[184px] justify-center">
+                  <View className="self-center bg-blue-50 rounded-full px-3 py-1 mb-3">
+                    <Text variant="medium" className="text-xs text-primary-600" numberOfLines={1}>
+                      Pick the meaning
+                    </Text>
+                  </View>
+                  <Text className="text-base text-slate-500 mb-2 text-center" numberOfLines={2}>
+                    What does this mean?
                   </Text>
 
-                  <View className="items-center mb-5">
+                  <View className="items-center">
                     <View className="flex-row items-center">
                       <Text
                         variant="bold"
-                        className="text-3xl text-indigo-700 text-center pt-3"
+                        className="text-4xl text-indigo-700 text-center flex-1"
+                        numberOfLines={2}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.78}
                       >
-                        {currentWord.luganda}
+                        {currentWord.targetText}
                       </Text>
                       <TouchableOpacity
-                        className="ml-3 p-2 bg-indigo-100 rounded-full"
-                        onPress={() => playWordSound()}
+                        className="ml-3 w-12 h-12 bg-indigo-100 rounded-2xl items-center justify-center"
+                        onPress={() => {
+                          void playWordSound().catch((error) => {
+                            console.warn("Could not play legacy Learning word sound:", error)
+                          })
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Hear ${currentWord.targetText}`}
                       >
-                        <Ionicons
-                          name="volume-high"
-                          size={20}
-                          color="#6366f1"
-                        />
+                        <Ionicons name="volume-high" size={22} color="#6366f1" />
                       </TouchableOpacity>
                     </View>
                   </View>
 
                   {/* Feedback */}
                   {isCorrect !== null && (
-                    <View className="items-center my-4">
-                      <Text
-                        className={`text-lg ${
-                          isCorrect ? "text-emerald-500" : "text-red-500"
-                        }`}
-                        variant="bold"
-                      >
+                    <View className={`items-center mt-3 rounded-full px-4 py-1.5 ${isCorrect ? "bg-emerald-50" : "bg-red-50"}`}>
+                      <Text className={`text-base ${isCorrect ? "text-emerald-600" : "text-red-600"}`} variant="bold">
+                        {isCorrect ? "Correct!" : "Try again!"}
+                      </Text>
+                      <Text className="hidden" variant="bold">
                         {isCorrect ? "Correct! 🎉" : "Try again! 😕"}
                       </Text>
                     </View>
                   )}
                 </View>
+                </TourTarget>
               </View>
 
-              <View className="w-1/2 p-2 justify-center">
-                <View className="space-y-3">
+              <View className="w-[56%] pl-2 justify-center">
+                <TourTarget id="learning-quiz-answers">
+                <View>
                   {options.map((option, index) => (
                     <Animated.View
                       key={index}
-                      style={[
-                        option === shakingOption
-                          ? { transform: [{ translateX: shakeAnimation }] }
-                          : {},
-                      ]}
+                      style={[option === shakingOption ? { transform: [{ translateX: shakeAnimation }] } : {}]}
                     >
                       <TouchableOpacity
                         className={`
-                          py-3 px-5 rounded-xl shadow-sm border-2 items-center justify-center mb-2
+                          min-h-[50px] py-2.5 px-5 rounded-2xl shadow-sm border-2 items-center justify-center mb-2
                           ${
                             selectedOption === null
                               ? "bg-white border-slate-200"
                               : option === currentWord.english
-                              ? "bg-emerald-100 border-emerald-500"
-                              : option === selectedOption
-                              ? "bg-red-100 border-red-500"
-                              : "bg-white border-slate-200"
+                                ? "bg-emerald-100 border-emerald-500"
+                                : option === selectedOption
+                                  ? "bg-red-100 border-red-500"
+                                  : "bg-white border-slate-200"
                           }
                         `}
                         onPress={() => handleOptionSelect(option)}
@@ -1187,18 +1627,19 @@ const LugandaLearningGame: React.FC = () => {
                         activeOpacity={0.8}
                       >
                         <Text
-                          className={`
-                          ${
+                          className={`text-lg ${
                             selectedOption === null
                               ? "text-slate-700"
                               : option === currentWord.english
-                              ? "text-emerald-700"
-                              : option === selectedOption
-                              ? "text-red-700"
-                              : "text-slate-700"
-                          }
-                        `}
+                                ? "text-emerald-700"
+                                : option === selectedOption
+                                  ? "text-red-700"
+                                  : "text-slate-700"
+                          }`}
                           variant="bold"
+                          numberOfLines={2}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.82}
                         >
                           {option}
                         </Text>
@@ -1206,27 +1647,38 @@ const LugandaLearningGame: React.FC = () => {
                     </Animated.View>
                   ))}
                 </View>
+                </TourTarget>
               </View>
             </View>
           ) : (
             // Portrait layout
             <View className="flex-1 px-4">
-              <View className="bg-white p-6 rounded-2xl shadow-sm mb-5">
-                <Text className="text-base text-slate-600 mb-5 text-center">
-                  What is the English translation of:
+              <TourTarget id="learning-quiz-prompt">
+              <View className="bg-white p-6 rounded-2xl shadow-sm mb-5 border border-blue-100">
+                <Text className="text-base text-slate-600 mb-5 text-center" numberOfLines={2}>
+                  What does this mean?
                 </Text>
 
                 <View className="items-center mb-5">
                   <View className="flex-row items-center">
                     <Text
                       variant="bold"
-                      className="text-3xl text-indigo-700 text-center"
+                      className="text-3xl text-indigo-700 text-center flex-1"
+                      numberOfLines={2}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.78}
                     >
-                      {currentWord.luganda}
+                      {currentWord.targetText}
                     </Text>
                     <TouchableOpacity
-                      className="ml-3 p-2 bg-indigo-100 rounded-full"
-                      onPress={() => playWordSound()}
+                      className="ml-3 w-10 h-10 bg-indigo-100 rounded-full items-center justify-center"
+                      onPress={() => {
+                        void playWordSound().catch((error) => {
+                          console.warn("Could not play legacy Learning word sound:", error)
+                        })
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Hear ${currentWord.targetText}`}
                     >
                       <Ionicons name="volume-high" size={20} color="#6366f1" />
                     </TouchableOpacity>
@@ -1235,40 +1687,36 @@ const LugandaLearningGame: React.FC = () => {
 
                 {/* Feedback */}
                 {isCorrect !== null && (
-                  <View className="items-center my-3">
-                    <Text
-                      variant="bold"
-                      className={`text-lg ${
-                        isCorrect ? "text-emerald-500" : "text-red-500"
-                      }`}
-                    >
+                  <View className={`items-center my-3 rounded-full px-4 py-2 ${isCorrect ? "bg-emerald-50" : "bg-red-50"}`}>
+                    <Text variant="bold" className={`text-lg ${isCorrect ? "text-emerald-600" : "text-red-600"}`}>
+                      {isCorrect ? "Correct!" : "Try again!"}
+                    </Text>
+                    <Text variant="bold" className="hidden">
                       {isCorrect ? "Correct! 🎉" : "Try again 😕"}
                     </Text>
                   </View>
                 )}
               </View>
+              </TourTarget>
 
+              <TourTarget id="learning-quiz-answers">
               <View className="space-y-3">
                 {options.map((option, index) => (
                   <Animated.View
                     key={index}
-                    style={[
-                      option === shakingOption
-                        ? { transform: [{ translateX: shakeAnimation }] }
-                        : {},
-                    ]}
+                    style={[option === shakingOption ? { transform: [{ translateX: shakeAnimation }] } : {}]}
                   >
                     <TouchableOpacity
                       className={`
-                        py-4 px-5 rounded-xl shadow-sm border-2 items-center
+                        min-h-[58px] py-4 px-5 rounded-xl shadow-sm border-2 items-center justify-center
                         ${
                           selectedOption === null
                             ? "bg-white border-slate-200"
                             : option === currentWord.english
-                            ? "bg-emerald-100 border-emerald-500"
-                            : option === selectedOption
-                            ? "bg-red-100 border-red-500"
-                            : "bg-white border-slate-200"
+                              ? "bg-emerald-100 border-emerald-500"
+                              : option === selectedOption
+                                ? "bg-red-100 border-red-500"
+                                : "bg-white border-slate-200"
                         }
                       `}
                       onPress={() => handleOptionSelect(option)}
@@ -1277,16 +1725,19 @@ const LugandaLearningGame: React.FC = () => {
                     >
                       <Text
                         variant="bold"
+                        numberOfLines={2}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.82}
                         className={`
                         
                         ${
                           selectedOption === null
                             ? "text-slate-700"
                             : option === currentWord.english
-                            ? "text-emerald-700"
-                            : option === selectedOption
-                            ? "text-red-700"
-                            : "text-slate-700"
+                              ? "text-emerald-700"
+                              : option === selectedOption
+                                ? "text-red-700"
+                                : "text-slate-700"
                         }
                       `}
                       >
@@ -1296,6 +1747,7 @@ const LugandaLearningGame: React.FC = () => {
                   </Animated.View>
                 ))}
               </View>
+              </TourTarget>
 
               {/* Animated confetti when correct */}
               {isCorrect === true && (
@@ -1308,7 +1760,12 @@ const LugandaLearningGame: React.FC = () => {
                     }),
                   }}
                 >
-                  <View className="flex-row">
+                  <View className="flex-row items-center">
+                    <Ionicons name="sparkles" size={28} color={brandColors.equatorialGold} />
+                    <Ionicons name="star" size={28} color={brandColors.shanaOrange} />
+                    <Ionicons name="sparkles" size={28} color={brandColors.equatorialGold} />
+                  </View>
+                  <View className="hidden">
                     <Text className="text-3xl">🎉</Text>
                     <Text className="text-3xl">✨</Text>
                     <Text className="text-3xl">🎊</Text>
@@ -1318,9 +1775,21 @@ const LugandaLearningGame: React.FC = () => {
             </View>
           )}
         </Animated.View>
-      </SafeAreaView>
-    );
-  };
+        <GameTour
+          visible={learningTour.visible}
+          onDismiss={learningTour.dismiss}
+          onUnavailable={learningTour.close}
+          onComplete={learningTour.complete}
+          steps={[
+            { id: "prompt", targetId: "learning-quiz-prompt", icon: "volume-high-outline", placement: "auto", title: "Listen or read", description: "Tap the speaker to hear the phrase." },
+            { id: "answers", targetId: "learning-quiz-answers", icon: "list-outline", placement: "auto", title: "Pick an answer", description: "Tap the matching meaning." },
+            { id: "progress", targetId: "learning-quiz-progress", icon: "trending-up-outline", placement: "bottom", title: "Quiz progress", description: "This bar shows how much is left." },
+          ]}
+        />
+        </SafeAreaView>
+      </GameTourProvider>
+    )
+  }
 
   // LEVEL COMPLETION SCREEN
   const renderLevelCompletionScreen = () => {
@@ -1329,51 +1798,30 @@ const LugandaLearningGame: React.FC = () => {
         <StatusBar style="light" />
 
         <View className="flex-1 justify-center items-center">
-          
-
           <LinearGradient
-            colors={[
-              selectedStage?.color || "#6366f1",
-              (selectedStage?.color || "#6366f1") + "CC",
-            ]}
+            colors={[selectedStage?.color || "#6366f1", (selectedStage?.color || "#6366f1") + "CC"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             className="p-12 rounded-3xl w-full items-center shadow-lg"
           >
             <View className="bg-white w-12 h-12 rounded-full mb-2 justify-center items-center">
-              <Text className="text-xl">🏆</Text>
+              <Ionicons name="trophy" size={24} color={brandColors.equatorialGold} />
             </View>
 
             <Text variant="bold" className="text-xl text-white mb-2">
-              Level Complete!
+              Level done!
             </Text>
             <Text className="text-white text-center  mb-2">
-              Congratulations, you've completed {selectedLevel?.title}!
+              {`You finished ${selectedLevel?.title}!`}
             </Text>
 
             <View className="bg-white/20 w-full rounded-2xl p-5 mb-2">
-              <View className="flex-row justify-between mb-2">
+              <View className="flex-row justify-between">
                 <Text variant="bold" className="text-white">
-                  Words Learned:
+                  Words:
                 </Text>
                 <Text variant="bold" className="text-white">
                   {currentWords.length}
-                </Text>
-              </View>
-              <View className="flex-row justify-between mb-2">
-                <Text variant="bold" className="text-white ">
-                  Score Earned:
-                </Text>
-                <Text variant="bold" className="text-white">
-                  {levelScore}
-                </Text>
-              </View>
-              <View className="flex-row justify-between">
-                <Text variant="bold" className="text-white">
-                  Total Score:
-                </Text>
-                <Text variant="bold" className="text-white">
-                  {totalScore}
                 </Text>
               </View>
             </View>
@@ -1381,55 +1829,75 @@ const LugandaLearningGame: React.FC = () => {
             <View className="flex-row space-x-3 mt-2">
               <TouchableOpacity
                 className="bg-white py-3 px-5 rounded-xl"
-                onPress={() => setGameState("levelSelect")}
+                onPress={() => {
+                  setGameState("levelSelect")
+                  // Reset timer for next activity
+                  gameStartTime.current = Date.now()
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Choose a learning game level"
               >
                 <Text variant="bold" className="text-indigo-600">
-                  Choose Level
+                  Pick a level
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 className="bg-emerald-500 py-3 px-5 rounded-xl"
-                onPress={() => setGameState("stageSelect")}
+                onPress={() => {
+                  setGameState("stageSelect")
+                  // Reset timer for next activity
+                  gameStartTime.current = Date.now()
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Choose a learning game stage"
               >
                 <Text variant="bold" className="text-white">
-                  Home
+                  {t("learning.chooseStage")}
                 </Text>
               </TouchableOpacity>
             </View>
           </LinearGradient>
         </View>
       </SafeAreaView>
-    );
-  };
+    )
+  }
 
   // Loading screen
   if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 justify-center items-center">
-        <ActivityIndicator size="large" color="#6366f1" />
-        <Text className="mt-4 text-slate-600">
-          Loading your learning journey...
-        </Text>
-      </SafeAreaView>
-    );
+      <ChildLoadingState
+        title={t("games.gettingWordsReady")}
+        message={t("games.loadingGame")}
+        icon="school-outline"
+      />
+    )
+  }
+
+  if (stages.length === 0) {
+    return (
+      <ComingSoonState
+        title={t("games.learningComingSoon")}
+        onRetry={() => setContentRetrySequence((current) => current + 1)}
+      />
+    )
   }
 
   // Main render function that switches between game states
   switch (gameState) {
     case "stageSelect":
-      return renderStageSelectScreen();
+      return renderStageSelectScreen()
     case "levelSelect":
-      return renderLevelSelectScreen();
+      return renderLevelSelectScreen()
     case "learning":
-      return renderLearningScreen();
+      return renderLearningScreen()
     case "playing":
-      return renderGameScreen();
+      return renderGameScreen()
     case "levelComplete":
-      return renderLevelCompletionScreen();
+      return renderLevelCompletionScreen()
     default:
-      return renderStageSelectScreen();
+      return renderStageSelectScreen()
   }
-};
+}
 
-export default LugandaLearningGame;
+export default LugandaLearningGame

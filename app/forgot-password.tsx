@@ -1,36 +1,49 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  View,
   Alert,
-  TouchableOpacity,
   Animated,
-  StatusBar,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StatusBar,
   TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { Text } from "@/components/StyledText";
-import { supabase } from "../lib/supabase";
-import { useRouter } from "expo-router";
 import { FontAwesome } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { BrandMark } from "@/components/brand/BrandMark";
+import { Text } from "@/components/StyledText";
+import { brandColors } from "@/constants/Brand";
+import {
+  keyboardAwareScrollContentStyle,
+  readableTextInputStyle,
+} from "@/constants/formStyles";
+import {
+  getForgotPasswordErrorMessage,
+  validateEmailAddress,
+} from "@/lib/authMessages";
+import { PASSWORD_RESET_REDIRECT_URL } from "@/lib/authRedirects";
+import { supabase } from "../lib/supabase";
+import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network";
 
 export default function ForgotPassword() {
-  const [email, setEmail] = useState("");
+  const params = useLocalSearchParams<{ email?: string | string[] }>();
+  const initialEmail = Array.isArray(params.email)
+    ? params.email[0]
+    : params.email;
+  const [email, setEmail] = useState(initialEmail?.trim() ?? "");
   const [loading, setLoading] = useState(false);
-  const [resetSent, setResetSent] = useState(false);
   const router = useRouter();
 
-  // Animation values
   const bounceValue = useRef(new Animated.Value(0)).current;
   const floatValue = useRef(new Animated.Value(0)).current;
   const scaleValue = useRef(new Animated.Value(0)).current;
   const spinValue = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView | null>(null);
 
-  // Set up animations
   useEffect(() => {
-    // Entrance animation
     Animated.spring(scaleValue, {
       toValue: 1,
       tension: 20,
@@ -38,40 +51,37 @@ export default function ForgotPassword() {
       useNativeDriver: true,
     }).start();
 
-    // Floating animation
-    Animated.loop(
+    const floatAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(floatValue, {
           toValue: 1,
-          duration: 2000,
+          duration: 2200,
           useNativeDriver: true,
         }),
         Animated.timing(floatValue, {
           toValue: 0,
-          duration: 2000,
+          duration: 2200,
           useNativeDriver: true,
         }),
       ])
-    ).start();
+    );
 
-    // Bounce animation for decorative elements
-    Animated.loop(
+    const dotAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(bounceValue, {
           toValue: 1,
-          duration: 800,
+          duration: 1000,
           useNativeDriver: true,
         }),
         Animated.timing(bounceValue, {
           toValue: 0,
-          duration: 800,
+          duration: 1000,
           useNativeDriver: true,
         }),
       ])
-    ).start();
+    );
 
-    // Spin animation for the key icon
-    Animated.loop(
+    const spinAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(spinValue, {
           toValue: 1,
@@ -84,32 +94,61 @@ export default function ForgotPassword() {
           useNativeDriver: true,
         }),
       ])
-    ).start();
-  }, []);
+    );
+
+    floatAnimation.start();
+    dotAnimation.start();
+    spinAnimation.start();
+
+    return () => {
+      floatAnimation.stop();
+      dotAnimation.stop();
+      spinAnimation.stop();
+    };
+  }, [bounceValue, floatValue, scaleValue, spinValue]);
 
   async function resetPassword() {
-    if (!email) {
-      Alert.alert("Oops!", "Please enter your email address.");
+    const validationMessage = validateEmailAddress(email);
+    if (validationMessage) {
+      Alert.alert("Let's check that", validationMessage);
       return;
     }
 
-    setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `babysteps://reset-password`,
-    });
+    if (!(await requireInternet("Sending a password reset link"))) return;
 
-    if (error) {
-      Alert.alert("Oops!", error.message);
-    } else {
-      setResetSent(true);
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: PASSWORD_RESET_REDIRECT_URL,
+      });
+
+      if (error) {
+        if (await showNetworkErrorIfNeeded(error, "Sending a password reset link")) return;
+        Alert.alert("Could not send reset link", getForgotPasswordErrorMessage(error));
+        return;
+      }
+
+      router.replace({
+        pathname: "/check-email",
+        params: { flow: "reset" },
+      } as any);
+    } catch (error) {
+      if (await showNetworkErrorIfNeeded(error, "Sending a password reset link")) return;
+      Alert.alert("Could not send reset link", getForgotPasswordErrorMessage(error));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
-  // Animation transformations
+  const scrollToInput = (y: number) => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y, animated: true });
+    }, 80);
+  };
+
   const translateY = floatValue.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, -15],
+    outputRange: [0, -12],
   });
 
   const bounceDot1 = bounceValue.interpolate({
@@ -129,21 +168,19 @@ export default function ForgotPassword() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : "padding"}
       className="flex-1 bg-accent-50"
     >
-      <StatusBar
-        translucent
-        backgroundColor="transparent"
-        barStyle="dark-content"
-      />
+      <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
 
       <SafeAreaView className="flex-1">
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
+          ref={scrollViewRef}
+          contentContainerStyle={keyboardAwareScrollContentStyle}
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {/* Decorative elements */}
           <View className="absolute top-10 left-8">
             <Animated.View
               className="w-12 h-12 rounded-full bg-accent-200 opacity-50"
@@ -157,127 +194,78 @@ export default function ForgotPassword() {
             />
           </View>
 
-          {/* Header */}
           <View className="items-center mt-12 mb-4">
-            <Animated.View
-              style={{
-                transform: [{ translateY }, { scale: scaleValue }],
-              }}
-            >
-              <Text variant="bold" className="text-3xl  text-accent-700 ps-3 pt-3">
+            <BrandMark kind="wordmark" width={174} height={42} containerStyle={{ marginBottom: 12 }} />
+            <Animated.View style={{ transform: [{ translateY }, { scale: scaleValue }] }}>
+              <Text variant="bold" className="text-3xl text-accent-800 pt-3 text-center px-4">
                 Forgot Your Password?
-              </Text>
-              <Text className="text-lg text-center text-neutral-600 mt-3 px-8">
-                No worries! We'll send a reset link to your email.
               </Text>
             </Animated.View>
           </View>
 
-          {/* Animated icon */}
           <View className="items-center my-8">
             <Animated.View
               className="w-32 h-32 bg-white rounded-full items-center justify-center shadow-lg border-4 border-accent-200"
-              style={{
-                transform: [{ translateY }, { scale: scaleValue }],
-              }}
+              style={{ transform: [{ translateY }, { scale: scaleValue }] }}
             >
-              {!resetSent ? (
-                <Animated.View style={{ transform: [{ rotate: spin }] }}>
-                  <FontAwesome name="key" size={60} color="#b559e6" />
-                </Animated.View>
-              ) : (
-                <Text className="text-[60px]">✉️</Text>
-              )}
+              <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                <FontAwesome name="key" size={60} color={brandColors.equatorialGold} />
+              </Animated.View>
             </Animated.View>
           </View>
 
-          {/* Form */}
           <Animated.View
             className="mx-6 bg-white p-6 rounded-3xl shadow-md border-2 border-accent-100"
-            style={{
-              transform: [{ scale: scaleValue }],
-              opacity: scaleValue,
-            }}
+            style={{ transform: [{ scale: scaleValue }], opacity: scaleValue }}
           >
-            {!resetSent ? (
-              <>
-                {/* Email Input */}
-                <View className="mb-8">
-                  <Text className="text-accent-700  mb-3 text-lg">
-                    Your Email
-                  </Text>
-                  <View className="flex-row items-center bg-accent-50 rounded-2xl px-5 py-4 border-2 border-accent-100">
-                    <View className="bg-accent-200 w-10 h-10 rounded-full flex items-center justify-center">
-                      <FontAwesome name="envelope" size={20} color="#b559e6" />
-                    </View>
-                    <TextInput
-                      className="flex-1 ml-4 text-base text-neutral-800"
-                      placeholder="parent@email.com"
-                      value={email}
-                      onChangeText={setEmail}
-                      autoCapitalize="none"
-                      keyboardType="email-address"
-                      placeholderTextColor="#a0aec0"
-                      style={{
-                        textDecorationLine: "none",
-                        fontFamily: "Atma-Regular",
-                      }}
-                    />
-                  </View>
+            <View className="mb-8">
+              <Text className="text-accent-800 mb-3 text-lg">Your Email</Text>
+              <View className="flex-row items-center bg-accent-50 rounded-2xl px-5 py-4 border-2 border-accent-100">
+                <View className="bg-accent-200 w-10 h-10 rounded-full items-center justify-center">
+                  <FontAwesome name="envelope" size={20} color={brandColors.equatorialGold} />
                 </View>
-
-                {/* Reset Button */}
-                <TouchableOpacity
-                  className={`bg-accent-500 py-4 rounded-xl items-center shadow-md ${
-                    loading ? "opacity-70" : ""
-                  }`}
-                  onPress={resetPassword}
-                  disabled={loading}
-                  activeOpacity={0.8}
-                >
-                  <Text variant="bold" className="text-white  text-xl">
-                    {loading ? "Sending..." : "Send Reset Link"}
-                  </Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              /* Success Message */
-              <View className="items-center py-4">
-                <View className="bg-success-100 p-4 rounded-2xl mb-4 w-full">
-                  <Text className="text-success-700 text-center text-base">
-                    Reset link sent! Check your email inbox or spam for instructions.
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  className="bg-accent-500 py-4 rounded-xl items-center shadow-md w-full"
-                  onPress={() => router.replace("/login")}
-                >
-                  <Text variant="bold" className="text-white  text-xl">
-                    Back to Login
-                  </Text>
-                </TouchableOpacity>
+                <TextInput
+                  className="flex-1 ml-4 text-lg text-neutral-800"
+                  placeholder="parent@email.com"
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  onFocus={() => scrollToInput(220)}
+                  placeholderTextColor={brandColors.neutral[400]}
+                  returnKeyType="done"
+                  style={readableTextInputStyle}
+                  textContentType="emailAddress"
+                />
               </View>
-            )}
+            </View>
 
-            {/* Back to Login */}
-            {!resetSent && (
-              <View className="mt-8 items-center">
-                <TouchableOpacity
-                  className="flex-row items-center"
-                  onPress={() => router.replace("/login")}
-                >
-                  <FontAwesome
-                    name="arrow-left"
-                    size={16}
-                    color="#3399ff"
-                    style={{ marginRight: 6 }}
-                  />
-                  <Text variant="bold" className="text-primary-600  text-base">
-                    Back to Login
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
+            <TouchableOpacity
+              className={`bg-accent-500 py-4 rounded-xl items-center shadow-md ${loading ? "opacity-70" : ""}`}
+              onPress={resetPassword}
+              disabled={loading}
+              activeOpacity={0.84}
+            >
+              <Text variant="bold" className="text-neutral-800 text-xl">
+                {loading ? "Sending..." : "Send Reset Link"}
+              </Text>
+            </TouchableOpacity>
+
+            <View className="mt-8 items-center">
+              <TouchableOpacity className="flex-row items-center" onPress={() => router.replace("/login")}>
+                <FontAwesome
+                  name="arrow-left"
+                  size={16}
+                  color={brandColors.victoriaBlue}
+                  style={{ marginRight: 6 }}
+                />
+                <Text variant="bold" className="text-primary-600 text-base">
+                  Back to Login
+                </Text>
+              </TouchableOpacity>
+            </View>
           </Animated.View>
         </ScrollView>
       </SafeAreaView>

@@ -1,254 +1,150 @@
-"use client"
+"use client";
 
-import React, { useEffect } from "react"
-import { View, ScrollView, TouchableOpacity, Switch, Alert, Text as RNText } from "react-native"
-import { Text } from "@/components/StyledText"
-import { useRouter } from "expo-router"
-import { StatusBar } from "expo-status-bar"
-import { SafeAreaView } from "react-native-safe-area-context"
-import { Ionicons, FontAwesome5 } from "@expo/vector-icons"
-import { supabase } from "../../lib/supabase"
-import * as ScreenOrientation from "expo-screen-orientation"
-import { useLanguage } from "@/context/language-context"
-import { TranslatedText } from "@/components/translated-text"
-import { TestTranslation } from "@/components/test-translation"
+import { useCallback, useMemo, useRef } from "react";
+import { ScrollView, TouchableOpacity, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { BrandMark } from "@/components/brand/BrandMark";
+import {
+  GameTour,
+  GameTourProvider,
+  TourTarget,
+  useGameTour,
+} from "@/components/games/GameTour";
+import { Text } from "@/components/StyledText";
+import { SettingsRow } from "@/components/settings/SettingsRow";
+import { SettingsScaffold } from "@/components/settings/SettingsScaffold";
+import { SettingsSignOutSection } from "@/components/settings/SettingsSignOutSection";
+import { brandColors } from "@/constants/Brand";
+import { useParentProfile } from "@/context/ParentProfileContext";
+import { SETTINGS_SECTIONS } from "@/lib/settingsOptions";
+import { getAppRuntimeMetadata } from "@/lib/appMetadata";
+import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  PARENT_SCREEN_TOUR_POSITIONING,
+  PARENT_SETTINGS_TOUR_STEPS,
+} from "@/lib/parentScreenTours";
 
-// Define the props interface
-interface SettingItemProps {
-  icon: string
-  iconColor: string
-  iconType?: "ionicons" | "fontawesome"
-  text: string
-  action: () => void
-  toggle?: boolean
-  value?: boolean
-  last?: boolean
-}
-
-interface SectionTitleProps {
-  title: string
-}
+const SETTINGS_SECTION_TOUR_IDS = [
+  "parent-settings-family",
+  "parent-settings-preferences",
+  "parent-settings-support",
+] as const;
 
 export default function SettingsScreen() {
-  const router = useRouter()
-  const [notifications, setNotifications] = React.useState(true)
-  const [soundEffects, setSoundEffects] = React.useState(true)
-  const { isLuganda, toggleLanguage } = useLanguage()
-  const [showTestTool, setShowTestTool] = React.useState(false)
-
-  const handleSignOut = async () => {
-    Alert.alert("Confirm Logout", "Are you sure you want to log out?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Logout",
-        style: "destructive",
-        onPress: async () => {
-          const { error } = await supabase.auth.signOut()
-          if (error) {
-            console.error("Error signing out:", error.message)
-            Alert.alert("Error", "Could not sign out. Please try again.")
-          } else {
-            console.log("Signed out successfully")
-            router.replace("/")
-          }
-        },
-      },
-    ])
-  }
-
-  useEffect(() => {
-    // Lock to portrait initially when screen loads
-    const lockToPortrait = async () => {
-      await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP)
-    }
-
-    lockToPortrait()
-
-    return () => {}
-  }, [])
-
-  // Fixed component with proper TypeScript typing
-  const SettingItem: React.FC<SettingItemProps> = ({
-    icon,
-    iconColor,
-    iconType = "ionicons", // Default to Ionicons
-    text,
-    action,
-    toggle = false,
-    value = false,
-    last = false,
-  }) => (
-    <TouchableOpacity
-      className={`flex-row items-center py-4 ${!last ? "border-b border-gray-100" : ""}`}
-      onPress={action}
-      activeOpacity={toggle ? 1 : 0.7}
-    >
-      <View
-        className="w-10 h-10 rounded-full items-center justify-center mx-4"
-        style={{ backgroundColor: `${getBackgroundColor(iconColor)}` }}
-      >
-        {iconType === "fontawesome" ? (
-          <FontAwesome5 name={icon as any} size={18} color={iconColor} />
-        ) : (
-          <Ionicons name={icon as any} size={22} color={iconColor} />
-        )}
-      </View>
-      <TranslatedText className="flex-1 text-gray-800 text-base">{text}</TranslatedText>
-      {toggle ? (
-        <Switch
-          value={value}
-          onValueChange={action}
-          trackColor={{ false: "#e5e7eb", true: "#c4b5fd" }}
-          thumbColor={value ? "#7b5af0" : "#f4f3f4"}
-        />
-      ) : (
-        <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
-      )}
-    </TouchableOpacity>
-  )
-
-  // Helper function to get the right background color with opacity
-  const getBackgroundColor = (color: string) => {
-    // Add opacity to the color
-    return `${color}20` // 20 is the hex value for ~12% opacity
-  }
-
-  const SectionTitle: React.FC<SectionTitleProps> = ({ title }) => (
-    <TranslatedText variant="medium" className="text-gray-500 text-sm uppercase tracking-wider mt-6 mb-2 px-1">
-      {title}
-    </TranslatedText>
-  )
+  const router = useRouter();
+  const { profile } = useParentProfile();
+  const appMetadata = getAppRuntimeMetadata();
+  const scrollRef = useRef<ScrollView>(null);
+  const sectionOffsetsRef = useRef<Record<string, number>>({});
+  const settingsTour = useGameTour(
+    "parent-settings",
+    profile?.id,
+    Boolean(profile?.id),
+  );
+  const prepareTourTarget = useCallback((stepId: string) => {
+    scrollRef.current?.scrollTo({
+      animated: false,
+      y: Math.max(0, (sectionOffsetsRef.current[stepId] ?? 0) - 12),
+    });
+  }, []);
+  const settingsTourSteps = useMemo(
+    () =>
+      PARENT_SETTINGS_TOUR_STEPS.map((step) => ({
+        ...step,
+        prepareTarget: () => prepareTourTarget(step.id),
+      })),
+    [prepareTourTarget],
+  );
 
   return (
-    <>
-      <StatusBar style="dark" />
-      <SafeAreaView className="flex-1 bg-white" edges={["top", "left", "right"]}>
-        {/* Header */}
-        <View className="flex-row items-center px-4 py-3 border-b border-gray-100">
-          <TouchableOpacity onPress={() => router.back()} className="mr-3">
-            <Ionicons name="arrow-back" size={24} color="#374151" />
-          </TouchableOpacity>
-          <TranslatedText variant="bold" className="text-xl text-gray-800">
-            Settings
-          </TranslatedText>
-        </View>
-
-        <ScrollView className="flex-1 px-4">
-          {/* Language Debug Section */}
-          <View className="bg-gray-100 p-3 rounded-lg my-3">
-            <RNText>Current Language: {isLuganda ? "Luganda" : "English"}</RNText>
-            <TouchableOpacity onPress={toggleLanguage} className="bg-purple-500 p-2 rounded mt-2">
-              <RNText className="text-white text-center">Toggle Language (Debug)</RNText>
+    <GameTourProvider>
+      <>
+        <SettingsScaffold
+          headerAction={
+            <TouchableOpacity
+              accessibilityLabel="Show the Settings guide"
+              accessibilityRole="button"
+              className="h-10 w-10 items-center justify-center rounded-full bg-primary-50"
+              onPress={settingsTour.open}
+            >
+              <Ionicons
+                color={brandColors.victoriaBlue}
+                name="help-circle-outline"
+                size={23}
+              />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setShowTestTool(!showTestTool)} className="bg-blue-500 p-2 rounded mt-2">
-              <RNText className="text-white text-center">
-                {showTestTool ? "Hide API Test Tool" : "Show API Test Tool"}
-              </RNText>
-            </TouchableOpacity>
+          }
+          scrollRef={scrollRef}
+          showBrandIcon
+          title="Settings"
+        >
+          <View className="items-center py-6">
+            <View className="w-24 h-24 rounded-full bg-white border border-gray-100 shadow-sm items-center justify-center overflow-hidden">
+              <BrandMark kind="icon" width={82} height={82} />
+            </View>
+            <Text variant="bold" className="text-xl text-gray-800 mt-3">
+              Baby Steps
+            </Text>
           </View>
 
-          {/* API Test Tool */}
-          {showTestTool && <TestTranslation />}
+          {SETTINGS_SECTIONS.map((section, sectionIndex) => {
+            const stepId = PARENT_SETTINGS_TOUR_STEPS[sectionIndex]?.id;
+            const targetId = SETTINGS_SECTION_TOUR_IDS[sectionIndex];
 
-          {/* Child Management Section */}
-          <SectionTitle title="Child Management" />
-          <View className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <SettingItem
-              icon="child"
-              iconColor="#7b5af0"
-              iconType="fontawesome"
-              text="Manage Child Profiles"
-              action={() => router.push("/child-list")}
-            />
-            <SettingItem
-              icon="chart-line"
-              iconColor="#F87171"
-              iconType="fontawesome"
-              text="Learning Progress & Achievements"
-              action={() => router.push("/parent/child-progress")}
-            />
-          </View>
-
-          {/* App Settings Section */}
-          <SectionTitle title="App Settings" />
-          <View className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <SettingItem
-              icon="notifications-outline"
-              iconColor="#10B981"
-              text="Notifications"
-              toggle
-              value={notifications}
-              action={() => setNotifications(!notifications)}
-            />
-            <SettingItem
-              icon="volume-high"
-              iconColor="#3B82F6"
-              text="Sound Effects"
-              toggle
-              value={soundEffects}
-              action={() => setSoundEffects(!soundEffects)}
-            />
-            <SettingItem
-              icon="language"
-              iconColor="#8B5CF6"
-              text="Language"
-              toggle
-              value={isLuganda}
-              action={toggleLanguage}
-            />
-            <SettingItem
-              icon="moon"
-              iconColor="#6366F1"
-              text="Dark Mode"
-              action={() => console.log("Toggle theme!")}
-              last
-            />
-          </View>
-
-          {/* Content Section */}
-          <SectionTitle title="Content & Privacy" />
-          <View className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <SettingItem
-              icon="cloud-download"
-              iconColor="#EC4899"
-              text="Content Management"
-              action={() => router.push("/content-management" as any)}
-            />
-            <SettingItem
-              icon="lock-closed"
-              iconColor="#0891B2"
-              text="Privacy Settings"
-              action={() => router.push("/privacy-settings" as any)}
-            />
-            <SettingItem
-              icon="help-circle"
-              iconColor="#6366F1"
-              text="Help & Support"
-              action={() => router.push("/help-support" as any)}
-              last
-            />
-          </View>
-
-          {/* Account Section */}
-          <SectionTitle title="Account" />
-          <View className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <SettingItem
-              icon="person"
-              iconColor="#7b5af0"
-              text="Account Information"
-              action={() => router.push("/account-info" as any)}
-            />
-            <SettingItem icon="log-out" iconColor="#EF4444" text="Logout" action={handleSignOut} last />
-          </View>
+            return (
+              <TourTarget key={section.title} id={targetId}>
+                <View
+                  className="mb-5"
+                  onLayout={({ nativeEvent }) => {
+                    if (stepId) {
+                      sectionOffsetsRef.current[stepId] = nativeEvent.layout.y;
+                    }
+                  }}
+                >
+                  <Text
+                    variant="medium"
+                    className="text-gray-500 text-sm uppercase tracking-wider mb-2 px-1"
+                  >
+                    {section.title}
+                  </Text>
+                  <View className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    {section.entries.map((entry, index) => (
+                      <SettingsRow
+                        key={entry.title}
+                        title={entry.title}
+                        icon={entry.icon as any}
+                        iconColor={entry.iconColor}
+                        onPress={() => router.push(entry.route as any)}
+                        last={index === section.entries.length - 1}
+                      />
+                    ))}
+                  </View>
+                </View>
+              </TourTarget>
+            );
+          })}
 
           <View className="py-6 items-center">
-            <Text className="text-gray-400 text-sm">Baby Steps v1.0.0</Text>
+            <Text className="text-gray-400 text-sm">
+              Baby Steps v{appMetadata.version}
+            </Text>
           </View>
-        </ScrollView>
-      </SafeAreaView>
-    </>
-  )
+
+          <SafeAreaView edges={["bottom"]} className="pb-6">
+            <SettingsSignOutSection />
+          </SafeAreaView>
+        </SettingsScaffold>
+        <GameTour
+          finishLabel="Done"
+          onComplete={settingsTour.complete}
+          onDismiss={settingsTour.dismiss}
+          onUnavailable={settingsTour.close}
+          positioning={PARENT_SCREEN_TOUR_POSITIONING}
+          steps={settingsTourSteps}
+          visible={settingsTour.visible}
+        />
+      </>
+    </GameTourProvider>
+  );
 }

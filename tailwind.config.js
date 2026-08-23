@@ -1,131 +1,150 @@
 /** @type {import('tailwindcss').Config} */
+const brandColors = {
+  blue: {
+    50: "#EAF6FC",
+    100: "#D4EDF8",
+    200: "#A9DBF1",
+    300: "#77C3E6",
+    400: "#37A2D6",
+    500: "#0274BB",
+    600: "#0267A6",
+    700: "#075685",
+    800: "#0B4568",
+    900: "#0D3855",
+  },
+  orange: {
+    50: "#FFF0EE",
+    100: "#FFE1DD",
+    200: "#FFC7BF",
+    300: "#FFA79B",
+    400: "#FF8D7F",
+    500: "#FF7B6C",
+    600: "#E85F50",
+    700: "#C94C3F",
+    800: "#A73F36",
+    900: "#84352F",
+  },
+  gold: {
+    50: "#FFF8E1",
+    100: "#FDECB7",
+    200: "#FBE08B",
+    300: "#F9D35F",
+    400: "#F8C94A",
+    500: "#F8C23E",
+    600: "#D99D19",
+    700: "#B37E12",
+    800: "#8F640F",
+    900: "#755111",
+  },
+  neutral: {
+    50: "#F8F6F1",
+    100: "#EFECE4",
+    200: "#DED9CE",
+    300: "#C8C0B2",
+    400: "#A59D91",
+    500: "#7D7A73",
+    600: "#62666A",
+    700: "#474F5E",
+    800: "#353B47",
+    900: "#232935",
+  },
+};
+
 module.exports = {
   content: ["./app/**/*.{js,jsx,ts,tsx}", "./components/**/*.{js,jsx,ts,tsx}"],
   presets: [require("nativewind/preset")],
   theme: {
     extend: {
       colors: {
-        background: "hsl(210, 60%, 98%)", // Soft blue background
-        foreground: "hsl(210, 70%, 20%)", // Friendly dark blue
-        card: "hsl(0, 0%, 100%)", // White
-        "card-foreground": "hsl(210, 70%, 20%)", // Friendly dark blue
-        popover: "hsl(0, 0%, 100%)", // White
-        "popover-foreground": "hsl(210, 70%, 20%)", // Friendly dark blue
-        
-        // Primary: Cheerful sky blue - more vibrant than navy
+        background: "#F8F6F1",
+        foreground: "#474F5E",
+        card: "#FFFFFF",
+        "card-foreground": "#474F5E",
+        popover: "#FFFFFF",
+        "popover-foreground": "#474F5E",
+
+        // Primary: Victoria Blue
         primary: {
-          DEFAULT: "hsl(210, 100%, 55%)", // Bright sky blue (#3399ff)
-          50: "hsl(210, 100%, 95%)",
-          100: "hsl(210, 100%, 90%)",
-          200: "hsl(210, 100%, 80%)",
-          300: "hsl(210, 100%, 70%)",
-          400: "hsl(210, 100%, 60%)",
-          500: "hsl(210, 100%, 55%)",
-          600: "hsl(210, 100%, 45%)",
-          700: "hsl(210, 100%, 35%)",
-          800: "hsl(210, 100%, 25%)",
-          900: "hsl(210, 100%, 20%)",
+          DEFAULT: brandColors.blue[500],
+          ...brandColors.blue,
         },
-        "primary-foreground": "hsl(0, 0%, 100%)", // White
-        
-        // Secondary: Playful orange for warmth
+        "primary-foreground": "#FFFFFF",
+
+        // Secondary: Shana Orange
         secondary: {
-          DEFAULT: "hsl(35, 100%, 60%)", // Warm orange (#ffb347)
-          50: "hsl(35, 100%, 95%)",
-          100: "hsl(35, 100%, 90%)",
-          200: "hsl(35, 100%, 80%)",
-          300: "hsl(35, 100%, 70%)",
-          400: "hsl(35, 100%, 65%)",
-          500: "hsl(35, 100%, 60%)",
-          600: "hsl(35, 100%, 50%)",
-          700: "hsl(35, 100%, 40%)",
-          800: "hsl(35, 100%, 30%)",
-          900: "hsl(35, 100%, 20%)",
+          DEFAULT: brandColors.orange[500],
+          ...brandColors.orange,
         },
-        "secondary-foreground": "hsl(0, 0%, 100%)", // White
-        
-        // Muted: Softer blues
+        "secondary-foreground": "#FFFFFF",
+
+        // Muted: Baby Steps warm neutrals
         muted: {
-          DEFAULT: "hsl(210, 40%, 96%)",
-          50: "hsl(210, 40%, 99%)",
-          100: "hsl(210, 40%, 96%)",
-          200: "hsl(210, 40%, 92%)",
-          300: "hsl(210, 40%, 88%)",
-          400: "hsl(210, 40%, 80%)",
-          500: "hsl(210, 40%, 70%)",
-          600: "hsl(210, 40%, 60%)",
-          700: "hsl(210, 40%, 50%)",
-          800: "hsl(210, 40%, 40%)",
-          900: "hsl(210, 40%, 30%)",
+          DEFAULT: brandColors.neutral[100],
+          ...brandColors.neutral,
         },
-        "muted-foreground": "hsl(210, 30%, 40%)",
-        
-        // Accent: Playful purple instead of very bright pink
+        "muted-foreground": brandColors.neutral[600],
+
+        // Accent: Equatorial Gold
         accent: {
-          DEFAULT: "hsl(280, 70%, 60%)", // Bright purple (#b559e6)
-          50: "hsl(280, 70%, 95%)",
-          100: "hsl(280, 70%, 90%)",
-          200: "hsl(280, 70%, 80%)",
-          300: "hsl(280, 70%, 70%)",
-          400: "hsl(280, 70%, 65%)",
-          500: "hsl(280, 70%, 60%)",
-          600: "hsl(280, 70%, 50%)",
-          700: "hsl(280, 70%, 40%)",
-          800: "hsl(280, 70%, 30%)",
-          900: "hsl(280, 70%, 20%)",
+          DEFAULT: brandColors.gold[500],
+          ...brandColors.gold,
         },
-        "accent-foreground": "hsl(0, 0%, 100%)", // White
-        
+        "accent-foreground": brandColors.neutral[800],
+
         // Success green for positive feedback
         success: {
-          DEFAULT: "hsl(140, 70%, 50%)", // Bright green (#1ee668)
-          50: "hsl(140, 70%, 95%)",
-          100: "hsl(140, 70%, 90%)",
-          200: "hsl(140, 70%, 80%)",
-          300: "hsl(140, 70%, 70%)",
-          400: "hsl(140, 70%, 60%)",
-          500: "hsl(140, 70%, 50%)",
-          600: "hsl(140, 70%, 40%)",
-          700: "hsl(140, 70%, 30%)",
-          800: "hsl(140, 70%, 25%)",
-          900: "hsl(140, 70%, 20%)",
+          DEFAULT: "#22C55E",
+          50: "#F0FDF4",
+          100: "#DCFCE7",
+          200: "#BBF7D0",
+          300: "#86EFAC",
+          400: "#4ADE80",
+          500: "#22C55E",
+          600: "#16A34A",
+          700: "#15803D",
+          800: "#166534",
+          900: "#14532D",
         },
-        
+
         // Friendlier destructive (less harsh red)
         destructive: {
-          DEFAULT: "hsl(355, 90%, 65%)", // Softer red (#ff5a73)
-          50: "hsl(355, 90%, 95%)",
-          100: "hsl(355, 90%, 90%)",
-          200: "hsl(355, 90%, 80%)",
-          300: "hsl(355, 90%, 70%)",
-          400: "hsl(355, 90%, 65%)",
-          500: "hsl(355, 90%, 60%)",
-          600: "hsl(355, 90%, 50%)",
-          700: "hsl(355, 90%, 40%)",
-          800: "hsl(355, 90%, 30%)",
-          900: "hsl(355, 90%, 20%)",
+          DEFAULT: "#EF4444",
+          50: "#FEF2F2",
+          100: "#FEE2E2",
+          200: "#FECACA",
+          300: "#FCA5A5",
+          400: "#F87171",
+          500: "#EF4444",
+          600: "#DC2626",
+          700: "#B91C1C",
+          800: "#991B1B",
+          900: "#7F1D1D",
         },
-        "destructive-foreground": "hsl(0, 0%, 100%)", // White
-        
-        border: "hsl(210, 30%, 90%)",
-        input: "hsl(210, 30%, 90%)",
-        ring: "hsl(210, 100%, 55%)",
-        backdrop: "hsla(210, 40%, 10%, 0.6)", // Semi-transparent
-        
-        // Fun chart colors
-        "chart-1": "hsl(210, 100%, 55%)", // Sky blue
-        "chart-2": "hsl(35, 100%, 60%)", // Orange
-        "chart-3": "hsl(280, 70%, 60%)", // Purple
-        "chart-4": "hsl(140, 70%, 50%)", // Green
-        "chart-5": "hsl(355, 90%, 65%)", // Soft red
-        "chart-6": "hsl(190, 90%, 50%)", // Turquoise
+        "destructive-foreground": "#FFFFFF",
+
+        border: brandColors.neutral[200],
+        input: brandColors.neutral[100],
+        ring: brandColors.blue[500],
+        backdrop: "rgba(35, 41, 53, 0.6)",
+
+        "chart-1": brandColors.blue[500],
+        "chart-2": brandColors.orange[500],
+        "chart-3": brandColors.gold[500],
+        "chart-4": "#22C55E",
+        "chart-5": "#EF4444",
+        "chart-6": brandColors.blue[300],
+      },
+      fontFamily: {
+        sans: ["Quicksand-Regular"],
+        heading: ["Quicksand-Bold"],
+        display: ["SuperChips"],
       },
       borderRadius: {
-        DEFAULT: "1rem", // Rounder corners for child-friendliness
-        'sm': '0.75rem',
-        'md': '1rem',
-        'lg': '1.5rem',
-        'xl': '2rem',
+        DEFAULT: "1rem",
+        'sm': '0.625rem',
+        'md': '0.875rem',
+        'lg': '1.125rem',
+        'xl': '1.5rem',
       },
       animation: {
         'bounce-slow': 'bounce 2s infinite',

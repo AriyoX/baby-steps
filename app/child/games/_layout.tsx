@@ -1,7 +1,7 @@
-import { Stack, useRouter } from "expo-router";
-import { View, TouchableOpacity } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+
+const CHILD_ROUTE_ORIENTATION = "landscape_left" as const;
 
 export default function GamesLayout() {
   return (
@@ -11,6 +11,7 @@ export default function GamesLayout() {
         screenOptions={{
           headerShown: false,
           animation: "slide_from_right",
+          orientation: CHILD_ROUTE_ORIENTATION,
         }}
       />
     </>

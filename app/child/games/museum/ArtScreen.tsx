@@ -1,48 +1,52 @@
-import React, { useEffect, useState } from "react";
+"use client"
+
+import React, { useEffect, useState } from "react"
 import {
   View,
-  Text,
-  Image,
   ScrollView,
   TouchableOpacity,
-  Dimensions,
-  Modal,
-  SafeAreaView,
+  Image,
   BackHandler,
-} from "react-native";
-import { MaterialIcons, Ionicons } from "@expo/vector-icons";
-import { WebView } from "react-native-webview";
-import { useRouter } from "expo-router";
+  Animated,
+} from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
+import { MaterialIcons, Ionicons } from "@expo/vector-icons"
+import { useRouter } from "expo-router"
+import { StatusBar } from "expo-status-bar"
+import { TranslatedText } from "@/components/translated-text"
+import { childHaptics } from "@/lib/childHaptics"
 
 export default function ArtScreen() {
   const [selectedArtwork, setSelectedArtwork] = useState<{
-    id: number;
-    title: string;
-    artist: string;
-    image: any;
-    description: string;
-    videoUrl: string;
-  } | null>(null);
-  const [contrastLevel, setContrastLevel] = useState("normal");
-  const [videoModalVisible, setVideoModalVisible] = useState(false);
-  const windowWidth = Dimensions.get("window").width;
-  const router = useRouter();
-  useEffect(() => {
-    const backHandler = BackHandler.addEventListener(
-      "hardwareBackPress",
-      () => {
-        if (selectedArtwork) {
-          // Close modal if open
-          setSelectedArtwork(null);
-          return true;
-        }
-        router.back();
-        return true;
-      }
-    );
+    id: number
+    title: string
+    artist: string
+    image: any
+    description: string
+  } | null>(null)
+  const [contrastLevel, setContrastLevel] = useState("normal")
+  const router = useRouter()
+  const fadeAnim = useState<Animated.Value>(new Animated.Value(0))[0]
 
-    return () => backHandler.remove();
-  }, [router, selectedArtwork]);
+  useEffect(() => {
+    // Fade in animation when screen loads
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start()
+
+    const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (selectedArtwork) {
+        setSelectedArtwork(null)
+        return true
+      }
+      router.back()
+      return true
+    })
+
+    return () => backHandler.remove()
+  }, [router, selectedArtwork, fadeAnim])
 
   const artworks = [
     {
@@ -52,34 +56,30 @@ export default function ArtScreen() {
       image: require("@/assets/images/barkcloth_art.png"),
       description:
         "Paintings created on traditional barkcloth (lubugo) using natural pigments. These artworks often depict daily life, cultural symbols, and stories from Buganda history.",
-      videoUrl: "https://www.youtube.com/watch?v=uhznFtHhkBo",
     },
     {
       id: 2,
-      title: "Royal Court Scenes",
-      artist: "Contemporary Ugandan Artists",
-      image: require("@/assets/images/court_art.png"),
-      description:
-        "Modern interpretations of the Buganda royal court, showing the Kabaka and his officials. These paintings blend traditional themes with contemporary artistic styles.",
-      videoUrl: "https://www.youtube.com/embed/exampleVideo2",
-    },
-    {
-      id: 3,
       title: "Kasubi Tombs Artwork",
       artist: "Various Buganda Artists",
       image: require("@/assets/images/kasubi_art.png"),
       description:
         "Decorative art found at the Kasubi Tombs, a UNESCO World Heritage site where Buganda kings are buried. These artworks include symbolic patterns and royal emblems.",
-      videoUrl: "https://www.youtube.com/watch?v=G2PDZZO6h68",
     },
     {
-      id: 4,
+      id: 3,
       title: "Traditional Basketry Designs",
       artist: "Buganda Craft Artisans",
       image: require("@/assets/images/basket_art.jpg"),
       description:
         "Intricate patterns and designs used in traditional Buganda basketry, which are considered both functional crafts and artistic expressions.",
-      videoUrl: "https://www.youtube.com/watch?v=ddqvWZhdOzM",
+    },
+    {
+      id: 4,
+      title: "Royal Court Scenes",
+      artist: "Contemporary Ugandan Artists",
+      image: require("@/assets/images/court_art.png"),
+      description:
+        "Modern interpretations of the Buganda royal court, showing the Kabaka and his officials. These paintings blend traditional themes with contemporary artistic styles.",
     },
     {
       id: 5,
@@ -88,180 +88,142 @@ export default function ArtScreen() {
       image: require("@/assets/images/symbol_art.jpg"),
       description:
         "Modern artwork featuring traditional Buganda symbols and motifs, reimagined through contemporary artistic techniques and materials.",
-      videoUrl: "https://www.youtube.com/embed/exampleVideo5",
     },
-  ];
+  ]
 
   const toggleContrast = () => {
+    childHaptics.selection()
     if (contrastLevel === "normal") {
-      setContrastLevel("high");
+      setContrastLevel("high")
     } else if (contrastLevel === "high") {
-      setContrastLevel("low");
+      setContrastLevel("low")
     } else {
-      setContrastLevel("normal");
+      setContrastLevel("normal")
     }
-  };
+  }
 
   const getContrastStyle = () => {
     switch (contrastLevel) {
       case "high":
-        return "bg-gray-100 border-4 border-amber-800";
+        return "bg-white border-4 border-indigo-600"
       case "low":
-        return "bg-amber-50 border border-amber-200";
+        return "bg-slate-100 border border-indigo-200"
       default:
-        return "bg-white border-2 border-amber-300";
+        return "bg-white border-2 border-indigo-200"
     }
-  };
-
-  const handleWatchVideo = () => {
-    if (selectedArtwork) {
-      setVideoModalVisible(true);
-    }
-  };
+  }
 
   return (
-    <SafeAreaView className="flex-1 bg-amber-50">
-      <TouchableOpacity
-        style={{
-          position: "absolute",
-          top: 10,
-          left: 10,
-          zIndex: 10,
-          backgroundColor: "rgba(255, 255, 255, 0.8)",
-          padding: 8,
-          borderRadius: 20,
-        }}
-        onPress={() => router.back()}
-      >
-        <Ionicons name="arrow-back" size={24} color="#7b5af0" />
-      </TouchableOpacity>
-      <View className="py-4 px-6 bg-amber-800">
-        <Text className="text-2xl font-bold text-white text-center">
-          Buganda Art Gallery
-        </Text>
-        <Text className="text-white text-center">
-          Traditional & Contemporary Buganda Artistic Expressions
-        </Text>
-      </View>
+    <SafeAreaView className="flex-1 bg-slate-50">
+      <StatusBar style="dark" />
 
-      <View className="flex-row justify-end px-4 py-2">
+      {/* Header with back button and title */}
+      <View className="flex-row justify-between items-center px-4 pt-6 pb-2">
         <TouchableOpacity
-          className="flex-row items-center bg-amber-700 px-3 py-1 rounded-full"
+          className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
+          onPress={() => {
+            childHaptics.tap()
+            router.back()
+          }}
+        >
+          <Ionicons name="arrow-back" size={20} color="#7b5af0" />
+        </TouchableOpacity>
+
+        <TranslatedText variant="bold" className="text-xl text-indigo-800">
+          Buganda Art Gallery
+        </TranslatedText>
+
+        <TouchableOpacity
+          className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
           onPress={toggleContrast}
         >
-          <MaterialIcons name="contrast" size={20} color="white" />
-          <Text className="text-white ml-1 font-medium">
-            {contrastLevel === "normal"
-              ? "Normal"
-              : contrastLevel === "high"
-              ? "High Contrast"
-              : "Low Contrast"}
-          </Text>
+          <MaterialIcons name="contrast" size={20} color="#7b5af0" />
         </TouchableOpacity>
       </View>
 
       <ScrollView className="flex-1 p-4">
-        <Text className="text-lg mb-4 text-amber-900">
-          Explore beautiful art from the Buganda Kingdom! Tap on any artwork to
-          learn more.
-        </Text>
+        <Animated.View style={{ opacity: fadeAnim }}>
+          <TranslatedText className="text-base mb-4 text-slate-700">
+            Explore beautiful art from the Buganda Kingdom! Tap on any artwork to learn more. (scroll to the right for more)
+          </TranslatedText>
 
-        <View className="flex-col justify-center">
-          {artworks.map((artwork) => (
-            <TouchableOpacity
-              key={artwork.id}
-              className={`mb-6 rounded-xl overflow-hidden shadow-lg ${getContrastStyle()}`}
-              onPress={() => setSelectedArtwork(artwork)}
-            >
-              <Image
-                source={artwork.image}
-                className="w-full h-48"
-                resizeMode="cover"
-              />
-              <View className="p-3">
-                <Text className="font-bold text-lg text-amber-900">
-                  {artwork.title}
-                </Text>
-                <Text className="text-amber-700">{artwork.artist}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+          {/* Replace the vertical layout with horizontal scrolling */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingRight: 16 }}
+            className="flex-row"
+          >
+            {artworks.map((artwork) => (
+              <TouchableOpacity
+                key={artwork.id}
+                className={`rounded-xl overflow-hidden shadow-sm mr-4 ${getContrastStyle()}`}
+                style={{ width: 250 }}
+                onPress={() => {
+                  childHaptics.selection()
+                  setSelectedArtwork(artwork)
+                }}
+                activeOpacity={0.7}
+              >
+                <Image source={artwork.image} className="w-full h-36" resizeMode="cover" />
+                <View className="p-3">
+                  <TranslatedText variant="bold" className="text-lg text-indigo-800 mb-1">
+                    {artwork.title}
+                  </TranslatedText>
+                  <TranslatedText className="text-indigo-600">{artwork.artist}</TranslatedText>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </Animated.View>
       </ScrollView>
 
       {/* Artwork Detail Modal */}
       {selectedArtwork && (
-        <View className="absolute inset-0 bg-black bg-opacity-80 justify-center items-center p-4">
-          <View className="bg-white w-full max-w-md rounded-xl overflow-hidden">
-            <ScrollView>
-              <Image
-                source={selectedArtwork.image}
-                className="w-full h-56"
-                resizeMode="cover"
-              />
+        <View className="absolute inset-0 bg-black/50 justify-center items-center p-4">
+          <View
+            className="relative bg-white w-4/5 max-w-md rounded-3xl overflow-hidden shadow-xl border-4 border-primary-200"
+            style={{ maxHeight: "90%" }}
+          >
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
+              <Image source={selectedArtwork.image} className="w-full h-48" resizeMode="cover" />
 
-              <View className="p-4">
-                <Text className="text-xl font-bold text-amber-900">
+              <View className="px-5 pt-4">
+                <TranslatedText variant="bold" className="text-xl text-primary-700 mb-1 text-center">
                   {selectedArtwork.title}
-                </Text>
-                <Text className="text-amber-700 mb-2">
+                </TranslatedText>
+                <TranslatedText className="text-primary-600 mb-3 text-center">
                   {selectedArtwork.artist}
-                </Text>
-                <Text className="text-base mb-4">
-                  {selectedArtwork.description}
-                </Text>
+                </TranslatedText>
 
-                <TouchableOpacity
-                  className="bg-red-600 py-2 px-4 rounded-lg flex-row items-center justify-center mb-4"
-                  onPress={handleWatchVideo}
-                >
-                  <Ionicons name="logo-youtube" size={24} color="white" />
-                  <Text className="text-white font-bold ml-2">Watch Video</Text>
-                </TouchableOpacity>
-
-                <View className="flex-row justify-center">
-                  <TouchableOpacity
-                    className="bg-amber-600 py-2 px-6 rounded-full"
-                    onPress={() => setSelectedArtwork(null)}
-                  >
-                    <Text className="text-white font-bold">Close </Text>
-                  </TouchableOpacity>
+                {/* Description in a styled container */}
+                <View className="bg-primary-50 w-full rounded-xl p-4 mb-3">
+                  <TranslatedText className="text-base text-primary-700 text-center leading-relaxed">
+                    {selectedArtwork.description}
+                  </TranslatedText>
                 </View>
               </View>
             </ScrollView>
+
+            {/* Buttons section outside ScrollView to ensure visibility */}
+            <View className="p-3 pt-0 flex-row justify-center items-center bg-white border-slate-100">
+              <TouchableOpacity
+                className="bg-primary-500 py-2.5 px-6 rounded-full shadow-sm border-2 border-primary-400"
+                onPress={() => {
+                  childHaptics.tap()
+                  setSelectedArtwork(null)
+                }}
+                activeOpacity={0.8}
+              >
+                <TranslatedText variant="bold" className="text-white">
+                  Close
+                </TranslatedText>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       )}
 
-      {/* Video Modal */}
-      <Modal
-        visible={videoModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setVideoModalVisible(false)}
-      >
-        <View className="flex-1 bg-black bg-opacity-90 justify-center items-center p-4">
-          <View
-            className="bg-black w-full rounded-xl overflow-hidden"
-            style={{ height: 300 }}
-          >
-            {selectedArtwork && (
-              <WebView
-                source={{ uri: selectedArtwork.videoUrl }}
-                allowsFullscreenVideo={true}
-                javaScriptEnabled={true}
-                domStorageEnabled={true}
-              />
-            )}
-            <TouchableOpacity
-              className="absolute top-4 right-4 bg-black bg-opacity-50 rounded-full p-2"
-              onPress={() => setVideoModalVisible(false)}
-            >
-              <Ionicons name="close" size={24} color="white" />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
-  );
+  )
 }

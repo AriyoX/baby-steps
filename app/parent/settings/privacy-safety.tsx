@@ -1,0 +1,111 @@
+"use client";
+
+import React from "react";
+import { Alert, Linking, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { SettingsRow } from "@/components/settings/SettingsRow";
+import { SettingsScaffold } from "@/components/settings/SettingsScaffold";
+import { LegalDocumentModal } from "@/components/auth/LegalDocumentModal";
+import { Text } from "@/components/StyledText";
+import { PRIVACY_POLICY, TERMS_OF_SERVICE } from "@/content/legal";
+import { BABY_STEPS_SUPPORT_EMAIL, getSupportMailtoUrl } from "@/lib/support";
+
+export default function PrivacySafetyScreen() {
+  const router = useRouter();
+  const [activeLegalDocument, setActiveLegalDocument] = React.useState<
+    "privacy" | "terms" | null
+  >(null);
+
+  const contactSupport = React.useCallback(async () => {
+    try {
+      await Linking.openURL(getSupportMailtoUrl("Baby Steps privacy question"));
+    } catch (error) {
+      console.error("Could not open support email:", error);
+      Alert.alert("Contact support", `Please email ${BABY_STEPS_SUPPORT_EMAIL} for help.`);
+    }
+  }, []);
+
+  return (
+    <SettingsScaffold title="Privacy & Safety">
+      <View className="mt-5 bg-white rounded-xl border border-gray-100 p-5">
+        <View className="w-12 h-12 rounded-full bg-cyan-50 items-center justify-center mb-4">
+          <Ionicons name="shield-checkmark-outline" size={24} color="#0891B2" />
+        </View>
+        <Text variant="bold" className="text-lg text-gray-800 mb-2">
+          Family privacy
+        </Text>
+        <Text className="text-gray-600 leading-6 mb-3">
+          Baby Steps uses parent accounts to manage child profiles, learning
+          progress, and family settings. We do not sell personal information.
+        </Text>
+        <Text className="text-gray-600 leading-6">
+          Parents can request account deletion in the app. When deletion is
+          scheduled, child profiles and learning progress are hidden while the
+          account can still be kept.
+        </Text>
+      </View>
+
+      <View className="mt-5 bg-white rounded-xl border border-gray-100 p-5">
+        <Text variant="bold" className="text-lg text-gray-800 mb-2">
+          Account deletion
+        </Text>
+        <Text className="text-gray-600 leading-6 mb-3">
+          Go to Settings, then Account, then Delete Account to schedule account
+          deletion. You can sign in again within 30 days to keep your account
+          and restore child profiles and progress where available.
+        </Text>
+        <Text className="text-gray-600 leading-6">
+          After 30 days, your account, child profiles, and saved learning
+          progress will be deleted. Shared Baby Steps stories, games, language
+          content, and achievement definitions stay in the app for everyone.
+        </Text>
+      </View>
+
+      <View className="mt-5 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <SettingsRow
+          title="Privacy Policy"
+          icon="shield-checkmark-outline"
+          iconColor="#0891B2"
+          onPress={() => setActiveLegalDocument("privacy")}
+        />
+        <SettingsRow
+          title="Terms of Service"
+          icon="document-text-outline"
+          iconColor="#2563EB"
+          onPress={() => setActiveLegalDocument("terms")}
+        />
+        <SettingsRow
+          title="Delete Account"
+          icon="trash-outline"
+          iconColor="#DC2626"
+          destructive
+          onPress={() => router.push("/parent/settings/account-delete" as any)}
+        />
+        <SettingsRow
+          title="Data Deletion Information"
+          icon="document-text-outline"
+          iconColor="#2563EB"
+          onPress={() => router.push("/parent/settings/help-support" as any)}
+        />
+        <SettingsRow
+          title="Contact Support"
+          icon="mail-outline"
+          iconColor="#4F46E5"
+          onPress={() => {
+            void contactSupport();
+          }}
+          last
+        />
+      </View>
+
+      {activeLegalDocument ? (
+        <LegalDocumentModal
+          document={activeLegalDocument === "terms" ? TERMS_OF_SERVICE : PRIVACY_POLICY}
+          onClose={() => setActiveLegalDocument(null)}
+          visible
+        />
+      ) : null}
+    </SettingsScaffold>
+  );
+}

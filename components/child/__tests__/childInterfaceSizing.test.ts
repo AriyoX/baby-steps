@@ -2,6 +2,8 @@ import {
   CHILD_INTERFACE_CARD_IMAGE_RATIO,
   CHILD_INTERFACE_CARD_TEXT_RATIO,
   getChildInterfaceCardLayout,
+  getChildNavigationLayout,
+  getLearningPathCardLayout,
 } from "../childInterfaceSizing"
 
 describe("shared child-interface card sizing", () => {
@@ -33,10 +35,35 @@ describe("shared child-interface card sizing", () => {
     )
     expect(smallPhoneLandscape.cardWidth).toBe(220)
 
-    expect(tabletLandscape.cardHeight).toBe(210)
-    expect(tabletLandscape.cardWidth).toBe(250)
+    expect(tabletLandscape.cardHeight).toBe(320)
+    expect(tabletLandscape.cardWidth).toBe(280)
+    expect(tabletLandscape.leadCardWidth).toBe(240)
+    expect(tabletLandscape.cardGap).toBeGreaterThan(16)
     expect(tabletLandscape.imageHeight + tabletLandscape.textHeight).toBe(
       tabletLandscape.cardHeight,
     )
+  })
+
+  it("scales navigation and lesson-path cards only when tablet space is available", () => {
+    expect(getChildNavigationLayout(844, 390)).toMatchObject({
+      barHeight: 58,
+      iconSize: 22,
+      labelFontSize: 10,
+    })
+    expect(getChildNavigationLayout(1366, 768)).toMatchObject({
+      barHeight: 68,
+      iconSize: 26,
+      labelFontSize: 12,
+    })
+
+    expect(getLearningPathCardLayout(844, 390)).toMatchObject({
+      cardWidth: 250,
+      isTablet: false,
+    })
+    expect(getLearningPathCardLayout(1366, 768)).toMatchObject({
+      cardWidth: 336,
+      cardHeight: 304,
+      isTablet: true,
+    })
   })
 })

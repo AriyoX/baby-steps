@@ -50,11 +50,12 @@ export default function RootLayout() {
 
   return (
     <LanguageProvider>
-      <Stack screenOptions={{ headerShown: false, orientation: "portrait_up" }}>
+      <Stack screenOptions={{ headerShown: false, orientation: "default" }}>
         <Stack.Screen
           name="index"
           options={{
             headerShown: false,
+            orientation: "default",
           }}
         />
         <Stack.Screen

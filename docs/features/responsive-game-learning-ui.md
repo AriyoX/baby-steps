@@ -2,23 +2,23 @@
 
 ## Current Status
 
-Implemented for the landscape child experience. This pass preserves existing safe-area behavior and adjusts layout inside those boundaries.
+Implemented for the landscape child experience. Game screens apply safe-area padding only at the top and bottom. Their existing horizontal margins provide consistent spacing across the full screen, without reserving an extra strip beside a landscape camera cutout.
 
 ## Learning Hub Mechanics
 
-The shared mechanic frame keeps the primary action outside the content scroller and enables vertical scrolling only after measured content genuinely exceeds the available height. Short cards no longer move or show a scroll indicator. Mechanic cards now switch to split-column layouts from `620px` wide rather than waiting until `680px`, and their maximum widths make better use of tablets and wider phones.
+The shared mechanic frame keeps the primary action outside the content scroller and enables vertical scrolling only after measured content exceeds the available height. Illustrated activities omit the redundant mechanic heading and audio row. Tap-to-Learn and learning-game cards replay audio when tapped; Story Bite keeps its audio control and page count beside the fixed Next action. Compact illustrated cards give text more horizontal room, and their images fit the measured height after padding and borders. Normal lesson cards stay still, with scrolling available for longer authored text or larger accessibility text.
 
 Primary Next and Finish actions are slightly larger across all mechanics. Fixed lesson status and completion cards use centered, non-scrolling layouts, while compact spacing keeps them within short landscape screens.
 
 Adjusted mechanics:
 
-- Tap to Learn uses a slightly wider, shorter card with a fuller focal image and balanced translation spacing.
+- Tap to Learn shows each word and translation once, omitting example boxes that only repeat them. Distinct examples and phonetic text remain available.
 - Listen and Choose gives more width to answer choices and their images while keeping the replay control readable.
 - Choose Correct Word uses an earlier split layout, wider choice area, and clearer option imagery.
 - Match Word and Picture preserves a two-column option grid, enlarges its visual choices, and reduces unnecessary stacking.
 - Mini Quiz gives question copy and answers distinct horizontal regions.
 - Cultural Card balances a fuller visual/local-language panel against longer explanatory copy.
-- Story Bite gives story text more room, makes the page illustration more prominent, and keeps page actions outside the scroll area.
+- Story Bite shows the story title on its first page and keeps page-specific titles, story text, translations, and the final reflection. Compact spacing keeps the normal pages visible together with the page actions.
 
 ## Story Reader
 
@@ -44,7 +44,7 @@ All coloring routes share the same responsive base component, so Animals, Emblem
 - Prefer landscape columns and grids over vertical stacks when enough width is available.
 - Preserve a scroll fallback for long translated or authored content.
 - Keep primary touch targets comfortably sized.
-- Avoid safe-area workarounds and route-specific screen offsets.
+- Use the shared game safe-area edge policy instead of route-specific screen offsets.
 
 ## Manual QA
 
@@ -53,6 +53,8 @@ Test at minimum:
 - `640 x 360` compact Android landscape.
 - `844 x 390` notched iPhone landscape.
 - A landscape tablet or emulator at least `1024px` wide.
+
+With a landscape camera cutout, confirm Learning, Word, Counting, Cards Matching, and Puzzle use the same horizontal margins on both sides and do not leave an extra strip beside the cutout.
 
 For every Learning Hub mechanic, confirm the content normally fits without vertical scrolling, the action button remains visible, long copy can still scroll, and text does not clip.
 

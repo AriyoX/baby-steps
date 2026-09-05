@@ -13,6 +13,7 @@ import {
   ScrollView,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native"
 import { Text } from "@/components/StyledText"
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router"
@@ -39,6 +40,7 @@ import {
   useGameTour,
 } from "@/components/games/GameTour"
 import { useParentProfile } from "@/context/ParentProfileContext"
+import { getParentDashboardLayout } from "@/lib/responsiveLayout"
 
 type ChildProfile = {
   id: string
@@ -75,6 +77,8 @@ const getChildAvatarEmoji = (gender: string) => {
 
 const ParentDashboard = () => {
   const router = useRouter()
+  const { height, width } = useWindowDimensions()
+  const dashboardLayout = getParentDashboardLayout(width, height)
   const { profile: parentProfile } = useParentProfile()
   const params = useLocalSearchParams<{ showTour?: string }>()
   const [childProfiles, setChildProfiles] = useState<ChildProfile[]>([])
@@ -96,6 +100,11 @@ const ParentDashboard = () => {
   )
   const dashboardScrollRef = useRef<ScrollView>(null)
   const dashboardTourOffsetsRef = useRef({ profiles: 0, progress: 0 })
+  const dashboardGridOffsetsRef = useRef({
+    profiles: 0,
+    progress: 0,
+    row: 0,
+  })
   const replayRequestHandledRef = useRef(false)
   const dashboardGreeting = getParentDashboardGreeting(greetingTime)
   const prepareDashboardTourTarget = useCallback((stepId: string) => {
@@ -236,23 +245,34 @@ const ParentDashboard = () => {
       <SafeAreaView className="flex-1 bg-background" edges={["right", "top", "left"]}>
         <View className="flex-1">
           {/* Header */}
-          <View className="flex-row justify-between items-center px-5 py-4 border-b border-neutral-100 bg-white">
+          <View className="border-b border-neutral-100 bg-white">
+          <View
+            className="flex-row justify-between items-center"
+            style={{
+              alignSelf: "center",
+              maxWidth: dashboardLayout.contentMaxWidth,
+              paddingHorizontal: dashboardLayout.contentPadding,
+              paddingVertical: dashboardLayout.isTablet ? 18 : 16,
+              width: "100%",
+            }}
+          >
             <View className="flex-row items-center flex-1 pr-3">
               <BrandMark
                 containerStyle={{ marginRight: 12 }}
-                height={58}
+                height={dashboardLayout.isTablet ? 64 : 58}
                 kind="wordmark"
                 tone="main"
-                width={58}
+                width={dashboardLayout.isTablet ? 64 : 58}
               />
               <View className="flex-1">
-                <TranslatedText variant="bold" className="text-neutral-900 text-2xl">
+                <TranslatedText
+                  variant="bold"
+                  className="text-neutral-900"
+                  style={{ fontSize: dashboardLayout.isTablet ? 28 : 24 }}
+                >
                   {parentProfile?.displayName
                     ? `Welcome, ${parentProfile.displayName}`
                     : "Your family"}
-                </TranslatedText>
-                <TranslatedText className="text-neutral-500">
-                  Small steps worth celebrating
                 </TranslatedText>
               </View>
             </View>
@@ -260,7 +280,11 @@ const ParentDashboard = () => {
             <View className="flex-row">
               <TourTarget id="parent-dashboard-settings">
               <TouchableOpacity
-                className="w-10 h-10 rounded-full bg-primary-100 items-center justify-center mr-3"
+                className="rounded-full bg-primary-100 items-center justify-center mr-3"
+                style={{
+                  height: dashboardLayout.isTablet ? 48 : 40,
+                  width: dashboardLayout.isTablet ? 48 : 40,
+                }}
                 onPress={() => router.push("/parent/settings")}
                 accessibilityRole="button"
                 accessibilityLabel="Open parent settings"
@@ -270,7 +294,11 @@ const ParentDashboard = () => {
               </TourTarget>
 
               <TouchableOpacity
-                className="w-10 h-10 rounded-full bg-accent-100 items-center justify-center"
+                className="rounded-full bg-accent-100 items-center justify-center"
+                style={{
+                  height: dashboardLayout.isTablet ? 48 : 40,
+                  width: dashboardLayout.isTablet ? 48 : 40,
+                }}
                 onPress={() => router.push("/parent/settings/notifications" as any)}
                 accessibilityRole="button"
                 accessibilityLabel="Open notification reminders"
@@ -279,14 +307,26 @@ const ParentDashboard = () => {
               </TouchableOpacity>
             </View>
           </View>
+          </View>
 
           {/* Main content */}
           <ScrollView
             ref={dashboardScrollRef}
             className="flex-1"
-            contentContainerClassName="p-4 pb-10"
+            contentContainerStyle={{
+              alignItems: "center",
+              paddingBottom: dashboardLayout.isTablet ? 52 : 40,
+              paddingHorizontal: dashboardLayout.contentPadding,
+              paddingTop: dashboardLayout.isTablet ? 28 : 16,
+            }}
             showsVerticalScrollIndicator={false}
           >
+            <View
+              style={{
+                maxWidth: dashboardLayout.contentMaxWidth,
+                width: "100%",
+              }}
+            >
             <LinearGradient
               colors={[brandColors.blue[800], brandColors.blue[600]]}
               end={{ x: 1, y: 1 }}
@@ -295,9 +335,9 @@ const ParentDashboard = () => {
                 borderColor: "rgba(248,194,62,0.32)",
                 borderRadius: 28,
                 borderWidth: 1,
-                marginBottom: 24,
+                marginBottom: dashboardLayout.isTablet ? 28 : 24,
                 overflow: "hidden",
-                padding: 20,
+                padding: dashboardLayout.isTablet ? 26 : 20,
               }}
             >
               <View className="absolute -right-8 -top-10 h-36 w-36 rounded-full bg-primary-400 opacity-30" />
@@ -317,11 +357,28 @@ const ParentDashboard = () => {
                 </View>
               </View>
             </LinearGradient>
+            <View
+              onLayout={({ nativeEvent }) => {
+                dashboardGridOffsetsRef.current.row = nativeEvent.layout.y
+                dashboardTourOffsetsRef.current.profiles =
+                  nativeEvent.layout.y + dashboardGridOffsetsRef.current.profiles
+                dashboardTourOffsetsRef.current.progress =
+                  nativeEvent.layout.y + dashboardGridOffsetsRef.current.progress
+              }}
+              style={{
+                columnGap: dashboardLayout.contentGap,
+                flexDirection: dashboardLayout.isTwoColumn ? "row" : "column",
+                width: "100%",
+              }}
+            >
+            <View style={{ flex: 1, minWidth: 0 }}>
             {/* Child profiles section */}
             <View
               className="mb-6"
               onLayout={({ nativeEvent }) => {
-                dashboardTourOffsetsRef.current.profiles = nativeEvent.layout.y
+                dashboardGridOffsetsRef.current.profiles = nativeEvent.layout.y
+                dashboardTourOffsetsRef.current.profiles =
+                  dashboardGridOffsetsRef.current.row + nativeEvent.layout.y
               }}
             >
               <TourTarget id="parent-dashboard-profiles">
@@ -478,12 +535,16 @@ const ParentDashboard = () => {
                 </ScrollView>
               )}
             </View>
+            </View>
 
+            <View style={{ flex: 1, minWidth: 0 }}>
             {/* Recent activities section */}
             <View
               className="mb-6"
               onLayout={({ nativeEvent }) => {
-                dashboardTourOffsetsRef.current.progress = nativeEvent.layout.y
+                dashboardGridOffsetsRef.current.progress = nativeEvent.layout.y
+                dashboardTourOffsetsRef.current.progress =
+                  dashboardGridOffsetsRef.current.row + nativeEvent.layout.y
               }}
             >
               <TourTarget id="parent-dashboard-progress">
@@ -563,7 +624,17 @@ const ParentDashboard = () => {
                 </TouchableOpacity>
               </View>
             </View>
+            </View>
+            </View>
 
+            <View
+              style={{
+                columnGap: dashboardLayout.contentGap,
+                flexDirection: dashboardLayout.isTwoColumn ? "row" : "column",
+                width: "100%",
+              }}
+            >
+            <View style={{ flex: 1, minWidth: 0 }}>
             <View className="mb-6">
               <DashboardSectionHeader
                 title="Badges and proud moments"
@@ -599,7 +670,9 @@ const ParentDashboard = () => {
                 </View>
               </TouchableOpacity>
             </View>
+            </View>
 
+            <View style={{ flex: 1, minWidth: 0 }}>
             {/* Parenting tips */}
             <View className="mb-8">
               <DashboardSectionHeader
@@ -642,6 +715,9 @@ const ParentDashboard = () => {
                   </View>
                 ))}
               </ScrollView>
+            </View>
+            </View>
+            </View>
             </View>
           </ScrollView>
         </View>

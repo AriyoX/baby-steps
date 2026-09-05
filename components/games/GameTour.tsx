@@ -32,6 +32,7 @@ import Svg, { Defs, Mask, Rect as SvgRect } from "react-native-svg"
 
 import { Text } from "@/components/StyledText"
 import { brandColors, brandShadows } from "@/constants/Brand"
+import { activityColors, activityStyles } from "@/constants/ActivityTheme"
 import { useChildUiLanguage } from "@/context/ChildUiLanguageContext"
 import {
   hasSeenGameGuide,
@@ -39,6 +40,7 @@ import {
   type GameGuideId,
 } from "@/lib/gameGuide"
 import { childHaptics } from "@/lib/childHaptics"
+import { getGameHeaderSizing } from "@/components/games/responsiveSizing"
 
 export type GameTourStep = {
   id: string
@@ -916,15 +918,17 @@ export function GameTour({
 }
 
 type GameHeaderProps = {
+  appearance?: "standard" | "activity"
   backAccessibilityLabel: string
   onBack: () => void
-  onHelp: () => void
+  onHelp?: () => void
   subtitle?: string
   title: string
   trailing?: React.ReactNode
 }
 
 export const GameHeader = ({
+  appearance = "standard",
   backAccessibilityLabel,
   onBack,
   onHelp,
@@ -933,12 +937,24 @@ export const GameHeader = ({
   trailing,
 }: GameHeaderProps) => {
   const { t } = useChildUiLanguage()
+  const { width, height } = useWindowDimensions()
+  const sizing = getGameHeaderSizing(width, height)
 
   return (
-  <View className="flex-row items-center px-4 py-2 min-h-[64px]">
+  <View
+    className="flex-row items-center py-2"
+    style={{
+      minHeight: sizing.headerMinHeight,
+      paddingHorizontal: sizing.horizontalPadding,
+    }}
+  >
     <TouchableOpacity
       className="w-12 h-12 rounded-2xl bg-white items-center justify-center border border-blue-100"
-      style={brandShadows.soft}
+      style={[
+        brandShadows.soft,
+        activityStyles.roundControl,
+        { height: sizing.buttonSize, width: sizing.buttonSize },
+      ]}
       onPress={() => {
         childHaptics.tap()
         onBack()
@@ -947,13 +963,17 @@ export const GameHeader = ({
       accessibilityRole="button"
       accessibilityLabel={backAccessibilityLabel}
     >
-      <Ionicons name="arrow-back" size={23} color={brandColors.victoriaBlue} />
+      <Ionicons name="arrow-back" size={sizing.iconSize} color={activityColors.ink} />
     </TouchableOpacity>
 
     <View className="flex-1 min-w-0 px-3">
       <Text
         variant="bold"
-        className="text-primary-700 text-xl text-center"
+        className="text-primary-700 text-center"
+        style={{
+          color: appearance === "activity" ? brandColors.white : activityColors.ink,
+          fontSize: appearance === "activity" && sizing.isTablet ? 32 : sizing.titleFontSize,
+        }}
         numberOfLines={1}
         adjustsFontSizeToFit
         minimumFontScale={0.78}
@@ -962,7 +982,11 @@ export const GameHeader = ({
       </Text>
       {subtitle ? (
         <Text
-          className="text-slate-500 text-sm text-center mt-0.5"
+          className="text-slate-500 text-center mt-0.5"
+          style={{
+            color: appearance === "activity" ? "rgba(255,255,255,0.85)" : activityColors.muted,
+            fontSize: sizing.subtitleFontSize,
+          }}
           numberOfLines={1}
           adjustsFontSizeToFit
           minimumFontScale={0.78}
@@ -974,19 +998,29 @@ export const GameHeader = ({
 
     <View className="flex-row items-center">
       {trailing}
+      {onHelp ? (
       <TouchableOpacity
         className="w-12 h-12 rounded-2xl bg-white items-center justify-center border border-blue-100 ml-2"
-        style={brandShadows.soft}
+        style={[
+          brandShadows.soft,
+          activityStyles.roundControl,
+          { height: sizing.buttonSize, width: sizing.buttonSize },
+        ]}
         onPress={() => {
           childHaptics.tap()
-          onHelp()
+          onHelp?.()
         }}
         activeOpacity={0.76}
         accessibilityRole="button"
         accessibilityLabel={t("games.howToPlay")}
       >
-        <Ionicons name="help-circle-outline" size={25} color={brandColors.victoriaBlue} />
+        <Ionicons
+          name="help-circle-outline"
+          size={sizing.iconSize + 2}
+          color={activityColors.ink}
+        />
       </TouchableOpacity>
+      ) : null}
     </View>
   </View>
   )
@@ -1007,13 +1041,24 @@ export const GameStatChip = ({
   tint = brandColors.victoriaBlue,
   tourTargetId,
 }: GameStatChipProps) => {
+  const { width, height } = useWindowDimensions()
+  const sizing = getGameHeaderSizing(width, height)
   const chip = (
     <View
       className="h-11 min-w-[68px] px-3 rounded-2xl bg-white border border-blue-100 flex-row items-center justify-center ml-2"
+      style={[activityStyles.roundControl, {
+        height: sizing.statChipHeight,
+        minWidth: sizing.statChipMinWidth,
+      }]}
       accessibilityLabel={accessibilityLabel}
     >
-      <Ionicons name={icon} size={18} color={tint} />
-      <Text variant="bold" className="text-base text-slate-700 ml-1.5" numberOfLines={1}>
+      <Ionicons name={icon} size={sizing.statChipIconSize} color={tint} />
+      <Text
+        variant="bold"
+        className="text-slate-700 ml-1.5"
+        style={{ color: activityColors.ink, fontSize: sizing.statChipTextSize }}
+        numberOfLines={1}
+      >
         {label}
       </Text>
     </View>

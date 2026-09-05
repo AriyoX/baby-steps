@@ -37,6 +37,7 @@ type ChildActivityCardProps = {
   onPress: () => void;
   showDescription?: boolean;
   textHeight: number;
+  uiScale?: number;
 };
 
 export const ChildActivityCard = forwardRef<
@@ -53,6 +54,7 @@ export const ChildActivityCard = forwardRef<
     onPress,
     showDescription = false,
     textHeight,
+    uiScale = 1,
   },
   ref,
 ) {
@@ -145,15 +147,19 @@ export const ChildActivityCard = forwardRef<
       >
         <View className="flex-row items-center">
           <MarqueeText
-            className="text-[15px] text-primary-700"
+            className="text-primary-700"
             containerStyle={{ flex: 1, marginRight: isNarrow ? 4 : 8 }}
+            style={{ fontSize: 15 * uiScale }}
             variant="bold"
           >
             {card.title}
           </MarqueeText>
           <View
             className="items-center justify-center rounded-full bg-primary-50"
-            style={{ height: isNarrow ? 24 : 28, width: isNarrow ? 24 : 28 }}
+            style={{
+              height: isNarrow ? 24 : 28 * uiScale,
+              width: isNarrow ? 24 : 28 * uiScale,
+            }}
           >
             <Ionicons
               color={
@@ -162,14 +168,15 @@ export const ChildActivityCard = forwardRef<
                   : brandColors.victoriaBlue
               }
               name={card.disabled ? "lock-closed" : "arrow-forward"}
-              size={14}
+              size={14 * uiScale}
             />
           </View>
         </View>
         {showDescription && card.description ? (
           <Text
-            className="mt-0.5 text-[11px] leading-4 text-neutral-600"
+            className="mt-0.5 text-neutral-600"
             numberOfLines={1}
+            style={{ fontSize: 11 * uiScale, lineHeight: 16 * uiScale }}
           >
             {card.description}
           </Text>

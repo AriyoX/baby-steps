@@ -19,6 +19,8 @@ import { CachedImage } from "@/components/common/CachedImage";
 import { useChild } from "@/context/ChildContext"; // Import useChild context
 import { useChildUiLanguage } from "@/context/ChildUiLanguageContext";
 import { brandColors } from "@/constants/Brand";
+import { activityColors, activityStyles } from "@/constants/ActivityTheme";
+import { ActivityButton } from "@/components/learning/ActivityControls";
 import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages";
 import {
   loadContentBundle,
@@ -49,6 +51,7 @@ import type { AchievementDefinition } from "./achievements/achievementTypes";
 import { audioManager } from "@/lib/audioManager";
 import { useChildNotice } from "@/context/ChildNoticeContext";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { CHILD_GAME_SAFE_AREA_EDGES } from "@/constants/SystemUi";
 import { getWordGameSizing } from "./responsiveSizing";
 import {
   GameHeader,
@@ -120,16 +123,22 @@ const WordGame: React.FC = () => {
   const { activeChild } = useChild();
   const { t } = useChildUiLanguage();
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
-  const wordGameSizing = getWordGameSizing(windowWidth, windowHeight);
-  const isCompactLandscape = windowHeight < 400;
-  const sideVisualSize = Math.min(
-    isCompactLandscape ? 110 : 136,
-    Math.max(98, windowWidth * 0.155),
+  const [boardViewport, setBoardViewport] = useState({
+    width: 0, height: 0, windowWidth, windowHeight,
+  });
+  const wordGameSizing = getWordGameSizing(windowWidth, windowHeight,
+    boardViewport.windowWidth === windowWidth && boardViewport.windowHeight === windowHeight
+      ? boardViewport
+      : undefined,
   );
-  const hintButtonSize = isCompactLandscape ? 56 : 62;
+  const { isTablet, sideVisualSize } = wordGameSizing;
   const previewImageSize = Math.max(
     176,
-    Math.min(windowHeight * 0.6, windowWidth * 0.48, 360),
+    Math.min(
+      windowHeight * (isTablet ? 0.68 : 0.6),
+      windowWidth * 0.48,
+      isTablet ? 460 : 360,
+    ),
   );
   const languageCode =
     activeChild?.selected_language_code || DEFAULT_LEARNING_LANGUAGE_CODE;
@@ -999,24 +1008,17 @@ const WordGame: React.FC = () => {
   }
 
   const currentLevel = gameLevels[currentLevelIndex] ?? gameLevels[0];
-  const hasOpenModal =
-    showSuccessModal ||
-    isGameCompleted ||
-    showLevelIntroModal ||
-    showHintModal ||
-    showImagePreview ||
-    showLevelSelect ||
-    wordTour.visible;
-
   return (
     <GameTourProvider>
       <SafeAreaView
         ref={containerRef}
-        className="flex-1 bg-blue-50"
-        edges={["top", "bottom", "left", "right"]}
+        className="flex-1"
+        style={{ backgroundColor: activityColors.canvas }}
+        edges={CHILD_GAME_SAFE_AREA_EDGES}
       >
-      <StatusBar style={hasOpenModal ? "light" : "dark"} />
+      <StatusBar style="light" />
       <GameHeader
+        appearance="activity"
         title={currentQuestion}
         subtitle={t("games.wordHint")}
         onBack={() => router.back()}
@@ -1027,6 +1029,11 @@ const WordGame: React.FC = () => {
           <TourTarget id="word-level-picker">
           <TouchableOpacity
             className="w-12 h-12 rounded-2xl bg-white items-center justify-center border border-blue-100 ml-2"
+            style={{
+              ...activityStyles.roundControl,
+              height: isTablet ? 56 : 48,
+              width: isTablet ? 56 : 48,
+            }}
             onPress={() => setShowLevelSelect(true)}
             activeOpacity={0.76}
             accessibilityRole="button"
@@ -1044,161 +1051,198 @@ const WordGame: React.FC = () => {
         }
       />
 
-      {/* Main content area */}
-      <View className="flex-1 flex-row justify-between items-center px-4 pb-3 pt-1">
-        {/* Left character */}
-        <View className="w-[16%] items-center justify-center">
-          <TourTarget id="word-clue">
-          <TouchableOpacity
-            className="bg-white rounded-3xl items-center justify-center shadow-lg border-4 border-secondary-200 overflow-hidden"
-            style={{ width: sideVisualSize, height: sideVisualSize }}
-            onPress={() => setShowImagePreview(true)}
-            activeOpacity={0.82}
-            accessibilityRole="button"
-            accessibilityLabel={`Enlarge ${currentLevel.question} picture`}
-            accessibilityHint="Opens a larger view of the picture"
-          >
-            <CachedImage
-              source={getImageSource(currentLevel.image)}
-              fallbackSource={resolveImageSource("coin.png")}
-              className="w-full h-full"
-              resizeMode="cover"
-              accessibilityLabel={`${currentLevel.question} picture`}
-            />
-            <View className="absolute right-1.5 bottom-1.5 w-8 h-8 rounded-full bg-primary-700/90 items-center justify-center border border-white/80">
-              <Ionicons name="expand" size={17} color="white" />
-            </View>
-          </TouchableOpacity>
-          </TourTarget>
-        </View>
-
-        {/* Center game area */}
-        <View className="w-[70%] items-center justify-center">
-          {/* Word to guess */}
-          <TourTarget id="word-answer-area">
-          <Animated.View
-            className="flex-row flex-wrap items-center justify-center py-2 px-3 bg-white rounded-3xl shadow-md mb-3 border-2 border-primary-100 max-w-full"
-            style={{
-              transform: [
-                {
-                  scale: bounceValue.interpolate({
-                    inputRange: [0, 0.5, 1],
-                    outputRange: [1, 1.2, 1],
-                  }),
-                },
-              ],
-            }}
-          >
-            {displayWord.split("").map((char, index) => (
-              <View
-                key={index}
-                ref={(ref) => {
-                  wordSlotRefs.current[index] = ref;
-                }}
-                className="justify-center items-center relative"
-                style={{
-                  height: wordGameSizing.answerSlotHeight,
-                  margin: wordGameSizing.answerSlotMargin,
-                  width: wordGameSizing.answerSlotWidth,
-                }}
-              >
-                <Text
-                  variant="bold"
-                  className="text-primary-700"
-                  style={{
-                    fontSize: wordGameSizing.answerLetterFontSize,
-                    lineHeight: wordGameSizing.answerLetterLineHeight,
-                  }}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.75}
-                >
-                  {char !== "_" ? char : ""}
-                </Text>
-                {char === "_" && (
-                  <View
-                    className="absolute bottom-0 h-1.5 bg-primary-500 rounded-full"
-                    style={{ width: wordGameSizing.answerSlotWidth * 0.82 }}
-                  />
-                )}
-              </View>
-            ))}
-          </Animated.View>
-          </TourTarget>
-
-          {/* Letter choices */}
-          <TourTarget id="word-letter-options">
-          <View className="flex-row flex-wrap justify-center w-full pb-2">
-            {letters.map((letter, index) => {
-              // Check if this letter still has any unfilled positions in the word
-              const hasUnfilledPositions = currentWord
-                .split("")
-                .some((char, i) => char === letter && displayWord[i] === "_");
-
-              // A letter is disabled only if it doesn't appear in the word OR has no unfilled positions left
-              const isDisabled =
-                !currentWord.includes(letter) || !hasUnfilledPositions;
-
-              // A letter is greyed out if it's disabled
-              const isGreyedOut = isDisabled && currentWord.includes(letter);
-
-              return (
-                <TouchableOpacity
-                  key={index}
-                  ref={(ref) => {
-                    letterRefs.current[index] = ref;
-                  }}
-                  className={`rounded-full justify-center items-center shadow-lg border-2 ${
-                    isGreyedOut
-                      ? "bg-gray-300 border-gray-400 opacity-70"
-                      : "bg-secondary-500 border-secondary-300"
-                  }`}
-                  style={{
-                    height: wordGameSizing.choiceButtonSize,
-                    margin: wordGameSizing.choiceButtonMargin,
-                    width: wordGameSizing.choiceButtonSize,
-                  }}
-                  onPress={() => handleLetterPress(letter, index)}
-                  disabled={isDisabled}
-                  activeOpacity={0.8}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Letter ${letter}`}
-                  accessibilityState={{ disabled: isDisabled }}
-                >
-                  <Text
-                    variant="bold"
-                    className="text-white"
-                    style={{
-                      fontSize: wordGameSizing.choiceLetterFontSize,
-                      lineHeight: wordGameSizing.choiceLetterLineHeight,
-                    }}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.75}
-                  >
-                    {letter}
-                  </Text>
-                </TouchableOpacity>
+      <View
+        style={{
+          flex: 1,
+          minHeight: 0,
+          paddingHorizontal: wordGameSizing.contentPadding,
+          paddingBottom: 12,
+        }}
+      >
+        <View
+          style={[
+            activityStyles.panel,
+            {
+              alignSelf: "center",
+              flex: 1,
+              maxWidth: 1280,
+              minHeight: 0,
+              overflow: "hidden",
+              width: "100%",
+            },
+          ]}
+        >
+          <ScrollView
+            alwaysBounceVertical={false}
+            bounces={false}
+            onLayout={({ nativeEvent }) => {
+              const { width, height } = nativeEvent.layout;
+              setBoardViewport((current) =>
+                current.width === width && current.height === height &&
+                current.windowWidth === windowWidth && current.windowHeight === windowHeight
+                  ? current
+                  : { width, height, windowWidth, windowHeight },
               );
-            })}
-          </View>
-          </TourTarget>
-        </View>
-
-        {/* Right hint button */}
-        <View className="w-[14%] items-center justify-center">
-          <TourTarget id="word-hint">
-          <TouchableOpacity
-            className="bg-amber-50 rounded-2xl justify-center items-center shadow-md border-2 border-amber-200"
-            style={{ width: hintButtonSize, height: hintButtonSize }}
-            onPress={() => setShowHintModal(true)}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Show hint"
+            }}
+            contentContainerStyle={{
+              alignItems: "center",
+              columnGap: wordGameSizing.layoutGap,
+              flexDirection: wordGameSizing.isSplit ? "row" : "column",
+              flexGrow: 1,
+              justifyContent: wordGameSizing.isSplit ? "center" : "flex-start",
+              padding: wordGameSizing.panelPadding,
+              rowGap: wordGameSizing.layoutGap,
+            }}
+            style={{ flex: 1, minHeight: 0 }}
           >
-            <Ionicons name="bulb" size={Math.round(hintButtonSize * 0.45)} color="#D99D19" />
-          </TouchableOpacity>
-          </TourTarget>
+            <TourTarget id="word-clue">
+              <TouchableOpacity
+                className="items-center justify-center"
+                style={[activityStyles.card, { width: sideVisualSize, height: wordGameSizing.imageHeight, overflow: "hidden" }]}
+                onPress={() => setShowImagePreview(true)}
+                activeOpacity={0.82}
+                accessibilityRole="button"
+                accessibilityLabel={`Enlarge ${currentLevel.question} picture`}
+                accessibilityHint="Opens a larger view of the picture"
+              >
+                <CachedImage
+                  source={getImageSource(currentLevel.image)}
+                  fallbackSource={resolveImageSource("coin.png")}
+                  className="w-full h-full"
+                  resizeMode="cover"
+                  showRetry={false}
+                  accessibilityLabel={`${currentLevel.question} picture`}
+                />
+                <View className="absolute right-1.5 bottom-1.5 w-8 h-8 rounded-full bg-primary-700/90 items-center justify-center border border-white/80">
+                  <Ionicons name="expand" size={17} color="white" />
+                </View>
+              </TouchableOpacity>
+            </TourTarget>
+            <View style={{ alignItems: "center", justifyContent: "center", minWidth: 0, width: wordGameSizing.gameAreaWidth }}>
+              <TourTarget id="word-answer-area">
+                <Animated.View
+                  className="flex-row flex-wrap items-center justify-center mb-3 max-w-full"
+                  style={{
+                    width: "100%",
+                    transform: [
+                      {
+                        scale: bounceValue.interpolate({
+                          inputRange: [0, 0.5, 1],
+                          outputRange: [1, 1.2, 1],
+                        }),
+                      },
+                    ],
+                  }}
+                >
+                  {displayWord.split("").map((char, index) => (
+                    <View
+                      key={index}
+                      ref={(ref) => {
+                        wordSlotRefs.current[index] = ref;
+                      }}
+                      className="justify-center items-center relative"
+                      style={{
+                        backgroundColor: char === "_" ? brandColors.blue[50] : activityColors.inset,
+                        borderColor: activityColors.outline,
+                        borderRadius: isTablet ? 16 : 12,
+                        borderWidth: 2,
+                        height: wordGameSizing.answerSlotHeight,
+                        margin: wordGameSizing.answerSlotMargin,
+                        width: wordGameSizing.answerSlotWidth,
+                      }}
+                    >
+                      <Text
+                        variant="bold"
+                        className="text-primary-700"
+                        style={{
+                          color: activityColors.ink,
+                          fontSize: wordGameSizing.answerLetterFontSize,
+                          lineHeight: wordGameSizing.answerLetterLineHeight,
+                        }}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.75}
+                      >
+                        {char !== "_" ? char : ""}
+                      </Text>
+                      {char === "_" && (
+                        <View
+                          className="absolute bottom-0 h-1.5 bg-primary-500 rounded-full"
+                          style={{ width: wordGameSizing.answerSlotWidth * 0.82 }}
+                        />
+                      )}
+                    </View>
+                  ))}
+                </Animated.View>
+              </TourTarget>
+
+              {/* Letter choices */}
+              <TourTarget id="word-letter-options">
+                <View className="flex-row flex-wrap justify-center w-full pb-2">
+                  {letters.map((letter, index) => {
+                    // Check if this letter still has any unfilled positions in the word
+                    const hasUnfilledPositions = currentWord
+                      .split("")
+                      .some((char, i) => char === letter && displayWord[i] === "_");
+
+                    // A letter is disabled only if it doesn't appear in the word OR has no unfilled positions left
+                    const isDisabled =
+                      !currentWord.includes(letter) || !hasUnfilledPositions;
+
+                    // A letter is greyed out if it's disabled
+                    const isGreyedOut = isDisabled && currentWord.includes(letter);
+
+                    return (
+                      <TouchableOpacity
+                        key={index}
+                        ref={(ref) => {
+                          letterRefs.current[index] = ref;
+                        }}
+                        className="justify-center items-center"
+                        style={{
+                          ...activityStyles.card,
+                          backgroundColor: isGreyedOut ? brandColors.neutral[100] : activityColors.paper,
+                          borderColor: isGreyedOut ? brandColors.neutral[200] : activityColors.outline,
+                          borderRadius: isTablet ? 20 : 16,
+                          opacity: isGreyedOut ? 0.55 : 1,
+                          height: wordGameSizing.choiceButtonSize,
+                          margin: wordGameSizing.choiceButtonMargin,
+                          width: wordGameSizing.choiceButtonSize,
+                        }}
+                        onPress={() => handleLetterPress(letter, index)}
+                        disabled={isDisabled}
+                        activeOpacity={0.8}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Letter ${letter}`}
+                        accessibilityState={{ disabled: isDisabled }}
+                      >
+                        <Text
+                          variant="bold"
+                          style={{
+                            color: activityColors.ink,
+                            fontSize: wordGameSizing.choiceLetterFontSize,
+                            lineHeight: wordGameSizing.choiceLetterLineHeight,
+                          }}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.75}
+                        >
+                          {letter}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </TourTarget>
+            </View>
+          </ScrollView>
+          <View style={{ alignItems: "flex-end", paddingHorizontal: wordGameSizing.panelPadding, paddingBottom: 8 }}>
+            <TourTarget id="word-hint">
+              <View>
+                <ActivityButton label="Hint" accessibilityLabel="Show hint" icon="bulb-outline" onPress={() => setShowHintModal(true)} />
+              </View>
+            </TourTarget>
+          </View>
         </View>
       </View>
 
@@ -1319,7 +1363,8 @@ const WordGame: React.FC = () => {
 
               {/* Next level or play again button */}
               <TouchableOpacity
-                className="bg-primary-500 py-3 px-5 rounded-full shadow-lg border-2 border-primary-400 active:scale-95 min-w-[124px] items-center"
+                className="py-3 px-5 rounded-full shadow-lg border-2 min-w-[124px] items-center"
+                style={{ backgroundColor: activityColors.action, borderColor: activityColors.action, minHeight: 44 }}
                 onPress={() => {
                   void goToNextLevel().catch((error) => {
                     console.warn(

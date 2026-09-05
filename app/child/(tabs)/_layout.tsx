@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router"
-import { StyleSheet, View } from "react-native"
+import { StyleSheet, View, useWindowDimensions } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { Text } from "@/components/StyledText"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
@@ -8,11 +8,10 @@ import { CHILD_TAB_ITEMS, type ChildTabId } from "@/constants/ChildNavigation"
 import { useChildUiLanguage } from "@/context/ChildUiLanguageContext"
 import type { ChildUiTranslationKey } from "@/lib/childUiTranslations"
 import { childHaptics } from "@/lib/childHaptics"
+import { getChildNavigationLayout } from "@/components/child/childInterfaceSizing"
 
 const TAB_BAR_HEIGHT = 58
-const TAB_BAR_EDGE_GAP = 10
 const TAB_BAR_BOTTOM_GAP = 6
-const TAB_ICON_SIZE = 22
 
 type NavItem = {
   href: (typeof CHILD_TAB_ITEMS)[number]["href"]
@@ -39,9 +38,11 @@ const navigationItems: NavItem[] = CHILD_TAB_ITEMS.map((item) => ({
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets()
+  const { height, width } = useWindowDimensions()
   const { t } = useChildUiLanguage()
+  const navigationLayout = getChildNavigationLayout(width, height)
   const horizontalInset = Math.max(
-    TAB_BAR_EDGE_GAP,
+    navigationLayout.edgeGap,
     insets.left,
     insets.right,
   )
@@ -61,7 +62,7 @@ export default function TabLayout() {
           borderWidth: 1.5,
           borderColor: brandColors.gold[200],
           borderRadius: 21,
-          height: TAB_BAR_HEIGHT,
+          height: navigationLayout.barHeight,
           paddingHorizontal: 8,
           paddingVertical: 4,
           shadowColor: brandColors.charcoalBlack,
@@ -77,7 +78,10 @@ export default function TabLayout() {
           right: horizontalInset,
           bottom: bottomInset,
         },
-        tabBarItemStyle: styles.tabBarItem,
+        tabBarItemStyle: [
+          styles.tabBarItem,
+          { height: navigationLayout.barHeight - 8 },
+        ],
         tabBarIconStyle: styles.tabBarIcon,
         tabBarActiveTintColor: brandColors.victoriaBlue,
         tabBarInactiveTintColor: brandColors.neutral[500],
@@ -102,12 +106,20 @@ export default function TabLayout() {
                 <View
                   style={[
                     styles.iconPill,
+                    {
+                      height: navigationLayout.iconPillHeight,
+                      width: navigationLayout.iconPillWidth,
+                    },
                     focused && styles.iconPillFocused,
                   ]}
                 >
                   <Ionicons
                     name={focused ? item.activeIconName : item.iconName}
-                    size={focused ? TAB_ICON_SIZE : TAB_ICON_SIZE - 1}
+                    size={
+                      focused
+                        ? navigationLayout.iconSize
+                        : navigationLayout.iconSize - 1
+                    }
                     color={color}
                   />
                 </View>
@@ -119,7 +131,14 @@ export default function TabLayout() {
                 numberOfLines={1}
                 adjustsFontSizeToFit
                 minimumFontScale={0.78}
-                style={[styles.tabBarLabel, { color }]}
+                style={[
+                  styles.tabBarLabel,
+                  {
+                    color,
+                    fontSize: navigationLayout.labelFontSize,
+                    lineHeight: navigationLayout.labelLineHeight,
+                  },
+                ]}
               >
                 {t(item.labelKey)}
               </Text>

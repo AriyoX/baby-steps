@@ -4,6 +4,7 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
+  useWindowDimensions,
 } from "react-native";
 import { Text } from "@/components/StyledText"; // Assuming this is correctly aliased
 import { useRouter } from "expo-router";
@@ -12,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import { supabase } from "@/lib/supabase";
 import { getChildActivities, getFormattedActivities, type FormattedActivity } from "@/lib/utils"; // Ensure these utils exist
+import { getParentScreenLayout } from "@/lib/responsiveLayout";
 
 // Child interface
 interface Child {
@@ -26,6 +28,8 @@ const capitalizeFirstLetter = (string: string) => {
 };
 
 export default function ActivitiesScreen() {
+  const { height, width } = useWindowDimensions();
+  const responsiveLayout = getParentScreenLayout(width, height);
   const router = useRouter();
 
   const [activities, setActivities] = useState<FormattedActivity[]>([]);
@@ -191,7 +195,16 @@ export default function ActivitiesScreen() {
     <>
       <StatusBar style="dark" />
       <SafeAreaView className="flex-1 bg-white" edges={["top", "left", "right"]}>
-        <View className="flex-row items-center px-4 py-3 border-b border-gray-100">
+        <View className="border-b border-gray-100">
+        <View
+          className="flex-row items-center py-3"
+          style={{
+            alignSelf: "center",
+            maxWidth: responsiveLayout.contentMaxWidth,
+            paddingHorizontal: responsiveLayout.contentPadding,
+            width: "100%",
+          }}
+        >
           <TouchableOpacity onPress={() => router.back()} className="mr-3">
             <Ionicons name="arrow-back" size={24} color="#374151" />
           </TouchableOpacity>
@@ -199,8 +212,18 @@ export default function ActivitiesScreen() {
             All Activities
           </Text>
         </View>
+        </View>
 
-        <View className="px-4 py-3 border-b border-gray-100">
+        <View className="border-b border-gray-100">
+        <View
+          className="py-3"
+          style={{
+            alignSelf: "center",
+            maxWidth: responsiveLayout.contentMaxWidth,
+            paddingHorizontal: responsiveLayout.contentPadding,
+            width: "100%",
+          }}
+        >
           <View className="flex-row items-center bg-gray-100 rounded-lg px-3 py-2">
             <Ionicons name="search" size={20} color="#9CA3AF" />
             <TextInput
@@ -217,8 +240,18 @@ export default function ActivitiesScreen() {
             ) : null}
           </View>
         </View>
+        </View>
 
-        <View className="px-4 py-3 border-b border-gray-100">
+        <View className="border-b border-gray-100">
+        <View
+          className="py-3"
+          style={{
+            alignSelf: "center",
+            maxWidth: responsiveLayout.contentMaxWidth,
+            paddingHorizontal: responsiveLayout.contentPadding,
+            width: "100%",
+          }}
+        >
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <TouchableOpacity
               className={`px-3 py-1 rounded-full mr-2 ${
@@ -252,8 +285,18 @@ export default function ActivitiesScreen() {
             ))}
           </ScrollView>
         </View>
+        </View>
 
-        <View className="px-4 py-3 border-b border-gray-100">
+        <View className="border-b border-gray-100">
+        <View
+          className="py-3"
+          style={{
+            alignSelf: "center",
+            maxWidth: responsiveLayout.contentMaxWidth,
+            paddingHorizontal: responsiveLayout.contentPadding,
+            width: "100%",
+          }}
+        >
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <TouchableOpacity
               className={`px-3 py-1 rounded-full mr-2 ${
@@ -288,8 +331,17 @@ export default function ActivitiesScreen() {
             ))}
           </ScrollView>
         </View>
+        </View>
 
         <ScrollView className="flex-1">
+          <View
+            style={{
+              alignSelf: "center",
+              maxWidth: responsiveLayout.contentMaxWidth,
+              paddingHorizontal: responsiveLayout.contentPadding,
+              width: "100%",
+            }}
+          >
           {loading ? (
             <View className="p-10 items-center justify-center">
               <Text>Loading activities...</Text>
@@ -312,7 +364,14 @@ export default function ActivitiesScreen() {
               </TouchableOpacity>
             </View>
           ) : (
-            Object.entries(groupedActivities)
+            <View
+              style={{
+                flexDirection: responsiveLayout.isTwoColumn ? "row" : "column",
+                flexWrap: responsiveLayout.isTwoColumn ? "wrap" : "nowrap",
+                gap: responsiveLayout.contentGap,
+              }}
+            >
+            {Object.entries(groupedActivities)
               .sort(([dateAString], [dateBString]) => {
                 if (dateAString === 'Unknown Date' && dateBString === 'Unknown Date') return 0;
                 if (dateAString === 'Unknown Date') return 1; 
@@ -328,7 +387,11 @@ export default function ActivitiesScreen() {
                 return dateB_obj.getTime() - dateA_obj.getTime(); // Descending (newest date group first)
               })
               .map(([date, dateActivities]) => (
-                <View key={date} className="mb-4">
+                <View
+                  key={date}
+                  className="mb-4 overflow-hidden rounded-xl border border-gray-100 bg-white"
+                  style={{ width: responsiveLayout.isTwoColumn ? "48.5%" : "100%" }}
+                >
                   <View className="px-4 py-2 bg-gray-50">
                     <Text variant="medium" className="text-gray-500">
                       {date}
@@ -385,8 +448,10 @@ export default function ActivitiesScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
-              ))
+              ))}
+            </View>
           )}
+          </View>
         </ScrollView>
       </SafeAreaView>
     </>

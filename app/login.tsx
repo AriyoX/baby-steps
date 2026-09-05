@@ -14,6 +14,7 @@ import { FontAwesome } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BrandMark } from "@/components/brand/BrandMark";
+import { ResponsiveAuthLayout } from "@/components/auth/ResponsiveAuthLayout";
 import { Text } from "@/components/StyledText";
 import { brandColors } from "@/constants/Brand";
 import {
@@ -227,26 +228,32 @@ export default function Auth() {
             />
           </View>
 
-          <View className="items-center mt-7 mb-3 px-6">
-            <BrandMark kind="wordmark" width={156} height={38} containerStyle={{ marginBottom: 18 }} />
-            <Animated.View style={{ transform: [{ translateY }, { scale: scaleValue }] }}>
-              <Text variant="bold" className="text-[34px] leading-10 text-neutral-900 pt-2 text-center">
-                Welcome back
-              </Text>
-            </Animated.View>
-          </View>
+          <ResponsiveAuthLayout
+            testID="login-responsive-layout"
+            hero={
+              <>
+                <View className="items-center mt-7 mb-3 px-6">
+                  <BrandMark kind="wordmark" width={156} height={38} containerStyle={{ marginBottom: 18 }} />
+                  <Animated.View style={{ transform: [{ translateY }, { scale: scaleValue }] }}>
+                    <Text variant="bold" className="text-[34px] leading-10 text-neutral-900 pt-2 text-center">
+                      Welcome back
+                    </Text>
+                  </Animated.View>
+                </View>
 
-          <View className="items-center my-3">
-            <Animated.View
-              className="w-24 h-24 bg-white rounded-[28px] items-center justify-center shadow-sm border border-primary-100 overflow-hidden"
-              style={{ transform: [{ translateY }, { scale: scaleValue }] }}
-            >
-              <BrandMark kind="mascot" width={58} height={78} />
-            </Animated.View>
-          </View>
-
+                <View className="items-center my-3">
+                  <Animated.View
+                    className="w-24 h-24 bg-white rounded-[28px] items-center justify-center shadow-sm border border-primary-100 overflow-hidden"
+                    style={{ transform: [{ translateY }, { scale: scaleValue }] }}
+                  >
+                    <BrandMark kind="mascot" width={58} height={78} />
+                  </Animated.View>
+                </View>
+              </>
+            }
+          >
           <Animated.View
-            className="mx-5 bg-white p-5 rounded-[28px] shadow-sm border border-primary-100"
+            className="bg-white p-5 rounded-[28px] shadow-sm border border-primary-100"
             style={{ transform: [{ scale: scaleValue }], opacity: scaleValue }}
           >
             <View className="mb-6">
@@ -336,7 +343,7 @@ export default function Auth() {
               </Text>
             </View>
           </Animated.View>
-
+          </ResponsiveAuthLayout>
         </ScrollView>
       </SafeAreaView>
     </KeyboardAvoidingView>

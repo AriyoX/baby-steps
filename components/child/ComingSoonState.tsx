@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/StyledText";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { brandColors } from "@/constants/Brand";
+import { CHILD_GAME_SAFE_AREA_EDGES } from "@/constants/SystemUi";
 import { childHaptics } from "@/lib/childHaptics";
 
 interface ComingSoonStateProps {
@@ -27,7 +28,7 @@ export function ComingSoonState({
   const router = useRouter();
 
   return (
-    <SafeAreaView className="flex-1 bg-background items-center justify-center px-8">
+    <SafeAreaView className="flex-1 bg-background items-center justify-center px-8" edges={CHILD_GAME_SAFE_AREA_EDGES}>
       {showBackButton && (
         <TouchableOpacity
           className="absolute left-5 top-5 w-11 h-11 rounded-full bg-white items-center justify-center border border-muted-200 shadow-sm"

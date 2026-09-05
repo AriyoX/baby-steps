@@ -14,8 +14,11 @@ type ColoringBadge = {
 };
 
 type JourneyLeadCardProps = {
+  cardGap?: number;
   cardHeight: number;
+  cardWidth?: number;
   mode: "journey";
+  scale?: number;
   title: string;
 };
 
@@ -23,8 +26,11 @@ type ColoringLeadCardProps = {
   accessibilityLabel: string;
   badgeSummary: string;
   badges: ColoringBadge[];
+  cardGap?: number;
   cardHeight: number;
+  cardWidth?: number;
   mode: "coloring";
+  scale?: number;
   savedSummary: string;
   title: string;
 };
@@ -35,6 +41,9 @@ export const CHILD_LEAD_CARD_WIDTH = 204;
 export const CHILD_LEAD_CARD_GAP = 14;
 
 export function ChildLeadCard(props: ChildLeadCardProps) {
+  const cardWidth = props.cardWidth ?? CHILD_LEAD_CARD_WIDTH;
+  const scale = props.scale ?? 1;
+
   if (props.mode === "coloring") {
     return (
       <LinearGradient
@@ -43,7 +52,16 @@ export function ChildLeadCard(props: ChildLeadCardProps) {
         colors={[brandColors.blue[800], brandColors.blue[600]]}
         end={{ x: 1, y: 1 }}
         start={{ x: 0, y: 0 }}
-        style={[styles.card, styles.coloringCard, { height: props.cardHeight }]}
+        style={[
+          styles.card,
+          styles.coloringCard,
+          {
+            height: props.cardHeight,
+            marginRight: props.cardGap ?? CHILD_LEAD_CARD_GAP,
+            padding: 14 * scale,
+            width: cardWidth,
+          },
+        ]}
       >
         <View style={styles.decorativeOrb} />
         <View style={styles.titleRow}>
@@ -51,12 +69,13 @@ export function ChildLeadCard(props: ChildLeadCardProps) {
             <Ionicons
               color={brandColors.gold[800]}
               name="color-palette"
-              size={19}
+              size={19 * scale}
             />
           </View>
           <Text
-            className="ml-2 flex-1 text-lg text-white"
+            className="ml-2 flex-1 text-white"
             numberOfLines={1}
+            style={{ fontSize: 18 * scale }}
             variant="bold"
           >
             {props.title}
@@ -102,7 +121,7 @@ export function ChildLeadCard(props: ChildLeadCardProps) {
                     : "rgba(255,255,255,0.82)"
                 }
                 name={badge.unlocked ? badge.icon : "lock-closed"}
-                size={14}
+                size={14 * scale}
               />
             </View>
           ))}
@@ -117,15 +136,27 @@ export function ChildLeadCard(props: ChildLeadCardProps) {
       colors={[brandColors.gold[100], brandColors.orange[100]]}
       end={{ x: 1, y: 1 }}
       start={{ x: 0, y: 0 }}
-      style={[styles.card, styles.journeyCard, { height: props.cardHeight }]}
+      style={[
+        styles.card,
+        styles.journeyCard,
+        {
+          height: props.cardHeight,
+          marginRight: props.cardGap ?? CHILD_LEAD_CARD_GAP,
+          padding: 14 * scale,
+          width: cardWidth,
+        },
+      ]}
     >
       <View style={styles.journeyCopy}>
         <MarqueeText
           adjustsFontSizeToFit
-          className="text-[21px] leading-6"
-          containerStyle={{ maxWidth: 116 }}
+          containerStyle={{ maxWidth: cardWidth * 0.58 }}
           minimumFontScale={0.68}
-          style={{ color: brandColors.blue[800] }}
+          style={{
+            color: brandColors.blue[800],
+            fontSize: 21 * scale,
+            lineHeight: 24 * scale,
+          }}
           variant="display"
         >
           {props.title}
@@ -141,8 +172,8 @@ export function ChildLeadCard(props: ChildLeadCardProps) {
         importantForAccessibility="no"
         style={styles.journeyMascot}
         variant="welcome"
-        width={92}
-        height={122}
+        width={92 * scale}
+        height={122 * scale}
       />
     </LinearGradient>
   );

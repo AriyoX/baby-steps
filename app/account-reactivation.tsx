@@ -6,6 +6,7 @@ import {
   Linking,
   ScrollView,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -23,6 +24,7 @@ import {
 import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network";
 import { BABY_STEPS_SUPPORT_EMAIL, getSupportMailtoUrl } from "@/lib/support";
 import { supabase } from "@/lib/supabase";
+import { getAdultFormLayout } from "@/lib/responsiveLayout";
 
 export const formatAccountDeletionDeadline = (isoDate?: string | null): string | null => {
   if (!isoDate) return null;
@@ -80,6 +82,8 @@ export const signOutFromDeletionStatus = async ({
 };
 
 export default function AccountReactivationScreen() {
+  const { height, width } = useWindowDimensions();
+  const responsiveLayout = getAdultFormLayout(width, height);
   const router = useRouter();
   const { setActiveChild } = useChild();
   const [accountState, setAccountState] = React.useState<AccountDeletionState | null>(null);
@@ -185,7 +189,18 @@ export default function AccountReactivationScreen() {
   return (
     <SafeAreaView className="flex-1 bg-primary-50">
       <StatusBar translucent backgroundColor="transparent" style="dark" />
-      <ScrollView contentContainerClassName="flex-grow justify-center px-6 py-8">
+      <ScrollView
+        contentContainerStyle={{
+          alignSelf: "center",
+          flexGrow: 1,
+          justifyContent: "center",
+          maxWidth: responsiveLayout.formMaxWidth,
+          paddingHorizontal: responsiveLayout.contentPadding,
+          paddingVertical: 32,
+          width: "100%",
+        }}
+        showsVerticalScrollIndicator={false}
+      >
         <View className="items-center mb-8">
           <BrandMark kind="wordmark" width={180} height={44} containerStyle={{ marginBottom: 18 }} />
           <View className="w-28 h-28 rounded-full bg-white items-center justify-center border-4 border-primary-100 shadow-sm overflow-hidden">

@@ -1,14 +1,17 @@
 "use client"
 
 import { useState } from "react"
-import { View, TouchableOpacity, StatusBar } from "react-native"
+import { ScrollView, View, TouchableOpacity, StatusBar, useWindowDimensions } from "react-native"
 import { useRouter } from "expo-router"
 import { Text } from "@/components/StyledText"
 import { TranslatedText } from "@/components/translated-text"
 import { FontAwesome5 } from "@expo/vector-icons"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { getParentScreenLayout } from "@/lib/responsiveLayout"
 
 export default function CanYourChildFigureOutWhatsChangedScreen() {
+  const { height, width } = useWindowDimensions()
+  const responsiveLayout = getParentScreenLayout(width, height)
   const router = useRouter()
   const [selectedOption, setSelectedOption] = useState<string | null>(null)
 
@@ -44,8 +47,20 @@ export default function CanYourChildFigureOutWhatsChangedScreen() {
         <View className="absolute w-[50px] h-[50px] rounded-full bg-accent-100/30 top-[30%] right-[20%] -z-10" />
 
         {/* Main content */}
-        <View className="flex-1 justify-center px-6">
-          <View className="bg-white p-6 rounded-3xl shadow-md">
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{
+            alignItems: "center",
+            flexGrow: 1,
+            justifyContent: "center",
+            padding: responsiveLayout.contentPadding,
+          }}
+          showsVerticalScrollIndicator={false}
+        >
+          <View
+            className="bg-white p-6 rounded-3xl shadow-md w-full"
+            style={{ maxWidth: responsiveLayout.readableMaxWidth }}
+          >
             <TranslatedText variant="bold" className="text-xl text-center text-primary-800 mb-4">
               Can Your Child Spot the Difference?
             </TranslatedText>
@@ -150,10 +165,14 @@ export default function CanYourChildFigureOutWhatsChangedScreen() {
             </View>
 
           </View>
-        </View>
+        </ScrollView>
 
         {/* Next button */}
-        <View className="p-6 bg-white border-t border-gray-200">
+        <View className="bg-white border-t border-gray-200">
+        <View
+          className="p-6 w-full self-center"
+          style={{ maxWidth: Math.min(640, responsiveLayout.readableMaxWidth) }}
+        >
           <TouchableOpacity
             className={`py-4 rounded-full items-center justify-center shadow-md ${
               selectedOption ? "bg-secondary-500" : "bg-gray-300"
@@ -166,6 +185,7 @@ export default function CanYourChildFigureOutWhatsChangedScreen() {
               Next
             </TranslatedText>
           </TouchableOpacity>
+        </View>
         </View>
       </SafeAreaView>
     </>

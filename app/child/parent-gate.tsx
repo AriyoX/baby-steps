@@ -8,6 +8,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native"
 import { useRouter } from "expo-router"
 import { StatusBar } from "expo-status-bar"
@@ -24,6 +25,7 @@ import {
   verifyParentPin,
 } from "@/lib/parentAccess"
 import { supabase } from "@/lib/supabase"
+import { getParentGateLayout } from "@/lib/responsiveLayout"
 
 const NUMBER_ROWS = [
   ["1", "2", "3"],
@@ -47,6 +49,13 @@ export default function ParentGate() {
   const submissionGenerationRef = useRef(0)
   const router = useRouter()
   const { activeChild, deactivateChildMode } = useChild()
+  const { height, width } = useWindowDimensions()
+  const gateLayout = getParentGateLayout(width, height)
+  const keypadColumnWidth =
+    (gateLayout.keypadWidth -
+      gateLayout.keypadPadding * 2 -
+      gateLayout.keypadGap * 2) /
+    3
 
   useEffect(() => {
     let mounted = true
@@ -271,9 +280,29 @@ export default function ParentGate() {
             <Ionicons name="arrow-back" size={25} color={brandColors.white} />
           </TouchableOpacity>
 
-          <View className="flex-1 flex-row px-8 py-5 gap-8">
-            <View className="flex-1 justify-center pl-8">
-              <View className="self-start flex-row items-center rounded-full bg-accent-400 px-4 py-2 mb-4">
+          <View className="flex-1 items-center justify-center">
+          <View
+            className="flex-row"
+            style={{
+              columnGap: gateLayout.columnGap,
+              justifyContent: "center",
+              maxWidth: gateLayout.contentMaxWidth,
+              paddingHorizontal: gateLayout.contentPadding,
+              paddingVertical: gateLayout.isShort ? 8 : 20,
+              width: "100%",
+            }}
+          >
+            <View
+              className="flex-1 justify-center"
+              style={{
+                maxWidth: gateLayout.isTablet ? 490 : undefined,
+                paddingLeft: gateLayout.isShort ? 0 : gateLayout.isTablet ? 16 : 8,
+              }}
+            >
+              <View
+                className="self-start flex-row items-center rounded-full bg-accent-400 px-4 py-2"
+                style={{ marginBottom: gateLayout.isShort ? 8 : 16 }}
+              >
                 <Ionicons
                   name="shield-checkmark"
                   size={18}
@@ -284,16 +313,35 @@ export default function ParentGate() {
                 </Text>
               </View>
 
-              <Text variant="bold" className="text-white text-[34px] leading-10">
+              <Text
+                variant="bold"
+                className="text-white"
+                style={{
+                  fontSize: gateLayout.isShort ? 28 : gateLayout.isTablet ? 42 : 34,
+                  lineHeight: gateLayout.isShort ? 34 : gateLayout.isTablet ? 48 : 40,
+                }}
+              >
                 Parent Access
               </Text>
-              <Text className="text-primary-100 text-base leading-6 mt-2 max-w-[390px]">
+              <Text
+                className="text-primary-100 mt-2"
+                style={{
+                  fontSize: gateLayout.isShort ? 14 : gateLayout.isTablet ? 18 : 16,
+                  lineHeight: gateLayout.isShort ? 19 : gateLayout.isTablet ? 27 : 24,
+                  maxWidth: gateLayout.isTablet ? 450 : 390,
+                }}
+              >
                 {usePassword
                   ? "Enter the parent account password to leave child mode."
                   : `Enter the ${PARENT_PIN_LENGTH}-digit parent PIN to leave child mode.`}
               </Text>
 
-              <View className="min-h-[52px] mt-4">
+              <View
+                style={{
+                  minHeight: gateLayout.isShort ? 36 : 52,
+                  marginTop: gateLayout.isShort ? 8 : 16,
+                }}
+              >
                 {message ? (
                   <Text
                     variant="bold"
@@ -336,8 +384,14 @@ export default function ParentGate() {
               ) : null}
             </View>
 
-            <View className="w-[320px] justify-center items-center pr-5">
-              <View className="w-full rounded-[30px] bg-neutral-900/35 border border-white/15 p-4">
+            <View
+              className="justify-center items-center"
+              style={{ width: gateLayout.keypadWidth }}
+            >
+              <View
+                className="w-full rounded-[30px] bg-neutral-900/35 border border-white/15"
+                style={{ padding: gateLayout.keypadPadding }}
+              >
                 {usePassword ? (
                   <>
                     <View
@@ -357,8 +411,8 @@ export default function ParentGate() {
                         style={{
                           color: brandColors.white,
                           flex: 1,
-                          fontSize: 17,
-                          paddingVertical: 14,
+                          fontSize: gateLayout.isTablet ? 19 : 17,
+                          paddingVertical: gateLayout.isShort ? 10 : gateLayout.isTablet ? 17 : 14,
                         }}
                         accessibilityLabel="Parent account password"
                       />
@@ -378,9 +432,10 @@ export default function ParentGate() {
                       </TouchableOpacity>
                     </View>
                     <TouchableOpacity
-                      className={`h-[56px] rounded-2xl justify-center items-center flex-row mt-4 ${
+                      className={`rounded-2xl justify-center items-center flex-row mt-4 ${
                         password && !submitting ? "bg-accent-400" : "bg-white/10"
                       }`}
+                      style={{ height: gateLayout.keypadButtonHeight }}
                       onPress={() => void handlePasswordSubmit()}
                       disabled={!password || submitting}
                       accessibilityRole="button"
@@ -415,7 +470,13 @@ export default function ParentGate() {
                   </>
                 ) : (
                   <>
-                    <View className="h-[56px] rounded-2xl bg-white/15 border border-white/20 items-center justify-center mb-3">
+                    <View
+                      className="rounded-2xl bg-white/15 border border-white/20 items-center justify-center"
+                      style={{
+                        height: gateLayout.keypadButtonHeight,
+                        marginBottom: gateLayout.keypadGap,
+                      }}
+                    >
                       <Text
                         variant="bold"
                         className={`text-[28px] tracking-[8px] ${
@@ -428,11 +489,19 @@ export default function ParentGate() {
                     </View>
 
                     {NUMBER_ROWS.map((row) => (
-                      <View key={row.join("")} className="flex-row gap-3 mb-3">
+                      <View
+                        key={row.join("")}
+                        className="flex-row"
+                        style={{
+                          columnGap: gateLayout.keypadGap,
+                          marginBottom: gateLayout.keypadGap,
+                        }}
+                      >
                         {row.map((digit) => (
                           <TouchableOpacity
                             key={digit}
-                            className="flex-1 h-[52px] bg-white/20 rounded-2xl justify-center items-center border border-white/10"
+                            className="flex-1 bg-white/20 rounded-2xl justify-center items-center border border-white/10"
+                            style={{ height: gateLayout.keypadButtonHeight }}
                             onPress={() => handleDigitPress(digit)}
                             disabled={submitting || isCoolingDown}
                             accessibilityRole="button"
@@ -446,9 +515,16 @@ export default function ParentGate() {
                       </View>
                     ))}
 
-                    <View className="flex-row gap-3">
+                    <View
+                      className="flex-row"
+                      style={{ columnGap: gateLayout.keypadGap }}
+                    >
                       <TouchableOpacity
-                        className="w-[70px] h-[52px] bg-white/10 rounded-2xl justify-center items-center"
+                        className="bg-white/10 rounded-2xl justify-center items-center"
+                        style={{
+                          height: gateLayout.keypadButtonHeight,
+                          width: keypadColumnWidth,
+                        }}
                         onPress={handleClear}
                         disabled={submitting || isCoolingDown}
                         accessibilityRole="button"
@@ -461,7 +537,11 @@ export default function ParentGate() {
                         />
                       </TouchableOpacity>
                       <TouchableOpacity
-                        className="w-[70px] h-[52px] bg-white/20 rounded-2xl justify-center items-center border border-white/10"
+                        className="bg-white/20 rounded-2xl justify-center items-center border border-white/10"
+                        style={{
+                          height: gateLayout.keypadButtonHeight,
+                          width: keypadColumnWidth,
+                        }}
                         onPress={() => handleDigitPress("0")}
                         disabled={submitting || isCoolingDown}
                         accessibilityRole="button"
@@ -472,13 +552,14 @@ export default function ParentGate() {
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        className={`flex-1 h-[52px] rounded-2xl justify-center items-center ${
+                        className={`flex-1 rounded-2xl justify-center items-center ${
                           input.length === PARENT_PIN_LENGTH &&
                           !submitting &&
                           !isCoolingDown
                             ? "bg-accent-400"
                             : "bg-white/10"
                         }`}
+                        style={{ height: gateLayout.keypadButtonHeight }}
                         onPress={() => void handlePinSubmit()}
                         disabled={
                           input.length !== PARENT_PIN_LENGTH ||
@@ -507,6 +588,7 @@ export default function ParentGate() {
                 )}
               </View>
             </View>
+          </View>
           </View>
         </SafeAreaView>
       </ImageBackground>

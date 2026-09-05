@@ -1,13 +1,16 @@
 "use client"
-import { View, TouchableOpacity, StatusBar } from "react-native"
+import { ScrollView, View, TouchableOpacity, StatusBar, useWindowDimensions } from "react-native"
 import { useRouter } from "expo-router"
 import { Text } from "@/components/StyledText"
 import { TranslatedText } from "@/components/translated-text"
 import { FontAwesome5 } from "@expo/vector-icons"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { LinearGradient } from "expo-linear-gradient"
+import { getParentScreenLayout } from "@/lib/responsiveLayout"
 
 export default function YourChildIsOurPriorityScreen() {
+  const { height, width } = useWindowDimensions()
+  const responsiveLayout = getParentScreenLayout(width, height)
   const router = useRouter()
 
   const handleBack = () => {
@@ -42,8 +45,20 @@ export default function YourChildIsOurPriorityScreen() {
         <View className="absolute w-[60px] h-[60px] rounded-full bg-accent-100/30 top-[35%] right-[20%] -z-10" />
 
         {/* Main content */}
-        <View className="flex-1 justify-center px-6">
-          <View className="bg-white p-6 rounded-3xl shadow-md">
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{
+            alignItems: "center",
+            flexGrow: 1,
+            justifyContent: "center",
+            padding: responsiveLayout.contentPadding,
+          }}
+          showsVerticalScrollIndicator={false}
+        >
+          <View
+            className="bg-white p-6 rounded-3xl shadow-md w-full"
+            style={{ maxWidth: responsiveLayout.readableMaxWidth }}
+          >
             {/* Illustrated header image */}
             <View className="items-center mb-6">
               <View className="w-40 h-40 rounded-full bg-primary-100 items-center justify-center mb-4">
@@ -87,10 +102,14 @@ export default function YourChildIsOurPriorityScreen() {
               </View>
             </View>
           </View>
-        </View>
+        </ScrollView>
 
         {/* Footer with next button */}
-        <View className="p-6 bg-white border-t border-gray-200">
+        <View className="bg-white border-t border-gray-200">
+        <View
+          className="p-6 w-full self-center"
+          style={{ maxWidth: Math.min(640, responsiveLayout.readableMaxWidth) }}
+        >
           <TouchableOpacity
             className="py-4 rounded-full items-center justify-center shadow-md overflow-hidden"
             onPress={navigateToNextScreen}
@@ -104,6 +123,7 @@ export default function YourChildIsOurPriorityScreen() {
               <FontAwesome5 name="arrow-right" size={16} color="white" />
             </View>
           </TouchableOpacity>
+        </View>
         </View>
       </SafeAreaView>
     </>

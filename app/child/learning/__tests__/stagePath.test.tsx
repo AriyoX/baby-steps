@@ -1,5 +1,5 @@
 import React from "react";
-import { FlatList, TouchableOpacity } from "react-native";
+import { FlatList, StyleSheet, TouchableOpacity } from "react-native";
 import renderer, { act, type ReactTestInstance } from "react-test-renderer";
 import { registerLearningHubTestFixture } from "@/content/testFixtures/learningHubTestFixture";
 import {
@@ -201,7 +201,11 @@ describe("Learning stage path screen", () => {
     expect(mockGetCompletedLearningLessonIds).toHaveBeenCalledWith("child-1", "lg");
     expect(lessonRail.props.horizontal).toBe(true);
     expect(lessonRail.props.showsHorizontalScrollIndicator).toBe(false);
-    expect(backButton.props.className).toContain("w-12 h-12");
+    expect(StyleSheet.flatten(backButton.props.style)).toMatchObject({
+      height: expect.any(Number),
+      width: expect.any(Number),
+    });
+    expect(StyleSheet.flatten(backButton.props.style).height).toBeGreaterThanOrEqual(44);
     expect(text).toContain("Choose a lesson");
     expect(text).toContain("Stage 1");
     expect(text).toContain("Greetings");

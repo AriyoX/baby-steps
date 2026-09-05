@@ -44,6 +44,7 @@ import {
   type LearningLessonAccessState,
 } from "@/lib/learningStageAccess";
 import type { ChildUiTranslationKey } from "@/lib/childUiTranslations";
+import { getLearningPathCardLayout } from "@/components/child/childInterfaceSizing";
 
 const getRouteStageId = (value: unknown): string => {
   if (Array.isArray(value)) {
@@ -133,6 +134,7 @@ type LessonPathCardProps = {
   width: number;
   height: number;
   gap: number;
+  isTablet: boolean;
   onPress: (lesson: LearningHubLesson) => void;
   navigationPending?: boolean;
   tourTargetId?: string;
@@ -146,6 +148,7 @@ const LessonPathCard = ({
   width,
   height,
   gap,
+  isTablet,
   onPress,
   navigationPending = false,
   tourTargetId,
@@ -188,15 +191,26 @@ const LessonPathCard = ({
         disabled: status.disabled || navigationPending,
       }}
     >
-      <View className="p-4 flex-1 justify-between">
+      <View
+        className="flex-1 justify-between"
+        style={{ padding: isTablet ? 20 : 16 }}
+      >
         <View>
           <View className="flex-row items-start justify-between mb-3">
             <View className="flex-row items-center flex-1 pr-2">
               <View
-                className="w-11 h-11 rounded-full items-center justify-center mr-3"
-                style={{ backgroundColor: status.backgroundColor }}
+                className="rounded-full items-center justify-center mr-3"
+                style={{
+                  backgroundColor: status.backgroundColor,
+                  height: isTablet ? 52 : 44,
+                  width: isTablet ? 52 : 44,
+                }}
               >
-                <Text variant="bold" className="text-primary-700 text-base">
+                <Text
+                  variant="bold"
+                  className="text-primary-700"
+                  style={{ fontSize: isTablet ? 18 : 16 }}
+                >
                   {lesson.order}
                 </Text>
               </View>
@@ -206,7 +220,11 @@ const LessonPathCard = ({
                 </Text>
                 <Text
                   variant="bold"
-                  className="text-primary-700 text-lg leading-5"
+                  className="text-primary-700"
+                  style={{
+                    fontSize: isTablet ? 22 : 18,
+                    lineHeight: isTablet ? 27 : 20,
+                  }}
                   numberOfLines={2}
                   adjustsFontSizeToFit
                   minimumFontScale={0.82}
@@ -370,10 +388,18 @@ export default function LearningStagePathScreen() {
 
   const landscapeWidth = Math.max(width, height);
   const landscapeHeight = Math.min(width, height);
-  const cardGap = 16;
-  const lessonCardWidth = Math.min(250, Math.max(220, landscapeWidth * 0.3));
-  const lessonCardHeight = Math.max(166, Math.min(198, landscapeHeight * 0.48));
-  const lessonListEndPadding = Math.max(16, landscapeWidth - lessonCardWidth - 48);
+  const pathLayout = getLearningPathCardLayout(landscapeWidth, landscapeHeight);
+  const {
+    cardGap,
+    cardHeight: lessonCardHeight,
+    cardWidth: lessonCardWidth,
+    isTablet,
+  } = pathLayout;
+  const isCompactScreen = landscapeHeight < 430;
+  const lessonListEndPadding = Math.max(
+    isTablet ? 28 : 16,
+    landscapeWidth - lessonCardWidth - (isTablet ? 72 : 48),
+  );
 
   const goBackToLearning = () => {
     childHaptics.tap();
@@ -481,10 +507,24 @@ export default function LearningStagePathScreen() {
       <StatusBar style="light" translucent backgroundColor="transparent" />
       <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
         <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: "rgba(2, 116, 187, 0.88)" }}>
-          <View className="flex-1 px-6 pt-6 pb-5">
-            <View className="flex-row items-center justify-between mb-4">
+          <View
+            className="flex-1"
+            style={{
+              paddingBottom: isCompactScreen ? 12 : isTablet ? 28 : 20,
+              paddingHorizontal: isTablet ? 32 : 24,
+              paddingTop: isCompactScreen ? 12 : isTablet ? 28 : 24,
+            }}
+          >
+            <View
+              className="flex-row items-center justify-between"
+              style={{ marginBottom: isCompactScreen ? 8 : isTablet ? 20 : 16 }}
+            >
               <TouchableOpacity
-                className="w-12 h-12 rounded-full bg-white items-center justify-center border-2 border-accent-500"
+                className="rounded-full bg-white items-center justify-center border-2 border-accent-500"
+                style={{
+                  height: isTablet ? 56 : isCompactScreen ? 44 : 48,
+                  width: isTablet ? 56 : isCompactScreen ? 44 : 48,
+                }}
                 onPress={goBackToLearning}
                 accessibilityRole="button"
                 accessibilityLabel={t("learning.backToLearning")}
@@ -493,14 +533,23 @@ export default function LearningStagePathScreen() {
               </TouchableOpacity>
 
               <View className="flex-1 px-4">
-                <Text variant="bold" className="text-white text-3xl text-center" numberOfLines={1}>
+                <Text
+                  variant="bold"
+                  className="text-white text-center"
+                  numberOfLines={1}
+                  style={{ fontSize: isTablet ? 34 : isCompactScreen ? 26 : 30 }}
+                >
                   {stage.title}
                 </Text>
               </View>
 
               <View className="flex-row items-center">
                 <TouchableOpacity
-                  className="w-12 h-12 rounded-full bg-white items-center justify-center border-2 border-accent-500 mr-2"
+                  className="rounded-full bg-white items-center justify-center border-2 border-accent-500 mr-2"
+                  style={{
+                    height: isTablet ? 56 : isCompactScreen ? 44 : 48,
+                    width: isTablet ? 56 : isCompactScreen ? 44 : 48,
+                  }}
                   onPress={() => {
                     childHaptics.tap();
                     stageTour.open();
@@ -527,7 +576,14 @@ export default function LearningStagePathScreen() {
               </View>
             </View>
 
-            <View className="bg-white/15 rounded-2xl px-4 py-3 mb-4">
+            <View
+              className="bg-white/15 rounded-2xl"
+              style={{
+                marginBottom: isCompactScreen ? 8 : isTablet ? 20 : 16,
+                paddingHorizontal: isTablet ? 20 : 16,
+                paddingVertical: isCompactScreen ? 8 : isTablet ? 15 : 12,
+              }}
+            >
               <View className="flex-row items-center justify-between">
                 <View className="flex-1 pr-4">
                   <Text variant="bold" className="text-white text-lg" numberOfLines={1}>
@@ -577,6 +633,7 @@ export default function LearningStagePathScreen() {
                     width={lessonCardWidth}
                     height={lessonCardHeight}
                     gap={cardGap}
+                    isTablet={isTablet}
                     onPress={startLesson}
                     tourTargetId={index === 0 ? "learning-stage-lessons" : undefined}
                   />

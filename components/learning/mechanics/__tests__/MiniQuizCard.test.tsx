@@ -149,7 +149,7 @@ describe("MiniQuizCard", () => {
     const json = JSON.stringify(renderedOutput);
     const text = textContent(renderedOutput);
 
-    expect(json).toContain("Quick quiz");
+    expect(json).not.toContain("Quick quiz");
     expect(json).toContain("Family Words Review");
     expect(text).toContain("Question 1 of 2");
     expect(json).toContain("Which word means Mother?");

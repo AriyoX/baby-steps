@@ -90,7 +90,7 @@ jest.mock("expo-linking", () => ({
 }));
 
 jest.mock("expo-screen-orientation", () => ({
-  OrientationLock: { LANDSCAPE_LEFT: 3, PORTRAIT_UP: 1 },
+  OrientationLock: { DEFAULT: 0, LANDSCAPE_LEFT: 3, PORTRAIT_UP: 1 },
   getOrientationLockAsync: jest.fn(async () => 1),
   lockAsync: jest.fn(async () => undefined),
 }));

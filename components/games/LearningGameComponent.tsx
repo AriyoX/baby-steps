@@ -10,6 +10,7 @@ import {
   ScrollView,
   FlatList,
   useWindowDimensions,
+  type ImageSourcePropType,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import type { Audio } from "expo-av"
@@ -25,6 +26,11 @@ import { useChild } from "@/context/ChildContext"
 import { useChildUiLanguage } from "@/context/ChildUiLanguageContext"
 import { useChildNotice } from "@/context/ChildNoticeContext"
 import { brandColors } from "@/constants/Brand"
+import { activityColors } from "@/constants/ActivityTheme"
+import { CHILD_GAME_SAFE_AREA_EDGES } from "@/constants/SystemUi"
+import { ActivityButton } from "@/components/learning/ActivityControls"
+import { LearningIllustratedScreen, LearningWordContent } from "@/components/learning/LearningIllustratedScreen"
+import { LearningQuizBoard } from "./LearningQuizBoard"
 import { DEFAULT_LEARNING_LANGUAGE_CODE } from "@/content/languages"
 import {
   loadContentBundle,
@@ -55,6 +61,10 @@ import {
   useGameTour,
 } from "./GameTour"
 import { GameLevelSelector } from "./GameLevelSelector"
+import {
+  getGameStageCarouselSizing,
+  getLearningGameSizing,
+} from "./responsiveSizing"
 
 import {
   applyLegacyLearningAccessLocks,
@@ -135,16 +145,16 @@ const LugandaLearningGame: React.FC = () => {
   // Get dimensions for responsive layout
   const { width: windowWidth, height: windowHeight } = useWindowDimensions()
   const isLandscape = windowWidth > windowHeight
-  const compactLandscape = windowHeight < 430
   const landscapeWidth = Math.max(windowWidth, windowHeight)
-  const landscapeHeight = Math.min(windowWidth, windowHeight)
-  const stageCardGap = 8
-  const stageCardWidth = Math.min(270, Math.max(230, landscapeWidth * 0.32))
-  const stageCardHeight = Math.max(190, Math.min(232, landscapeHeight * 0.56))
-  const stageCardImageHeight = Math.round(stageCardHeight * 0.54)
-  const stageCardBodyHeight = stageCardHeight - stageCardImageHeight
-  const stageListEndPadding = Math.max(16, landscapeWidth - stageCardWidth - 32)
-  const learningImageHeight = Math.min(260, Math.max(180, landscapeHeight * 0.5))
+  const stageCarouselSizing = getGameStageCarouselSizing(windowWidth, windowHeight)
+  const learningGameSizing = getLearningGameSizing(windowWidth, windowHeight, 3)
+  const compactLandscape = stageCarouselSizing.isShort
+  const stageCardGap = stageCarouselSizing.cardGap
+  const stageCardWidth = stageCarouselSizing.cardWidth
+  const stageCardHeight = stageCarouselSizing.cardHeight
+  const stageCardImageHeight = stageCarouselSizing.cardImageHeight
+  const stageCardBodyHeight = stageCarouselSizing.cardBodyHeight
+  const stageListEndPadding = stageCarouselSizing.listEndPadding
 
   // Game state management
   const [gameState, setGameState] = useState<GameState>("stageSelect")
@@ -842,6 +852,10 @@ const LugandaLearningGame: React.FC = () => {
         setTotalScore(completedTotalScore)
         setCompletedLevels(newCompletedLevelsState)
         setStages(currentLocalStagesState)
+        setSelectedStage(
+          currentLocalStagesState.find((stage) => stage.id === selectedStage.id) ??
+            selectedStage,
+        )
         updateUserStatsState(updatedUserStatsState)
         childHaptics.success()
         setGameState("levelComplete")
@@ -929,19 +943,42 @@ const LugandaLearningGame: React.FC = () => {
         <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: GAME_SCREEN_OVERLAY }}>
           <StatusBar style="light" translucent backgroundColor="transparent" />
 
-          <View className="flex-1 px-6 pt-6 pb-5">
-            <View className="flex-row items-center justify-between mb-4">
+          <View
+            className="flex-1"
+            style={{
+              paddingBottom: compactLandscape ? 10 : 20,
+              paddingHorizontal: stageCarouselSizing.screenPadding,
+              paddingTop: compactLandscape ? 10 : 24,
+            }}
+          >
+            <View
+              className="flex-row items-center justify-between"
+              style={{ marginBottom: compactLandscape ? 8 : 16 }}
+            >
               <TouchableOpacity
                 className="w-12 h-12 rounded-full bg-white justify-center items-center border-2 border-accent-500"
+                style={{
+                  height: stageCarouselSizing.headerControlSize,
+                  width: stageCarouselSizing.headerControlSize,
+                }}
                 onPress={() => router.back()}
                 accessibilityRole="button"
                 accessibilityLabel="Back to Games"
               >
-                <Ionicons name="arrow-back" size={22} color={brandColors.victoriaBlue} />
+                <Ionicons
+                  name="arrow-back"
+                  size={stageCarouselSizing.isTablet ? 26 : 22}
+                  color={brandColors.victoriaBlue}
+                />
               </TouchableOpacity>
 
               <View className="flex-1 px-4">
-                <Text variant="bold" className="text-white text-3xl text-center" numberOfLines={1}>
+                <Text
+                  variant="bold"
+                  className="text-white text-center"
+                  style={{ fontSize: stageCarouselSizing.headerTitleFontSize }}
+                  numberOfLines={1}
+                >
                   {gameTitle}
                 </Text>
               </View>
@@ -958,7 +995,13 @@ const LugandaLearningGame: React.FC = () => {
               </View>
             </View>
 
-            <View className="bg-white/15 rounded-2xl px-4 py-3 mb-4">
+            <View
+              className="bg-white/15 rounded-2xl px-4"
+              style={{
+                marginBottom: compactLandscape ? 8 : 16,
+                paddingVertical: compactLandscape ? 8 : 12,
+              }}
+            >
               <View className="flex-row items-center justify-between">
                 <View className="flex-1 pr-4">
                   <Text variant="bold" className="text-white text-lg" numberOfLines={1}>
@@ -1045,12 +1088,27 @@ const LugandaLearningGame: React.FC = () => {
                         />
                         {stage.isLocked ? <View className="absolute top-0 bottom-0 left-0 right-0 bg-black/20" /> : null}
                         <View className="absolute top-2 left-2 bg-white/95 px-2.5 py-1 rounded-full">
-                          <Text variant="bold" className="text-[11px] text-primary-700" numberOfLines={1}>
+                          <Text
+                            variant="bold"
+                            className="text-primary-700"
+                            style={{ fontSize: stageCarouselSizing.isTablet ? 13 : 11 }}
+                            numberOfLines={1}
+                          >
                             Stage {stage.id}
                           </Text>
                         </View>
-                        <View className="absolute top-2 right-2 bg-white/95 w-9 h-9 rounded-full items-center justify-center">
-                          <Ionicons name={statusIcon} size={20} color={statusColor} />
+                        <View
+                          className="absolute top-2 right-2 bg-white/95 rounded-full items-center justify-center"
+                          style={{
+                            height: stageCarouselSizing.isTablet ? 44 : 36,
+                            width: stageCarouselSizing.isTablet ? 44 : 36,
+                          }}
+                        >
+                          <Ionicons
+                            name={statusIcon}
+                            size={stageCarouselSizing.statusIconSize}
+                            color={statusColor}
+                          />
                         </View>
                       </View>
 
@@ -1058,7 +1116,11 @@ const LugandaLearningGame: React.FC = () => {
                         <View>
                           <Text
                             variant="bold"
-                            className="text-lg text-primary-700 leading-5 mb-1"
+                            className="text-primary-700 leading-5 mb-1"
+                            style={{
+                              fontSize: stageCarouselSizing.stageTitleFontSize,
+                              lineHeight: stageCarouselSizing.isTablet ? 26 : 20,
+                            }}
                             numberOfLines={1}
                             adjustsFontSizeToFit
                             minimumFontScale={0.86}
@@ -1069,13 +1131,29 @@ const LugandaLearningGame: React.FC = () => {
 
                         <View className="flex-row items-center justify-between mt-2">
                           <View className="flex-row items-center flex-1 pr-2">
-                            <Ionicons name="school-outline" size={14} color={brandColors.victoriaBlue} />
-                            <Text variant="medium" className="text-[11px] text-primary-700 ml-1" numberOfLines={1}>
+                            <Ionicons
+                              name="school-outline"
+                              size={stageCarouselSizing.isTablet ? 17 : 14}
+                              color={brandColors.victoriaBlue}
+                            />
+                            <Text
+                              variant="medium"
+                              className="text-primary-700 ml-1"
+                              style={{ fontSize: stageCarouselSizing.isTablet ? 13 : 11 }}
+                              numberOfLines={1}
+                            >
                               {completedLevelCount}/{stage.levels.length} levels
                             </Text>
                           </View>
                           <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: stage.isLocked ? brandColors.neutral[100] : brandColors.blue[50] }}>
-                            <Text variant="bold" className="text-[11px]" style={{ color: statusColor }} numberOfLines={1}>
+                            <Text
+                              variant="bold"
+                              style={{
+                                color: statusColor,
+                                fontSize: stageCarouselSizing.isTablet ? 13 : 11,
+                              }}
+                              numberOfLines={1}
+                            >
                               {statusLabel}
                             </Text>
                           </View>
@@ -1098,62 +1176,102 @@ const LugandaLearningGame: React.FC = () => {
   // LEVEL SELECTION SCREEN
   const renderLevelSelectScreen = () => {
     if (!selectedStage) return null
-    const completedInStage = selectedStage.levels.filter((level) => completedLevels.includes(level.id)).length
-    const progressPercent = (completedInStage / selectedStage.levels.length) * 100
+    const stageForSelection =
+      stages.find((stage) => stage.id === selectedStage.id) ?? selectedStage
+    const completedInStage = stageForSelection.levels.filter((level) => completedLevels.includes(level.id)).length
+    const progressPercent = (completedInStage / stageForSelection.levels.length) * 100
 
     return (
       <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
         <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: GAME_SCREEN_OVERLAY }}>
           <StatusBar style="light" translucent backgroundColor="transparent" />
 
-          <View className="flex-1 px-6 pt-6 pb-5">
-            <View className="flex-row items-center justify-between mb-4">
+          <View
+            className="flex-1"
+            style={{
+              paddingBottom: compactLandscape ? 10 : 20,
+              paddingHorizontal: stageCarouselSizing.screenPadding,
+              paddingTop: compactLandscape ? 10 : 24,
+            }}
+          >
+            <View
+              className="flex-row items-center justify-between"
+              style={{ marginBottom: compactLandscape ? 8 : 16 }}
+            >
               <TouchableOpacity
                 className="w-12 h-12 rounded-full bg-white justify-center items-center border-2 border-accent-500"
+                style={{
+                  height: stageCarouselSizing.headerControlSize,
+                  width: stageCarouselSizing.headerControlSize,
+                }}
                 onPress={() => setGameState("stageSelect")}
                 accessibilityRole="button"
                 accessibilityLabel="Back to stages"
               >
-                <Ionicons name="arrow-back" size={22} color={brandColors.victoriaBlue} />
+                <Ionicons
+                  name="arrow-back"
+                  size={stageCarouselSizing.isTablet ? 26 : 22}
+                  color={brandColors.victoriaBlue}
+                />
               </TouchableOpacity>
 
               <View className="flex-1 px-4">
-                <Text variant="bold" className="text-white text-3xl text-center" numberOfLines={1}>
-                  {selectedStage.title}
+                <Text
+                  variant="bold"
+                  className="text-white text-center"
+                  style={{ fontSize: stageCarouselSizing.headerTitleFontSize }}
+                  numberOfLines={1}
+                >
+                  {stageForSelection.title}
                 </Text>
               </View>
 
               <View
                 accessible
-                accessibilityLabel={`${completedInStage} of ${selectedStage.levels.length} levels completed`}
+                accessibilityLabel={`${completedInStage} of ${stageForSelection.levels.length} levels completed`}
                 className="flex-row items-center bg-white rounded-full px-4 py-2 border-2 border-accent-500"
               >
                 <Ionicons name="checkmark-circle" size={19} color={brandColors.success} />
                 <Text variant="bold" className="text-emerald-600 text-base ml-1.5" numberOfLines={1}>
-                  {completedInStage}/{selectedStage.levels.length}
+                  {completedInStage}/{stageForSelection.levels.length}
                 </Text>
               </View>
             </View>
 
-            <View className="bg-white/15 rounded-2xl px-4 py-3 mb-4">
+            <View
+              className="bg-white/15 rounded-2xl px-4"
+              style={{
+                marginBottom: compactLandscape ? 8 : 16,
+                paddingVertical: compactLandscape ? 8 : 12,
+              }}
+            >
               <View className="flex-row items-center">
-                <View className="bg-white rounded-full w-14 h-14 items-center justify-center mr-4 border-2 border-accent-500">
+                <View
+                  className="bg-white rounded-full w-14 h-14 items-center justify-center mr-4 border-2 border-accent-500"
+                  style={{
+                    height: stageCarouselSizing.isTablet ? 64 : 56,
+                    width: stageCarouselSizing.isTablet ? 64 : 56,
+                  }}
+                >
                   <CachedImage
-                    source={selectedStage.image as any}
+                    source={stageForSelection.image as any}
                     fallbackSource={resolveImageSource("learning-beginner.jpg")}
-                    style={{ width: 34, height: 34 }}
+                    style={{
+                      height: stageCarouselSizing.isTablet ? 40 : 34,
+                      width: stageCarouselSizing.isTablet ? 40 : 34,
+                    }}
                     resizeMode="contain"
-                    accessibilityLabel={`${selectedStage.title} picture`}
+                    accessibilityLabel={`${stageForSelection.title} picture`}
                   />
                 </View>
 
                 <View className="flex-1">
                   <View className="flex-row items-center justify-between">
                     <Text variant="bold" className="text-white text-lg" numberOfLines={1}>
-                      Stage {selectedStage.id}
+                      Stage {stageForSelection.id}
                     </Text>
                     <Text className="text-white/90 text-xs" numberOfLines={1}>
-                      {completedInStage}/{selectedStage.levels.length} complete
+                      {completedInStage}/{stageForSelection.levels.length} complete
                     </Text>
                   </View>
 
@@ -1193,18 +1311,18 @@ const LugandaLearningGame: React.FC = () => {
                     Pick a level
                   </Text>
                   <Text className="text-white/85 text-xs" numberOfLines={1}>
-                    {selectedStage.levels.length} levels
+                    {stageForSelection.levels.length} levels
                   </Text>
                 </View>
 
                 <GameLevelSelector
                   availableWidth={Math.max(0, landscapeWidth - 48)}
-                  choices={selectedStage.levels.map((level) => {
+                  choices={stageForSelection.levels.map((level) => {
                     const isCompleted = completedLevels.includes(level.id)
                     const isCurrent =
                       !isCompleted &&
                       !level.isLocked &&
-                      selectedStage.levels.find(
+                      stageForSelection.levels.find(
                         (candidate) =>
                           !candidate.isLocked &&
                           !completedLevels.includes(candidate.id),
@@ -1227,7 +1345,7 @@ const LugandaLearningGame: React.FC = () => {
                   compact={compactLandscape}
                   containerTestID="learning-game-level-selector"
                   onSelect={(levelId) => {
-                    const level = selectedStage.levels.find(
+                    const level = stageForSelection.levels.find(
                       (candidate) => candidate.id === levelId,
                     )
                     if (level) selectLevel(level)
@@ -1267,239 +1385,66 @@ const LugandaLearningGame: React.FC = () => {
 
     const safeLearningIndex = Math.min(currentLearningIndex, currentWords.length - 1)
     const currentLearnWord = currentWords[safeLearningIndex]
-    const layout = isLandscape ? "landscape" : "portrait"
-
     if (!currentLearnWord) return null
+    const replayLearningWord = () => {
+      void playWordSound(currentLearnWord).catch((error) => {
+        console.warn("Could not play legacy Learning word sound:", error)
+      })
+    }
+    const isFinalWord = currentLearningIndex >= currentWords.length - 1
 
     return (
-      <SafeAreaView className="flex-1 bg-blue-50 pt-6">
-        <StatusBar style="dark" />
-
-        {/* Header */}
-        <View className="flex-row justify-between items-center px-4 pb-2">
-          <TouchableOpacity
-            className="w-10 h-10 rounded-full bg-white justify-center items-center shadow-sm border border-indigo-200"
-            onPress={() => setGameState("levelSelect")}
-            accessibilityRole="button"
-            accessibilityLabel="Back to levels"
-          >
-            <Ionicons name="arrow-back" size={20} color="#7b5af0" />
-          </TouchableOpacity>
-
-          <View className="flex-row items-center">
-            <Text variant="bold" className="text-indigo-800 text-sm">
-              {safeLearningIndex + 1}/{currentWords.length}
-            </Text>
-            <View className="w-16 h-1.5 bg-slate-200 rounded-full ml-2 overflow-hidden">
-              <View
-                className="h-full bg-indigo-500"
-                style={{
-                  width: `${((safeLearningIndex + 1) / currentWords.length) * 100}%`,
-                }}
+      <SafeAreaView className="flex-1" edges={CHILD_GAME_SAFE_AREA_EDGES} style={{ backgroundColor: activityColors.canvas }}>
+        <StatusBar style="light" />
+        <GameHeader
+          appearance="activity"
+          title={selectedLevel.title}
+          subtitle={selectedStage?.title}
+          onBack={() => setGameState("levelSelect")}
+          backAccessibilityLabel="Back to levels"
+          trailing={<ActivityButton label="Play Game" icon="game-controller-outline" onPress={startGame} />}
+        />
+        <Animated.View style={{
+          flex: 1, minHeight: 0, opacity: fadeAnim,
+          paddingHorizontal: learningGameSizing.isTablet ? 24 : 16,
+          paddingBottom: compactLandscape ? 8 : 16,
+        }}>
+          <LearningIllustratedScreen
+            progress={`${safeLearningIndex + 1} of ${currentWords.length}`}
+            imageSource={(currentLearnWord.image || resolveImageSource("learning-beginner.jpg")) as ImageSourcePropType}
+            fallbackSource={resolveImageSource("learning-beginner.jpg")}
+            imageLabel={`${currentLearnWord.english} picture`}
+            onCardPress={replayLearningWord}
+            cardAccessibilityLabel={`Listen to ${currentLearnWord.targetText}`}
+            footerAside={
+              <ActivityButton
+                label="Previous"
+                icon="chevron-back"
+                tone="secondary"
+                disabled={currentLearningIndex === 0}
+                onPress={previousLearningWord}
+                style={{ alignSelf: "flex-start" }}
               />
-            </View>
-          </View>
-
-          <TouchableOpacity className="bg-indigo-500 py-2 px-4 rounded-full" onPress={startGame}>
-            <Text variant="bold" className="text-white  text-sm">
-              Play Game
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {layout === "landscape" ? (
-          // Landscape layout
-          <View className="flex-1 flex-row">
-            <View className="w-1/2 p-3 justify-center items-center">
-              <Animated.View
-                className="bg-white p-4 rounded-2xl shadow-sm w-full justify-center items-center border border-blue-100"
-                style={{ opacity: fadeAnim, minHeight: learningImageHeight + 40 }}
-              >
-                <CachedImage
-                  source={(currentLearnWord.image || resolveImageSource("learning-beginner.jpg")) as any}
-                  fallbackSource={resolveImageSource("learning-beginner.jpg")}
-                  style={{ width: "100%", height: learningImageHeight }}
-                  resizeMode="contain"
-                  accessibilityLabel={`${currentLearnWord.english} picture`}
-                />
-              </Animated.View>
-            </View>
-
-            <View className="w-1/2 p-3 justify-center">
-              <Animated.View
-                className="bg-white p-4 rounded-2xl shadow-sm mb-3 border border-blue-100"
-                style={{
-                  opacity: fadeAnim,
-                  transform: [
-                    {
-                      translateX: fadeAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [20, 0],
-                      }),
-                    },
-                  ],
-                }}
-              >
-                <View className="flex-row justify-between items-center mb-3">
-                  <Text className="text-sm text-indigo-500 flex-1 pr-3" numberOfLines={1}>
-                    {selectedStage?.title} - {selectedLevel.title}
-                  </Text>
-                  <TouchableOpacity
-                    className="bg-indigo-100 w-10 h-10 rounded-full items-center justify-center"
-                    onPress={() => {
-                      void playWordSound(currentLearnWord).catch((error) => {
-                        console.warn("Could not play legacy Learning word sound:", error)
-                      })
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Hear ${currentLearnWord.targetText}`}
-                  >
-                    <Ionicons name="volume-high" size={18} color="#6366f1" />
-                  </TouchableOpacity>
-                </View>
-
-                <Text
-                  variant="bold"
-                  className="text-3xl text-indigo-700"
-                  numberOfLines={2}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.78}
-                >
-                  {currentLearnWord.targetText}
-                </Text>
-                <Text className="text-xl text-slate-700 mb-4" numberOfLines={2}>
-                  {currentLearnWord.english}
-                </Text>
-
-                <View className="bg-slate-50 p-3 rounded-xl">
-                  <Text className="text-base text-slate-800 italic mb-2" numberOfLines={3}>
-                    {`"${currentLearnWord.example ?? ""}"`}
-                  </Text>
-                  <Text className="text-sm text-slate-500" numberOfLines={3}>
-                    {currentLearnWord.exampleTranslation}
-                  </Text>
-                </View>
-              </Animated.View>
-
-              <View className="flex-row justify-between px-1">
-                <TouchableOpacity
-                  className={`min-w-[116px] py-3 px-5 rounded-xl items-center ${currentLearningIndex === 0 ? "bg-slate-200" : "bg-indigo-500"}`}
-                  onPress={previousLearningWord}
-                  disabled={currentLearningIndex === 0}
-                  activeOpacity={currentLearningIndex === 0 ? 1 : 0.78}
-                >
-                  <Text className={` ${currentLearningIndex === 0 ? "text-slate-400" : "text-white"}`} variant="bold">
-                    Previous
-                  </Text>
-                </TouchableOpacity>
-
-                {currentLearningIndex < currentWords.length - 1 ? (
-                  <TouchableOpacity className="bg-indigo-500 min-w-[116px] py-3 px-5 rounded-xl items-center" onPress={nextLearningWord}>
-                    <Text variant="bold" className="text-white">
-                      Next
-                    </Text>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity className="bg-emerald-500 min-w-[124px] py-3 px-5 rounded-xl items-center" onPress={startGame}>
-                    <Text variant="bold" className="text-white">
-                      Start Quiz
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-          </View>
-        ) : (
-          // Portrait layout
-          <ScrollView
-            className="flex-1"
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 30 }}
+            }
+            footer={
+              <ActivityButton
+                label={isFinalWord ? "Start Quiz" : "Next"}
+                icon={isFinalWord ? "game-controller-outline" : "chevron-forward"}
+                onPress={isFinalWord ? startGame : nextLearningWord}
+              />
+            }
           >
-            <Animated.View style={{ opacity: fadeAnim }}>
-              <View className="mx-4 my-2">
-                <View className="bg-white p-4 rounded-2xl shadow-sm items-center mb-5 border border-blue-100">
-                  <CachedImage
-                    source={(currentLearnWord.image || resolveImageSource("learning-beginner.jpg")) as any}
-                    fallbackSource={resolveImageSource("learning-beginner.jpg")}
-                    style={{ width: windowWidth * 0.7, height: windowWidth * 0.5 }}
-                    resizeMode="contain"
-                    accessibilityLabel={`${currentLearnWord.english} picture`}
-                  />
-                </View>
-
-                <View className="bg-white p-5 rounded-2xl shadow-sm mb-6 border border-blue-100">
-                  <View className="flex-row justify-between items-center mb-5">
-                    <Text className="text-sm text-indigo-500 flex-1 pr-3" numberOfLines={1}>
-                      {selectedStage?.title} - {selectedLevel.title}
-                    </Text>
-                    <TouchableOpacity
-                      className="bg-indigo-100 w-10 h-10 rounded-full items-center justify-center"
-                      onPress={() => {
-                        void playWordSound(currentLearnWord).catch((error) => {
-                          console.warn("Could not play legacy Learning word sound:", error)
-                        })
-                      }}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Hear ${currentLearnWord.targetText}`}
-                    >
-                      <Ionicons name="volume-high" size={18} color="#6366f1" />
-                    </TouchableOpacity>
-                  </View>
-
-                  <Text
-                    variant="bold"
-                    className="text-3xl text-indigo-700 mb-1"
-                    numberOfLines={2}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.78}
-                  >
-                    {currentLearnWord.targetText}
-                  </Text>
-                  <Text className="text-xl text-slate-700 mb-4" numberOfLines={2}>
-                    {currentLearnWord.english}
-                  </Text>
-
-                  <View className="bg-slate-50 p-4 rounded-xl">
-                    <Text className="text-base text-slate-800 italic mb-2" numberOfLines={3}>
-                      {`"${currentLearnWord.example ?? ""}"`}
-                    </Text>
-                    <Text className="text-sm text-slate-500" numberOfLines={3}>
-                      {currentLearnWord.exampleTranslation}
-                    </Text>
-                  </View>
-                </View>
-
-                <View className="flex-row justify-between px-2">
-                  <TouchableOpacity
-                    className={`min-w-[116px] py-3 px-6 rounded-xl items-center ${currentLearningIndex === 0 ? "bg-slate-200" : "bg-indigo-500"}`}
-                    onPress={previousLearningWord}
-                    disabled={currentLearningIndex === 0}
-                    activeOpacity={currentLearningIndex === 0 ? 1 : 0.78}
-                  >
-                    <Text className={` ${currentLearningIndex === 0 ? "text-slate-400" : "text-white"}`} variant="bold">
-                      Previous
-                    </Text>
-                  </TouchableOpacity>
-
-                  {currentLearningIndex < currentWords.length - 1 ? (
-                    <TouchableOpacity className="bg-indigo-500 min-w-[116px] py-3 px-6 rounded-xl items-center" onPress={nextLearningWord}>
-                      <Text variant="bold" className="text-white">
-                        Next
-                      </Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity className="bg-emerald-500 min-w-[124px] py-3 px-6 rounded-xl items-center" onPress={startGame}>
-                      <Text variant="bold" className="text-white">
-                        Start Quiz
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-            </Animated.View>
-          </ScrollView>
-        )}
+            {(layout) => (
+              <LearningWordContent
+                localText={currentLearnWord.targetText}
+                englishText={currentLearnWord.english}
+                example={currentLearnWord.example}
+                exampleTranslation={currentLearnWord.exampleTranslation}
+                layout={layout}
+              />
+            )}
+          </LearningIllustratedScreen>
+        </Animated.View>
       </SafeAreaView>
     )
   }
@@ -1507,274 +1452,60 @@ const LugandaLearningGame: React.FC = () => {
   // GAME SCREEN
   const renderGameScreen = () => {
     if (!currentWord) return null
-    const layout = isLandscape ? "landscape" : "portrait"
 
     return (
       <GameTourProvider>
-        <SafeAreaView className="flex-1 bg-blue-50">
-        <StatusBar style="dark" />
-
-        <GameHeader
-          title={`${selectedLevel?.title} Quiz`}
-          subtitle={`Pick the English meaning • ${currentWordIndex + 1} of ${currentWords.length}`}
-          onBack={() => {
-            clearGameTimers()
-            answerLockRef.current = false
-            completionLockRef.current = false
-            setGameState("learning")
-          }}
-          backAccessibilityLabel="Back to word cards"
-          onHelp={learningTour.open}
-        />
-
-        {/* Progress bar */}
-        <TourTarget id="learning-quiz-progress">
-        <View className="px-4 pb-1">
-          <View className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
-            <Animated.View
-              className="h-full bg-indigo-500"
-              style={{
-                width: progressWidth.interpolate({
-                  inputRange: [0, 100],
-                  outputRange: ["0%", "100%"],
-                }),
+        <SafeAreaView className="flex-1" edges={CHILD_GAME_SAFE_AREA_EDGES} style={{ backgroundColor: activityColors.canvas }}>
+          <StatusBar style="light" />
+          <GameHeader
+            appearance="activity"
+            title={`${selectedLevel?.title} Quiz`}
+            subtitle={`${currentWordIndex + 1} of ${currentWords.length}`}
+            onBack={() => {
+              clearGameTimers()
+              answerLockRef.current = false
+              completionLockRef.current = false
+              setGameState("learning")
+            }}
+            backAccessibilityLabel="Back to word cards"
+            onHelp={learningTour.open}
+          />
+          <TourTarget id="learning-quiz-progress">
+            <View style={{ paddingHorizontal: learningGameSizing.isTablet ? 24 : 16, paddingBottom: 10 }}>
+              <View style={{ backgroundColor: "rgba(255,255,255,0.3)", borderRadius: 99, height: 8, overflow: "hidden" }}>
+                <Animated.View style={{
+                  backgroundColor: activityColors.outline,
+                  height: "100%",
+                  width: progressWidth.interpolate({
+                    inputRange: [0, 100],
+                    outputRange: ["0%", "100%"],
+                  }),
+                }} />
+              </View>
+            </View>
+          </TourTarget>
+          <Animated.View style={{
+            flex: 1, minHeight: 0, opacity: fadeAnim,
+            paddingHorizontal: learningGameSizing.isTablet ? 24 : 16,
+            paddingBottom: compactLandscape ? 8 : 16,
+          }}>
+            <LearningQuizBoard
+              word={currentWord.targetText}
+              correctAnswer={currentWord.english}
+              options={options}
+              selectedOption={selectedOption}
+              isCorrect={isCorrect}
+              shakingOption={shakingOption}
+              shakeAnimation={shakeAnimation}
+              celebrationAnimation={confettiAnim}
+              onSelect={handleOptionSelect}
+              onReplay={() => {
+                void playWordSound().catch((error) => {
+                  console.warn("Could not play legacy Learning word sound:", error)
+                })
               }}
             />
-          </View>
-        </View>
-        </TourTarget>
-
-        <Animated.View className="flex-1" style={{ opacity: fadeAnim }}>
-          {layout === "landscape" ? (
-            // Landscape layout
-            <View className="flex-1 flex-row px-4 pb-3">
-              <View className="w-[44%] pr-2 justify-center">
-                <TourTarget id="learning-quiz-prompt">
-                <View className="bg-white p-4 rounded-3xl shadow-sm border border-blue-100 min-h-[184px] justify-center">
-                  <View className="self-center bg-blue-50 rounded-full px-3 py-1 mb-3">
-                    <Text variant="medium" className="text-xs text-primary-600" numberOfLines={1}>
-                      Pick the meaning
-                    </Text>
-                  </View>
-                  <Text className="text-base text-slate-500 mb-2 text-center" numberOfLines={2}>
-                    What does this mean?
-                  </Text>
-
-                  <View className="items-center">
-                    <View className="flex-row items-center">
-                      <Text
-                        variant="bold"
-                        className="text-4xl text-indigo-700 text-center flex-1"
-                        numberOfLines={2}
-                        adjustsFontSizeToFit
-                        minimumFontScale={0.78}
-                      >
-                        {currentWord.targetText}
-                      </Text>
-                      <TouchableOpacity
-                        className="ml-3 w-12 h-12 bg-indigo-100 rounded-2xl items-center justify-center"
-                        onPress={() => {
-                          void playWordSound().catch((error) => {
-                            console.warn("Could not play legacy Learning word sound:", error)
-                          })
-                        }}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Hear ${currentWord.targetText}`}
-                      >
-                        <Ionicons name="volume-high" size={22} color="#6366f1" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  {/* Feedback */}
-                  {isCorrect !== null && (
-                    <View className={`items-center mt-3 rounded-full px-4 py-1.5 ${isCorrect ? "bg-emerald-50" : "bg-red-50"}`}>
-                      <Text className={`text-base ${isCorrect ? "text-emerald-600" : "text-red-600"}`} variant="bold">
-                        {isCorrect ? "Correct!" : "Try again!"}
-                      </Text>
-                      <Text className="hidden" variant="bold">
-                        {isCorrect ? "Correct! 🎉" : "Try again! 😕"}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-                </TourTarget>
-              </View>
-
-              <View className="w-[56%] pl-2 justify-center">
-                <TourTarget id="learning-quiz-answers">
-                <View>
-                  {options.map((option, index) => (
-                    <Animated.View
-                      key={index}
-                      style={[option === shakingOption ? { transform: [{ translateX: shakeAnimation }] } : {}]}
-                    >
-                      <TouchableOpacity
-                        className={`
-                          min-h-[50px] py-2.5 px-5 rounded-2xl shadow-sm border-2 items-center justify-center mb-2
-                          ${
-                            selectedOption === null
-                              ? "bg-white border-slate-200"
-                              : option === currentWord.english
-                                ? "bg-emerald-100 border-emerald-500"
-                                : option === selectedOption
-                                  ? "bg-red-100 border-red-500"
-                                  : "bg-white border-slate-200"
-                          }
-                        `}
-                        onPress={() => handleOptionSelect(option)}
-                        disabled={selectedOption !== null}
-                        activeOpacity={0.8}
-                      >
-                        <Text
-                          className={`text-lg ${
-                            selectedOption === null
-                              ? "text-slate-700"
-                              : option === currentWord.english
-                                ? "text-emerald-700"
-                                : option === selectedOption
-                                  ? "text-red-700"
-                                  : "text-slate-700"
-                          }`}
-                          variant="bold"
-                          numberOfLines={2}
-                          adjustsFontSizeToFit
-                          minimumFontScale={0.82}
-                        >
-                          {option}
-                        </Text>
-                      </TouchableOpacity>
-                    </Animated.View>
-                  ))}
-                </View>
-                </TourTarget>
-              </View>
-            </View>
-          ) : (
-            // Portrait layout
-            <View className="flex-1 px-4">
-              <TourTarget id="learning-quiz-prompt">
-              <View className="bg-white p-6 rounded-2xl shadow-sm mb-5 border border-blue-100">
-                <Text className="text-base text-slate-600 mb-5 text-center" numberOfLines={2}>
-                  What does this mean?
-                </Text>
-
-                <View className="items-center mb-5">
-                  <View className="flex-row items-center">
-                    <Text
-                      variant="bold"
-                      className="text-3xl text-indigo-700 text-center flex-1"
-                      numberOfLines={2}
-                      adjustsFontSizeToFit
-                      minimumFontScale={0.78}
-                    >
-                      {currentWord.targetText}
-                    </Text>
-                    <TouchableOpacity
-                      className="ml-3 w-10 h-10 bg-indigo-100 rounded-full items-center justify-center"
-                      onPress={() => {
-                        void playWordSound().catch((error) => {
-                          console.warn("Could not play legacy Learning word sound:", error)
-                        })
-                      }}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Hear ${currentWord.targetText}`}
-                    >
-                      <Ionicons name="volume-high" size={20} color="#6366f1" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {/* Feedback */}
-                {isCorrect !== null && (
-                  <View className={`items-center my-3 rounded-full px-4 py-2 ${isCorrect ? "bg-emerald-50" : "bg-red-50"}`}>
-                    <Text variant="bold" className={`text-lg ${isCorrect ? "text-emerald-600" : "text-red-600"}`}>
-                      {isCorrect ? "Correct!" : "Try again!"}
-                    </Text>
-                    <Text variant="bold" className="hidden">
-                      {isCorrect ? "Correct! 🎉" : "Try again 😕"}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              </TourTarget>
-
-              <TourTarget id="learning-quiz-answers">
-              <View className="space-y-3">
-                {options.map((option, index) => (
-                  <Animated.View
-                    key={index}
-                    style={[option === shakingOption ? { transform: [{ translateX: shakeAnimation }] } : {}]}
-                  >
-                    <TouchableOpacity
-                      className={`
-                        min-h-[58px] py-4 px-5 rounded-xl shadow-sm border-2 items-center justify-center
-                        ${
-                          selectedOption === null
-                            ? "bg-white border-slate-200"
-                            : option === currentWord.english
-                              ? "bg-emerald-100 border-emerald-500"
-                              : option === selectedOption
-                                ? "bg-red-100 border-red-500"
-                                : "bg-white border-slate-200"
-                        }
-                      `}
-                      onPress={() => handleOptionSelect(option)}
-                      disabled={selectedOption !== null}
-                      activeOpacity={0.8}
-                    >
-                      <Text
-                        variant="bold"
-                        numberOfLines={2}
-                        adjustsFontSizeToFit
-                        minimumFontScale={0.82}
-                        className={`
-                        
-                        ${
-                          selectedOption === null
-                            ? "text-slate-700"
-                            : option === currentWord.english
-                              ? "text-emerald-700"
-                              : option === selectedOption
-                                ? "text-red-700"
-                                : "text-slate-700"
-                        }
-                      `}
-                      >
-                        {option}
-                      </Text>
-                    </TouchableOpacity>
-                  </Animated.View>
-                ))}
-              </View>
-              </TourTarget>
-
-              {/* Animated confetti when correct */}
-              {isCorrect === true && (
-                <Animated.View
-                  className="items-center justify-center mt-6"
-                  style={{
-                    opacity: confettiAnim.interpolate({
-                      inputRange: [0, 0.2, 1],
-                      outputRange: [0, 1, 0],
-                    }),
-                  }}
-                >
-                  <View className="flex-row items-center">
-                    <Ionicons name="sparkles" size={28} color={brandColors.equatorialGold} />
-                    <Ionicons name="star" size={28} color={brandColors.shanaOrange} />
-                    <Ionicons name="sparkles" size={28} color={brandColors.equatorialGold} />
-                  </View>
-                  <View className="hidden">
-                    <Text className="text-3xl">🎉</Text>
-                    <Text className="text-3xl">✨</Text>
-                    <Text className="text-3xl">🎊</Text>
-                  </View>
-                </Animated.View>
-              )}
-            </View>
-          )}
-        </Animated.View>
+          </Animated.View>
         <GameTour
           visible={learningTour.visible}
           onDismiss={learningTour.dismiss}
@@ -1793,73 +1524,250 @@ const LugandaLearningGame: React.FC = () => {
 
   // LEVEL COMPLETION SCREEN
   const renderLevelCompletionScreen = () => {
+    if (!selectedStage || !selectedLevel) return null
+
+    const completedStage =
+      stages.find((stage) => stage.id === selectedStage.id) ?? selectedStage
+    const completedStageIndex = stages.findIndex(
+      (stage) => stage.id === completedStage.id,
+    )
+    const completedLevelIndex = completedStage.levels.findIndex(
+      (level) => level.id === selectedLevel.id,
+    )
+    const nextLevel = completedStage.levels[completedLevelIndex + 1]
+    const nextStage = stages[completedStageIndex + 1]
+    const canOpenNextLevel = Boolean(nextLevel && !nextLevel.isLocked)
+    const canOpenNextStage = Boolean(nextStage && !nextStage.isLocked)
+    const primaryActionLabel = canOpenNextLevel
+      ? t("learning.nextLevel")
+      : canOpenNextStage
+        ? t("games.nextStage")
+        : t("common.playAgain")
+
+    const handlePrimaryCompletionAction = () => {
+      if (canOpenNextLevel && nextLevel) {
+        selectLevel(nextLevel)
+        return
+      }
+
+      if (canOpenNextStage && nextStage) {
+        setSelectedStage(nextStage)
+        setSelectedLevel(null)
+        setGameState("levelSelect")
+        gameStartTime.current = Date.now()
+        return
+      }
+
+      selectLevel(
+        completedStage.levels.find((level) => level.id === selectedLevel.id) ??
+          selectedLevel,
+      )
+    }
+
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 ">
+      <LinearGradient
+        colors={[
+          completedStage.color || brandColors.equatorialGold,
+          brandColors.victoriaBlue,
+        ]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ flex: 1 }}
+      >
         <StatusBar style="light" />
 
-        <View className="flex-1 justify-center items-center">
-          <LinearGradient
-            colors={[selectedStage?.color || "#6366f1", (selectedStage?.color || "#6366f1") + "CC"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            className="p-12 rounded-3xl w-full items-center shadow-lg"
+        <SafeAreaView className="flex-1" edges={[]}>
+          <View
+            pointerEvents="none"
+            className="absolute rounded-full bg-white/10"
+            style={{ height: 190, left: -48, top: -72, width: 190 }}
+          />
+          <View
+            pointerEvents="none"
+            className="absolute rounded-full bg-white/10"
+            style={{ bottom: -85, height: 220, right: -54, width: 220 }}
+          />
+
+          <View
+            className="flex-1 justify-center items-center"
+            style={{ padding: compactLandscape ? 16 : 28 }}
           >
-            <View className="bg-white w-12 h-12 rounded-full mb-2 justify-center items-center">
-              <Ionicons name="trophy" size={24} color={brandColors.equatorialGold} />
-            </View>
+            <View
+              className="bg-white rounded-3xl border-4 border-white/60 overflow-hidden"
+              style={{
+                elevation: 10,
+                maxHeight: "96%",
+                maxWidth: 1040,
+                shadowColor: brandColors.black,
+                shadowOffset: { width: 0, height: 10 },
+                shadowOpacity: 0.2,
+                shadowRadius: 20,
+                width: "100%",
+              }}
+              testID="learning-game-completion-card"
+            >
+              <View
+                style={{
+                  alignItems: "stretch",
+                  flexDirection: isLandscape ? "row" : "column",
+                  padding: compactLandscape ? 18 : 28,
+                }}
+              >
+                <View
+                  className="items-center justify-center"
+                  style={{
+                    borderRightColor: isLandscape
+                      ? brandColors.gold[100]
+                      : "transparent",
+                    borderRightWidth: isLandscape ? 2 : 0,
+                    paddingHorizontal: compactLandscape ? 12 : 22,
+                    paddingVertical: compactLandscape ? 4 : 12,
+                    width: isLandscape ? "38%" : "100%",
+                  }}
+                >
+                  <View
+                    className="rounded-full justify-center items-center border-4 border-accent-500"
+                    style={{
+                      backgroundColor: brandColors.gold[50],
+                      height: compactLandscape ? 68 : 88,
+                      width: compactLandscape ? 68 : 88,
+                    }}
+                  >
+                    <Ionicons
+                      name="trophy"
+                      size={compactLandscape ? 34 : 44}
+                      color={brandColors.equatorialGold}
+                    />
+                  </View>
 
-            <Text variant="bold" className="text-xl text-white mb-2">
-              Level done!
-            </Text>
-            <Text className="text-white text-center  mb-2">
-              {`You finished ${selectedLevel?.title}!`}
-            </Text>
+                  <Text
+                    variant="bold"
+                    className="text-primary-700 text-center mt-2"
+                    style={{
+                      fontSize: compactLandscape ? 25 : 34,
+                      lineHeight: compactLandscape ? 30 : 40,
+                    }}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                  >
+                    Level done!
+                  </Text>
+                  <Text
+                    className="text-neutral-600 text-center mt-1"
+                    style={{ fontSize: compactLandscape ? 14 : 17 }}
+                    numberOfLines={2}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                  >
+                    {`You finished ${selectedLevel.title}!`}
+                  </Text>
+                </View>
 
-            <View className="bg-white/20 w-full rounded-2xl p-5 mb-2">
-              <View className="flex-row justify-between">
-                <Text variant="bold" className="text-white">
-                  Words:
-                </Text>
-                <Text variant="bold" className="text-white">
-                  {currentWords.length}
-                </Text>
+                <View
+                  className="justify-center"
+                  style={{
+                    flex: 1,
+                    paddingLeft: isLandscape ? (compactLandscape ? 22 : 34) : 0,
+                    paddingTop: isLandscape ? 0 : 18,
+                  }}
+                >
+                  <View
+                    className="bg-primary-50 rounded-2xl border-2 border-primary-100 flex-row items-center"
+                    style={{
+                      minHeight: compactLandscape ? 58 : 70,
+                      paddingHorizontal: compactLandscape ? 16 : 20,
+                      paddingVertical: 10,
+                    }}
+                  >
+                    <View
+                      className="rounded-full bg-white items-center justify-center"
+                      style={{
+                        height: compactLandscape ? 40 : 48,
+                        width: compactLandscape ? 40 : 48,
+                      }}
+                    >
+                      <Ionicons
+                        name="chatbubbles"
+                        size={compactLandscape ? 22 : 26}
+                        color={brandColors.victoriaBlue}
+                      />
+                    </View>
+                    <Text
+                      variant="bold"
+                      className="text-primary-700 ml-3"
+                      style={{ fontSize: compactLandscape ? 17 : 20 }}
+                    >
+                      {`${currentWords.length} ${currentWords.length === 1 ? "word" : "words"} practiced`}
+                    </Text>
+                  </View>
+
+                  <View
+                    className="flex-row flex-wrap"
+                    style={{ gap: 10, marginTop: compactLandscape ? 14 : 20 }}
+                  >
+                    <TouchableOpacity
+                      className="bg-primary-600 rounded-full flex-1 flex-row items-center justify-center"
+                      style={{
+                        minHeight: compactLandscape ? 52 : 58,
+                        minWidth: 170,
+                        paddingHorizontal: 22,
+                      }}
+                      onPress={handlePrimaryCompletionAction}
+                      accessibilityRole="button"
+                      accessibilityLabel={primaryActionLabel}
+                    >
+                      <Text
+                        variant="bold"
+                        className="text-white mr-2"
+                        style={{ fontSize: compactLandscape ? 17 : 19 }}
+                        numberOfLines={1}
+                      >
+                        {primaryActionLabel}
+                      </Text>
+                      <Ionicons
+                        name={canOpenNextStage ? "flag" : canOpenNextLevel ? "arrow-forward" : "refresh"}
+                        size={20}
+                        color={brandColors.white}
+                      />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      className="bg-white rounded-full border-2 border-primary-600 flex-1 flex-row items-center justify-center"
+                      style={{
+                        minHeight: compactLandscape ? 52 : 58,
+                        minWidth: 170,
+                        paddingHorizontal: 20,
+                      }}
+                      onPress={() => {
+                        setSelectedStage(completedStage)
+                        setGameState("levelSelect")
+                        gameStartTime.current = Date.now()
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={t("learning.chooseLevel")}
+                    >
+                      <Ionicons
+                        name="grid-outline"
+                        size={20}
+                        color={brandColors.victoriaBlue}
+                      />
+                      <Text
+                        variant="bold"
+                        className="text-primary-700 ml-2"
+                        style={{ fontSize: compactLandscape ? 17 : 19 }}
+                        numberOfLines={1}
+                      >
+                        {t("learning.chooseLevel")}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </View>
             </View>
-
-            <View className="flex-row space-x-3 mt-2">
-              <TouchableOpacity
-                className="bg-white py-3 px-5 rounded-xl"
-                onPress={() => {
-                  setGameState("levelSelect")
-                  // Reset timer for next activity
-                  gameStartTime.current = Date.now()
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Choose a learning game level"
-              >
-                <Text variant="bold" className="text-indigo-600">
-                  Pick a level
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                className="bg-emerald-500 py-3 px-5 rounded-xl"
-                onPress={() => {
-                  setGameState("stageSelect")
-                  // Reset timer for next activity
-                  gameStartTime.current = Date.now()
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Choose a learning game stage"
-              >
-                <Text variant="bold" className="text-white">
-                  {t("learning.chooseStage")}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
-        </View>
-      </SafeAreaView>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
     )
   }
 

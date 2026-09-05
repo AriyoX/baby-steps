@@ -44,12 +44,18 @@ SplashScreen.preventAutoHideAsync();
 
 const ADULT_ROUTE_ORIENTATION = "portrait_up" as const;
 const CHILD_ROUTE_ORIENTATION = "landscape_left" as const;
+const PARENT_ROUTE_ORIENTATION = "default" as const;
 const ADULT_ORIENTATION_LOCK = ScreenOrientation.OrientationLock.PORTRAIT_UP;
 const CHILD_ORIENTATION_LOCK = ScreenOrientation.OrientationLock.LANDSCAPE_LEFT;
-type RouteOrientationMode = "adult" | "child";
+const PARENT_ORIENTATION_LOCK = ScreenOrientation.OrientationLock.DEFAULT;
+type RouteOrientationMode = "adult" | "child" | "parent";
 
 const getRouteOrientationMode = (routePathname: string): RouteOrientationMode =>
-  routePathname.startsWith("/child") ? "child" : "adult";
+  routePathname.startsWith("/child")
+    ? "child"
+    : routePathname === "/parent"
+      ? "parent"
+      : "adult";
 
 export const requiresAuthenticatedSession = (routePathname: string): boolean =>
   routePathname === "/notification-permission" ||
@@ -373,8 +379,16 @@ export default function RootLayout() {
       return;
     }
 
-    const targetLock = orientationMode === "child" ? CHILD_ORIENTATION_LOCK : ADULT_ORIENTATION_LOCK;
-    const targetLabel = orientationMode === "child" ? CHILD_ROUTE_ORIENTATION : ADULT_ROUTE_ORIENTATION;
+    const targetLock = orientationMode === "child"
+      ? CHILD_ORIENTATION_LOCK
+      : orientationMode === "parent"
+        ? PARENT_ORIENTATION_LOCK
+        : ADULT_ORIENTATION_LOCK;
+    const targetLabel = orientationMode === "child"
+      ? CHILD_ROUTE_ORIENTATION
+      : orientationMode === "parent"
+        ? PARENT_ROUTE_ORIENTATION
+        : ADULT_ROUTE_ORIENTATION;
 
     try {
       const currentLock = await ScreenOrientation.getOrientationLockAsync();
@@ -446,7 +460,7 @@ export default function RootLayout() {
               <Stack.Screen name="reset-password" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
               <Stack.Screen name="account-reactivation" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
               <Stack.Screen name="child-list" options={{ orientation: ADULT_ROUTE_ORIENTATION }} />
-              <Stack.Screen name="parent" options={{ orientation: ADULT_ROUTE_ORIENTATION, animation: "none" }} />
+              <Stack.Screen name="parent" options={{ orientation: PARENT_ROUTE_ORIENTATION, animation: "none" }} />
               <Stack.Screen
                 name="child"
                 options={{

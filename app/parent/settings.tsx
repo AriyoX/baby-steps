@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef } from "react";
-import { ScrollView, TouchableOpacity, View } from "react-native";
+import { ScrollView, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { BrandMark } from "@/components/brand/BrandMark";
@@ -24,6 +24,7 @@ import {
   PARENT_SCREEN_TOUR_POSITIONING,
   PARENT_SETTINGS_TOUR_STEPS,
 } from "@/lib/parentScreenTours";
+import { getParentScreenLayout } from "@/lib/responsiveLayout";
 
 const SETTINGS_SECTION_TOUR_IDS = [
   "parent-settings-family",
@@ -32,6 +33,8 @@ const SETTINGS_SECTION_TOUR_IDS = [
 ] as const;
 
 export default function SettingsScreen() {
+  const { height, width } = useWindowDimensions();
+  const responsiveLayout = getParentScreenLayout(width, height);
   const router = useRouter();
   const { profile } = useParentProfile();
   const appMetadata = getAppRuntimeMetadata();
@@ -61,6 +64,7 @@ export default function SettingsScreen() {
     <GameTourProvider>
       <>
         <SettingsScaffold
+          contentMaxWidth={responsiveLayout.contentMaxWidth}
           headerAction={
             <TouchableOpacity
               accessibilityLabel="Show the Settings guide"
@@ -88,6 +92,13 @@ export default function SettingsScreen() {
             </Text>
           </View>
 
+          <View
+            style={{
+              flexDirection: responsiveLayout.isTwoColumn ? "row" : "column",
+              flexWrap: responsiveLayout.isTwoColumn ? "wrap" : "nowrap",
+              gap: responsiveLayout.contentGap,
+            }}
+          >
           {SETTINGS_SECTIONS.map((section, sectionIndex) => {
             const stepId = PARENT_SETTINGS_TOUR_STEPS[sectionIndex]?.id;
             const targetId = SETTINGS_SECTION_TOUR_IDS[sectionIndex];
@@ -96,6 +107,7 @@ export default function SettingsScreen() {
               <TourTarget key={section.title} id={targetId}>
                 <View
                   className="mb-5"
+                  style={{ width: responsiveLayout.isTwoColumn ? "48.5%" : "100%" }}
                   onLayout={({ nativeEvent }) => {
                     if (stepId) {
                       sectionOffsetsRef.current[stepId] = nativeEvent.layout.y;
@@ -124,6 +136,7 @@ export default function SettingsScreen() {
               </TourTarget>
             );
           })}
+          </View>
 
           <View className="py-6 items-center">
             <Text className="text-gray-400 text-sm">

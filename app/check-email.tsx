@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { Alert, StatusBar, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  ScrollView,
+  StatusBar,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { FontAwesome } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -17,6 +24,7 @@ import {
 import { SIGNUP_EMAIL_REDIRECT_URL } from "@/lib/authRedirects";
 import { supabase } from "@/lib/supabase";
 import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network";
+import { getAdultFormLayout } from "@/lib/responsiveLayout";
 
 type CheckEmailFlow = "signup" | "signup-existing" | "reset" | "unverified";
 
@@ -32,6 +40,8 @@ const getParam = (value: string | string[] | undefined): string =>
   (Array.isArray(value) ? value[0] : value)?.trim() ?? "";
 
 export default function CheckEmail() {
+  const { height, width } = useWindowDimensions();
+  const responsiveLayout = getAdultFormLayout(width, height);
   const router = useRouter();
   const params = useLocalSearchParams<{ flow?: string; email?: string }>();
   const flow = getFlow(params.flow);
@@ -114,7 +124,19 @@ export default function CheckEmail() {
   return (
     <SafeAreaView className="flex-1 bg-primary-50">
       <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
-      <View className="flex-1 items-center justify-center px-6">
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}
+        showsVerticalScrollIndicator={false}
+      >
+      <View
+        className="items-center py-8"
+        style={{
+          alignSelf: "center",
+          maxWidth: responsiveLayout.formMaxWidth,
+          paddingHorizontal: responsiveLayout.contentPadding,
+          width: "100%",
+        }}
+      >
         <BrandMark kind="wordmark" width={180} height={44} containerStyle={{ marginBottom: 28 }} />
 
         <View className="w-full rounded-3xl border-2 border-primary-100 bg-white p-6 shadow-md">
@@ -215,6 +237,7 @@ export default function CheckEmail() {
           </View>
         </View>
       </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

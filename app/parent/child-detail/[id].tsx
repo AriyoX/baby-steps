@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useState, useEffect, useMemo, useRef } from "react"
-import { Alert, View, ScrollView, TouchableOpacity } from "react-native"
+import { Alert, View, ScrollView, TouchableOpacity, useWindowDimensions } from "react-native"
 import { Text } from "@/components/StyledText"
 import { TranslatedText } from "@/components/translated-text"
 import { useLocalSearchParams, useRouter } from "expo-router"
@@ -27,6 +27,7 @@ import {
 } from "@/lib/parentScreenTours"
 import { hasParentPin } from "@/lib/parentAccess"
 import { supabase } from "@/lib/supabase"
+import { getParentScreenLayout } from "@/lib/responsiveLayout"
 
 // Achievement imports
 import { useAchievements } from "@/components/games/achievements/useAchievements" // Ensure this path is correct
@@ -49,6 +50,8 @@ interface DisplayableAchievement extends AchievementDefinition { // This carries
 }
 
 export default function ChildDetailScreen() {
+  const { height, width } = useWindowDimensions()
+  const responsiveLayout = getParentScreenLayout(width, height)
   const router = useRouter()
   const params = useLocalSearchParams<{ id?: string; childId?: string }>()
   const childId = params.id ?? params.childId ?? ""
@@ -222,7 +225,16 @@ export default function ChildDetailScreen() {
       <StatusBar style="dark" />
       <SafeAreaView className="flex-1 bg-slate-50" edges={["top", "left", "right"]}>
         {/* Header */}
-        <View className="flex-row items-center px-4 py-3 border-b border-gray-100 bg-white">
+        <View className="border-b border-gray-100 bg-white">
+        <View
+          className="flex-row items-center py-3"
+          style={{
+            alignSelf: "center",
+            maxWidth: responsiveLayout.contentMaxWidth,
+            paddingHorizontal: responsiveLayout.contentPadding,
+            width: "100%",
+          }}
+        >
           <TouchableOpacity onPress={() => router.back()} className="mr-3 p-1">
             <Ionicons name="arrow-back" size={24} color="#374151" />
           </TouchableOpacity>
@@ -238,18 +250,36 @@ export default function ChildDetailScreen() {
             <Ionicons name="help-circle-outline" size={23} color="#0274BB" />
           </TouchableOpacity>
         </View>
+        </View>
 
-        <ScrollView ref={profileScrollRef} className="flex-1">
+        <ScrollView
+          ref={profileScrollRef}
+          className="flex-1"
+          contentContainerStyle={{ alignItems: "center" }}
+        >
           {loading ? (
             <View className="flex-1 items-center justify-center p-6">
               <TranslatedText className="text-gray-600">Loading child profile...</TranslatedText>
             </View>
           ) : childData ? (
-            <>
+            <View
+              style={{
+                maxWidth: responsiveLayout.contentMaxWidth,
+                paddingHorizontal: responsiveLayout.contentPadding,
+                width: "100%",
+              }}
+            >
               {/* Child profile header ... same ... */}
+              <View
+                style={{
+                  flexDirection: responsiveLayout.isTwoColumn ? "row" : "column",
+                  gap: responsiveLayout.contentGap,
+                }}
+              >
               <TourTarget id="parent-child-profile-summary">
               <View
-                className="p-4 border-b border-gray-200 bg-white"
+                className="p-4 border border-gray-200 bg-white rounded-xl"
+                style={{ width: responsiveLayout.isTwoColumn ? "48.5%" : "100%" }}
                 onLayout={({ nativeEvent }) => {
                   profileTourOffsetsRef.current.profile = nativeEvent.layout.y
                 }}
@@ -295,7 +325,7 @@ export default function ChildDetailScreen() {
 
               <TourTarget id="parent-child-profile-streak">
               <View
-                className="px-4"
+                style={{ width: responsiveLayout.isTwoColumn ? "48.5%" : "100%" }}
                 onLayout={({ nativeEvent }) => {
                   profileTourOffsetsRef.current.streak = nativeEvent.layout.y
                 }}
@@ -303,6 +333,7 @@ export default function ChildDetailScreen() {
                 <ChildStreakSection childId={childId} mode="summary" />
               </View>
               </TourTarget>
+              </View>
 
               {/* Achievements Section */}
               <TourTarget id="parent-child-profile-achievements">
@@ -323,12 +354,23 @@ export default function ChildDetailScreen() {
                     <TranslatedText className="text-gray-500">Loading achievements...</TranslatedText>
                   </View>
                 ) : childsEarnedFullAchievements.length > 0 ? (
-                  <View>
+                  <View
+                    style={{
+                      flexDirection: responsiveLayout.isTwoColumn ? "row" : "column",
+                      flexWrap: responsiveLayout.isTwoColumn ? "wrap" : "nowrap",
+                      gap: responsiveLayout.contentGap,
+                    }}
+                  >
                     {/* Show either 5 or all achievements based on state */}
                     {(showAllAchievements ? childsEarnedFullAchievements : childsEarnedFullAchievements.slice(0, 5)).map((achievement, index, displayedArray) => (
                       <View
                         key={achievement.earned_instance_id}
-                        className={index < displayedArray.length - 1 ? "mb-3" : ""}
+                        className={
+                          !responsiveLayout.isTwoColumn && index < displayedArray.length - 1
+                            ? "mb-3"
+                            : ""
+                        }
+                        style={{ width: responsiveLayout.isTwoColumn ? "48.5%" : "100%" }}
                       >
                         <AchievementCard
                           achievement={achievement}
@@ -371,7 +413,7 @@ export default function ChildDetailScreen() {
               </View>
               </TourTarget>
 
-            </>
+            </View>
           ) : (
             <View className="flex-1 items-center justify-center p-6">
               <TranslatedText className="text-gray-600">Child not found or an error occurred.</TranslatedText>

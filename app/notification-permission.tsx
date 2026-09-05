@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Alert, StatusBar, View } from "react-native"
+import { Alert, ScrollView, StatusBar, View, useWindowDimensions } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -17,6 +17,7 @@ import {
   getPostLoginRouteForAccountState,
 } from "@/lib/accountManagement"
 import { supabase } from "@/lib/supabase"
+import { getAdultFormLayout } from "@/lib/responsiveLayout"
 
 const REMINDER_BENEFITS = [
   {
@@ -50,6 +51,8 @@ const getNextRoute = (
 }
 
 export default function NotificationPermissionScreen() {
+  const { height, width } = useWindowDimensions()
+  const responsiveLayout = getAdultFormLayout(width, height)
   const router = useRouter()
   const params = useLocalSearchParams<{ next?: string }>()
   const [loading, setLoading] = useState(false)
@@ -135,7 +138,20 @@ export default function NotificationPermissionScreen() {
       <View className="absolute -top-14 -right-12 w-48 h-48 rounded-full bg-accent-100 opacity-70" />
       <View className="absolute top-72 -left-16 w-36 h-36 rounded-full bg-primary-100 opacity-60" />
 
-      <View className="flex-1 px-5 pt-5 pb-4">
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ flexGrow: 1 }}
+        showsVerticalScrollIndicator={false}
+      >
+      <View
+        className="pt-5 pb-4"
+        style={{
+          alignSelf: "center",
+          maxWidth: responsiveLayout.formMaxWidth,
+          paddingHorizontal: responsiveLayout.contentPadding,
+          width: "100%",
+        }}
+      >
         <BrandMark kind="wordmark" width={150} height={38} />
 
         <View className="items-center mt-8 mb-7">
@@ -174,8 +190,17 @@ export default function NotificationPermissionScreen() {
           </Text>
         </View>
       </View>
+      </ScrollView>
 
-      <View className="px-5 pb-4 gap-2">
+      <View
+        className="pb-4 gap-2"
+        style={{
+          alignSelf: "center",
+          maxWidth: responsiveLayout.formMaxWidth,
+          paddingHorizontal: responsiveLayout.contentPadding,
+          width: "100%",
+        }}
+      >
         <AppButton
           label="Turn on gentle reminders"
           icon="notifications-outline"

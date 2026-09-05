@@ -163,7 +163,7 @@ describe("StoryBiteCard", () => {
     const json = JSON.stringify(renderedOutput);
     const text = textContent(renderedOutput);
 
-    expect(json).toContain("Story bite");
+    expect(json).not.toContain("Story bite");
     expect(text).toContain("Page 1 of 2");
     expect(json).toContain("Helping at Home");
     expect(json).toContain("Ari helps Maama");

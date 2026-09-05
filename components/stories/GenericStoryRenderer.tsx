@@ -39,6 +39,7 @@ import { recordQualifiedStreakActivity } from "@/lib/streakRepository";
 import { saveActivity } from "@/lib/utils";
 import type { LocalStory } from "@/content/types";
 import { childHaptics } from "@/lib/childHaptics";
+import { getStoryReaderSizing } from "@/components/stories/storyReaderSizing";
 
 interface GenericStoryRendererProps {
   story?: LocalStory;
@@ -200,27 +201,36 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
     READING_SPEED_OPTIONS[1];
   const storyText = page?.text.trim() ?? "";
   const spokenWordRanges = useMemo(() => getSpokenWordRanges(storyText), [storyText]);
-  const isCompactReader = height < 430;
+  const storyReaderSizing = getStoryReaderSizing(width, height, useSplitLayout);
+  const isCompactReader = storyReaderSizing.isCompact;
+  const isTablet = storyReaderSizing.isTablet;
   const storyCanScroll =
     storyViewportHeight > 0 && storyContentHeight > storyViewportHeight + 2;
-  const outerPadding = isCompactReader ? 10 : 16;
-  const availableContentWidth = Math.max(0, width - outerPadding * 2);
-  const readerStageWidth = useSplitLayout
-    ? Math.min(availableContentWidth, isCompactReader ? 800 : 880)
-    : Math.min(availableContentWidth, 620);
-  // Tweak this number to nudge the whole story reader left/right.
-  const readerStageOffsetX = useSplitLayout ? 14 : 0;
-  const headerButtonSize = isCompactReader ? 44 : 48;
-  const headerIconSize = isCompactReader ? 22 : 24;
-  const imagePanelPadding = isCompactReader ? 8 : 12;
-  const footerButtonSize = isCompactReader ? 44 : 48;
-  const footerIconSize = isCompactReader ? 22 : 24;
+  const {
+    footerButtonSize,
+    footerIconSize,
+    headerButtonSize,
+    headerIconSize,
+    imagePanelPadding,
+    outerPadding,
+    readerStageOffsetX,
+    readerStageWidth,
+  } = storyReaderSizing;
+  const storyFontSize = textSizeConfig.fontSize + (isTablet ? 2 : 0);
+  const storyLineHeight = textSizeConfig.lineHeight + (isTablet ? 3 : 0);
+  const translationFontSize =
+    textSizeConfig.translationFontSize + (isTablet ? 1 : 0);
+  const translationLineHeight =
+    textSizeConfig.translationLineHeight + (isTablet ? 2 : 0);
   const textPanelMinHeight = useSplitLayout
     ? Math.max(112, Math.min(isCompactReader ? 150 : 204, height - 220))
     : 0;
   const portraitImageHeight = Math.max(
     isCompactReader ? 124 : 170,
-    Math.min(textSizeConfig.portraitImageHeight, height * (isCompactReader ? 0.24 : 0.32)),
+    Math.min(
+      textSizeConfig.portraitImageHeight + (isTablet ? 56 : 0),
+      height * (isCompactReader ? 0.24 : isTablet ? 0.34 : 0.32),
+    ),
   );
 
   const clearSpeechFallbackTimer = useCallback(() => {
@@ -293,8 +303,8 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
     <Text
       className="text-slate-800"
       style={{
-        fontSize: textSizeConfig.fontSize,
-        lineHeight: textSizeConfig.lineHeight,
+        fontSize: storyFontSize,
+        lineHeight: storyLineHeight,
       }}
     >
       {spokenWordRanges.map((word, index) => (
@@ -303,8 +313,8 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
           className={index === highlightedWordIndex ? "text-amber-950" : "text-slate-800"}
           style={[
             {
-              fontSize: textSizeConfig.fontSize,
-              lineHeight: textSizeConfig.lineHeight,
+              fontSize: storyFontSize,
+              lineHeight: storyLineHeight,
             },
             index === highlightedWordIndex
               ? {
@@ -776,7 +786,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
               variant="bold"
               className="text-amber-900"
               numberOfLines={1}
-              style={{ fontSize: isCompactReader ? 18 : 20 }}
+              style={{ fontSize: isCompactReader ? 18 : isTablet ? 24 : 20 }}
             >
               {story.title}
             </Text>
@@ -863,8 +873,8 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                   isReading ? "bg-red-600" : "bg-emerald-700"
                 }`}
                 style={{
-                  paddingHorizontal: isCompactReader ? 16 : 20,
-                  paddingVertical: isCompactReader ? 11 : 13,
+                  paddingHorizontal: isCompactReader ? 16 : isTablet ? 24 : 20,
+                  paddingVertical: isCompactReader ? 11 : isTablet ? 15 : 13,
                 }}
                 onPress={toggleReading}
                 accessibilityLabel={isReading ? t("stories.stopAloud") : t("stories.readAloud")}
@@ -878,7 +888,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                 <Text
                   variant="bold"
                   className="text-white ml-2"
-                  style={{ fontSize: isCompactReader ? 16 : 17 }}
+                  style={{ fontSize: isCompactReader ? 16 : isTablet ? 19 : 17 }}
                 >
                   {isReading ? t("common.stop") : t("common.read")}
                 </Text>
@@ -913,8 +923,8 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                 bounces={storyCanScroll}
                 className="flex-1"
                 contentContainerStyle={{
-                  padding: isCompactReader ? 16 : 22,
-                  paddingBottom: isCompactReader ? 20 : 30,
+                  padding: isCompactReader ? 16 : isTablet ? 28 : 22,
+                  paddingBottom: isCompactReader ? 20 : isTablet ? 34 : 30,
                 }}
                 onContentSizeChange={(_, nextContentHeight) => {
                   const roundedHeight = Math.round(nextContentHeight);
@@ -936,7 +946,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                   <Text
                     variant="bold"
                     className="text-amber-800 mb-4 text-center"
-                    style={{ fontSize: Math.max(20, textSizeConfig.fontSize + 1) }}
+                    style={{ fontSize: Math.max(isTablet ? 24 : 20, storyFontSize + 1) }}
                   >
                     {story.title}
                   </Text>
@@ -946,8 +956,8 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                   <Text
                     className="text-slate-500 mt-4"
                     style={{
-                      fontSize: textSizeConfig.translationFontSize,
-                      lineHeight: textSizeConfig.translationLineHeight,
+                      fontSize: translationFontSize,
+                      lineHeight: translationLineHeight,
                     }}
                   >
                     {page.translation}
@@ -1056,7 +1066,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                   }`}
                   style={{
                     paddingHorizontal: isCompactReader ? 20 : 24,
-                    paddingVertical: isCompactReader ? 10 : 12,
+                    paddingVertical: isCompactReader ? 10 : isTablet ? 14 : 12,
                   }}
                   onPress={finishStory}
                   disabled={!hasAnsweredAllQuestions}
@@ -1068,7 +1078,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                     className={`${
                       hasAnsweredAllQuestions ? "text-white" : "text-slate-500"
                     }`}
-                    style={{ fontSize: isCompactReader ? 16 : 18 }}
+                    style={{ fontSize: isCompactReader ? 16 : isTablet ? 20 : 18 }}
                   >
                     {t("common.finish")}
                   </Text>
@@ -1077,8 +1087,8 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                 <TouchableOpacity
                   className="rounded-full bg-emerald-700 shadow-md"
                   style={{
-                    paddingHorizontal: isCompactReader ? 20 : 24,
-                    paddingVertical: isCompactReader ? 10 : 12,
+                    paddingHorizontal: isCompactReader ? 20 : isTablet ? 28 : 24,
+                    paddingVertical: isCompactReader ? 10 : isTablet ? 14 : 12,
                   }}
                   onPress={() => {
                     childHaptics.selection();
@@ -1091,7 +1101,7 @@ export function GenericStoryRenderer({ story, isLoading = false }: GenericStoryR
                   <Text
                     variant="bold"
                     className="text-white"
-                    style={{ fontSize: isCompactReader ? 16 : 18 }}
+                    style={{ fontSize: isCompactReader ? 16 : isTablet ? 20 : 18 }}
                   >
                     {t("common.next")}
                   </Text>

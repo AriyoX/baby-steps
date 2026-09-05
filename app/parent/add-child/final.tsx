@@ -1,7 +1,15 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Alert, View, TouchableOpacity, StatusBar, ActivityIndicator } from "react-native"
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StatusBar,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
+} from "react-native"
 import { AppButton } from "@/components/common/AppButton"
 import { useUser } from "@/context/UserContext"
 import { useChild } from "@/context/ChildContext"
@@ -17,6 +25,7 @@ import { CHILD_HOME_ROUTE } from "@/constants/ChildNavigation"
 import { requireInternet, showNetworkErrorIfNeeded } from "@/lib/network"
 import { hasParentPin } from "@/lib/parentAccess"
 import { supabase } from "@/lib/supabase"
+import { getParentScreenLayout } from "@/lib/responsiveLayout"
 
 type SavedChildProfile = {
   id: string
@@ -27,6 +36,8 @@ type SavedChildProfile = {
 }
 
 export default function SubmitScreen() {
+  const { height, width } = useWindowDimensions()
+  const responsiveLayout = getParentScreenLayout(width, height)
   const router = useRouter()
   const { name, gender, age, reason, selectedLanguageCode, addChildProfile } = useUser()
   const { activateChildMode } = useChild()
@@ -165,8 +176,21 @@ export default function SubmitScreen() {
         <View className="absolute w-[60px] h-[60px] rounded-full bg-accent-100/30 top-[40%] right-[15%] -z-10" />
 
         {/* Main content */}
-        <View className="flex-1 justify-center items-center px-6">
-          <View className="bg-white p-7 rounded-[28px] shadow-sm border border-primary-100 items-center w-full max-w-[360px]">
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{
+            alignItems: "center",
+            flexGrow: 1,
+            justifyContent: "center",
+            paddingHorizontal: responsiveLayout.contentPadding,
+            paddingVertical: 24,
+          }}
+          showsVerticalScrollIndicator={false}
+        >
+          <View
+            className="bg-white p-7 rounded-[28px] shadow-sm border border-primary-100 items-center w-full"
+            style={{ maxWidth: Math.min(620, responsiveLayout.readableMaxWidth) }}
+          >
             {/* Status icon */}
             <View className="w-20 h-20 rounded-full items-center justify-center mb-6">
               {isLoading ? (
@@ -282,7 +306,7 @@ export default function SubmitScreen() {
               </View>
             )}
           </View>
-        </View>
+        </ScrollView>
 
         {/* Footer message */}
         {isLoading && (

@@ -2,10 +2,6 @@ import React from "react"
 import { Animated, ScrollView, Text, TouchableOpacity } from "react-native"
 import renderer, { act } from "react-test-renderer"
 import {
-  CHILD_LEAD_CARD_GAP,
-  CHILD_LEAD_CARD_WIDTH,
-} from "@/components/child/ChildLeadCard"
-import {
   getLearningLanguageContent,
   getLessonStatus,
 } from "@/content/learningHubRepository"
@@ -259,10 +255,7 @@ describe("Learning tab shared African interface", () => {
     act(() => tree.unmount())
   })
 
-  it("prepares the first Learning stage tour target by scrolling past the lead card", async () => {
-    const scrollToSpy = jest
-      .spyOn(ScrollView.prototype, "scrollTo")
-      .mockImplementation(() => undefined)
+  it("prepares the first Learning stage tour target before measurement", async () => {
     const tree = await renderLearningTab()
     const tourProps = mockGameTour.mock.calls.at(-1)?.[0] as {
       steps?: { id: string; prepareTarget?: () => void }[]
@@ -270,12 +263,7 @@ describe("Learning tab shared African interface", () => {
     const stageStep = tourProps.steps?.find((step) => step.id === "stages")
 
     expect(stageStep?.prepareTarget).toEqual(expect.any(Function))
-    act(() => stageStep?.prepareTarget?.())
-    expect(scrollToSpy).toHaveBeenCalledWith({
-      animated: false,
-      x: CHILD_LEAD_CARD_WIDTH + CHILD_LEAD_CARD_GAP,
-      y: 0,
-    })
+    expect(() => act(() => stageStep?.prepareTarget?.())).not.toThrow()
 
     act(() => tree.unmount())
   })

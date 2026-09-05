@@ -14,6 +14,7 @@ import { FontAwesome } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BrandMark } from "@/components/brand/BrandMark";
+import { ResponsiveAuthLayout } from "@/components/auth/ResponsiveAuthLayout";
 import { Text } from "@/components/StyledText";
 import { brandColors } from "@/constants/Brand";
 import {
@@ -194,28 +195,34 @@ export default function ForgotPassword() {
             />
           </View>
 
-          <View className="items-center mt-12 mb-4">
-            <BrandMark kind="wordmark" width={174} height={42} containerStyle={{ marginBottom: 12 }} />
-            <Animated.View style={{ transform: [{ translateY }, { scale: scaleValue }] }}>
-              <Text variant="bold" className="text-3xl text-accent-800 pt-3 text-center px-4">
-                Forgot Your Password?
-              </Text>
-            </Animated.View>
-          </View>
+          <ResponsiveAuthLayout
+            testID="forgot-password-responsive-layout"
+            hero={
+              <>
+                <View className="items-center mt-12 mb-4">
+                  <BrandMark kind="wordmark" width={174} height={42} containerStyle={{ marginBottom: 12 }} />
+                  <Animated.View style={{ transform: [{ translateY }, { scale: scaleValue }] }}>
+                    <Text variant="bold" className="text-3xl text-accent-800 pt-3 text-center px-4">
+                      Forgot Your Password?
+                    </Text>
+                  </Animated.View>
+                </View>
 
-          <View className="items-center my-8">
-            <Animated.View
-              className="w-32 h-32 bg-white rounded-full items-center justify-center shadow-lg border-4 border-accent-200"
-              style={{ transform: [{ translateY }, { scale: scaleValue }] }}
-            >
-              <Animated.View style={{ transform: [{ rotate: spin }] }}>
-                <FontAwesome name="key" size={60} color={brandColors.equatorialGold} />
-              </Animated.View>
-            </Animated.View>
-          </View>
-
+                <View className="items-center my-8">
+                  <Animated.View
+                    className="w-32 h-32 bg-white rounded-full items-center justify-center shadow-lg border-4 border-accent-200"
+                    style={{ transform: [{ translateY }, { scale: scaleValue }] }}
+                  >
+                    <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                      <FontAwesome name="key" size={60} color={brandColors.equatorialGold} />
+                    </Animated.View>
+                  </Animated.View>
+                </View>
+              </>
+            }
+          >
           <Animated.View
-            className="mx-6 bg-white p-6 rounded-3xl shadow-md border-2 border-accent-100"
+            className="bg-white p-6 rounded-3xl shadow-md border-2 border-accent-100"
             style={{ transform: [{ scale: scaleValue }], opacity: scaleValue }}
           >
             <View className="mb-8">
@@ -267,6 +274,7 @@ export default function ForgotPassword() {
               </TouchableOpacity>
             </View>
           </Animated.View>
+          </ResponsiveAuthLayout>
         </ScrollView>
       </SafeAreaView>
     </KeyboardAvoidingView>

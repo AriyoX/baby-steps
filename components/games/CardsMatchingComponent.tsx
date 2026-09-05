@@ -10,6 +10,8 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Text } from "@/components/StyledText";
+import { activityColors, activityStyles } from "@/constants/ActivityTheme";
+import { CHILD_GAME_SAFE_AREA_EDGES } from "@/constants/SystemUi";
 import { ChildLoadingState } from "@/components/child/ChildLoadingState";
 import { useChild } from "@/context/ChildContext";  
 import { useChildUiLanguage } from "@/context/ChildUiLanguageContext";
@@ -46,7 +48,10 @@ import {
 } from "@/lib/completionReliability";
 import { recordQualifiedStreakActivity } from "@/lib/streakRepository";
 import { childHaptics } from "@/lib/childHaptics";
-import { getCardsMatchingGridSizing } from "./responsiveSizing";
+import {
+  getCardsMatchingGridSizing,
+  getGameHeaderSizing,
+} from "./responsiveSizing";
 import {
   GameHeader,
   GameStatChip,
@@ -290,6 +295,7 @@ const CardsMatchingGame: React.FC = () => {
   );
   const contentScope = `${activeChild?.id ?? "guest"}:${languageCode}`;
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const gameHeaderSizing = getGameHeaderSizing(windowWidth, windowHeight);
   const insets = useSafeAreaInsets();
   const matchingTour = useGameTour("cards-matching", activeChild?.id);
   const { checkAndGrantNewAchievements } = useAchievements(
@@ -1000,7 +1006,9 @@ const CardsMatchingGame: React.FC = () => {
     );
   }
 
-  const fallbackBoardWidth = Math.max(0, windowWidth - insets.left - insets.right - 16);
+  const boardMarginHorizontal = gameHeaderSizing.isTablet ? 24 : 12;
+  const boardPadding = gameHeaderSizing.isTablet ? 20 : 10;
+  const fallbackBoardWidth = Math.max(0, windowWidth - (boardMarginHorizontal + boardPadding) * 2);
   const fallbackBoardHeight = Math.max(0, windowHeight - insets.top - insets.bottom);
   const {
     cardHeight,
@@ -1021,10 +1029,11 @@ const CardsMatchingGame: React.FC = () => {
 
   return (
     <GameTourProvider>
-      <View className="flex-1 bg-blue-50">
-      <SafeAreaView className="flex-1 flex-col" edges={["top", "bottom", "left", "right"]}>
-      <StatusBar style={infoModal.show || gameOver ? "light" : "dark"} />
+      <View className="flex-1" style={{ backgroundColor: activityColors.canvas }}>
+      <SafeAreaView className="flex-1 flex-col" edges={CHILD_GAME_SAFE_AREA_EDGES}>
+      <StatusBar style="light" />
       <GameHeader
+        appearance="activity"
         title={gameTitle}
         subtitle={t("games.matchingHint")}
         onBack={() => router.back()}
@@ -1047,6 +1056,11 @@ const CardsMatchingGame: React.FC = () => {
             />
             <TouchableOpacity
               className="bg-white w-12 h-12 rounded-2xl border border-blue-100 items-center justify-center ml-2"
+              style={{
+                ...activityStyles.roundControl,
+                height: gameHeaderSizing.buttonSize,
+                width: gameHeaderSizing.buttonSize,
+              }}
               onPress={resetGame}
               activeOpacity={0.76}
               accessibilityRole="button"
@@ -1060,8 +1074,13 @@ const CardsMatchingGame: React.FC = () => {
 
       {/* Game board with improved visuals - reduced padding */}
       <Animated.View
-        className="flex-1 px-2 pb-2 pt-1"
-        style={{ transform: [{ scale: bounceAnim }] }}
+        className="flex-1"
+        style={[activityStyles.panel, {
+          marginHorizontal: boardMarginHorizontal,
+          marginBottom: gameHeaderSizing.isTablet ? 16 : 10,
+          padding: boardPadding,
+          transform: [{ scale: bounceAnim }],
+        }]}
       >
         <View
           className="flex-1 flex-row flex-wrap justify-center items-center"
@@ -1086,7 +1105,7 @@ const CardsMatchingGame: React.FC = () => {
               className={`
                   rounded-2xl overflow-hidden justify-center items-center
                   shadow-md border-2
-                  ${card.matched ? "border-green-400" : "border-white"}
+                  ${card.matched ? "border-green-400" : "border-accent-500"}
                 `}
               onPress={() => {
                 void handleCardPress(card).catch((error) => {
@@ -1127,7 +1146,7 @@ const CardsMatchingGame: React.FC = () => {
                   <Text
                     className="text-center text-primary-700 px-1"
                     numberOfLines={1}
-                    style={{ fontSize: Math.max(12, cardWidth * 0.16) }}
+                    style={{ color: activityColors.ink, fontSize: Math.max(12, cardWidth * 0.16) }}
                     variant="bold"
                     adjustsFontSizeToFit
                     minimumFontScale={0.72}

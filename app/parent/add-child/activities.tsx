@@ -1,13 +1,16 @@
 "use client"
 
-import { View, TouchableOpacity, StatusBar, ScrollView } from "react-native"
+import { View, TouchableOpacity, StatusBar, ScrollView, useWindowDimensions } from "react-native"
 import { useRouter } from "expo-router"
 import { Text } from "@/components/StyledText"
 import { TranslatedText } from "@/components/translated-text"
 import { FontAwesome5 } from "@expo/vector-icons"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { getParentScreenLayout } from "@/lib/responsiveLayout"
 
 export default function StatisticsDisplayScreen() {
+  const { height, width } = useWindowDimensions()
+  const responsiveLayout = getParentScreenLayout(width, height)
   const router = useRouter()
 
   const handleBack = () => {
@@ -41,8 +44,20 @@ export default function StatisticsDisplayScreen() {
         <View className="absolute w-[50px] h-[50px] rounded-full bg-secondary-100/30 bottom-[25%] right-[10%] -z-10" />
 
         {/* Scrollable main content */}
-        <ScrollView className="flex-1" contentContainerClassName="px-6 py-4 pb-6" showsVerticalScrollIndicator={false}>
-          <View className="bg-white p-5 rounded-3xl shadow-md">
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{
+            alignItems: "center",
+            paddingBottom: 24,
+            paddingHorizontal: responsiveLayout.contentPadding,
+            paddingTop: 16,
+          }}
+          showsVerticalScrollIndicator={false}
+        >
+          <View
+            className="bg-white p-5 rounded-3xl shadow-md w-full"
+            style={{ maxWidth: responsiveLayout.readableMaxWidth }}
+          >
             {/* Stats and image section */}
             <View className="items-center mb-6">
               <TranslatedText variant="bold" className="text-xl text-primary-800 text-center mb-4">
@@ -82,7 +97,11 @@ export default function StatisticsDisplayScreen() {
         </ScrollView>
 
         {/* Next button - Fixed at bottom */}
-        <View className="p-4 bg-white border-t border-gray-200">
+        <View className="bg-white border-t border-gray-200">
+        <View
+          className="p-4 w-full self-center"
+          style={{ maxWidth: Math.min(640, responsiveLayout.readableMaxWidth) }}
+        >
           <TouchableOpacity
             className="flex-row py-3 rounded-full items-center justify-center bg-secondary-500 shadow-md"
             onPress={handleNext}
@@ -93,6 +112,7 @@ export default function StatisticsDisplayScreen() {
             </TranslatedText>
             <FontAwesome5 name="arrow-right" size={14} color="white" />
           </TouchableOpacity>
+        </View>
         </View>
       </SafeAreaView>
     </>

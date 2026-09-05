@@ -35,6 +35,7 @@ import { audioManager } from "@/lib/audioManager"
 import { childHaptics } from "@/lib/childHaptics"
 import { getConciseChildCardDescription } from "@/lib/childCardCopy"
 import { useNavigationGuard } from "@/hooks/useNavigationGuard"
+import { getColoringGalleryLayout } from "@/components/coloring/coloringGalleryLayout"
 import {
   COLORING_ACHIEVEMENTS,
   EMPTY_COLORING_PROGRESS,
@@ -57,7 +58,8 @@ export function ColoringGallery() {
   } = useAudio()
   useChildLandscapeOrientation("coloring gallery")
 
-  const isCompact = width < 820 || height < 430
+  const galleryLayout = getColoringGalleryLayout(width, height)
+  const { isCompact, isTablet } = galleryLayout
   const [cards, setCards] = useState<ChildMenuCard[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [retrySequence, setRetrySequence] = useState(0)
@@ -136,13 +138,27 @@ export function ColoringGallery() {
       <View pointerEvents="none" style={styles.blueBubble} />
 
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-        <View style={[styles.header, isCompact && styles.compactHeader]}>
+        <View
+          style={[
+            styles.header,
+            isCompact && styles.compactHeader,
+            isTablet && styles.tabletHeader,
+          ]}
+        >
           <View style={styles.brandLockup}>
             <View style={[styles.mascotBubble, isCompact && styles.compactMascotBubble]}>
               <BrandMark kind="mascot" width={isCompact ? 31 : 38} height={isCompact ? 43 : 52} />
             </View>
             <View style={styles.headerCopy}>
-              <Text variant="display" numberOfLines={1} style={[styles.title, isCompact && styles.compactTitle]}>
+              <Text
+                variant="display"
+                numberOfLines={1}
+                style={[
+                  styles.title,
+                  isCompact && styles.compactTitle,
+                  isTablet && styles.tabletTitle,
+                ]}
+              >
                 {t("coloring.title")}
               </Text>
             </View>
@@ -156,7 +172,13 @@ export function ColoringGallery() {
                 childHaptics.selection()
                 toggleBackgroundMusicMuted()
               }}
-              style={styles.headerIconButton}
+              style={[
+                styles.headerIconButton,
+                {
+                  height: galleryLayout.headerControlSize,
+                  width: galleryLayout.headerControlSize,
+                },
+              ]}
             >
               <Ionicons
                 name={audioSettings.backgroundMusicMuted ? "musical-note-outline" : "musical-notes"}
@@ -171,7 +193,13 @@ export function ColoringGallery() {
                 childHaptics.selection()
                 toggleAppSoundsMuted()
               }}
-              style={styles.headerIconButton}
+              style={[
+                styles.headerIconButton,
+                {
+                  height: galleryLayout.headerControlSize,
+                  width: galleryLayout.headerControlSize,
+                },
+              ]}
             >
               <Ionicons
                 name={audioSettings.appSoundsMuted ? "volume-mute" : "volume-high"}
@@ -188,7 +216,10 @@ export function ColoringGallery() {
               }}
               disabled={activeNavigationKey === "parent-gate"}
               onPress={openParentGate}
-              style={styles.parentButton}
+              style={[
+                styles.parentButton,
+                { height: galleryLayout.headerControlSize },
+              ]}
             >
               <Ionicons name="people" size={19} color={brandColors.orange[600]} />
               {!isCompact ? <Text variant="bold" style={styles.parentButtonText}>{t("child.forParents")}</Text> : null}
@@ -196,8 +227,20 @@ export function ColoringGallery() {
           </View>
         </View>
 
-        <View style={[styles.content, isCompact && styles.compactContent]}>
-          <View style={[styles.clubPanel, isCompact && styles.compactClubPanel]}>
+        <View
+          style={[
+            styles.content,
+            isCompact && styles.compactContent,
+            isTablet && styles.tabletContent,
+          ]}
+        >
+          <View
+            style={[
+              styles.clubPanel,
+              isCompact && styles.compactClubPanel,
+              { width: galleryLayout.clubPanelWidth },
+            ]}
+          >
             <View style={styles.welcomeRow}>
               <View style={styles.starBubble}>
                 <Ionicons name="star" size={22} color={brandColors.gold[700]} />
@@ -289,7 +332,14 @@ export function ColoringGallery() {
           <View style={styles.galleryPanel}>
             <View style={styles.galleryHeadingRow}>
               <View>
-                <Text variant="display" style={[styles.galleryTitle, isCompact && styles.compactGalleryTitle]}>
+                <Text
+                  variant="display"
+                  style={[
+                    styles.galleryTitle,
+                    isCompact && styles.compactGalleryTitle,
+                    isTablet && styles.tabletGalleryTitle,
+                  ]}
+                >
                   {t("coloring.choosePicture")}
                 </Text>
                 <Text variant="medium" style={styles.gallerySubtitle}>
@@ -307,7 +357,10 @@ export function ColoringGallery() {
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.cardRail}
+              contentContainerStyle={[
+                styles.cardRail,
+                { gap: galleryLayout.cardGap },
+              ]}
             >
               {cards.map((card, index) => {
                 const description = getConciseChildCardDescription(
@@ -331,6 +384,10 @@ export function ColoringGallery() {
                     style={({ pressed }) => [
                       styles.pictureCard,
                       isCompact && styles.compactPictureCard,
+                      {
+                        maxHeight: galleryLayout.pictureCardMaxHeight,
+                        width: galleryLayout.pictureCardWidth,
+                      },
                       (pressed || navigationPending) && styles.pressedCard,
                     ]}
                   >
@@ -347,11 +404,15 @@ export function ColoringGallery() {
                       <Text variant="bold" style={styles.cardNumberText}>{index + 1}</Text>
                     </View>
                   </View>
-                  <View style={styles.pictureCopy}>
-                    <Text variant="display" numberOfLines={1} style={styles.pictureTitle}>
+                  <View style={[styles.pictureCopy, isTablet && styles.tabletPictureCopy]}>
+                    <Text
+                      variant="display"
+                      numberOfLines={1}
+                      style={[styles.pictureTitle, isTablet && styles.tabletPictureTitle]}
+                    >
                       {card.title}
                     </Text>
-                    <View style={styles.openStudioPill}>
+                    <View style={[styles.openStudioPill, isTablet && styles.tabletOpenStudioPill]}>
                       <Ionicons name="color-palette" size={15} color={brandColors.white} />
                       <Text variant="bold" style={styles.openStudioText}>{t("coloring.colorIt")}</Text>
                       <Ionicons name="arrow-forward" size={14} color={brandColors.white} />
@@ -364,12 +425,28 @@ export function ColoringGallery() {
               {isLoading ? (
                 <ChildLoadingCard
                   label={t("coloring.openingShelf")}
-                  style={[styles.pictureCard, isCompact && styles.compactPictureCard]}
+                  style={[
+                    styles.pictureCard,
+                    isCompact && styles.compactPictureCard,
+                    {
+                      maxHeight: galleryLayout.pictureCardMaxHeight,
+                      width: galleryLayout.pictureCardWidth,
+                    },
+                  ]}
                 />
               ) : null}
 
               {!isLoading && cards.length === 0 ? (
-                <View style={[styles.emptyCard, isCompact && styles.compactPictureCard]}>
+                <View
+                  style={[
+                    styles.emptyCard,
+                    isCompact && styles.compactPictureCard,
+                    {
+                      maxHeight: galleryLayout.pictureCardMaxHeight,
+                      width: galleryLayout.pictureCardWidth,
+                    },
+                  ]}
+                >
                   <BrandMark kind="mascot" width={43} height={58} />
                   <Text variant="display" style={styles.emptyTitle}>{t("coloring.picturesComing")}</Text>
                   <Text variant="medium" style={styles.emptyText}>
@@ -437,6 +514,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 5,
   },
+  tabletHeader: {
+    minHeight: 86,
+    paddingHorizontal: 28,
+  },
   brandLockup: {
     flex: 1,
     minWidth: 0,
@@ -472,6 +553,10 @@ const styles = StyleSheet.create({
   compactTitle: {
     fontSize: 23,
     lineHeight: 25,
+  },
+  tabletTitle: {
+    fontSize: 33,
+    lineHeight: 35,
   },
   headerActions: {
     flexDirection: "row",
@@ -518,6 +603,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingBottom: 7,
     gap: 9,
+  },
+  tabletContent: {
+    paddingHorizontal: 28,
+    paddingBottom: 14,
+    gap: 22,
   },
   clubPanel: {
     width: 248,
@@ -700,6 +790,10 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 22,
   },
+  tabletGalleryTitle: {
+    fontSize: 28,
+    lineHeight: 30,
+  },
   gallerySubtitle: {
     color: brandColors.neutral[600],
     fontSize: 10,
@@ -780,9 +874,16 @@ const styles = StyleSheet.create({
     minHeight: 116,
     padding: 11,
   },
+  tabletPictureCopy: {
+    minHeight: 132,
+    padding: 15,
+  },
   pictureTitle: {
     color: brandColors.blue[700],
     fontSize: 18,
+  },
+  tabletPictureTitle: {
+    fontSize: 22,
   },
   openStudioPill: {
     height: 34,
@@ -793,6 +894,11 @@ const styles = StyleSheet.create({
     backgroundColor: brandColors.victoriaBlue,
     paddingHorizontal: 10,
     marginTop: 7,
+  },
+  tabletOpenStudioPill: {
+    height: 42,
+    borderRadius: 21,
+    marginTop: 10,
   },
   openStudioText: {
     flex: 1,

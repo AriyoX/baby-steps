@@ -243,6 +243,7 @@ export default function ColoringGameScreen({
   const {
     isCompact,
     isSmallPhone,
+    isTablet,
     showCanvasHint,
     showDockTitles,
   } = getColoringStudioLayout(width, height)
@@ -686,16 +687,29 @@ export default function ColoringGameScreen({
           styles.toolButton,
           isCompact && styles.compactToolButton,
           isSmallPhone && styles.smallPhoneToolButton,
+          isTablet && styles.tabletToolButton,
           selected && styles.selectedToolButton,
           pressed && styles.pressedButton,
         ]}
       >
-        <View style={[styles.toolIcon, selected && styles.selectedToolIcon]}>{icon}</View>
+        <View
+          style={[
+            styles.toolIcon,
+            isTablet && styles.tabletToolIcon,
+            selected && styles.selectedToolIcon,
+          ]}
+        >
+          {icon}
+        </View>
         {!isSmallPhone ? (
           <Text
             variant="bold"
             numberOfLines={1}
-            style={[styles.toolLabel, selected && styles.selectedToolLabel]}
+            style={[
+              styles.toolLabel,
+              isTablet && styles.tabletToolLabel,
+              selected && styles.selectedToolLabel,
+            ]}
           >
             {label}
           </Text>
@@ -720,20 +734,29 @@ export default function ColoringGameScreen({
           styles.header,
           isCompact && styles.compactHeader,
           isSmallPhone && styles.smallPhoneHeader,
+          isTablet && styles.tabletHeader,
         ]}
       >
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel="Back to coloring pictures"
           onPress={requestExit}
-          style={[styles.backButton, isSmallPhone && styles.smallPhoneHeaderButton]}
+          style={[
+            styles.backButton,
+            isSmallPhone && styles.smallPhoneHeaderButton,
+            isTablet && styles.tabletHeaderButton,
+          ]}
         >
           <Ionicons name="arrow-back" size={22} color={brandColors.blue[700]} />
         </TouchableOpacity>
 
         <View style={[styles.titleBlock, isSmallPhone && styles.smallPhoneTitleBlock]}>
           {!isSmallPhone ? (
-            <Text variant="display" numberOfLines={1} style={styles.studioTitle}>
+            <Text
+              variant="display"
+              numberOfLines={1}
+              style={[styles.studioTitle, isTablet && styles.tabletStudioTitle]}
+            >
               {t("coloring.studio")}
             </Text>
           ) : null}
@@ -754,7 +777,11 @@ export default function ColoringGameScreen({
               childHaptics.tap()
               coloringTour.open()
             }}
-            style={[styles.roundAction, isSmallPhone && styles.smallPhoneHeaderButton]}
+            style={[
+              styles.roundAction,
+              isSmallPhone && styles.smallPhoneHeaderButton,
+              isTablet && styles.tabletHeaderButton,
+            ]}
           >
             <Ionicons name="help-circle-outline" size={21} color={brandColors.blue[700]} />
           </TouchableOpacity>
@@ -770,6 +797,7 @@ export default function ColoringGameScreen({
             style={[
               styles.roundAction,
               isSmallPhone && styles.smallPhoneHeaderButton,
+              isTablet && styles.tabletHeaderButton,
               history.undoStack.length === 0 && styles.disabledAction,
             ]}
           >
@@ -787,6 +815,7 @@ export default function ColoringGameScreen({
             style={[
               styles.roundAction,
               isSmallPhone && styles.smallPhoneHeaderButton,
+              isTablet && styles.tabletHeaderButton,
               history.redoStack.length === 0 && styles.disabledAction,
             ]}
           >
@@ -801,6 +830,7 @@ export default function ColoringGameScreen({
             style={[
               styles.saveButton,
               isSmallPhone && styles.smallPhoneSaveButton,
+              isTablet && styles.tabletSaveButton,
               exportAction !== null && styles.disabledAction,
             ]}
           >
@@ -820,6 +850,7 @@ export default function ColoringGameScreen({
           styles.workspace,
           isCompact && styles.compactWorkspace,
           isSmallPhone && styles.smallPhoneWorkspace,
+          isTablet && styles.tabletWorkspace,
         ]}
       >
         <TourTarget id="coloring-tools">
@@ -828,10 +859,18 @@ export default function ColoringGameScreen({
             styles.toolDock,
             isCompact && styles.compactToolDock,
             isSmallPhone && styles.smallPhoneToolDock,
+            isTablet && styles.tabletToolDock,
           ]}
         >
           {showDockTitles ? (
-            <Text variant="display" style={[styles.dockTitle, isCompact && styles.compactDockTitle]}>
+            <Text
+              variant="display"
+              style={[
+                styles.dockTitle,
+                isCompact && styles.compactDockTitle,
+                isTablet && styles.tabletDockTitle,
+              ]}
+            >
               {t("coloring.tools")}
             </Text>
           ) : null}
@@ -860,6 +899,7 @@ export default function ColoringGameScreen({
             style={[
               styles.clearButton,
               isSmallPhone && styles.smallPhoneClearButton,
+              isTablet && styles.tabletClearButton,
               history.marks.length === 0 && styles.disabledAction,
             ]}
           >
@@ -1093,12 +1133,22 @@ export default function ColoringGameScreen({
             styles.creativeDock,
             isCompact && styles.compactCreativeDock,
             isSmallPhone && styles.smallPhoneCreativeDock,
+            isTablet && styles.tabletCreativeDock,
           ]}
         >
           {showDockTitles ? (
             <>
               <View style={styles.dockHeadingRow}>
-                <Text variant="display" style={[styles.dockTitle, isCompact && styles.compactDockTitle]}>{t("coloring.colors")}</Text>
+                <Text
+                  variant="display"
+                  style={[
+                    styles.dockTitle,
+                    isCompact && styles.compactDockTitle,
+                    isTablet && styles.tabletDockTitle,
+                  ]}
+                >
+                  {t("coloring.colors")}
+                </Text>
                 <View style={[styles.activeColorDot, { backgroundColor: selectedColor }]} />
               </View>
               <Text variant="bold" numberOfLines={1} style={styles.colorName}>
@@ -1122,7 +1172,7 @@ export default function ColoringGameScreen({
                   accessibilityRole="button"
                   accessibilityLabel={colorName}
                   accessibilityState={{ selected: isSelected }}
-                  hitSlop={isSmallPhone ? SMALL_PHONE_CONTROL_SIZE.colorHitSlop : undefined}
+                  hitSlop={isCompact ? SMALL_PHONE_CONTROL_SIZE.colorHitSlop : undefined}
                   onPress={() => {
                     childHaptics.selection()
                     canvasMoveModeRef.current = false
@@ -1134,11 +1184,18 @@ export default function ColoringGameScreen({
                     styles.colorButton,
                     isCompact && styles.compactColorButton,
                     isSmallPhone && styles.smallPhoneColorButton,
+                    isTablet && styles.tabletColorButton,
                     isSelected && styles.selectedColorButton,
                     pressed && styles.pressedButton,
                   ]}
                 >
-                  <View style={[styles.colorSwatch, { backgroundColor: color }]}>
+                  <View
+                    style={[
+                      styles.colorSwatch,
+                      isTablet && styles.tabletColorSwatch,
+                      { backgroundColor: color },
+                    ]}
+                  >
                     {isSelected ? <Ionicons name="checkmark" size={17} color={brandColors.white} /> : null}
                   </View>
                 </Pressable>
@@ -1161,6 +1218,7 @@ export default function ColoringGameScreen({
               }}
               style={({ pressed }) => [
                 styles.sizeButton,
+                isTablet && styles.tabletSizeButton,
                 brushSize === BRUSH_SIZES[0] && styles.disabledAction,
                 pressed && styles.pressedButton,
               ]}
@@ -1184,7 +1242,7 @@ export default function ColoringGameScreen({
                   setBrushSize((current) => stepBrushSize(current, 1))
                 }
               }}
-              style={styles.brushPreview}
+              style={[styles.brushPreview, isTablet && styles.tabletSizeButton]}
             >
               <View
                 style={{
@@ -1206,6 +1264,7 @@ export default function ColoringGameScreen({
               }}
               style={({ pressed }) => [
                 styles.sizeButton,
+                isTablet && styles.tabletSizeButton,
                 brushSize === BRUSH_SIZES.at(-1) && styles.disabledAction,
                 pressed && styles.pressedButton,
               ]}
@@ -1297,6 +1356,11 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 6,
   },
+  tabletHeader: {
+    minHeight: 76,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
   backButton: {
     width: 44,
     height: 44,
@@ -1322,6 +1386,10 @@ const styles = StyleSheet.create({
     color: brandColors.blue[700],
     fontSize: 22,
     lineHeight: 24,
+  },
+  tabletStudioTitle: {
+    fontSize: 26,
+    lineHeight: 28,
   },
   pageTitle: {
     color: brandColors.neutral[600],
@@ -1361,6 +1429,11 @@ const styles = StyleSheet.create({
     height: SMALL_PHONE_CONTROL_SIZE.header,
     borderRadius: 22,
   },
+  tabletHeaderButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
   saveButton: {
     minWidth: 82,
     height: 42,
@@ -1379,6 +1452,11 @@ const styles = StyleSheet.create({
     width: SMALL_PHONE_CONTROL_SIZE.header,
     height: SMALL_PHONE_CONTROL_SIZE.header,
     paddingHorizontal: 0,
+  },
+  tabletSaveButton: {
+    minWidth: 96,
+    height: 48,
+    borderRadius: 24,
   },
   saveText: {
     color: brandColors.white,
@@ -1405,6 +1483,11 @@ const styles = StyleSheet.create({
     paddingBottom: 5,
     gap: 5,
   },
+  tabletWorkspace: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 16,
+  },
   toolDock: {
     width: 104,
     borderRadius: 25,
@@ -1424,6 +1507,10 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 5,
   },
+  tabletToolDock: {
+    width: 118,
+    padding: 11,
+  },
   dockTitle: {
     color: brandColors.blue[700],
     fontSize: 18,
@@ -1433,6 +1520,10 @@ const styles = StyleSheet.create({
   compactDockTitle: {
     fontSize: 15,
     marginBottom: 4,
+  },
+  tabletDockTitle: {
+    fontSize: 20,
+    marginBottom: 9,
   },
   toolButton: {
     minHeight: 62,
@@ -1452,6 +1543,10 @@ const styles = StyleSheet.create({
     minHeight: SMALL_PHONE_CONTROL_SIZE.tool,
     marginBottom: 4,
   },
+  tabletToolButton: {
+    minHeight: 70,
+    marginBottom: 8,
+  },
   selectedToolButton: {
     backgroundColor: brandColors.blue[50],
     borderColor: brandColors.victoriaBlue,
@@ -1464,6 +1559,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: brandColors.neutral[50],
   },
+  tabletToolIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+  },
   selectedToolIcon: {
     backgroundColor: brandColors.victoriaBlue,
   },
@@ -1471,6 +1571,10 @@ const styles = StyleSheet.create({
     color: brandColors.neutral[600],
     fontSize: 10,
     marginTop: 3,
+  },
+  tabletToolLabel: {
+    fontSize: 11,
+    marginTop: 4,
   },
   selectedToolLabel: {
     color: brandColors.blue[700],
@@ -1492,6 +1596,9 @@ const styles = StyleSheet.create({
   smallPhoneClearButton: {
     minHeight: SMALL_PHONE_CONTROL_SIZE.header,
     paddingHorizontal: 0,
+  },
+  tabletClearButton: {
+    minHeight: 48,
   },
   clearText: {
     color: brandColors.orange[700],
@@ -1695,6 +1802,10 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 7,
   },
+  tabletCreativeDock: {
+    width: 238,
+    padding: 14,
+  },
   dockHeadingRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1738,14 +1849,19 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   compactColorButton: {
-    width: 29,
-    height: 29,
-    borderRadius: 11,
+    width: 34,
+    height: 34,
+    borderRadius: 12,
   },
   smallPhoneColorButton: {
     width: SMALL_PHONE_CONTROL_SIZE.color,
     height: SMALL_PHONE_CONTROL_SIZE.color,
     borderRadius: 14,
+  },
+  tabletColorButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 15,
   },
   selectedColorButton: {
     borderColor: brandColors.neutral[700],
@@ -1759,6 +1875,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.8)",
+  },
+  tabletColorSwatch: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
   },
   sizeTitle: {
     color: brandColors.blue[700],
@@ -1790,6 +1911,11 @@ const styles = StyleSheet.create({
     backgroundColor: brandColors.neutral[50],
     borderWidth: 2,
     borderColor: brandColors.neutral[100],
+  },
+  tabletSizeButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 18,
   },
   brushPreview: {
     width: SMALL_PHONE_CONTROL_SIZE.size,

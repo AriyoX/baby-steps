@@ -12,6 +12,7 @@ describe("coloring studio mobile layout", () => {
     expect(getColoringStudioLayout(width, height)).toEqual({
       isCompact: true,
       isSmallPhone: true,
+      isTablet: false,
       showCanvasHint: false,
       showDockTitles: false,
     })
@@ -21,6 +22,7 @@ describe("coloring studio mobile layout", () => {
     expect(getColoringStudioLayout(844, 390)).toEqual({
       isCompact: true,
       isSmallPhone: false,
+      isTablet: false,
       showCanvasHint: true,
       showDockTitles: true,
     })
@@ -30,6 +32,7 @@ describe("coloring studio mobile layout", () => {
     expect(getColoringStudioLayout(1024, 768)).toEqual({
       isCompact: false,
       isSmallPhone: false,
+      isTablet: true,
       showCanvasHint: true,
       showDockTitles: true,
     })

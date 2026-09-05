@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/StyledText";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { brandColors, brandShadows } from "@/constants/Brand";
+import { CHILD_GAME_SAFE_AREA_EDGES } from "@/constants/SystemUi";
 
 type LoadingIcon = ComponentProps<typeof Ionicons>["name"];
 
@@ -44,7 +45,7 @@ export function ChildLoadingState({
   const cardWidth = Math.min(width - 40, 680);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: brandColors.blue[50] }}>
+    <SafeAreaView edges={CHILD_GAME_SAFE_AREA_EDGES} style={{ flex: 1, backgroundColor: brandColors.blue[50] }}>
       <StatusBar style="dark" translucent backgroundColor="transparent" />
       <LinearGradient
         colors={[brandColors.blue[50], brandColors.gold[50], brandColors.orange[50]]}

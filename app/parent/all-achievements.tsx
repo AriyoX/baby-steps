@@ -1,7 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { View, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { Text } from "@/components/StyledText";
 import { TranslatedText } from "@/components/translated-text";
 import { useRouter } from "expo-router";
@@ -19,6 +26,7 @@ import {
     fetchChildEarnedAchievements 
 } from "@/components/games/achievements/achievementManager"; // Adjust path
 import { AchievementDefinition, ChildAchievement } from "@/components/games/achievements/achievementTypes"; // Adjust path
+import { getParentScreenLayout } from "@/lib/responsiveLayout";
 
 // Type for child data needed on this screen
 interface BasicChildInfo {
@@ -53,6 +61,8 @@ const getGameDisplayName = (gameKey: string | null | undefined): string => {
 
 
 export default function AllAchievementsScreen() {
+  const { height, width } = useWindowDimensions();
+  const responsiveLayout = getParentScreenLayout(width, height);
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [allDefinedAchievements, setAllDefinedAchievements] = useState<AchievementDefinition[]>([]);
@@ -177,7 +187,16 @@ export default function AllAchievementsScreen() {
       <StatusBar style="dark" />
       <SafeAreaView className="flex-1 bg-slate-50" edges={["top", "left", "right"]}>
         {/* Header */}
-        <View className="flex-row items-center px-4 py-3 border-b border-gray-100 bg-white">
+        <View className="border-b border-gray-100 bg-white">
+        <View
+          className="flex-row items-center py-3"
+          style={{
+            alignSelf: "center",
+            maxWidth: responsiveLayout.contentMaxWidth,
+            paddingHorizontal: responsiveLayout.contentPadding,
+            width: "100%",
+          }}
+        >
           <TouchableOpacity onPress={() => router.back()} className="mr-3 p-1">
             <Ionicons name="arrow-back" size={24} color="#374151" />
           </TouchableOpacity>
@@ -185,10 +204,18 @@ export default function AllAchievementsScreen() {
             All Achievements
           </TranslatedText>
         </View>
+        </View>
 
         {/* Game Filter Tabs */}
         {gameFilterOptions.length > 0 && (
           <View className="bg-white border-b border-gray-100 pb-2">
+          <View
+            style={{
+              alignSelf: "center",
+              maxWidth: responsiveLayout.contentMaxWidth,
+              width: "100%",
+            }}
+          >
             <ScrollView 
               horizontal 
               showsHorizontalScrollIndicator={false}
@@ -224,9 +251,18 @@ export default function AllAchievementsScreen() {
               ))}
             </ScrollView>
           </View>
+          </View>
         )}
 
         <ScrollView className="flex-1" contentContainerStyle={styles.scrollContent}>
+          <View
+            style={{
+              alignSelf: "center",
+              maxWidth: responsiveLayout.contentMaxWidth,
+              paddingHorizontal: responsiveLayout.contentPadding,
+              width: "100%",
+            }}
+          >
           {errorMessage && (
             <View style={styles.stateBox}>
               <Ionicons name="alert-circle-outline" size={42} color="#FF7B6C" />
@@ -245,12 +281,17 @@ export default function AllAchievementsScreen() {
             // Optional: Sort game groups
             .sort(([gameKeyA], [gameKeyB]) => getGameDisplayName(gameKeyA).localeCompare(getGameDisplayName(gameKeyB)))
             .map(([gameKey, achievementsInGroup]) => (
-            <View key={gameKey} className="p-4">
+            <View key={gameKey} className="py-4">
               <Text variant="bold" className="text-lg text-indigo-700 mb-3 border-b-2 border-indigo-200 pb-1">
                 {getGameDisplayName(gameKey)}
               </Text>
               {achievementsInGroup.length > 0 ? (
-                <View style={styles.cardList}>
+                <View
+                  style={[
+                    styles.cardList,
+                    responsiveLayout.isTwoColumn ? styles.cardGrid : null,
+                  ]}
+                >
                   {achievementsInGroup.map((ach) => {
                     const unearnedChildren: AchievementChildBadge[] = childrenProfiles.filter(
                       (child) =>
@@ -258,14 +299,18 @@ export default function AllAchievementsScreen() {
                     );
 
                     return (
-                      <AchievementCard
+                      <View
                         key={ach.id}
+                        style={responsiveLayout.isTwoColumn ? styles.cardGridItem : null}
+                      >
+                      <AchievementCard
                         achievement={ach}
                         unlocked={ach.earnedByChildren.length > 0}
                         earnedByChildren={ach.earnedByChildren}
                         unearnedChildren={unearnedChildren}
                         emptyEarnedText="No child has earned this badge yet."
                       />
+                      </View>
                     );
                   })}
                 </View>
@@ -274,6 +319,7 @@ export default function AllAchievementsScreen() {
               )}
             </View>
           ))}
+          </View>
         </ScrollView>
       </SafeAreaView>
     </>
@@ -291,5 +337,13 @@ const styles = StyleSheet.create({
   },
   cardList: {
     gap: 12,
+  },
+  cardGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  cardGridItem: {
+    flexBasis: "48%",
+    flexGrow: 1,
   },
 });

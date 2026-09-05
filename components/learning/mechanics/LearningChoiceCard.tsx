@@ -37,8 +37,8 @@ const stateColors = (state: LearningChoiceState) => {
       };
     default:
       return {
-        backgroundColor: brandColors.neutral[50],
-        borderColor: brandColors.neutral[200],
+        backgroundColor: brandColors.white,
+        borderColor: brandColors.equatorialGold,
       };
   }
 };
@@ -69,15 +69,25 @@ export function LearningChoiceCard({
       accessibilityRole="button"
       accessibilityState={{ disabled, selected: state !== "default" }}
       activeOpacity={0.68}
-      className="rounded-2xl border-2 px-4 flex-row items-center justify-center"
       disabled={disabled}
       onPress={onPress}
       testID="learning-choice-card"
       style={[
         {
           minHeight: minimumHeight,
+          alignItems: "stretch",
+          borderRadius: isShortScreen ? 16 : 22,
+          borderWidth: 2,
+          flexDirection: "column",
+          flexShrink: 0,
+          justifyContent: "flex-start",
           opacity: disabled && state === "default" ? 0.62 : 1,
-          paddingVertical: isShortScreen ? 9 : 12,
+          padding: isShortScreen ? 4 : 6,
+          shadowColor: brandColors.victoriaBlue,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: state === "default" ? 0.12 : 0.18,
+          shadowRadius: 7,
+          elevation: state === "default" ? 3 : 5,
           width: "100%",
           ...stateColors(state),
         },

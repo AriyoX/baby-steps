@@ -10,3 +10,6 @@ export const CHILD_FULLSCREEN_OPTIONS = {
   statusBarAnimation: "fade",
   statusBarHidden: true,
 } as const
+
+// Landscape game screens use their own horizontal spacing, including beside cutouts.
+export const CHILD_GAME_SAFE_AREA_EDGES = ["top", "bottom"] as const

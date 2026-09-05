@@ -177,20 +177,28 @@ const LessonState = ({
 };
 
 const ProgressDots = ({
+  compact = false,
   currentIndex,
   total,
 }: {
+  compact?: boolean;
   currentIndex: number;
   total: number;
 }) => (
-  <View className="flex-row items-center justify-center mt-2">
+  <View
+    className="flex-row items-center justify-center"
+    style={{ marginTop: compact ? 3 : 8 }}
+  >
     {Array.from({ length: total }).map((_, index) => (
       <View
         key={`lesson-progress-dot-${index}`}
-        className="w-2.5 h-2.5 rounded-full mx-1"
+        className="rounded-full"
         style={{
           backgroundColor:
             index <= currentIndex ? brandColors.equatorialGold : "rgba(255,255,255,0.38)",
+          height: compact ? 7 : 10,
+          marginHorizontal: compact ? 3 : 4,
+          width: compact ? 7 : 10,
         }}
       />
     ))}
@@ -307,8 +315,20 @@ export default function LearningLessonSessionScreen() {
   const currentItem = items[currentIndex];
   const isLastItem = currentIndex === items.length - 1;
   const isCompactLessonScreen = height < 430;
-  const lessonHorizontalPadding = width < 380 ? 16 : 24;
-  const headerButtonSize = isCompactLessonScreen ? 44 : 48;
+  const isVeryShortLessonScreen = height < 380;
+  const isTabletLessonScreen = Math.min(width, height) >= 600;
+  const lessonHorizontalPadding = isTabletLessonScreen
+    ? 32
+    : isCompactLessonScreen
+      ? 16
+      : 24;
+  const headerButtonSize = isVeryShortLessonScreen
+    ? 40
+    : isTabletLessonScreen
+      ? 56
+      : isCompactLessonScreen
+        ? 44
+        : 48;
   const CurrentMechanicRenderer = currentItem && lessonStatus === "startable"
     ? getMechanicRenderer(currentItem.mechanic)
     : null;
@@ -702,12 +722,25 @@ export default function LearningLessonSessionScreen() {
           <View
             className="flex-1"
             style={{
-              paddingBottom: isCompactLessonScreen ? 10 : 14,
+              paddingBottom: isVeryShortLessonScreen
+                ? 7
+                : isCompactLessonScreen
+                  ? 10
+                  : 14,
               paddingHorizontal: lessonHorizontalPadding,
-              paddingTop: isCompactLessonScreen ? 14 : 20,
+              paddingTop: isVeryShortLessonScreen
+                ? 8
+                : isCompactLessonScreen
+                  ? 14
+                  : isTabletLessonScreen
+                    ? 24
+                    : 20,
             }}
           >
-            <View className="flex-row items-center justify-between mb-2">
+            <View
+              className="flex-row items-center justify-between"
+              style={{ marginBottom: isVeryShortLessonScreen ? 4 : 8 }}
+            >
               <TouchableOpacity
                 className="w-12 h-12 rounded-full bg-white items-center justify-center border-2 border-accent-500"
                 style={{
@@ -729,13 +762,25 @@ export default function LearningLessonSessionScreen() {
                 className="flex-1"
                 style={{
                   minWidth: 0,
-                  paddingHorizontal: width < 380 ? 8 : 16,
+                  paddingHorizontal: isVeryShortLessonScreen
+                    ? 8
+                    : isTabletLessonScreen
+                      ? 20
+                      : 16,
                 }}
               >
                 <Text
                   variant="bold"
                   className="text-white text-center"
-                  style={{ fontSize: isCompactLessonScreen ? 25 : 27 }}
+                  style={{
+                    fontSize: isVeryShortLessonScreen
+                      ? 22
+                      : isTabletLessonScreen
+                        ? 32
+                        : isCompactLessonScreen
+                          ? 25
+                          : 27,
+                  }}
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.72}
@@ -744,26 +789,46 @@ export default function LearningLessonSessionScreen() {
                 </Text>
                 <Text
                   className="text-white/80 text-center"
-                  style={{ fontSize: 15 }}
+                  style={{
+                    fontSize: isVeryShortLessonScreen
+                      ? 12
+                      : isTabletLessonScreen
+                        ? 16
+                        : 14,
+                  }}
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.78}
                 >
-                  {stage.title}
+                  {lesson.description}
                 </Text>
-                <ProgressDots currentIndex={currentIndex} total={items.length} />
+                <ProgressDots
+                  compact={isVeryShortLessonScreen}
+                  currentIndex={currentIndex}
+                  total={items.length}
+                />
               </View>
 
               <View className="flex-row items-center" style={{ flexShrink: 0 }}>
                 <TourTarget id="learning-lesson-progress">
                 <View
-                  className="bg-white rounded-full px-4 py-2 border-2 border-accent-500"
-                  style={{ maxWidth: width < 380 ? 82 : 104 }}
+                  className="bg-white rounded-full border-2 border-accent-500"
+                  style={{
+                    maxWidth: isTabletLessonScreen ? 124 : 104,
+                    paddingHorizontal: isVeryShortLessonScreen ? 10 : 16,
+                    paddingVertical: isVeryShortLessonScreen ? 6 : 8,
+                  }}
                 >
                   <Text
                     variant="bold"
                     className="text-primary-700 text-center"
-                    style={{ fontSize: 15 }}
+                    style={{
+                      fontSize: isVeryShortLessonScreen
+                        ? 13
+                        : isTabletLessonScreen
+                          ? 17
+                          : 15,
+                    }}
                     numberOfLines={1}
                     adjustsFontSizeToFit
                     minimumFontScale={0.76}
@@ -795,7 +860,13 @@ export default function LearningLessonSessionScreen() {
               </View>
             </View>
 
-            <View className="h-2 bg-white/30 rounded-full overflow-hidden mb-2">
+            <View
+              className="bg-white/30 rounded-full overflow-hidden"
+              style={{
+                height: isVeryShortLessonScreen ? 6 : 8,
+                marginBottom: isVeryShortLessonScreen ? 4 : 8,
+              }}
+            >
               <View
                 className="h-full bg-accent-500 rounded-full"
                 style={{ width: `${((currentIndex + 1) / items.length) * 100}%` }}

@@ -40,8 +40,6 @@ import {
   type ChildActivityCardModel,
 } from "@/components/child/ChildActivityCard"
 import {
-  CHILD_LEAD_CARD_GAP,
-  CHILD_LEAD_CARD_WIDTH,
   ChildLeadCard,
 } from "@/components/child/ChildLeadCard"
 import {
@@ -54,7 +52,10 @@ import {
 import { brandColors, brandShadows } from "@/constants/Brand"
 import { useChildLandscapeOrientation } from "@/hooks/useChildLandscapeOrientation"
 import { audioManager } from "@/lib/audioManager"
-import { getChildInterfaceCardLayout } from "@/components/child/childInterfaceSizing"
+import {
+  getChildInterfaceCardLayout,
+  getChildNavigationLayout,
+} from "@/components/child/childInterfaceSizing"
 import type { LearningHubStage } from "@/content/learningHubRepository"
 import {
   DEFAULT_LEARNING_LANGUAGE_CODE,
@@ -91,6 +92,7 @@ type HeaderIconButtonProps = {
   accessibilityLabel: string
   color: string
   compact: boolean
+  large?: boolean
   icon: keyof typeof Ionicons.glyphMap
   onPress: () => void
   selected?: boolean
@@ -100,6 +102,7 @@ const HeaderIconButton = ({
   accessibilityLabel,
   color,
   compact,
+  large = false,
   icon,
   onPress,
   selected,
@@ -118,9 +121,10 @@ const HeaderIconButton = ({
     style={[
       styles.headerIconButton,
       compact && styles.headerIconButtonCompact,
+      large && styles.headerIconButtonLarge,
     ]}
   >
-    <Ionicons color={color} name={icon} size={compact ? 20 : 22} />
+    <Ionicons color={color} name={icon} size={compact ? 20 : large ? 25 : 22} />
   </TouchableOpacity>
 )
 
@@ -259,6 +263,9 @@ const AfricanThemeGameInterface: React.FC = () => {
   const pulseAnim = useRef(new Animated.Value(1)).current
   const bounceAnim = useRef(new Animated.Value(0)).current
   const cardRailRef = useRef<ScrollView>(null)
+  const { height, width } = useWindowDimensions()
+  const cardLayout = getChildInterfaceCardLayout(width, height)
+  const navigationLayout = getChildNavigationLayout(width, height)
 
   // Set up animation
   useEffect(() => {
@@ -427,10 +434,10 @@ const AfricanThemeGameInterface: React.FC = () => {
   const prepareLearningStagesTarget = useCallback(() => {
     cardRailRef.current?.scrollTo({
       animated: false,
-      x: CHILD_LEAD_CARD_WIDTH + CHILD_LEAD_CARD_GAP,
+      x: cardLayout.leadCardWidth + cardLayout.leadCardGap,
       y: 0,
     })
-  }, [])
+  }, [cardLayout.leadCardGap, cardLayout.leadCardWidth])
 
   const handleParentalPress = () => {
     navigateOnce("parent-gate", () => {
@@ -465,9 +472,7 @@ const AfricanThemeGameInterface: React.FC = () => {
     })
   }
 
-  const { height, width } = useWindowDimensions()
   const { snapshot: streakSnapshot, isLoading: isStreakLoading } = useStreak()
-  const cardLayout = getChildInterfaceCardLayout(width, height)
   const isCompactInterface = width < 700 || height < 350
   const showParentLabel = width >= 760
   const childGender = activeChild?.gender?.trim().toLowerCase()
@@ -504,13 +509,20 @@ const AfricanThemeGameInterface: React.FC = () => {
             <View
               style={[
                 styles.screen,
-                { paddingBottom: CHILD_TAB_BAR_CLEARANCE },
+                {
+                  paddingBottom: Math.max(
+                    CHILD_TAB_BAR_CLEARANCE,
+                    navigationLayout.clearance,
+                  ),
+                  paddingHorizontal: cardLayout.isTablet ? 24 : 16,
+                },
               ]}
             >
               <View
                 style={[
                   styles.topBar,
                   isCompactInterface && styles.topBarCompact,
+                  cardLayout.isTablet && styles.topBarTablet,
                 ]}
               >
                 <TouchableOpacity
@@ -521,6 +533,11 @@ const AfricanThemeGameInterface: React.FC = () => {
                   style={[
                     styles.profilePill,
                     isCompactInterface && styles.profilePillCompact,
+                    cardLayout.isTablet && {
+                      borderRadius: 28,
+                      height: 64 * cardLayout.uiScale,
+                      width: 232 * cardLayout.uiScale,
+                    },
                   ]}
                 >
                   <Animated.View
@@ -535,12 +552,19 @@ const AfricanThemeGameInterface: React.FC = () => {
                       style={[
                         styles.avatar,
                         isCompactInterface && styles.avatarCompact,
+                        cardLayout.isTablet && {
+                          borderRadius: 28 * cardLayout.uiScale,
+                          height: 52 * cardLayout.uiScale,
+                          width: 52 * cardLayout.uiScale,
+                        },
                       ]}
                     >
                       <Text
                         accessible={false}
                         style={{
-                          fontSize: isCompactInterface ? 26 : 31,
+                          fontSize: isCompactInterface
+                            ? 26
+                            : 31 * cardLayout.uiScale,
                         }}
                       >
                         {childAvatar}
@@ -592,7 +616,9 @@ const AfricanThemeGameInterface: React.FC = () => {
                     containerStyle={{ width: "100%" }}
                     style={{
                       color: brandColors.white,
-                      fontSize: isCompactInterface ? 23 : 29,
+                      fontSize: isCompactInterface
+                        ? 23
+                        : 29 * cardLayout.uiScale,
                     }}
                     variant="display"
                   >
@@ -606,6 +632,7 @@ const AfricanThemeGameInterface: React.FC = () => {
                       accessibilityLabel="Show Learning Hub guide"
                       color={brandColors.victoriaBlue}
                       compact={isCompactInterface}
+                      large={cardLayout.isTablet}
                       icon="help-circle-outline"
                       onPress={learningHubTour.open}
                     />
@@ -622,6 +649,7 @@ const AfricanThemeGameInterface: React.FC = () => {
                         : brandColors.gold[700]
                     }
                     compact={isCompactInterface}
+                    large={cardLayout.isTablet}
                     icon={
                       audioSettings.backgroundMusicMuted
                         ? "volume-mute"
@@ -642,6 +670,7 @@ const AfricanThemeGameInterface: React.FC = () => {
                         : brandColors.victoriaBlue
                     }
                     compact={isCompactInterface}
+                    large={cardLayout.isTablet}
                     icon={
                       audioSettings.appSoundsMuted
                         ? "volume-mute"
@@ -663,12 +692,18 @@ const AfricanThemeGameInterface: React.FC = () => {
                     style={[
                       styles.parentButton,
                       isCompactInterface && styles.parentButtonCompact,
+                      cardLayout.isTablet && {
+                        borderRadius: 25,
+                        height: 50,
+                        minWidth: 50,
+                        paddingHorizontal: 15,
+                      },
                     ]}
                   >
                     <Ionicons
                       color={brandColors.shanaOrange}
                       name="people"
-                      size={isCompactInterface ? 20 : 22}
+                      size={isCompactInterface ? 20 : cardLayout.isTablet ? 25 : 22}
                     />
                     {showParentLabel ? (
                       <Text
@@ -684,7 +719,13 @@ const AfricanThemeGameInterface: React.FC = () => {
               </View>
 
               <ScrollView
-                contentContainerStyle={styles.cardRailContent}
+                contentContainerStyle={[
+                  styles.cardRailContent,
+                  cardLayout.isTablet && {
+                    paddingRight: 32,
+                    paddingTop: 18,
+                  },
+                ]}
                 horizontal
                 ref={cardRailRef}
                 showsHorizontalScrollIndicator={false}
@@ -718,14 +759,20 @@ const AfricanThemeGameInterface: React.FC = () => {
                       }
                     })}
                     cardHeight={cardLayout.cardHeight}
+                    cardGap={cardLayout.leadCardGap}
+                    cardWidth={cardLayout.leadCardWidth}
                     mode="coloring"
+                    scale={cardLayout.uiScale}
                     savedSummary={`${coloringProgress.savedArtworkCount} ${t("coloring.saved")}`}
                     title={t("coloring.artJourney")}
                   />
                 ) : (
                   <ChildLeadCard
                     cardHeight={cardLayout.cardHeight}
+                    cardGap={cardLayout.leadCardGap}
+                    cardWidth={cardLayout.leadCardWidth}
                     mode="journey"
+                    scale={cardLayout.uiScale}
                     title={t("child.learningJourney")}
                   />
                 )}
@@ -751,6 +798,7 @@ const AfricanThemeGameInterface: React.FC = () => {
                       onPress={() => handleCardPress(card)}
                       showDescription={contentSlug === "games" || isLearningTab}
                       textHeight={cardLayout.textHeight}
+                      uiScale={cardLayout.uiScale}
                     />
                   </TourTarget>
                 ))}
@@ -1059,6 +1107,12 @@ const styles = StyleSheet.create({
     marginLeft: 5,
     width: 38,
   },
+  headerIconButtonLarge: {
+    borderRadius: 25,
+    height: 50,
+    marginLeft: 8,
+    width: 50,
+  },
   parentButton: {
     ...brandShadows.soft,
     alignItems: "center",
@@ -1214,6 +1268,11 @@ const styles = StyleSheet.create({
   topBarCompact: {
     height: 64,
     marginTop: 24,
+  },
+  topBarTablet: {
+    height: 82,
+    marginBottom: 8,
+    marginTop: 34,
   },
 })
 

@@ -74,20 +74,28 @@ export const getGameLevelGridMetrics = (
   availableWidth: number,
   compact: boolean,
 ) => {
+  const expansive = availableWidth >= 900 && !compact
   const columnCount = availableWidth >= 680 ? 3 : 2
-  const gap = compact ? 10 : 14
-  const selectorWidth = Math.min(availableWidth, columnCount === 3 ? 820 : 540)
+  const gap = compact ? 10 : expansive ? 18 : 14
+  const selectorWidth = Math.min(
+    availableWidth,
+    columnCount === 3 ? (expansive ? 1040 : 820) : 540,
+  )
   const cardWidth = Math.max(
     112,
     (selectorWidth - gap * (columnCount - 1)) / columnCount,
   )
 
   return {
-    cardMinHeight: compact ? 112 : 132,
+    cardMinHeight: compact ? 112 : expansive ? 156 : 132,
+    cardPadding: compact ? 12 : expansive ? 18 : 16,
     cardWidth,
     columnCount,
+    expansive,
     gap,
+    numberSize: expansive ? 56 : 48,
     selectorWidth,
+    titleFontSize: expansive ? 20 : 18,
   }
 }
 
@@ -152,11 +160,19 @@ export function GameLevelSelector({
             accessibilityLabel={`${choice.title}. ${statusLabel}.${choice.meta ? ` ${choice.meta}.` : ""}`}
             accessibilityState={{ disabled, selected: isSelected }}
           >
-            <View className={`${compact ? "p-3" : "p-4"} flex-1 justify-between`}>
+            <View
+              className="flex-1 justify-between"
+              style={{ padding: metrics.cardPadding }}
+            >
               <View className="flex-row items-start justify-between">
                 <View
                   className="w-12 h-12 rounded-full justify-center items-center mr-3"
-                  style={{ backgroundColor: statusStyle.backgroundColor }}
+                  style={{
+                    backgroundColor: statusStyle.backgroundColor,
+                    borderRadius: metrics.numberSize / 2,
+                    height: metrics.numberSize,
+                    width: metrics.numberSize,
+                  }}
                 >
                   <Text variant="bold" className="text-primary-700 text-lg">
                     {choice.order}
@@ -185,7 +201,8 @@ export function GameLevelSelector({
               <View className="mt-3">
                 <Text
                   variant="bold"
-                  className="text-primary-700 text-lg leading-5"
+                  className="text-primary-700 leading-5"
+                  style={{ fontSize: metrics.titleFontSize }}
                   numberOfLines={2}
                   adjustsFontSizeToFit
                   minimumFontScale={0.84}

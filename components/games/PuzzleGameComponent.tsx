@@ -16,6 +16,7 @@ import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Text } from "@/components/StyledText";
+import { activityColors, activityStyles } from "@/constants/ActivityTheme";
 import { ChildLoadingState } from "@/components/child/ChildLoadingState";
 import {
   DEFAULT_LEARNING_LANGUAGE_CODE,
@@ -46,6 +47,7 @@ import {
 import { recordQualifiedStreakActivity } from "@/lib/streakRepository";
 import { childHaptics } from "@/lib/childHaptics";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { CHILD_GAME_SAFE_AREA_EDGES } from "@/constants/SystemUi";
 import {
   GameHeader,
   GameStatChip,
@@ -54,6 +56,7 @@ import {
   TourTarget,
   useGameTour,
 } from "./GameTour";
+import { getPuzzleGameSizing } from "./responsiveSizing";
 
 const GRID_SIZE = 3; // Keep the same 3x3 puzzle grid
 const PUZZLE_PADDING = 20;
@@ -259,12 +262,12 @@ const PuzzleGame: React.FC = () => {
   const router = useRouter();
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const landscapeWidth = Math.max(windowWidth, windowHeight);
-  const landscapeHeight = Math.min(windowWidth, windowHeight) - insets.top - insets.bottom;
-  const puzzleContainerSize = Math.max(
-    196,
-    Math.min(300, landscapeHeight - 70, landscapeWidth * 0.42),
+  const puzzleGameSizing = getPuzzleGameSizing(
+    windowWidth,
+    windowHeight,
+    insets.top + insets.bottom,
   );
+  const puzzleContainerSize = puzzleGameSizing.containerSize;
   const tileSize = (puzzleContainerSize - PUZZLE_PADDING * 2) / GRID_SIZE;
   const { activeChild } = useChild(); // Get active child from context
   const { t } = useChildUiLanguage();
@@ -1078,9 +1081,10 @@ const PuzzleGame: React.FC = () => {
 
   return (
     <GameTourProvider>
-      <SafeAreaView className="flex-1 bg-blue-50" edges={["top", "bottom", "left", "right"]}>
-      <StatusBar style="dark" />
+      <SafeAreaView className="flex-1" style={{ backgroundColor: activityColors.canvas }} edges={CHILD_GAME_SAFE_AREA_EDGES}>
+      <StatusBar style="light" />
       <GameHeader
+        appearance="activity"
         title={puzzleTitle}
         subtitle={t("games.puzzleHint")}
         onBack={() => router.back()}
@@ -1097,6 +1101,11 @@ const PuzzleGame: React.FC = () => {
             {gameStarted && !showPreview ? (
               <TouchableOpacity
                 className="w-12 h-12 rounded-2xl bg-white items-center justify-center border border-blue-100 ml-2"
+                style={{
+                  ...activityStyles.roundControl,
+                  height: puzzleGameSizing.isTablet ? 56 : 48,
+                  width: puzzleGameSizing.isTablet ? 56 : 48,
+                }}
                 onPress={handleReset}
                 accessibilityLabel="Reset Puzzle"
                 accessibilityHint="Starts a new shuffled puzzle"
@@ -1116,6 +1125,8 @@ const PuzzleGame: React.FC = () => {
           <View
             className="bg-white rounded-3xl overflow-hidden relative border-4 border-primary-100 shadow-lg"
             style={{
+              borderColor: activityColors.outline,
+              borderRadius: 22,
               width: puzzleContainerSize,
               height: puzzleContainerSize,
             }}
@@ -1172,11 +1183,35 @@ const PuzzleGame: React.FC = () => {
 
         <View className="justify-center pl-3 pr-2" style={{ flex: 0.88 }}>
           <TourTarget id="puzzle-instructions">
-          <View className="bg-white rounded-3xl border border-blue-100 shadow-sm px-5 py-5">
-            <View className="w-12 h-12 rounded-2xl bg-blue-50 items-center justify-center self-center mb-3">
-              <Ionicons name="images-outline" size={25} color="#0274BB" />
+          <View
+            className="bg-white rounded-3xl border border-blue-100 shadow-sm px-5 py-5"
+            style={{
+              ...activityStyles.card,
+              alignSelf: "center",
+              maxWidth: puzzleGameSizing.instructionMaxWidth,
+              padding: puzzleGameSizing.isTablet ? 28 : 20,
+              width: "100%",
+            }}
+          >
+            <View
+              className="w-12 h-12 rounded-2xl bg-blue-50 items-center justify-center self-center mb-3"
+              style={{
+                height: puzzleGameSizing.isTablet ? 58 : 48,
+                width: puzzleGameSizing.isTablet ? 58 : 48,
+              }}
+            >
+              <Ionicons
+                name="images-outline"
+                size={puzzleGameSizing.isTablet ? 30 : 25}
+                color="#0274BB"
+              />
             </View>
-            <Text variant="bold" className="text-2xl text-indigo-800 mb-2 text-center" numberOfLines={2}>
+            <Text
+              variant="bold"
+              className="text-indigo-800 mb-2 text-center"
+              style={{ color: activityColors.ink, fontSize: puzzleGameSizing.isTablet ? 30 : 24 }}
+              numberOfLines={2}
+            >
               {puzzleImages[currentPuzzle].name}
             </Text>
             <View className="flex-row items-center justify-center mt-4 bg-blue-50 rounded-xl px-3 py-2.5">

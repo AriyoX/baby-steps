@@ -71,7 +71,7 @@ describe("child-mode navigation", () => {
     expect(layoutSource).toContain("left: horizontalInset")
     expect(layoutSource).toContain("right: horizontalInset")
     expect(layoutSource).not.toContain("TAB_BAR_MAX_WIDTH")
-    expect(layoutSource).not.toContain("useWindowDimensions")
+    expect(layoutSource).toContain("getChildNavigationLayout")
   })
 
   it("keeps child mode immersive and restores system bars in adult mode", () => {
@@ -135,7 +135,7 @@ describe("child-mode navigation", () => {
     expect(interfaceSource).toContain("!isContentLoading")
     expect(interfaceSource).toContain("learningCards.length > 0")
     expect(interfaceSource).toContain(
-      "x: CHILD_LEAD_CARD_WIDTH + CHILD_LEAD_CARD_GAP",
+      "x: cardLayout.leadCardWidth + cardLayout.leadCardGap",
     )
     expect(interfaceSource).toContain(
       "prepareTarget: prepareLearningStagesTarget",

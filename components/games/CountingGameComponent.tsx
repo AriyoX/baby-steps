@@ -42,6 +42,8 @@ import {
 import { recordQualifiedStreakActivity } from "@/lib/streakRepository"
 import { childHaptics } from "@/lib/childHaptics"
 import { Text } from "@/components/StyledText"
+import { activityColors, activityStyles } from "@/constants/ActivityTheme"
+import { CHILD_GAME_SAFE_AREA_EDGES } from "@/constants/SystemUi"
 import {
   type CountingGameProgress,
   DEFAULT_PROGRESS,
@@ -72,6 +74,10 @@ import {
   buildCountingLevelChoices,
   CountingLevelSelector,
 } from "./counting/CountingLevelSelector"
+import {
+  getCountingGameSizing,
+  getGameStageCarouselSizing,
+} from "./responsiveSizing"
 
 const GAME_SCREEN_OVERLAY = "rgba(2, 116, 187, 0.88)"
 
@@ -102,9 +108,6 @@ const completeCountingProgressLocallyFirst = (
     onLocalError: options.onLocalError,
     onNetworkError: options.onNetworkError,
   })
-
-const getCountingCanvasHeight = (screenHeight: number): number =>
-  Math.min(224, Math.max(180, screenHeight * 0.48))
 
 const getCountingStageImage = (stage: CountingGameStage) => {
   if (stage.usesCurrency) return resolveImageSource("coin.png")
@@ -140,13 +143,15 @@ const LugandaCountingGame: React.FC = () => {
   const insets = useSafeAreaInsets()
   const landscapeWidth = Math.max(windowWidth, windowHeight)
   const landscapeHeight = Math.min(windowWidth, windowHeight)
-  const stageCardGap = 8
-  const stageCardWidth = Math.min(270, Math.max(230, landscapeWidth * 0.32))
-  const stageCardHeight = Math.max(190, Math.min(232, landscapeHeight * 0.56))
-  const stageCardImageHeight = Math.round(stageCardHeight * 0.54)
-  const stageCardBodyHeight = stageCardHeight - stageCardImageHeight
-  const stageListEndPadding = Math.max(16, landscapeWidth - stageCardWidth - 32)
-  const countingCanvasHeight = getCountingCanvasHeight(landscapeHeight)
+  const stageCarouselSizing = getGameStageCarouselSizing(windowWidth, windowHeight)
+  const countingGameSizing = getCountingGameSizing(windowWidth, windowHeight)
+  const stageCardGap = stageCarouselSizing.cardGap
+  const stageCardWidth = stageCarouselSizing.cardWidth
+  const stageCardHeight = stageCarouselSizing.cardHeight
+  const stageCardImageHeight = stageCarouselSizing.cardImageHeight
+  const stageCardBodyHeight = stageCarouselSizing.cardBodyHeight
+  const stageListEndPadding = stageCarouselSizing.listEndPadding
+  const countingCanvasHeight = countingGameSizing.canvasHeight
   const [gameState, setGameState] = useState<GameState>("stageSelect")
   const [currentStage, setCurrentStage] = useState<number>(1)
   const [currentLevel, setCurrentLevel] = useState<number>(1)
@@ -696,10 +701,14 @@ const LugandaCountingGame: React.FC = () => {
 
       // Calculate container dimensions
       const containerWidth = Math.max(240, dimensions.width * 0.6 - 48)
-      const containerHeight = getCountingCanvasHeight(dimensions.height)
+      const responsiveGameSizing = getCountingGameSizing(
+        dimensions.width,
+        dimensions.height,
+      )
+      const containerHeight = responsiveGameSizing.canvasHeight
 
       // Item dimensions
-      const itemSize = 56 // Slightly smaller than before for better fit
+      const itemSize = responsiveGameSizing.itemSize
       const itemsPerRow = Math.ceil(Math.sqrt(numberToUse)) // Distribute items in a grid-like pattern
 
       // Calculate spacing between items
@@ -988,6 +997,14 @@ const LugandaCountingGame: React.FC = () => {
               source={currencyImageSource}
               fallbackSource={resolveImageSource("coin.png")}
               className="w-24 h-24"
+              style={{
+                height: countingGameSizing.isTablet
+                  ? countingGameSizing.itemSize * 1.5
+                  : 96,
+                width: countingGameSizing.isTablet
+                  ? countingGameSizing.itemSize * 1.5
+                  : 96,
+              }}
               resizeMode="contain"
               accessibilityLabel={currencyItem.name}
             />
@@ -1007,8 +1024,10 @@ const LugandaCountingGame: React.FC = () => {
           key={item.id}
           className="items-center justify-center absolute bg-primary rounded-full w-16 h-16"
           style={{
+            height: countingGameSizing.itemSize,
             left: item.x,
             top: item.y,
+            width: countingGameSizing.itemSize,
           }}
         >
           <Text variant="bold" className="text-white">
@@ -1038,6 +1057,10 @@ const LugandaCountingGame: React.FC = () => {
               source={imageSource}
               fallbackSource={resolveImageSource("african-logic.png")}
               className="w-16 h-16"
+              style={{
+                height: countingGameSizing.itemSize,
+                width: countingGameSizing.itemSize,
+              }}
               resizeMode="contain"
               accessibilityLabel={currentItem?.name ?? "Counting item"}
             />
@@ -1064,6 +1087,10 @@ const LugandaCountingGame: React.FC = () => {
           source={imageSource}
           fallbackSource={resolveImageSource("african-logic.png")}
           className="w-16 h-16"
+          style={{
+            height: countingGameSizing.itemSize,
+            width: countingGameSizing.itemSize,
+          }}
           resizeMode="contain"
           accessibilityLabel={currentItem?.name ?? "Counting item"}
         />
@@ -1241,18 +1268,41 @@ const LugandaCountingGame: React.FC = () => {
       <ImageBackground source={require("@/assets/images/gameBackground.jpg")} className="flex-1 bg-cover">
         <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: GAME_SCREEN_OVERLAY }}>
           <StatusBar style="light" translucent backgroundColor="transparent" />
-          <View className="flex-1 px-6 pt-6 pb-5">
-            <View className="flex-row items-center justify-between mb-4">
+          <View
+            className="flex-1"
+            style={{
+              paddingBottom: stageCarouselSizing.isShort ? 10 : 20,
+              paddingHorizontal: stageCarouselSizing.screenPadding,
+              paddingTop: stageCarouselSizing.isShort ? 10 : 24,
+            }}
+          >
+            <View
+              className="flex-row items-center justify-between"
+              style={{ marginBottom: stageCarouselSizing.isShort ? 8 : 16 }}
+            >
               <TouchableOpacity
                 className="w-12 h-12 rounded-full bg-white justify-center items-center border-2 border-accent-500"
+                style={{
+                  height: stageCarouselSizing.headerControlSize,
+                  width: stageCarouselSizing.headerControlSize,
+                }}
                 onPress={returnToStageSelection}
                 accessibilityRole="button"
                 accessibilityLabel="Back to counting stages"
               >
-                <Ionicons name="arrow-back" size={22} color={brandColors.victoriaBlue} />
+                <Ionicons
+                  name="arrow-back"
+                  size={stageCarouselSizing.isTablet ? 26 : 22}
+                  color={brandColors.victoriaBlue}
+                />
               </TouchableOpacity>
               <View className="flex-1 px-4">
-                <Text variant="bold" className="text-white text-3xl text-center" numberOfLines={1}>
+                <Text
+                  variant="bold"
+                  className="text-white text-center"
+                  style={{ fontSize: stageCarouselSizing.headerTitleFontSize }}
+                  numberOfLines={1}
+                >
                   {stage.title}
                 </Text>
               </View>
@@ -1268,13 +1318,28 @@ const LugandaCountingGame: React.FC = () => {
               </View>
             </View>
 
-            <View className="bg-white/15 rounded-2xl px-4 py-3 mb-4">
+            <View
+              className="bg-white/15 rounded-2xl px-4"
+              style={{
+                marginBottom: stageCarouselSizing.isShort ? 8 : 16,
+                paddingVertical: stageCarouselSizing.isShort ? 8 : 12,
+              }}
+            >
               <View className="flex-row items-center">
-                <View className="bg-white rounded-full w-14 h-14 items-center justify-center mr-4 border-2 border-accent-500">
+                <View
+                  className="bg-white rounded-full w-14 h-14 items-center justify-center mr-4 border-2 border-accent-500"
+                  style={{
+                    height: stageCarouselSizing.isTablet ? 64 : 56,
+                    width: stageCarouselSizing.isTablet ? 64 : 56,
+                  }}
+                >
                   <CachedImage
                     source={getCountingStageImage(stage)}
                     fallbackSource={resolveImageSource("numbers.png")}
-                    style={{ width: 34, height: 34 }}
+                    style={{
+                      height: stageCarouselSizing.isTablet ? 40 : 34,
+                      width: stageCarouselSizing.isTablet ? 40 : 34,
+                    }}
                     resizeMode="contain"
                     accessibilityLabel={`${stage.title} picture`}
                   />
@@ -1332,19 +1397,42 @@ const LugandaCountingGame: React.FC = () => {
         <SafeAreaView className="flex-1" edges={[]} style={{ backgroundColor: GAME_SCREEN_OVERLAY }}>
           <StatusBar style="light" translucent backgroundColor="transparent" />
 
-          <View className="flex-1 px-6 pt-6 pb-5">
-            <View className="flex-row items-center justify-between mb-4">
+          <View
+            className="flex-1"
+            style={{
+              paddingBottom: stageCarouselSizing.isShort ? 10 : 20,
+              paddingHorizontal: stageCarouselSizing.screenPadding,
+              paddingTop: stageCarouselSizing.isShort ? 10 : 24,
+            }}
+          >
+            <View
+              className="flex-row items-center justify-between"
+              style={{ marginBottom: stageCarouselSizing.isShort ? 8 : 16 }}
+            >
               <TouchableOpacity
                 className="w-12 h-12 rounded-full bg-white justify-center items-center border-2 border-accent-500"
+                style={{
+                  height: stageCarouselSizing.headerControlSize,
+                  width: stageCarouselSizing.headerControlSize,
+                }}
                 onPress={() => router.back()}
                 accessibilityRole="button"
                 accessibilityLabel={t("games.backToGames")}
               >
-                <Ionicons name="arrow-back" size={22} color={brandColors.victoriaBlue} />
+                <Ionicons
+                  name="arrow-back"
+                  size={stageCarouselSizing.isTablet ? 26 : 22}
+                  color={brandColors.victoriaBlue}
+                />
               </TouchableOpacity>
 
               <View className="flex-1 px-4">
-                <Text variant="bold" className="text-white text-3xl text-center" numberOfLines={1}>
+                <Text
+                  variant="bold"
+                  className="text-white text-center"
+                  style={{ fontSize: stageCarouselSizing.headerTitleFontSize }}
+                  numberOfLines={1}
+                >
                   {countingContent?.title ?? "Counting Game"}
                 </Text>
               </View>
@@ -1361,7 +1449,13 @@ const LugandaCountingGame: React.FC = () => {
               </View>
             </View>
 
-            <View className="bg-white/15 rounded-2xl px-4 py-3 mb-4">
+            <View
+              className="bg-white/15 rounded-2xl px-4"
+              style={{
+                marginBottom: stageCarouselSizing.isShort ? 8 : 16,
+                paddingVertical: stageCarouselSizing.isShort ? 8 : 12,
+              }}
+            >
               <View className="flex-row items-center justify-between">
                 <View className="flex-1 pr-4">
                   <Text variant="bold" className="text-white text-lg" numberOfLines={1}>
@@ -1468,12 +1562,27 @@ const LugandaCountingGame: React.FC = () => {
                         />
                         {!isUnlocked ? <View className="absolute top-0 bottom-0 left-0 right-0 bg-black/20" /> : null}
                         <View className="absolute top-2 left-2 bg-white/95 px-2.5 py-1 rounded-full">
-                          <Text variant="bold" className="text-[11px] text-primary-700" numberOfLines={1}>
+                          <Text
+                            variant="bold"
+                            className="text-primary-700"
+                            style={{ fontSize: stageCarouselSizing.isTablet ? 13 : 11 }}
+                            numberOfLines={1}
+                          >
                             {t("learning.stage")} {stage.id}
                           </Text>
                         </View>
-                        <View className="absolute top-2 right-2 bg-white/95 w-9 h-9 rounded-full items-center justify-center">
-                          <Ionicons name={statusIcon} size={20} color={statusColor} />
+                        <View
+                          className="absolute top-2 right-2 bg-white/95 rounded-full items-center justify-center"
+                          style={{
+                            height: stageCarouselSizing.isTablet ? 44 : 36,
+                            width: stageCarouselSizing.isTablet ? 44 : 36,
+                          }}
+                        >
+                          <Ionicons
+                            name={statusIcon}
+                            size={stageCarouselSizing.statusIconSize}
+                            color={statusColor}
+                          />
                         </View>
                       </View>
 
@@ -1481,7 +1590,11 @@ const LugandaCountingGame: React.FC = () => {
                         <View>
                           <Text
                             variant="bold"
-                            className="text-lg text-primary-700 leading-5 mb-1"
+                            className="text-primary-700 leading-5 mb-1"
+                            style={{
+                              fontSize: stageCarouselSizing.stageTitleFontSize,
+                              lineHeight: stageCarouselSizing.isTablet ? 26 : 20,
+                            }}
                             numberOfLines={1}
                             adjustsFontSizeToFit
                             minimumFontScale={0.86}
@@ -1492,13 +1605,29 @@ const LugandaCountingGame: React.FC = () => {
 
                         <View className="flex-row items-center justify-between mt-2">
                           <View className="flex-row items-center flex-1 pr-2">
-                            <Ionicons name="layers-outline" size={14} color={brandColors.victoriaBlue} />
-                            <Text variant="medium" className="text-[11px] text-primary-700 ml-1" numberOfLines={1}>
+                            <Ionicons
+                              name="layers-outline"
+                              size={stageCarouselSizing.isTablet ? 17 : 14}
+                              color={brandColors.victoriaBlue}
+                            />
+                            <Text
+                              variant="medium"
+                              className="text-primary-700 ml-1"
+                              style={{ fontSize: stageCarouselSizing.isTablet ? 13 : 11 }}
+                              numberOfLines={1}
+                            >
                               {completedLevelCount}/{stage.levels} {t("common.levels").toLowerCase()}
                             </Text>
                           </View>
                           <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: !isUnlocked ? brandColors.neutral[100] : brandColors.blue[50] }}>
-                            <Text variant="bold" className="text-[11px]" style={{ color: statusColor }} numberOfLines={1}>
+                            <Text
+                              variant="bold"
+                              style={{
+                                color: statusColor,
+                                fontSize: stageCarouselSizing.isTablet ? 13 : 11,
+                              }}
+                              numberOfLines={1}
+                            >
                               {statusLabel}
                             </Text>
                           </View>
@@ -1572,11 +1701,12 @@ const LugandaCountingGame: React.FC = () => {
   // Render the game screen
   return (
     <GameTourProvider>
-      <View className="flex-1 bg-blue-50">
-      <SafeAreaView className="flex-1">
-      <StatusBar style={stageCompleted ? "light" : "dark"} />
+      <View className="flex-1" style={{ backgroundColor: activityColors.canvas }}>
+      <SafeAreaView className="flex-1" edges={CHILD_GAME_SAFE_AREA_EDGES}>
+      <StatusBar style="light" />
 
       <GameHeader
+        appearance="activity"
         title={activeStage.title}
         subtitle={t("games.levelProgress", {
           stage: currentStage,
@@ -1599,10 +1729,11 @@ const LugandaCountingGame: React.FC = () => {
 
       {/* Main content area */}
       <Animated.View
-        className="flex-1 flex-row w-full px-4 pb-3"
+        className="flex-1 flex-row w-full pb-3"
         style={{
+          paddingHorizontal: countingGameSizing.isTablet ? 24 : 16,
           opacity: fadeAnim,
-          columnGap: 12,
+          columnGap: countingGameSizing.isTablet ? 20 : 12,
           transform: [
             {
               translateY: fadeAnim.interpolate({
@@ -1615,15 +1746,22 @@ const LugandaCountingGame: React.FC = () => {
       >
         {/* Center section - Items to count */}
         <View className="items-center justify-center pr-2" style={{ flex: 2.7 }}>
-          <View className="w-full items-center mb-2 bg-white px-5 py-2 rounded-2xl shadow-sm border border-blue-100">
-            <Text variant="bold" className="text-xl text-slate-800 text-center" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.84}>
+          <View className="w-full items-center mb-2 px-5 py-2" style={activityStyles.panel}>
+            <Text
+              variant="bold"
+              className="text-slate-800 text-center"
+              style={{ color: activityColors.ink, fontSize: countingGameSizing.questionFontSize }}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.84}
+            >
               {getQuestionText()}
             </Text>
           </View>
 
           {/* Items container */}
           <TourTarget id="counting-objects">
-          <View className="w-full relative bg-white rounded-3xl p-4 shadow-sm border border-blue-100 overflow-hidden" style={{ height: countingCanvasHeight }}>
+          <View className="w-full relative bg-white rounded-3xl p-4 shadow-sm border border-blue-100 overflow-hidden" style={{ ...activityStyles.card, height: countingCanvasHeight }}>
             <Text className="hidden">{getNumberLabel(targetNumber)} = {targetNumber}</Text>
             <View className="absolute top-3 left-3 flex-row items-center bg-blue-50 rounded-full px-2.5 py-1">
               <Ionicons name="eye-outline" size={16} color="#0274BB" />
@@ -1638,11 +1776,21 @@ const LugandaCountingGame: React.FC = () => {
         {/* Right section - Number options */}
         <View className="items-center justify-center pl-2" style={{ flex: 1 }}>
           <TourTarget id="counting-answers">
-          <View className="bg-white rounded-3xl shadow-sm px-3 py-3 w-full border border-blue-100 justify-center">
-            <Text variant="bold" className="text-center text-base text-primary-700 mb-2" numberOfLines={1}>
-              {t("games.howMany")}
-            </Text>
-            <Text className="text-center text-xs text-slate-400 mb-2" numberOfLines={1}>
+          <View
+            className="bg-white rounded-3xl shadow-sm px-3 py-3 w-full border border-blue-100 justify-center"
+            style={{
+              ...activityStyles.panel,
+              alignSelf: "center",
+              borderWidth: 0,
+              maxWidth: countingGameSizing.isTablet ? 280 : undefined,
+            }}
+          >
+            <Text
+              variant="bold"
+              className="text-center text-primary-700 mb-2"
+              style={{ color: activityColors.ink, fontSize: countingGameSizing.isTablet ? 20 : 16 }}
+              numberOfLines={1}
+            >
               {t("games.howMany")}
             </Text>
 
@@ -1651,21 +1799,30 @@ const LugandaCountingGame: React.FC = () => {
                 numberOptions.map((number) => (
                   <TouchableOpacity
                     key={number}
-                    className={`w-16 h-16 rounded-2xl justify-center items-center shadow mb-2 border-2 ${
-                      selectedCount === number && isCorrect
-                        ? "bg-emerald-500 border-emerald-200"
-                        : selectedCount === number && !isCorrect
-                          ? "bg-red-500 border-red-200"
-                          : "bg-indigo-500 border-indigo-300"
-                    }`}
+                    className="rounded-2xl justify-center items-center shadow border-2"
+                    style={{
+                      backgroundColor: selectedCount === number
+                        ? isCorrect ? "#DCFCE7" : brandColors.orange[50]
+                        : activityColors.paper,
+                      borderColor: selectedCount === number
+                        ? isCorrect ? brandColors.success : brandColors.shanaOrange
+                        : activityColors.outline,
+                      height: countingGameSizing.answerButtonSize,
+                      marginBottom: countingGameSizing.isTablet ? 12 : 8,
+                      width: countingGameSizing.answerButtonSize,
+                    }}
                     onPress={() => handleNumberPress(number)}
                     disabled={showFeedback && isCorrect}
                     activeOpacity={0.78}
                   >
-                    <Text variant="bold" className="text-2xl text-white" numberOfLines={1}>
+                    <Text
+                      variant="bold"
+                      style={{ color: activityColors.ink, fontSize: countingGameSizing.answerNumberFontSize }}
+                      numberOfLines={1}
+                    >
                       {number}
                     </Text>
-                    <Text className="text-sm text-white opacity-90" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}>
+                    <Text className="text-sm opacity-90" style={{ color: activityColors.muted }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}>
                       {getNumberLabel(number).split(" ")[0]}
                     </Text>
                   </TouchableOpacity>
@@ -1761,7 +1918,8 @@ const LugandaCountingGame: React.FC = () => {
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                className="bg-indigo-500 py-3 px-6 rounded-xl shadow-md"
+                className="py-3 px-6 rounded-full shadow-md"
+                style={{ backgroundColor: activityColors.action, minHeight: 44 }}
                 onPress={continueToNextLevel}
                 accessibilityRole="button"
                 accessibilityLabel={`Start counting level ${completedLevelNumber + 1}`}
@@ -1827,7 +1985,8 @@ const LugandaCountingGame: React.FC = () => {
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                className="bg-indigo-500 py-4 px-6 rounded-xl shadow-md"
+                className="py-4 px-6 rounded-full shadow-md"
+                style={{ backgroundColor: activityColors.action, minHeight: 44 }}
                 onPress={continueAfterStage}
                 accessibilityRole="button"
                 accessibilityLabel={

@@ -1,6 +1,7 @@
 export type ColoringStudioLayout = {
   isCompact: boolean
   isSmallPhone: boolean
+  isTablet: boolean
   showCanvasHint: boolean
   showDockTitles: boolean
 }
@@ -19,10 +20,12 @@ export const getColoringStudioLayout = (
 ): ColoringStudioLayout => {
   const isCompact = width < 780 || height < 410
   const isSmallPhone = width < 720 || height < 370
+  const isTablet = Math.min(width, height) >= 600
 
   return {
     isCompact,
     isSmallPhone,
+    isTablet,
     showCanvasHint: !isSmallPhone,
     showDockTitles: !isSmallPhone,
   }

@@ -336,8 +336,22 @@ jest.mock("../utils/progressManagerCountingGame", () => ({
 
 jest.mock("../utils/progressManagerLugandaLearning", () => ({
   applyLegacyLearningAccessLocks: (
-    stages: Record<string, unknown>[],
-  ) => stages,
+    stages: { levels: { id: number; isLocked: boolean }[] }[],
+    completedLevels: number[],
+  ) => stages.map((stage) => {
+    const firstIncompleteIndex = stage.levels.findIndex(
+      (level) => !completedLevels.includes(level.id),
+    );
+
+    return {
+      ...stage,
+      levels: stage.levels.map((level, index) => ({
+        ...level,
+        isLocked:
+          !completedLevels.includes(level.id) && index !== firstIncompleteIndex,
+      })),
+    };
+  }),
   DEFAULT_USER_STATS: {
     correctAnswers: 0,
     lastPlayed: "2026-07-14T00:00:00.000Z",
@@ -808,9 +822,9 @@ describe("synchronous game completion locks", () => {
     expect(Number.isFinite(target)).toBe(true);
     const answer = tree.root.findAllByType(TouchableOpacity).find(
       (candidate) =>
-        typeof candidate.props.className === "string" &&
-        candidate.props.className.includes("w-16 h-16") &&
-        textContent(candidate).startsWith(String(target)),
+        React.Children.toArray(candidate.props.children).some(
+          (child) => React.isValidElement(child) && textContent(child) === String(target),
+        ),
     );
     expect(answer).toBeDefined();
 
@@ -928,6 +942,70 @@ describe("synchronous game completion locks", () => {
     );
     expect(mockEnqueueAchievementUnlocked).toHaveBeenCalledTimes(1);
     expect((renderedText(tree.toJSON()).match(/Level done!/g) ?? [])).toHaveLength(1);
+
+    act(() => tree.unmount());
+  });
+
+  it("opens the newly unlocked level from the completion card", async () => {
+    const stages = learningStages("Luganda");
+    stages[0].levels.push({
+      id: 2,
+      isLocked: true,
+      title: "Luganda next level",
+      words: [
+        { id: "5", targetText: "E", english: "five" },
+        { id: "6", targetText: "F", english: "six" },
+      ],
+    });
+    mockLoadLearningProgress.mockResolvedValue({
+      completedLevels: [],
+      stages,
+      totalScore: 0,
+      userStats: {
+        correctAnswers: 0,
+        lastPlayed: "2026-07-14T00:00:00.000Z",
+        streakDays: 1,
+        totalWords: 0,
+        wrongAnswers: 0,
+      },
+    });
+
+    let tree!: renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<LearningGame />);
+      await flush();
+    });
+
+    const stage = tree.root.findAllByType(TouchableOpacity).find(
+      (candidate) =>
+        typeof candidate.props.accessibilityLabel === "string" &&
+        candidate.props.accessibilityLabel.startsWith("Luganda stage."),
+    );
+    act(() => stage!.props.onPress());
+    const firstLevel = tree.root.findAllByType(TouchableOpacity).find(
+      (candidate) =>
+        typeof candidate.props.accessibilityLabel === "string" &&
+        candidate.props.accessibilityLabel.startsWith("Luganda level."),
+    );
+    act(() => firstLevel!.props.onPress());
+    act(() => findButtonByText(tree, "Play Game").props.onPress());
+
+    for (const answerText of ["one", "two", "three", "four"]) {
+      const answer = findButtonByText(tree, answerText);
+      act(() => {
+        answer.props.onPress();
+        jest.advanceTimersByTime(answerText === "four" ? 1500 : 1800);
+      });
+    }
+    await act(async () => {
+      await flush();
+    });
+
+    expect(renderedText(tree.toJSON())).toContain("Next level");
+    act(() => findButtonByText(tree, "Next level").props.onPress());
+
+    expect(renderedText(tree.toJSON())).toContain("Luganda next level");
+    expect(renderedText(tree.toJSON())).toContain("five");
 
     act(() => tree.unmount());
   });

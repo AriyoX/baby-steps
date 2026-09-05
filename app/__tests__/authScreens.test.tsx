@@ -179,6 +179,8 @@ describe("auth screens", () => {
 
     const component = await renderAuthScreen(<SignUp />);
 
+    expect(component.root.findByProps({ testID: "signup-responsive-layout" })).toBeTruthy();
+
     act(() => {
       findInput(component.root, "parent@email.com").props.onChangeText(" parent@example.com ");
       findInput(component.root, "Create password").props.onChangeText("secret1");
@@ -278,6 +280,8 @@ describe("auth screens", () => {
 
     const component = await renderAuthScreen(<Login />);
 
+    expect(component.root.findByProps({ testID: "login-responsive-layout" })).toBeTruthy();
+
     act(() => {
       findInput(component.root, "parent@email.com").props.onChangeText(" parent@example.com ");
       findInput(component.root, "Your password").props.onChangeText("secret1");
@@ -364,6 +368,10 @@ describe("auth screens", () => {
 
     const component = await renderAuthScreen(<ForgotPassword />);
 
+    expect(
+      component.root.findByProps({ testID: "forgot-password-responsive-layout" }),
+    ).toBeTruthy();
+
     act(() => {
       findInput(component.root, "parent@email.com").props.onChangeText(" parent@example.com ");
     });
@@ -384,6 +392,10 @@ describe("auth screens", () => {
 
   it("lets parents show and hide both reset-password fields", async () => {
     const component = await renderAuthScreen(<ResetPassword />, flushPromises);
+
+    expect(
+      component.root.findByProps({ testID: "reset-password-responsive-layout" }),
+    ).toBeTruthy();
 
     expect(findInput(component.root, "Enter new password").props.secureTextEntry).toBe(true);
     expect(findInput(component.root, "Confirm new password").props.secureTextEntry).toBe(true);

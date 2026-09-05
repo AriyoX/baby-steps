@@ -1,7 +1,14 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { View, TouchableOpacity, Animated, FlatList, StatusBar } from "react-native"
+import {
+  Animated,
+  FlatList,
+  StatusBar,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
+} from "react-native"
 import { Text } from "@/components/StyledText"
 import { TranslatedText } from "@/components/translated-text"
 import { FontAwesome5 } from "@expo/vector-icons"
@@ -11,6 +18,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { BrandMark } from "@/components/brand/BrandMark"
 import { brandColors } from "@/constants/Brand"
 import { fetchActiveChildProfiles } from "@/lib/accountManagement"
+import { getParentScreenLayout } from "@/lib/responsiveLayout"
 
 // Define the child profile type
 type ChildProfile = {
@@ -25,6 +33,8 @@ type ChildProfile = {
 }
 
 export default function ChildListScreen() {
+  const { height, width } = useWindowDimensions()
+  const responsiveLayout = getParentScreenLayout(width, height)
   const [profiles, setProfiles] = useState<ChildProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
@@ -115,6 +125,7 @@ export default function ChildListScreen() {
 
   // Render a single child profile card
   const renderProfileCard = ({ item }: { item: ChildProfile }) => (
+    <View className="flex-1">
     <Animated.View
       className="mb-4 rounded-3xl bg-white shadow-sm overflow-hidden border border-primary-100"
       style={{ transform: [{ scale: scaleValue }] }}
@@ -144,6 +155,7 @@ export default function ChildListScreen() {
         </View>
       </TouchableOpacity>
     </Animated.View>
+    </View>
   )
 
   return (
@@ -153,7 +165,16 @@ export default function ChildListScreen() {
 
       <SafeAreaView className="flex-1 bg-primary-50" edges={["top"]}>
         {/* Header with back button */}
-        <View className="px-5 py-4 bg-white border-b border-neutral-100">
+        <View className="bg-white border-b border-neutral-100">
+        <View
+          className="py-4"
+          style={{
+            alignSelf: "center",
+            maxWidth: responsiveLayout.contentMaxWidth,
+            paddingHorizontal: responsiveLayout.contentPadding,
+            width: "100%",
+          }}
+        >
           <View className="flex-row items-center mb-2">
             <TouchableOpacity
               onPress={() => router.replace("/parent")}
@@ -165,6 +186,7 @@ export default function ChildListScreen() {
               Your little learners
             </TranslatedText>
           </View>
+        </View>
         </View>
 
         {/* Main content */}
@@ -178,8 +200,14 @@ export default function ChildListScreen() {
         ) : (
           <>
             {loadError && profiles.length === 0 ? (
-              <View className="flex-1 items-center justify-center px-6">
-                <View className="w-full rounded-3xl border border-amber-200 bg-white p-6 items-center">
+              <View
+                className="flex-1 items-center justify-center"
+                style={{ paddingHorizontal: responsiveLayout.contentPadding }}
+              >
+                <View
+                  className="w-full rounded-3xl border border-amber-200 bg-white p-6 items-center"
+                  style={{ maxWidth: responsiveLayout.readableMaxWidth }}
+                >
                   <View className="w-16 h-16 rounded-2xl bg-amber-50 items-center justify-center">
                     <FontAwesome5
                       name="cloud"
@@ -207,15 +235,35 @@ export default function ChildListScreen() {
             ) : profiles.length > 0 ? (
               <>
                 <FlatList
+                  key={`child-profile-columns-${responsiveLayout.collectionColumns}`}
                   data={profiles}
                   renderItem={renderProfileCard}
                   keyExtractor={(item) => item.id}
-                  contentContainerClassName="p-4"
+                  numColumns={responsiveLayout.collectionColumns}
+                  columnWrapperStyle={
+                    responsiveLayout.collectionColumns > 1
+                      ? { gap: responsiveLayout.contentGap }
+                      : undefined
+                  }
+                  contentContainerStyle={{
+                    alignSelf: "center",
+                    maxWidth: responsiveLayout.contentMaxWidth,
+                    padding: responsiveLayout.contentPadding,
+                    width: "100%",
+                  }}
                   showsVerticalScrollIndicator={false}
                 />
 
                 {/* Add another child button */}
-                <View className="p-4 items-center">
+                <View
+                  className="items-center"
+                  style={{
+                    alignSelf: "center",
+                    maxWidth: responsiveLayout.contentMaxWidth,
+                    padding: responsiveLayout.contentPadding,
+                    width: "100%",
+                  }}
+                >
                   <TouchableOpacity
                     className="flex-row bg-secondary-500 py-4 px-6 rounded-full items-center justify-center shadow-md"
                     onPress={navigateToAddChild}
@@ -230,8 +278,11 @@ export default function ChildListScreen() {
               </>
             ) : (
               <Animated.View
-                className="flex-1 justify-center items-center p-5"
-                style={{ transform: [{ scale: scaleValue }] }}
+                className="flex-1 justify-center items-center"
+                style={{
+                  padding: responsiveLayout.contentPadding,
+                  transform: [{ scale: scaleValue }],
+                }}
               >
                 {/* Decorative floating elements */}
                 <Animated.View
@@ -252,7 +303,10 @@ export default function ChildListScreen() {
                 />
 
                 {/* Empty state content */}
-                <View className="w-full items-center bg-white p-6 rounded-3xl shadow-md">
+                <View
+                  className="w-full items-center bg-white p-6 rounded-3xl shadow-md"
+                  style={{ maxWidth: responsiveLayout.readableMaxWidth }}
+                >
                   <BrandMark kind="mascot" width={92} height={122} containerStyle={{ marginBottom: 16 }} />
                   <Text variant="bold" className="hidden">
                     👶

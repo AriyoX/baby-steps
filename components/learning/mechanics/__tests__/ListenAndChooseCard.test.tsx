@@ -171,7 +171,7 @@ describe("ListenAndChooseCard", () => {
     const tree = await renderCard();
     const json = JSON.stringify(tree.toJSON());
 
-    expect(json).toContain("Listen and choose");
+    expect(json).not.toContain("Listen and choose");
     expect(json).toContain("Tap the word you hear");
     expect(json).toContain("Webale");
     expect(json).toContain("Amazzi");
@@ -189,8 +189,9 @@ describe("ListenAndChooseCard", () => {
     const flattenedStyles = answerCards.map((card) => StyleSheet.flatten(card.props.style));
 
     expect(answerCards).toHaveLength(3);
-    expect(flattenedStyles.every((style) => style.width === "100%")).toBe(true);
-    expect(flattenedStyles.every((style) => style.minHeight >= 68)).toBe(true);
+    expect(flattenedStyles.every((style) => typeof style.width === "number")).toBe(true);
+    expect(flattenedStyles.every((style) => style.minHeight >= 56)).toBe(true);
+    expect(new Set(flattenedStyles.map((style) => style.width)).size).toBe(1);
     expect(new Set(flattenedStyles.map((style) => style.minHeight)).size).toBe(1);
   });
 

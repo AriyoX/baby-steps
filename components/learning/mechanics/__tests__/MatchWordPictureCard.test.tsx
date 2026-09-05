@@ -126,7 +126,7 @@ describe("MatchWordPictureCard", () => {
     const tree = renderCard();
     const json = JSON.stringify(tree.toJSON());
 
-    expect(json).toContain("Match the word");
+    expect(json).not.toContain("Match the word");
     expect(json).toContain("Tap the picture that matches");
     expect(json).toContain("Amazzi");
     expect(json).toContain("Water");

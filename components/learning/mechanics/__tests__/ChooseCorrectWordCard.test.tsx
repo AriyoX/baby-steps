@@ -1,6 +1,7 @@
 import React from "react";
 import renderer, { act } from "react-test-renderer";
-import { ScrollView, TouchableOpacity } from "react-native";
+import { ScrollView, StyleSheet, TouchableOpacity } from "react-native";
+import { CachedImage } from "@/components/common/CachedImage";
 import type { ChooseCorrectWordItem } from "@/content/learningHubTypes";
 import { ChooseCorrectWordCard } from "../ChooseCorrectWordCard";
 
@@ -95,13 +96,14 @@ const findButtonByAccessibilityLabel = (
 const renderCard = (
   onComplete = jest.fn(),
   isLastItem = false,
+  cardItem: ChooseCorrectWordItem = item,
 ): renderer.ReactTestRenderer => {
   let tree: renderer.ReactTestRenderer | undefined;
 
   act(() => {
     tree = renderer.create(
       <ChooseCorrectWordCard
-        item={item}
+        item={cardItem}
         isLastItem={isLastItem}
         stageImageKey="learning-beginner.jpg"
         onComplete={onComplete}
@@ -121,7 +123,7 @@ describe("ChooseCorrectWordCard", () => {
     const tree = renderCard();
     const json = JSON.stringify(tree.toJSON());
 
-    expect(json).toContain("Choose the correct word");
+    expect(json).not.toContain("Pick the word");
     expect(json).toContain("Which word means Thank you?");
     expect(json).toContain("Thank you");
     expect(json).toContain("Webale");
@@ -196,5 +198,45 @@ describe("ChooseCorrectWordCard", () => {
     const tree = renderCard();
 
     expect(tree.root.findAllByType(ScrollView)).toHaveLength(1);
+  });
+
+  it("uses full-width pictures and fits three choices inside the measured panel", () => {
+    const tree = renderCard(jest.fn(), false, {
+      ...item,
+      options: item.options.map((option) => ({ ...option, imageKey: "rain.jpg" })),
+    });
+    const scrollView = tree.root.findByType(ScrollView);
+    const panelWidth = 960;
+
+    act(() => {
+      scrollView.props.onLayout({
+        nativeEvent: { layout: { width: panelWidth, height: 420 } },
+      });
+      tree.root.findByProps({ testID: "learning-choice-header" }).props.onLayout({
+        nativeEvent: { layout: { height: 60 } },
+      });
+    });
+
+    const grid = tree.root.findByProps({ testID: "learning-choice-grid" });
+    const gridStyle = StyleSheet.flatten(grid.props.style);
+    const contentStyle = StyleSheet.flatten(scrollView.props.contentContainerStyle);
+    const answerCards = tree.root.findAllByType(TouchableOpacity)
+      .filter((card) => card.props.testID === "learning-choice-card");
+    const rowWidth = answerCards.reduce(
+      (total, card) => total + StyleSheet.flatten(card.props.style).width,
+      0,
+    ) + gridStyle.columnGap * (answerCards.length - 1);
+    const images = tree.root.findAllByType(CachedImage);
+
+    expect(answerCards).toHaveLength(3);
+    expect(rowWidth + contentStyle.paddingHorizontal * 2).toBeLessThanOrEqual(panelWidth);
+    expect(images).toHaveLength(3);
+    images.forEach((image) => {
+      const imageStyle = StyleSheet.flatten(image.props.style);
+      expect(imageStyle.width).toBe("100%");
+      expect(imageStyle.height).toBeGreaterThanOrEqual(100);
+    });
+
+    act(() => tree.unmount());
   });
 });

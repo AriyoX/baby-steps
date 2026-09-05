@@ -1,10 +1,11 @@
 import type { ReactNode } from "react"
-import { ScrollView, StatusBar, TouchableOpacity, View } from "react-native"
+import { ScrollView, StatusBar, TouchableOpacity, View, useWindowDimensions } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Text } from "@/components/StyledText"
 import { AppButton } from "@/components/common/AppButton"
 import { brandColors } from "@/constants/Brand"
+import { getParentScreenLayout } from "@/lib/responsiveLayout"
 
 type AddChildScaffoldProps = {
   step: number
@@ -31,8 +32,18 @@ export function AddChildScaffold({
   footer,
   scroll = true,
 }: AddChildScaffoldProps) {
+  const { height, width } = useWindowDimensions()
+  const responsiveLayout = getParentScreenLayout(width, height)
   const content = (
-    <View className="px-5 pb-8">
+    <View
+      className="pb-8"
+      style={{
+        alignSelf: "center",
+        maxWidth: responsiveLayout.readableMaxWidth,
+        paddingHorizontal: responsiveLayout.contentPadding,
+        width: "100%",
+      }}
+    >
       <View className="pt-7 pb-5">
         <Text variant="bold" className="text-[30px] leading-9 text-neutral-900">
           {title}
@@ -54,7 +65,16 @@ export function AddChildScaffold({
       <View className="absolute -top-8 -right-12 w-40 h-40 rounded-full bg-primary-100 opacity-60" />
       <View className="absolute top-56 -left-16 w-32 h-32 rounded-full bg-accent-100 opacity-50" />
 
-      <View className="px-5 pt-3 pb-4 bg-white/90 border-b border-neutral-100">
+      <View className="bg-white/90 border-b border-neutral-100">
+      <View
+        className="pt-3 pb-4"
+        style={{
+          alignSelf: "center",
+          maxWidth: responsiveLayout.readableMaxWidth,
+          paddingHorizontal: responsiveLayout.contentPadding,
+          width: "100%",
+        }}
+      >
         <View className="flex-row items-center justify-between mb-4">
           <TouchableOpacity
             onPress={onBack}
@@ -78,6 +98,7 @@ export function AddChildScaffold({
           />
         </View>
       </View>
+      </View>
 
       {scroll ? (
         <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
@@ -87,7 +108,16 @@ export function AddChildScaffold({
         <View className="flex-1">{content}</View>
       )}
 
-      <View className="px-5 pt-3 pb-4 bg-white border-t border-neutral-100">
+      <View className="bg-white border-t border-neutral-100">
+      <View
+        className="pt-3 pb-4"
+        style={{
+          alignSelf: "center",
+          maxWidth: Math.min(640, responsiveLayout.readableMaxWidth),
+          paddingHorizontal: responsiveLayout.contentPadding,
+          width: "100%",
+        }}
+      >
         <AppButton
           label={nextLabel}
           icon="arrow-forward"
@@ -95,6 +125,7 @@ export function AddChildScaffold({
           disabled={nextDisabled}
           className="rounded-2xl min-h-[56px]"
         />
+      </View>
       </View>
     </SafeAreaView>
   )
